@@ -9,7 +9,7 @@ import type { MoneyView, NeedsYou } from "@/lib/books/money";
 
 import { BooksFinding } from "./figures";
 
-const SOURCE_ICON: Record<MoneyView["sources"][number]["key"], IconName> = { tills: "takings", invoices: "invoice" };
+const SOURCE_ICON: Record<MoneyView["sources"][number]["key"], IconName> = { tills: "takings", invoices: "invoice", fees: "payments" };
 const NEED_ICON: Record<NeedsYou["key"], IconName> = { "cash-up": "takings", "won-deal": "target", overdue: "invoice", bank: "bank" };
 const NEED_ACTION_ICON: Record<NeedsYou["key"], IconName> = { "cash-up": "eye", "won-deal": "docs", overdue: "remind", bank: "match" };
 

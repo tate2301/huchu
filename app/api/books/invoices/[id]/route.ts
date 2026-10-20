@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { booksActor, canDo } from "@/lib/books/core";
 import { deleteInvoice, readInvoiceRemoval } from "@/lib/books/delete-invoice";
+import { readInvoiceExtras } from "@/lib/books/invoice-board";
 import { readInvoiceRecord, type InvoiceRecordPage } from "@/lib/books/invoice-record";
-import { InvoiceChangeRefused, isWorkspaceOwner } from "@/lib/books/owner";
+import { InvoiceChangeRefused } from "@/lib/books/owner";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
@@ -20,14 +21,27 @@ export async function GET(request: NextRequest, { params }: Params) {
     const { session } = sessionResult;
     const record = await readInvoiceRecord(prisma, session.user.companyId, (await params).id);
     if (!record) return errorResponse("There is no such invoice in this workspace", 404);
-    const mayChange = isRouteAllowedForRole(session.user.role, "/api/accounting/sales/invoices", "PATCH");
-    const owner = isWorkspaceOwner(session.user.role);
+    // What this person may do with it, from the one matrix (books-final §2.2).
+    const actor = await booksActor(session);
     const draft = record.status === "DRAFT";
-    const mayDelete = draft ? mayChange : owner;
+    const maker = draft ? (await prisma.salesInvoice.findUnique({ where: { id: record.id }, select: { createdById: true } }))?.createdById : null;
+    const mayDelete = draft ? canDo(actor, "draft.delete", { kind: "invoice", ownerId: maker }).allowed : canDo(actor, "delete.posted", { kind: "invoice" }).allowed;
+    const mayVoid = canDo(actor, "void", { kind: "invoice" }).allowed;
+    const posted = record.status === "ISSUED" || record.status === "PAID";
+    const owing = record.status === "ISSUED" && record.balance > 0.005;
     const page: InvoiceRecordPage = {
       ...record,
-      can: { issue: mayChange && draft, delete: mayDelete, reverse: owner && (record.status === "ISSUED" || record.status === "PAID"), voidPayments: owner },
+      can: {
+        issue: draft && canDo(actor, "issue", { kind: "invoice" }).allowed,
+        delete: mayDelete,
+        reverse: mayVoid && posted,
+        voidPayments: canDo(actor, "void", { kind: "receipt" }).allowed,
+        credit: posted && record.creditLeft > 0.005 && canDo(actor, "note.issue", { kind: "credit-note" }).allowed,
+        writeOff: owing && canDo(actor, "write-off", { kind: "write-off", amount: record.balance }).allowed,
+        pay: owing && canDo(actor, "issue", { kind: "receipt" }).allowed,
+      },
       removal: mayDelete ? await readInvoiceRemoval(session.user.companyId, record.id) : null,
+      board: await readInvoiceExtras(prisma, session.user.companyId, record.id),
     };
     return successResponse(page);
   } catch (error) {
@@ -46,7 +60,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const body = (await request.json().catch(() => null)) as { reason?: unknown; confirm?: unknown } | null;
-    const gone = await deleteInvoice({ companyId: session.user.companyId, userId: session.user.id, role: session.user.role }, (await params).id, {
+    const gone = await deleteInvoice(await booksActor(session), (await params).id, {
       reason: typeof body?.reason === "string" ? body.reason : null,
       confirm: typeof body?.confirm === "string" ? body.confirm : null,
     });

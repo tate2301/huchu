@@ -47,7 +47,7 @@ type Sibling = {
   type: string;
   version: number;
   quotation: { quotationNumber: string; status: string } | null;
-  invoice: { invoiceNumber: string; status: string } | null;
+  invoice: { invoiceNumber: string | null; status: string } | null;
   receipt: { receiptNumber: string } | null;
 };
 

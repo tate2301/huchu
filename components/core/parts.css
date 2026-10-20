@@ -56,6 +56,10 @@
 .ck.ck.ck .btn-group > .menu-wrap:first-child > .btn { border-radius: var(--radius-button) 0 0 var(--radius-button); }
 .ck.ck.ck .btn-group > .menu-wrap:last-child > .btn { border-radius: 0 var(--radius-button) var(--radius-button) 0; }
 .ck.ck.ck .btn-group > .menu-wrap:only-child > .btn { border-radius: var(--radius-button); }
+/* The primary and its caret (the owner, 19 Oct): one blue group, the caret parted by a light line. */
+.ck.ck.ck .btn-group > .menu-wrap > .btn-primary { background: var(--color-primary); color: var(--color-primary-ink); }
+.ck.ck.ck .btn-group > .btn-primary + .menu-wrap > .btn-primary { box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.24); }
+.ck.ck.ck .btn-group:has(> .btn-primary) { box-shadow: none; }
 
 /* Table cells sit in the middle of their row, as the browser draws them: the app's own `.table`
    rules are reset inside `.ck`. The kit tops only prose tables and `.wrap` cells, so those are left to it. */
@@ -464,3 +468,79 @@
 .ck.ck.ck .vq-src li { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ck.ck.ck .vq-src .vq-d { color: var(--color-ink); }
 .ck.ck.ck .vq-src .link, .ck.ck.ck .vq-src .vb-warn { font-size: var(--text-12); }
+
+/* Books final boards (design/core-modules/tools/boards/books_pages_*.py), the parts a built page uses.
+   Needs posting (BkNeedsPosting): its tabs, the chosen row, and the fix under the list. */
+.ck.ck.ck .bk-tabs { padding: 0 24px; flex: none; }
+.ck.ck.ck .bk-tabs .tab .n { font-weight: 400; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.ck.ck.ck .bk-sel td { background: var(--color-accent-tint); }
+.ck.ck.ck .table td.bk-fw { max-width: none; white-space: normal; }
+.ck.ck.ck .table td.bk-fw .cell-lead { overflow: visible; }
+.ck.ck.ck .bk-h3 { font-size: 14px; font-weight: 600; color: var(--color-ink); }
+.ck.ck.ck .bk-lab { font-size: 13px; font-weight: 500; color: var(--color-ink); }
+.ck.ck.ck .bk-fld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ck.ck.ck .bk-map {
+  display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 280px); gap: 48px;
+  padding: 24px 24px 28px; background: var(--color-ground); box-shadow: inset 0 -1px 0 var(--color-line);
+}
+.ck.ck.ck .bk-map > div { display: flex; flex-direction: column; gap: 12px; }
+.ck.ck.ck .bk-map .attrs dd { color: var(--color-ink); }
+@media (max-width: 759px) {
+  .ck.ck.ck .bk-map { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 20px 16px 24px; }
+  .ck.ck.ck .bk-tabs { padding: 0 16px; }
+}
+
+/* A menu item that cannot be pressed now: faint, its icon too (the owner, 19 Oct: menus are one line, colour carries the state). */
+.ck.ck.ck .menu-item[aria-disabled="true"], .ck.ck.ck .menu-item[aria-disabled="true"] .ic { color: var(--color-faint); cursor: default; }
+.ck.ck.ck .menu-item[aria-disabled="true"]:hover { background: transparent; }
+
+/* Avatar and Person (owner, 19 Oct): every person or profile shows its face beside its name.
+   From the boards' `.av` (a circle on a fill) and `ck.avatar()`: the photo, else the initials on a
+   soft tint picked from the name. Not scoped under `.ck`, so the older wrappers outside a kit page
+   (EmployeeAvatar, PersonAvatar) share the one look; each token falls back to the theme role. */
+.k-av {
+  --av: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--av);
+  height: var(--av);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--av-bg, var(--color-fill, var(--tray)));
+  color: var(--color-ink-2, var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  font-style: normal;
+  text-transform: uppercase;
+  user-select: none;
+  vertical-align: middle;
+}
+.k-av > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.k-av[data-size="24"] { --av: 24px; font-size: 10px; }
+.k-av[data-size="28"] { --av: 28px; font-size: 11px; }
+.k-av[data-size="32"] { --av: 32px; font-size: 12px; }
+.k-av[data-size="40"] { --av: 40px; font-size: 14px; }
+.k-av[data-tint="0"] { --av-bg: var(--color-fill, var(--tray)); }
+.k-av[data-tint="1"] { --av-bg: var(--color-info-tint, var(--info-soft)); }
+.k-av[data-tint="2"] { --av-bg: var(--color-success-tint, var(--ok-soft)); }
+.k-av[data-tint="3"] { --av-bg: var(--color-warning-tint, var(--warn-soft)); }
+.k-av[data-tint="4"] { --av-bg: var(--color-accent-tint, var(--sel-bg)); }
+
+.k-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; vertical-align: middle; }
+.k-person-t { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.k-person-n, .k-person-s { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.k-person-n { flex: 0 1 auto; }
+.k-person-s { flex: 0 1000 auto; color: var(--color-muted, var(--ink-3)); font-size: 0.92em; }
+.k-person.is-stack .k-person-t { flex-direction: column; align-items: flex-start; gap: 0; }
+.k-person.is-stack .k-person-s { max-width: 100%; }
+/* In a table cell the person fills the cell, so the name truncates at its edge. */
+td > .k-person:only-child, .cell-lead > .k-person:only-child { display: flex; width: 100%; }
+.k-avs { display: inline-flex; vertical-align: middle; flex: none; }
+.k-avs > .k-av { box-shadow: 0 0 0 2px var(--color-surface, var(--surface)); }
+.k-avs > .k-av + .k-av { margin-left: -4px; }
+/* An avatar that fills the tile an older component already draws (a list's 30px mark). */
+.k-av.is-fill { width: 100%; height: 100%; }

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { toMoney } from "@/lib/accounting/ledger";
+import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
+import { guardBooks } from "@/lib/books/core";
 
 const postSchema = z.object({
   periodOverrideReason: z.string().max(500).optional(),
@@ -31,6 +32,8 @@ export async function POST(
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const validated = postSchema.parse(body);
+    const { refused } = await guardBooks(session, "journal.post", { kind: "journal" });
+    if (refused) return refused;
 
     const entry = await prisma.journalEntry.findUnique({
       where: { id },
@@ -63,6 +66,8 @@ export async function POST(
       where: { id },
       data: {
         status: "POSTED",
+        // A draft made in Books holds a placeholder below zero: its number is given now (D8).
+        entryNumber: entry.entryNumber > 0 ? undefined : await getNextEntryNumber(session.user.companyId),
         postedAt: new Date(),
         postedById: session.user.id,
         periodId: periodDecision.period.id,

@@ -21,6 +21,8 @@ export type ManagedUserSummary = {
    * they wrote and do not read the ledger, so it is optional here.
    */
   lastSignInAt?: string | null;
+  /** Their photo, when they have one (the list's avatar). */
+  image?: string | null;
 };
 
 export type ManagedUsersPage = {

@@ -12,6 +12,9 @@ export type MenuItem = {
   /** Ticked: the view or option that is on. */
   checked?: boolean;
   danger?: boolean;
+  /** Shown faint, icon included, and not pressable; `title` says why. */
+  disabled?: boolean;
+  title?: string;
   onSelect: () => void;
 };
 
@@ -108,9 +111,12 @@ export function MenuButton({
                 type="button"
                 role={checkable ? "menuitemradio" : "menuitem"}
                 aria-checked={checkable ? entry.checked : undefined}
-                className={entry.danger ? "menu-item menu-item-danger" : "menu-item"}
+                className={entry.danger && !entry.disabled ? "menu-item menu-item-danger" : "menu-item"}
                 data-active={entry.checked ? "true" : undefined}
+                aria-disabled={entry.disabled || undefined}
+                title={entry.title}
                 onClick={() => {
+                  if (entry.disabled) return;
                   entry.onSelect();
                   close();
                 }}

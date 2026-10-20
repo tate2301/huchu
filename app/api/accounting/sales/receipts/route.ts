@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { recordSalesReceipt } from "@/lib/accounting/payments";
+import { ReceiptRefused, recordSalesReceipt } from "@/lib/accounting/payments";
+import { guardBooks } from "@/lib/books/core";
 
 const receiptSchema = z.object({
   invoiceId: z.string().uuid().optional(),
+  /** Whose money it is, when it pays no invoice (D2). */
+  customerId: z.string().uuid().optional(),
+  currency: z.string().trim().min(3).max(10).optional(),
   receivedAt: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   amount: z.number().min(0.01),
   method: z.string().min(1).max(100),
@@ -29,7 +33,7 @@ export async function GET(request: NextRequest) {
     const [receipts, total] = await Promise.all([
       prisma.salesReceipt.findMany({
         where,
-        include: { invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } } },
+        include: { invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } }, customer: { select: { name: true } } },
         orderBy: [{ receivedAt: "desc" }],
         skip,
         take: limit,
@@ -52,6 +56,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = receiptSchema.parse(body);
+    const { refused } = await guardBooks(session, "issue", { kind: "receipt" });
+    if (refused) return refused;
 
     if (validated.invoiceId) {
       const invoice = await prisma.salesInvoice.findUnique({
@@ -66,7 +72,10 @@ export async function POST(request: NextRequest) {
     const receipt = await recordSalesReceipt({
       companyId: session.user.companyId,
       userId: session.user.id,
+      role: session.user.role,
       invoiceId: validated.invoiceId,
+      customerId: validated.customerId,
+      currency: validated.currency,
       receivedAt: new Date(validated.receivedAt),
       amount: validated.amount,
       method: validated.method,
@@ -79,6 +88,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof ReceiptRefused) return errorResponse(error.message, error.status);
     console.error("[API] POST /api/accounting/sales/receipts error:", error);
     return errorResponse("Failed to create receipt");
   }

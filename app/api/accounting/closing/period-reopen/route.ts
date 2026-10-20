@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { reopenPeriodWithVoucher } from "@/lib/accounting/closing";
-import { hasRole } from "@/lib/roles";
+import { guardBooks } from "@/lib/books/core";
 
 const schema = z.object({
   periodId: z.string().uuid(),
@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session.user.role, ["SUPERADMIN", "MANAGER"])) {
-      return errorResponse("Only managers can reopen accounting periods", 403);
-    }
+    // Reopening a month is the owner's alone (books-final §2.2; it was managers too).
+    const { refused } = await guardBooks(session, "period.reopen", { kind: "period" });
+    if (refused) return refused;
 
     const body = await request.json();
     const validated = schema.parse(body);

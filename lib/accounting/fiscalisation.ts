@@ -1159,3 +1159,101 @@ export async function syncFiscalReceiptStatus(companyId: string, receiptId: stri
     nextRetryAt: syncResult.nextRetryAt,
   });
 }
+
+/**
+ * The signable facts of a credit or debit note (books-final §4.17, P3): built
+ * as an invoice's are, from the note's own lines and their ZIMRA taxIDs, then
+ * typed CREDITNOTE or DEBITNOTE. A credit note is signed negative, total and
+ * tax alike, as the till's credit notes are; a debit note positive.
+ */
+export function buildNoteSigningInput(
+  kind: "CREDITNOTE" | "DEBITNOTE",
+  note: { currency: string; noteDate: Date; total: number; lines: InvoiceLineForSigning[] },
+): FiscalSigningInput {
+  const asInvoice = buildInvoiceSigningInput({ currency: note.currency, invoiceDate: note.noteDate, total: Math.abs(note.total), lines: note.lines.map((line) => ({ ...line, taxAmount: Math.abs(line.taxAmount) })) });
+  const sign = kind === "CREDITNOTE" ? BigInt(-1) : BigInt(1);
+  return {
+    ...asInvoice,
+    receiptType: kind,
+    receiptTotal: centsFromMinorUnits(asInvoice.receiptTotal * sign),
+    taxes: asInvoice.taxes.map((line) => ({ ...line, taxAmount: centsFromMinorUnits(line.taxAmount * sign) })),
+  };
+}
+
+/**
+ * Fiscalise a credit note against the fiscal invoice it reduces (books-final
+ * §4.1 rule 4, §4.17; zw-research §3): it cites the original receipt (its
+ * receipt ID, device, global number and fiscal day), is in the original's
+ * currency and states its reason. An invoice that never reached the device
+ * has nothing to cite, so its note is not sent.
+ */
+export async function issueFiscalCreditNote(companyId: string, creditNoteId: string): Promise<FiscalIssueResult> {
+  const note = await prisma.creditNote.findUnique({
+    where: { id: creditNoteId },
+    include: {
+      lines: { include: { taxCode: { select: { code: true, rate: true, zimraTaxId: true } } } },
+      invoice: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          currency: true,
+          customer: { select: { name: true, taxNumber: true, vatNumber: true, address: true, phone: true, email: true } },
+          fiscalReceipt: {
+            select: { id: true, status: true, receiptGlobalNo: true, receiptCounter: true, fiscalNumber: true, providerReference: true, fiscalDay: { select: { fiscalDayNo: true, deviceId: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!note || note.companyId !== companyId) return { status: "FAILED", error: "Credit note not found" };
+  if (note.status !== "ISSUED") return { status: "FAILED", error: "Only an issued credit note goes to the fiscal device" };
+  const original = note.invoice?.fiscalReceipt ?? null;
+  if (!original || (original.status !== "SUCCESS" && original.receiptGlobalNo === null)) {
+    return { status: "FAILED", error: `${note.invoice?.invoiceNumber ?? "The invoice"} was never fiscalised, so its credit note has nothing to cite` };
+  }
+  if (note.currency.toUpperCase() !== note.invoice.currency.toUpperCase()) {
+    return { status: "FAILED", error: `A credit note is in its invoice's currency: ${note.invoice.currency}, not ${note.currency}` };
+  }
+  const reason = (note.reason ?? "").trim();
+  if (!reason) return { status: "FAILED", error: "A fiscal credit note states its reason" };
+
+  let fiscal: FiscalSigningInput;
+  try {
+    fiscal = buildNoteSigningInput("CREDITNOTE", { currency: note.currency, noteDate: note.noteDate, total: note.total, lines: note.lines });
+  } catch (error) {
+    if (error instanceof FiscalMappingError) return { status: "FAILED", errorCode: error.code, error: error.message };
+    if (error instanceof FiscalSigningError) return { status: "FAILED", errorCode: "FISCAL_SIGNING_REFUSED", error: error.message };
+    throw error;
+  }
+  const supplier = await prisma.accountingSettings.findUnique({
+    where: { companyId },
+    select: { legalName: true, tradingName: true, vatNumber: true, taxNumber: true, address: true, phone: true, email: true },
+  });
+  const payload = {
+    documentType: "CREDIT_NOTE",
+    invoiceNumber: note.noteNumber,
+    invoiceDate: note.noteDate,
+    currency: note.currency,
+    reason,
+    totals: { subTotal: -note.subTotal, taxTotal: -note.taxTotal, total: -note.total },
+    supplier,
+    customer: note.invoice.customer,
+    items: note.lines.map((line) => ({ description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, taxRate: line.taxRate, taxAmount: -line.taxAmount, lineTotal: -line.lineTotal })),
+    creditDebitNote: {
+      receiptID: original.providerReference ?? original.id,
+      deviceID: original.fiscalDay?.deviceId ?? null,
+      receiptGlobalNo: original.receiptGlobalNo,
+      fiscalDayNo: original.fiscalDay?.fiscalDayNo ?? null,
+      originalReceiptNo: original.fiscalNumber,
+      originalInvoiceNo: note.invoice.invoiceNumber,
+    },
+  };
+  return issueFiscalDocument({
+    companyId,
+    source: { kind: "CREDIT_NOTE", creditNoteId: note.id },
+    documentNumber: note.noteNumber,
+    idempotencyKey: `${companyId}:credit-note:${note.id}`,
+    payload,
+    fiscal,
+  });
+}

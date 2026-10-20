@@ -1,6 +1,8 @@
-import type { AccountingSourceType } from "@prisma/client";
+import type { AccountingSourceType, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
+import { receiptAllocation } from "@/lib/books/core/currency";
+import { MODULE_SUB_LEDGER_TYPES, moduleLedgerSeed } from "@/lib/books/core/module-sub-ledger";
 
 type LedgerSeed = {
   companyId: string;
@@ -8,7 +10,8 @@ type LedgerSeed = {
   sourceId: string;
   entryDate: Date;
   accountType: "RECEIVABLE" | "PAYABLE";
-  partyType: "CUSTOMER" | "VENDOR";
+  /** STUDENT: a school family's account, under the student (P4). */
+  partyType: "CUSTOMER" | "VENDOR" | "STUDENT";
   partyId?: string | null;
   invoiceId?: string | null;
   billId?: string | null;
@@ -21,11 +24,46 @@ type LedgerSeed = {
   status?: "POSTED" | "VOIDED";
 };
 
+type Db = PrismaClient | Prisma.TransactionClient;
+
 function isVoidReference(sourceId: string) {
   return sourceId.startsWith("void:");
 }
 
+/**
+ * The document a posting key names. A CRM invoice edited in place posts each
+ * revision under `<id>:revision-<n>` (`salesInvoicePostingKey`); its line is
+ * the invoice's own, keyed on the invoice id, so the revision finds it.
+ */
+export function ledgerSourceId(sourceType: AccountingSourceType, sourceId: string): string {
+  if (sourceType === "SALES_INVOICE") {
+    const revision = sourceId.match(/^(.+):revision-\d+$/);
+    if (revision) return revision[1];
+  }
+  return sourceId;
+}
+
+/** A requisition's money posted again after a void takes the next round's key (`<id>:r2`); its line is the requisition's. */
+const requisitionOf = (sourceId: string) => sourceId.replace(/:r\d+$/, "");
+
+const VOIDED_SOURCE_TYPES: ReadonlySet<AccountingSourceType> = new Set([
+  "SALES_INVOICE",
+  "SALES_RECEIPT",
+  "SALES_CREDIT_NOTE",
+  "SALES_WRITE_OFF",
+  "PURCHASE_BILL",
+  "PURCHASE_PAYMENT",
+  "PURCHASE_DEBIT_NOTE",
+  "PURCHASE_WRITE_OFF",
+  "RETAIL_REQUISITION_PAYOUT",
+  "RETAIL_REQUISITION_CHANGE",
+  "RETAIL_SUPPLIER_PAYMENT",
+  // P4: till sales on account, lay-bys and school fees (`module-sub-ledger.ts`).
+  ...MODULE_SUB_LEDGER_TYPES,
+]);
+
 async function buildLedgerSeed(
+  db: Db,
   companyId: string,
   sourceType: AccountingSourceType,
   sourceId: string,
@@ -35,7 +73,7 @@ async function buildLedgerSeed(
 
   switch (sourceType) {
     case "SALES_INVOICE": {
-      const invoice = await prisma.salesInvoice.findUnique({
+      const invoice = await db.salesInvoice.findUnique({
         where: { id: sourceId },
         select: {
           id: true,
@@ -45,6 +83,7 @@ async function buildLedgerSeed(
           total: true,
           currency: true,
           invoiceNumber: true,
+          status: true,
         },
       });
       if (!invoice || invoice.companyId !== companyId) return null;
@@ -63,23 +102,26 @@ async function buildLedgerSeed(
         currency: invoice.currency,
         description: `Sales invoice ${invoice.invoiceNumber}`,
         journalEntryId,
+        status: invoice.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     case "SALES_RECEIPT": {
-      const receipt = await prisma.salesReceipt.findUnique({
+      const receipt = await db.salesReceipt.findUnique({
         where: { id: sourceId },
         include: {
           invoice: {
-            select: { id: true, companyId: true, customerId: true, currency: true, invoiceNumber: true },
+            select: { id: true, companyId: true, customerId: true, currency: true, exchangeRate: true, invoiceNumber: true },
           },
         },
       });
       if (!receipt || receipt.companyId !== companyId) return null;
-      const amount = toMoney(receipt.amount);
+      // On an invoice in another currency, the line is what it takes off the invoice, in the invoice's currency (§5.9.3).
+      const crossCurrency = Boolean(receipt.invoice && receipt.currency && receipt.currency.toUpperCase() !== receipt.invoice.currency.toUpperCase());
+      const amount = crossCurrency ? toMoney(await receiptAllocation(companyId, receipt.invoice!, receipt)) : toMoney(receipt.amount);
       // A receipt taken off a voided or deleted invoice is the customer's money on account: its line keeps the customer.
       const kept = receipt.invoice
         ? null
-        : await prisma.paymentLedgerEntry.findUnique({
+        : await db.paymentLedgerEntry.findUnique({
             where: { companyId_sourceType_sourceId: { companyId, sourceType, sourceId } },
             select: { partyId: true },
           });
@@ -90,18 +132,18 @@ async function buildLedgerSeed(
         entryDate: receipt.receivedAt,
         accountType: "RECEIVABLE",
         partyType: "CUSTOMER",
-        partyId: receipt.invoice?.customerId ?? kept?.partyId ?? null,
+        partyId: receipt.customerId ?? receipt.invoice?.customerId ?? kept?.partyId ?? null,
         invoiceId: receipt.invoiceId,
         debit: 0,
         credit: amount,
-        currency: receipt.invoice?.currency ?? "USD",
+        currency: crossCurrency ? receipt.invoice!.currency : (receipt.currency ?? receipt.invoice?.currency ?? "USD"),
         description: `Sales receipt ${receipt.receiptNumber}`,
         journalEntryId,
         status: receipt.voidedAt ? "VOIDED" : "POSTED",
       };
     }
     case "SALES_CREDIT_NOTE": {
-      const note = await prisma.creditNote.findUnique({
+      const note = await db.creditNote.findUnique({
         where: { id: sourceId },
         include: {
           invoice: {
@@ -126,10 +168,11 @@ async function buildLedgerSeed(
         currency: note.currency ?? invoice?.currency ?? "USD",
         description: `Credit note ${note.noteNumber}`,
         journalEntryId,
+        status: note.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     case "SALES_WRITE_OFF": {
-      const writeOff = await prisma.salesWriteOff.findUnique({
+      const writeOff = await db.salesWriteOff.findUnique({
         where: { id: sourceId },
         include: {
           invoice: {
@@ -154,10 +197,11 @@ async function buildLedgerSeed(
         currency: invoice?.currency ?? "USD",
         description: `Sales write-off ${invoice?.invoiceNumber ?? writeOff.id}`,
         journalEntryId,
+        status: writeOff.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     case "PURCHASE_BILL": {
-      const bill = await prisma.purchaseBill.findUnique({
+      const bill = await db.purchaseBill.findUnique({
         where: { id: sourceId },
         select: {
           id: true,
@@ -167,6 +211,7 @@ async function buildLedgerSeed(
           total: true,
           currency: true,
           billNumber: true,
+          status: true,
         },
       });
       if (!bill || bill.companyId !== companyId) return null;
@@ -185,10 +230,11 @@ async function buildLedgerSeed(
         currency: bill.currency,
         description: `Purchase bill ${bill.billNumber}`,
         journalEntryId,
+        status: bill.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     case "PURCHASE_PAYMENT": {
-      const payment = await prisma.purchasePayment.findUnique({
+      const payment = await db.purchasePayment.findUnique({
         where: { id: sourceId },
         include: {
           bill: {
@@ -205,17 +251,68 @@ async function buildLedgerSeed(
         entryDate: payment.paidAt,
         accountType: "PAYABLE",
         partyType: "VENDOR",
-        partyId: payment.bill?.vendorId ?? null,
+        partyId: payment.bill?.vendorId ?? payment.vendorId ?? null,
         billId: payment.billId,
         debit: amount,
         credit: 0,
         currency: payment.bill?.currency ?? "USD",
-        description: `Purchase payment ${payment.paymentNumber}`,
+        description: `Purchase payment ${payment.paymentNumber ?? ""}`.trim(),
+        journalEntryId,
+        status: payment.status === "VOIDED" ? "VOIDED" : "POSTED",
+      };
+    }
+    // Retail's supplier money (books-final §5.5, fix 1): an order's cash paid out is an advance on
+    // the supplier's account, the change back takes it down, and a payment group pays it.
+    case "RETAIL_REQUISITION_PAYOUT":
+    case "RETAIL_REQUISITION_CHANGE": {
+      const requisition = await db.crmRequisition.findUnique({
+        where: { id: requisitionOf(sourceId) },
+        select: { companyId: true, requisitionNo: true, purchaseOrderId: true, payeeVendorId: true, paidAmount: true, changeAmount: true, disbursedAt: true, acquittedAt: true, currency: true },
+      });
+      if (!requisition || requisition.companyId !== companyId || !requisition.purchaseOrderId || !requisition.payeeVendorId) return null;
+      const payout = sourceType === "RETAIL_REQUISITION_PAYOUT";
+      const amount = toMoney(payout ? requisition.paidAmount : requisition.changeAmount);
+      if (amount <= 0) return null;
+      return {
+        companyId,
+        sourceType,
+        sourceId,
+        entryDate: (payout ? requisition.disbursedAt : requisition.acquittedAt) ?? new Date(),
+        accountType: "PAYABLE",
+        partyType: "VENDOR",
+        partyId: requisition.payeeVendorId,
+        debit: payout ? amount : 0,
+        credit: payout ? 0 : amount,
+        currency: requisition.currency,
+        description: `${requisition.requisitionNo ?? "Requisition"} ${payout ? "paid out to the supplier" : "change back"}`,
+        journalEntryId,
+      };
+    }
+    case "RETAIL_SUPPLIER_PAYMENT": {
+      const rows = await db.purchasePayment.findMany({
+        where: { companyId, groupNo: sourceId, requisitionId: null, status: "PAID" },
+        select: { amount: true, paidAt: true, vendorId: true, billId: true },
+      });
+      const first = rows[0];
+      if (!first?.vendorId) return null;
+      const bills = new Set(rows.map((row) => row.billId));
+      return {
+        companyId,
+        sourceType,
+        sourceId,
+        entryDate: first.paidAt,
+        accountType: "PAYABLE",
+        partyType: "VENDOR",
+        partyId: first.vendorId,
+        billId: bills.size === 1 ? first.billId : null,
+        debit: toMoney(rows.reduce((sum, row) => sum + row.amount, 0)),
+        credit: 0,
+        description: `Supplier payment ${sourceId}`,
         journalEntryId,
       };
     }
     case "PURCHASE_DEBIT_NOTE": {
-      const note = await prisma.debitNote.findUnique({
+      const note = await db.debitNote.findUnique({
         where: { id: sourceId },
         include: {
           bill: {
@@ -240,10 +337,11 @@ async function buildLedgerSeed(
         currency: note.currency ?? bill?.currency ?? "USD",
         description: `Debit note ${note.noteNumber}`,
         journalEntryId,
+        status: note.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     case "PURCHASE_WRITE_OFF": {
-      const writeOff = await prisma.purchaseWriteOff.findUnique({
+      const writeOff = await db.purchaseWriteOff.findUnique({
         where: { id: sourceId },
         include: {
           bill: {
@@ -268,32 +366,53 @@ async function buildLedgerSeed(
         currency: bill?.currency ?? "USD",
         description: `Purchase write-off ${bill?.billNumber ?? writeOff.id}`,
         journalEntryId,
+        status: writeOff.status === "VOIDED" ? "VOIDED" : "POSTED",
       };
     }
     default:
-      return null;
+      // P4: what other modules sell on credit, in the same one statement and aging.
+      return moduleLedgerSeed(db, companyId, sourceType, sourceId, journalEntryId);
   }
 }
 
+/**
+ * Writes a posting's sub-ledger line, through `db` so it lands in the post's
+ * own transaction (books-final §6.1 fix 2). A void's mirror (`void:<id>`)
+ * marks the voided document's line VOIDED (fix 3), whichever route voided it;
+ * a CRM invoice revision (`<id>:revision-<n>`) updates the invoice's line.
+ */
 export async function syncPaymentLedgerEntryForSource(input: {
   companyId: string;
   sourceType: AccountingSourceType;
   sourceId?: string | null;
   journalEntryId?: string | null;
+  db?: Db;
 }) {
   if (!input.sourceId) return null;
+  const db = input.db ?? prisma;
+
+  if (isVoidReference(input.sourceId)) {
+    if (!VOIDED_SOURCE_TYPES.has(input.sourceType)) return null;
+    const voided = ledgerSourceId(input.sourceType, input.sourceId.slice("void:".length));
+    await db.paymentLedgerEntry.updateMany({
+      where: { companyId: input.companyId, sourceType: input.sourceType, sourceId: voided },
+      data: { status: "VOIDED" },
+    });
+    return null;
+  }
 
   const seed = await buildLedgerSeed(
+    db,
     input.companyId,
     input.sourceType,
-    input.sourceId,
+    ledgerSourceId(input.sourceType, input.sourceId),
     input.journalEntryId ?? null,
   );
   if (!seed) return null;
 
   const amount = toMoney(seed.debit + seed.credit);
 
-  return prisma.paymentLedgerEntry.upsert({
+  return db.paymentLedgerEntry.upsert({
     where: {
       companyId_sourceType_sourceId: {
         companyId: seed.companyId,

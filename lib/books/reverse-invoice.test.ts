@@ -1,6 +1,6 @@
 /**
- * Reverse on an invoice, against the test database: voiding reverses its
- * posting and leaves its payments as the customer's money on account; a credit
+ * Reverse on an invoice, against the test database: voiding issues a full
+ * credit note and leaves its payments as the customer's money on account; a credit
  * note credits part of it; and only the workspace's owner may do either, on
  * the server. Only the sign-in is faked for the routes.
  */
@@ -49,22 +49,23 @@ afterAll(async () => {
 }, 60_000);
 
 describe("voiding an invoice", () => {
-  it("reverses its posting, so the books are as before it", async () => {
+  it("voids it through a full credit note, so what is owed and the VAT are as before it (§4.1 rule 4)", async () => {
     const before = await trialBalance(fixture.companyId);
     const invoice = await issueTestInvoice(fixture);
     expect(await trialBalance(fixture.companyId)).not.toEqual(before);
 
     const done = await voidInvoice(owner(), invoice.id, { reason: "Raised against the wrong customer" });
-    expect(done).toMatchObject({ number: invoice.invoiceNumber, unlinked: [], fiscalised: false });
-    expect(await trialBalance(fixture.companyId)).toEqual(before);
+    expect(done).toMatchObject({ number: invoice.invoiceNumber, unlinked: [], fiscalised: false, creditNote: { total: invoice.total, fiscalised: false, fiscalSent: false } });
+    const after = await trialBalance(fixture.companyId);
+    for (const code of ["1100", "2200"]) expect(after[code] ?? 0).toBe(before[code] ?? 0);
 
     const voided = await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } });
     expect(voided.status).toBe("VOIDED");
-    const reversal = await prisma.journalEntry.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceType: "SALES_INVOICE", sourceId: `void:${invoice.id}` } });
-    expect(reversal.status).toBe("POSTED");
-    // Aged debt reads the sub-ledger: the void invoice is owed by nobody.
-    const owed = await prisma.paymentLedgerEntry.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceType: "SALES_INVOICE", sourceId: invoice.id } });
-    expect(owed.status).toBe("VOIDED");
+    // A credit note, issued and posted: never a bare mirror for a new void.
+    const note = await prisma.creditNote.findFirstOrThrow({ where: { invoiceId: invoice.id } });
+    expect(note).toMatchObject({ id: done.creditNote!.id, status: "ISSUED", total: invoice.total, reason: "Raised against the wrong customer" });
+    expect(await prisma.journalEntry.count({ where: { companyId: fixture.companyId, sourceType: "SALES_CREDIT_NOTE", sourceId: note.id, status: "POSTED" } })).toBe(1);
+    expect(await prisma.journalEntry.count({ where: { companyId: fixture.companyId, sourceType: "SALES_INVOICE", sourceId: `void:${invoice.id}` } })).toBe(0);
     const audit = await prisma.platformAuditEvent.findFirstOrThrow({ where: { companyId: fixture.companyId, eventType: "books.invoice.voided", entityId: invoice.id } });
     expect(audit.reason).toBe("Raised against the wrong customer");
     expect(audit.actor).toBe(fixture.ownerId);
@@ -119,8 +120,10 @@ describe("crediting part of an invoice", () => {
     const done = await creditInvoice(owner(), invoice.id, { reason: "Goodwill", choice: { amount: 115 } });
     expect(done.total).toBe(115);
     await expect(creditInvoice(owner(), invoice.id, { reason: "Too much", choice: { amount: 600 } })).rejects.toMatchObject({ status: 400 });
-    // A credit note stands against it now: voiding would reverse that part twice.
-    await expect(voidInvoice(owner(), invoice.id, { reason: "Changed my mind" })).rejects.toMatchObject({ status: 409 });
+    // A credit note stands against it: the void's credit note takes off the rest, and no more.
+    const voided = await voidInvoice(owner(), invoice.id, { reason: "Changed my mind" });
+    expect(voided.creditNote?.total).toBe(Math.round((invoice.total - 115) * 100) / 100);
+    expect((await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoice.id } })).creditTotal).toBe(invoice.total);
   });
 });
 
@@ -147,7 +150,7 @@ describe("who may reverse an invoice", () => {
     signedInAs({ userId: fixture.ownerId, role: "SUPERADMIN" });
     const result = await call(patchInvoiceRoute, invoice.id, "PATCH", { status: "VOIDED" });
     expect(result.status).toBe(200);
-    expect(await prisma.journalEntry.count({ where: { companyId: fixture.companyId, sourceId: `void:${invoice.id}` } })).toBe(1);
+    expect(await prisma.creditNote.count({ where: { invoiceId: invoice.id, status: "ISSUED" } })).toBe(1);
     const audit = await prisma.platformAuditEvent.findFirstOrThrow({ where: { companyId: fixture.companyId, eventType: "books.invoice.voided", entityId: invoice.id } });
     expect(audit.reason).toBe("Cancelled in Accounting, Sales");
   });

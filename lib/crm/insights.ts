@@ -123,7 +123,7 @@ export async function getRepPerformance(companyId: string, opts: Range & { repId
       stage: true,
       createdAt: true,
       firstContactAt: true,
-      assignedTo: { select: { name: true } },
+      assignedTo: { select: { name: true, image: true } },
       documents: { select: { type: true, amount: true } },
     },
   });
@@ -131,6 +131,7 @@ export async function getRepPerformance(companyId: string, opts: Range & { repId
   type RepAgg = {
     repId: string;
     name: string;
+    image: string | null;
     leads: number;
     won: number;
     quotes: number;
@@ -148,6 +149,7 @@ export async function getRepPerformance(companyId: string, opts: Range & { repId
       {
         repId,
         name: lead.assignedTo?.name ?? "Unassigned",
+        image: lead.assignedTo?.image ?? null,
         leads: 0,
         won: 0,
         quotes: 0,
@@ -174,6 +176,7 @@ export async function getRepPerformance(companyId: string, opts: Range & { repId
     .map((a) => ({
       repId: a.repId,
       name: a.name,
+      image: a.image,
       leads: a.leads,
       quotes: a.quotes,
       won: a.won,

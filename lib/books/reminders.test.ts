@@ -5,7 +5,7 @@ import { reminderText, sendInvoiceReminders } from "./reminders";
 describe("reminderText", () => {
   it("says what is owed and how late, and how to answer", () => {
     expect(reminderText({ number: "INV-0131", currency: "USD", balance: 1240, due: "2026-09-24" }, "2026-10-06")).toBe(
-      "Invoice INV-0131 has $1,240.00 still to pay. It was due on 24 September, 12 days ago. If you have paid it, reply and we will check.",
+      "Invoice INV-0131 has US$1,240.00 still to pay. It was due on 24 September, 12 days ago. If you have paid it, reply and we will check.",
     );
     expect(reminderText({ number: "INV-0140", currency: "USD", balance: 1750, due: "2026-10-14" }, "2026-10-06")).toContain(
       "It is due on 14 October.",

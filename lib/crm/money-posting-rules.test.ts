@@ -95,7 +95,9 @@ describe("every category has somewhere to post", () => {
       expect(credits, `${rule.name} has no credit`).toHaveLength(1);
       for (const line of rule.lines) {
         expect(line.allocationValue, `${rule.name} does not allocate in full`).toBe(100);
-        expect(line.accountId, `${rule.name} names no account`).not.toBeNull();
+        // The money side is the account it was paid from, which the event names (lib/books/core).
+        if (line.accountSource === "EVENT_ACCOUNT") expect(line.eventAccountKey, `${rule.name} names no event account`).toBe("moneyAccount");
+        else expect(line.accountId, `${rule.name} names no account`).not.toBeNull();
       }
     }
   });
@@ -110,15 +112,18 @@ describe("every category has somewhere to post", () => {
       });
       const debit = rule!.lines.find((line) => line.direction === "DEBIT");
       const credit = rule!.lines.find((line) => line.direction === "CREDIT");
-      return { debit: debit!.account!.code, credit: credit!.account!.code };
+      const side = (line: NonNullable<typeof rule>["lines"][number]) => (line.accountSource === "EVENT_ACCOUNT" ? `event:${line.eventAccountKey}` : line.account!.code);
+      return { debit: side(debit!), credit: side(credit!) };
     };
 
-    // Paying out: the expense goes up, the bank goes down.
-    expect(await byType("CRM_REQUISITION_DISBURSEMENT")).toEqual({ debit: "5500", credit: "1010" });
-    // Change comes back: the bank goes up, the expense comes down.
-    expect(await byType("CRM_REQUISITION_REFUND")).toEqual({ debit: "1010", credit: "5500" });
-    // They spent their own: the expense goes up, and they are owed it.
-    expect(await byType("CRM_REQUISITION_TOPUP")).toEqual({ debit: "5500", credit: "1010" });
+    // Paying out: the money is with staff (1150 Cash advances), out of the money account it was paid from.
+    expect(await byType("CRM_REQUISITION_DISBURSEMENT")).toEqual({ debit: "1150", credit: "event:moneyAccount" });
+    // Accounted for: the expense goes up, the advance comes down.
+    expect(await byType("REQUISITION_ACQUITTAL")).toEqual({ debit: "5500", credit: "1150" });
+    // Change comes back: the money account goes up, the advance comes down.
+    expect(await byType("CRM_REQUISITION_REFUND")).toEqual({ debit: "event:moneyAccount", credit: "1150" });
+    // They spent more than given and are paid it: on the advance, out of a money account.
+    expect(await byType("CRM_REQUISITION_TOPUP")).toEqual({ debit: "1150", credit: "event:moneyAccount" });
     // A spend with no requisition: the cost is real and somebody is owed it.
     expect(await byType("CRM_COST_ENTRY_SPEND")).toEqual({ debit: "5500", credit: "2000" });
   });

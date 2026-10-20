@@ -6,7 +6,8 @@ import { toMoney } from "@/lib/accounting/ledger";
 type StatementLine = {
   date: string;
   type: string;
-  reference: string;
+  /** A document's number; null for one that has none. */
+  reference: string | null;
   description?: string | null;
   debit: number;
   credit: number;
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
         }),
         prisma.purchasePayment.aggregate({
           where: {
+            status: "PAID",
             bill: { vendorId, companyId: session.user.companyId },
             paidAt: { lt: startDate },
           },
@@ -118,6 +120,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.purchasePayment.findMany({
         where: {
+          status: "PAID",
           bill: { vendorId, companyId: session.user.companyId },
           ...(dateFilter ? { paidAt: dateFilter } : {}),
         },

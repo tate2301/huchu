@@ -36,23 +36,22 @@ test.describe.configure({ timeout: 900_000 });
 test.use({ tenant: PAYROLL, as: "admin" });
 
 const ACCOUNTING: readonly Route[] = [
-  { path: "/accounting", name: "Accounting overview" },
-  { path: "/accounting/chart-of-accounts", name: "Chart of accounts", expect: /\d{4}|Cash|Bank|Payable/i },
+  { path: "/books", name: "Books" },
+  { path: "/books/chart", name: "Chart of accounts", expect: /\d{4}|Cash|Bank|Payable/i },
   { path: "/books/journals", name: "Journals" },
-  { path: "/accounting/trial-balance", name: "Trial balance" },
-  { path: "/accounting/financial-statements", name: "Financial statements" },
-  { path: "/accounting/financial-reports", name: "Financial reports" },
-  { path: "/accounting/receivables", name: "Receivables" },
-  { path: "/accounting/payables", name: "Payables" },
+  { path: "/books/trial-balance", name: "Trial balance" },
+  { path: "/books/financials", name: "Financial statements" },
+  { path: "/books/customers?view=by-age", name: "Receivables" },
+  { path: "/books/suppliers?view=by-age", name: "Payables" },
   // Kariba Payroll Bureau is not entitled to these three. Being turned away
   // is the assertion — see `blocked` in `_support/sweep.ts`.
-  { path: "/accounting/banking", name: "Banking", blocked: true },
+  { path: "/books/accounts", name: "Banking", blocked: true },
   { path: "/books/periods", name: "Periods" },
-  { path: "/accounting/posting-rules", name: "Posting rules" },
+  { path: "/books/posting-rules", name: "Posting rules" },
   { path: "/books/vat", name: "Tax" },
-  { path: "/accounting/currency", name: "Currency", blocked: true },
-  { path: "/accounting/cost-centers", name: "Cost centres", blocked: true },
-  { path: "/accounting/fiscalisation", name: "Fiscalisation" },
+  { path: "/books/rates", name: "Currency", blocked: true },
+  { path: "/books/cost-centres", name: "Cost centres", blocked: true },
+  { path: "/books/fiscal", name: "Fiscalisation" },
   /*
     Sales and Purchases both call `/api/accounting/banking/accounts` to fill a
     "receive payment into" picker, and this tenant has no Banking entitlement,
@@ -60,8 +59,8 @@ const ACCOUNTING: readonly Route[] = [
     `_support/assert.ts` — the pages themselves work; the picker is empty and
     the console is not.
   */
-  { path: "/accounting/sales", name: "Sales" },
-  { path: "/accounting/purchases", name: "Purchases" },
+  { path: "/books/invoices", name: "Sales" },
+  { path: "/books/bills", name: "Purchases" },
 ];
 
 const PAYROLL_ROUTES: readonly Route[] = [
@@ -120,7 +119,7 @@ test("the payroll run posted, and the journal it posted balances", async ({ page
   // Throws with the offending entry numbers and their debit/credit totals.
   await expectJournalsBalance(companyId);
 
-  await visitSettled(page, "/accounting/trial-balance");
+  await visitSettled(page, "/books/trial-balance");
   await expectHealthyPage(page, console_);
 });
 

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { dayOf, methodWord, money, shortDay, storedDay } from "@/lib/books/format";
 
@@ -212,10 +213,10 @@ export async function resolveConcerns(
     out.set(keyOf({ kind: "invoice", id: invoice.id }), {
       kind: "invoice",
       module: "books",
-      ref: invoice.invoiceNumber,
+      ref: docLabel(invoice.invoiceNumber),
       fact: join(invoice.customer.name, money(invoice.total, invoice.currency)),
       status: invoiceStatus(invoice, today),
-      href: `/books/invoices?q=${encodeURIComponent(invoice.invoiceNumber)}`,
+      href: invoice.invoiceNumber ? `/books/invoices?q=${encodeURIComponent(invoice.invoiceNumber)}` : `/books/invoices/${invoice.id}`,
       open: "Open invoice",
       actorName: null,
       facts: [
@@ -245,7 +246,7 @@ export async function resolveConcerns(
         { label: "Amount", value: money(receipt.amount, currency) },
         { label: "By", value: methodWord(receipt.method) },
         { label: "Received", value: shortDay(dayOf(receipt.receivedAt)) },
-        ...(receipt.invoice ? [{ label: "Against", value: receipt.invoice.invoiceNumber }] : []),
+        ...(receipt.invoice ? [{ label: "Against", value: docLabel(receipt.invoice.invoiceNumber) }] : []),
         ...(receipt.invoice
           ? [{ label: "Invoice still owes", value: money(Math.max(0, receipt.invoice.total - receipt.invoice.amountPaid), currency) }]
           : []),

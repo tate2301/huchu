@@ -170,8 +170,9 @@ export type CustomReport = CustomReportInput & {
 export type CustomReportSummary = Pick<CustomReport, "id" | "title" | "description" | "audience" | "mine" | "editable" | "updatedAt"> & {
   /** The tables its queries read, for the area it lists under. */
   areaSources: string[];
-  /** Whoever made it, by name. */
+  /** Whoever made it, by name, and their photo. */
   madeBy: string | null;
+  madeByImage?: string | null;
   /** The folder it is filed in. */
   folder: { id: string; name: string } | null;
   /** A board (several blocks) or a table (one table and nothing else). */

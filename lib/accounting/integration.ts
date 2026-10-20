@@ -9,6 +9,8 @@ import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
 import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { shiftOpenPosting } from "@/lib/retail/cash-up";
+import { withEventAccounts } from "@/lib/books/core/event-accounts";
+import { holdEvent, holdFor } from "@/lib/books/core/holds";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -81,7 +83,30 @@ async function resolveFallbackActorId(companyId: string) {
   return fallbackUser?.id ?? null;
 }
 
+/**
+ * An event written IGNORED is never posted and nothing reads it, so only a
+ * record of a status change may be one (`recordEvent` in `lib/books/core`):
+ * an event with a source type or an amount is money, and money waits PENDING
+ * until it posts (books-final §1.1). PENDING is the default.
+ */
+export class IgnoredMoneyRefused extends Error {
+  constructor(sourceAction: string) {
+    super(`"${sourceAction}" carries money, so it cannot be recorded as IGNORED. Post it through lib/books/core.`);
+    this.name = "IgnoredMoneyRefused";
+  }
+}
+
+export function carriesMoney(input: Pick<CaptureAccountingEventInput, "sourceType" | "amount" | "netAmount" | "taxAmount" | "grossAmount" | "deductionsAmount" | "allowancesAmount">) {
+  if (input.sourceType) return true;
+  return [input.amount, input.netAmount, input.taxAmount, input.grossAmount, input.deductionsAmount, input.allowancesAmount].some((value) => {
+    const n = toNumber(value);
+    return n !== null && n !== undefined && n !== 0;
+  });
+}
+
 export async function captureAccountingEvent(input: CaptureAccountingEventInput, db: Db = prisma) {
+  const status = input.status ?? "PENDING";
+  if (status === "IGNORED" && carriesMoney(input)) throw new IgnoredMoneyRefused(input.sourceAction);
   const eventKey = buildAccountingEventKey({
     companyId: input.companyId,
     sourceDomain: input.sourceDomain,
@@ -111,7 +136,7 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
       currency: input.currency ?? null,
       payloadJson: input.payload ? JSON.stringify(input.payload) : null,
       createdById: input.createdById ?? null,
-      status: input.status ?? "IGNORED",
+      status,
       lastError: null,
       nextRetryAt: null,
     },
@@ -137,7 +162,7 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
       currency: input.currency ?? null,
       payloadJson: input.payload ? JSON.stringify(input.payload) : null,
       createdById: input.createdById ?? null,
-      status: input.status ?? "IGNORED",
+      status,
     },
     select: {
       id: true,
@@ -158,8 +183,17 @@ type IntegrationEventRow = Awaited<ReturnType<typeof prisma.accountingIntegratio
 export async function postIntegrationEvent(
   event: IntegrationEventRow,
   input: { actorRole?: string | null; periodOverrideReason?: string | null; defaultsReady?: boolean } = {},
-): Promise<"posted" | "skipped" | "failed"> {
-  const payload = parsePayload(event.payloadJson);
+): Promise<"posted" | "skipped" | "failed" | "held"> {
+  // Never into a closed month on its own (books-final §1.1, D14): held for a
+  // person in Needs posting. A person replaying with a reason chooses to.
+  if (!input.periodOverrideReason && event.sourceType) {
+    const hold = await holdFor(event.companyId, event.entryDate ?? event.createdAt);
+    if (hold) {
+      await holdEvent(event.id, hold);
+      return "held";
+    }
+  }
+  const payload = await withEventAccounts(event, parsePayload(event.payloadJson));
   const createdById = event.createdById ?? (await resolveFallbackActorId(event.companyId));
   if (!createdById) {
     // Marked, so a posting run that passed it does not take it up again.
@@ -202,7 +236,8 @@ export async function postIntegrationEvent(
     },
     prisma,
     // Its time has come (or someone asked): an end-of-day shop's event is not put off again.
-    { postNow: true, defaultsReady: input.defaultsReady },
+    // Posted as this same row, so a captured event does not stay PENDING behind a second one.
+    { postNow: true, defaultsReady: input.defaultsReady, eventId: event.id },
   );
 
   if (result.skipped) return "skipped";
@@ -233,11 +268,13 @@ export async function retryPendingAccountingEvents(input: {
   let posted = 0;
   let failed = 0;
   let skipped = 0;
+  let held = 0;
 
   for (const event of events) {
     const outcome = await postIntegrationEvent(event, input);
     if (outcome === "posted") posted += 1;
     else if (outcome === "skipped") skipped += 1;
+    else if (outcome === "held") held += 1;
     else failed += 1;
   }
 
@@ -246,6 +283,7 @@ export async function retryPendingAccountingEvents(input: {
     posted,
     skipped,
     failed,
+    held,
   };
 }
 

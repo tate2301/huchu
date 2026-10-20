@@ -19,6 +19,7 @@ import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
 import { isRetailSource, retailPostingDeferredUntil } from "@/lib/retail/posting-schedule";
 import { toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { adjustmentLines, convertLines, readFx, type Adjustment } from "@/lib/accounting/fx-lines";
 
 const BALANCE_TOLERANCE = 0.01;
 const BASE_RETRY_DELAY_MINUTES = 5;
@@ -93,7 +94,7 @@ export type PostingContext = {
   } | null;
 };
 
-type PostingResult = {
+export type PostingResult = {
   entryId?: string;
   skipped?: boolean;
   /** A shop posting at the end of each day: the event waits, PENDING, for the day's run (SET-09). */
@@ -312,7 +313,20 @@ export function conditionMatches(input: {
   }
 }
 
-async function createOrRefreshIntegrationEvent(context: PostingContext, envelope: ReturnType<typeof buildEnvelope>) {
+async function createOrRefreshIntegrationEvent(context: PostingContext, envelope: ReturnType<typeof buildEnvelope>, eventId?: string) {
+  // A captured event being drained (`lib/books/core`): it is the one row for
+  // its source, so it is refreshed in place rather than shadowed by a second,
+  // `accounting:auto-post` row that would leave it PENDING for ever.
+  if (eventId) {
+    const existing = await prisma.accountingIntegrationEvent.findUnique({ where: { id: eventId }, select: { id: true, attemptCount: true } });
+    if (existing) {
+      await prisma.accountingIntegrationEvent.update({
+        where: { id: eventId },
+        data: { status: "PENDING", lastError: null, nextRetryAt: null, payloadJson: JSON.stringify(envelope) },
+      });
+      return existing;
+    }
+  }
   const eventKey = buildAccountingEventKey({
     companyId: context.companyId,
     sourceDomain: "accounting",
@@ -467,7 +481,69 @@ async function resolveEventAccounts(companyId: string, envelope: Record<string, 
   return byKey;
 }
 
-const ROLE_WORDS: Record<RetailAccountRole, string> = {
+/**
+ * Receipts and payments whose rule names a fixed money line (seeded as 1010
+ * Operating bank) post that line to the money account the money went through
+ * (books-final §4.5, fix 6), when the event names one (`accounts.moneyAccount`,
+ * which `postMoney` fills from the bank account). A money line is a fixed line
+ * on 1010 or on any money account's ledger; every other line is the rule's.
+ */
+const MONEY_LINE_SOURCES: ReadonlySet<AccountingSourceType> = new Set(["SALES_RECEIPT", "PURCHASE_PAYMENT"]);
+
+async function resolveMoneyLineOverride(context: PostingContext, envelope: Record<string, unknown>) {
+  if (!MONEY_LINE_SOURCES.has(context.sourceType)) return null;
+  const named = envelope.accounts && typeof envelope.accounts === "object" ? (envelope.accounts as Record<string, unknown>) : {};
+  const moneyAccount = typeof named.moneyAccount === "string" ? named.moneyAccount : null;
+  if (!moneyAccount) return null;
+  const [account, banks, operating] = await Promise.all([
+    prisma.chartOfAccount.findFirst({
+      where: { companyId: context.companyId, id: moneyAccount, isActive: true, nodeType: "LEDGER" },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.bankAccount.findMany({ where: { companyId: context.companyId, ledgerAccountId: { not: null } }, select: { ledgerAccountId: true } }),
+    prisma.chartOfAccount.findFirst({ where: { companyId: context.companyId, code: "1010" }, select: { id: true } }),
+  ]);
+  if (!account) return null;
+  const moneyLedgers = new Set<string>(banks.map((bank) => bank.ledgerAccountId!).filter(Boolean));
+  if (operating) moneyLedgers.add(operating.id);
+  return { account, moneyLedgers };
+}
+
+/**
+ * A document whose rate was missing when it was captured: the rate on its day
+ * as the drain finds it, once somebody has entered one.
+ */
+async function rateOnTheDay(companyId: string, raw: unknown, day: Date): Promise<{ currency: string; rate: number } | null> {
+  const currency = raw && typeof raw === "object" ? (raw as { currency?: unknown }).currency : null;
+  if (typeof currency !== "string" || !currency) return null;
+  const settings = await prisma.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } });
+  const row = await prisma.currencyRate.findFirst({
+    where: { companyId, baseCurrency: settings?.baseCurrency ?? "USD", quoteCurrency: currency.toUpperCase(), effectiveDate: { lte: day }, rate: { gt: 0 } },
+    orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
+    select: { rate: true },
+  });
+  return row ? { currency: currency.toUpperCase(), rate: row.rate } : null;
+}
+
+/**
+ * Base-only lines an event carries (`payload.adjustments`, by account code):
+ * a realised exchange difference on a receipt or payment. A code the chart
+ * does not have fails the event with its reason.
+ */
+async function resolveAdjustments(companyId: string, raw: unknown): Promise<{ lines: Adjustment[] } | { error: string }> {
+  if (!Array.isArray(raw) || raw.length === 0) return { lines: [] };
+  const wanted = raw.filter((item): item is { accountCode: string; debit?: number; credit?: number; memo?: string } => Boolean(item) && typeof item === "object" && typeof (item as { accountCode?: unknown }).accountCode === "string");
+  const codes = [...new Set(wanted.map((item) => item.accountCode))];
+  const accounts = await prisma.chartOfAccount.findMany({ where: { companyId, code: { in: codes }, nodeType: "LEDGER", isActive: true }, select: { id: true, code: true } });
+  const byCode = new Map(accounts.map((account) => [account.code, account.id]));
+  const missing = codes.filter((code) => !byCode.has(code));
+  if (missing.length) return { error: `No ledger account ${missing.join(", ")} to post the exchange difference to` };
+  return {
+    lines: wanted.map((item) => ({ accountId: byCode.get(item.accountCode)!, debit: Number(item.debit ?? 0), credit: Number(item.credit ?? 0), memo: item.memo ?? "Exchange difference" })),
+  };
+}
+
+export const ROLE_WORDS: Record<RetailAccountRole, string> = {
   SALES: "sales",
   VAT_OUTPUT: "VAT",
   COST_OF_SALES: "cost of sales",
@@ -550,6 +626,7 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
   const eventAccounts = matchedRule.lines.some((line) => line.accountSource === "EVENT_ACCOUNT")
     ? await resolveEventAccounts(context.companyId, envelope)
     : new Map<string, never>();
+  const moneyLine = await resolveMoneyLineOverride(context, envelope);
   const lineRows: PostingSimulationResult["lines"] = [];
   const warnings: string[] = [];
 
@@ -636,6 +713,11 @@ async function simulatePosting(context: PostingContext): Promise<PostingSimulati
         accountId = account.id;
         accountCode = account.code;
         accountName = account.name;
+      } else if (moneyLine && line.accountId && moneyLine.moneyLedgers.has(line.accountId)) {
+        // The money went through a money account the event names: its ledger, not the rule's fixed bank.
+        accountId = moneyLine.account.id;
+        accountCode = moneyLine.account.code;
+        accountName = moneyLine.account.name;
       } else if (!line.account || !line.account.isActive || line.account.nodeType !== "LEDGER") {
         return {
           lines: [],
@@ -717,17 +799,17 @@ export async function previewPostingFromSource(context: PostingContext) {
 export async function createJournalEntryFromSource(
   context: PostingContext,
   db: Db = prisma,
-  options: { postNow?: boolean; defaultsReady?: boolean } = {},
+  options: { postNow?: boolean; defaultsReady?: boolean; eventId?: string } = {},
 ): Promise<PostingResult> {
   const envelope = buildEnvelope(context);
-  const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope);
+  const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope, options.eventId);
 
   try {
     // A posting run checks the company's defaults once, not once per event.
     if (!options.defaultsReady) await ensureAccountingDefaults(context.companyId);
 
     if (context.sourceId) {
-      const existing = await prisma.journalEntry.findFirst({
+      const existing = await db.journalEntry.findFirst({
         where: {
           companyId: context.companyId,
           sourceType: context.sourceType,
@@ -742,6 +824,7 @@ export async function createJournalEntryFromSource(
           sourceType: context.sourceType,
           sourceId: context.sourceId,
           journalEntryId: existing.id,
+          db,
         });
         return { entryId: existing.id, skipped: true };
       }
@@ -784,6 +867,26 @@ export async function createJournalEntryFromSource(
       return { error, code: "UNBALANCED_POSTING" };
     }
 
+    // D3, D4: a document in another currency posts in the base currency at its
+    // frozen rate (`payload.fx`, set by the core), each line keeping its own;
+    // base-only adjustments (a realised exchange difference) are added after.
+    const carried = (context.payload ?? {}) as Record<string, unknown>;
+    const fx = readFx(carried) ?? (carried.fx ? await rateOnTheDay(context.companyId, carried.fx, context.entryDate) : null);
+    if (carried.fx && !fx) {
+      const error = `No exchange rate for ${String((carried.fx as Record<string, unknown>).currency ?? "this currency")} on ${context.entryDate.toISOString().slice(0, 10)}: add one in Rates`;
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, error);
+      return { error, code: "EXCHANGE_RATE_MISSING" };
+    }
+    const adjustments = await resolveAdjustments(context.companyId, carried.adjustments);
+    if ("error" in adjustments) {
+      await markIntegrationEventFailure(integrationEvent.id, integrationEvent.attemptCount, adjustments.error);
+      return { error: adjustments.error, code: "POSTING_RULE_INVALID_ACCOUNTS" };
+    }
+    const entryLines = [
+      ...convertLines(simulation.lines.map((line) => ({ accountId: line.accountId, debit: line.debit, credit: line.credit, memo: line.memo, costCenterId: line.costCenterId })), fx),
+      ...adjustmentLines(adjustments.lines, context.invertDirection === true),
+    ];
+
     const postingPeriod = await resolvePostingPeriod({
       companyId: context.companyId,
       entryDate: context.entryDate,
@@ -799,46 +902,57 @@ export async function createJournalEntryFromSource(
       };
     }
 
-    // Numbered through the same client the entry is written with, so a caller
+    // The entry, its number and its sub-ledger line are one write (books-final
+    // §6.1 fix 2): inside the caller's transaction when it passes one, else in
+    // a transaction of their own, so a line never exists without its entry or
+    // an entry without its line. Numbered through the same client, so a caller
     // that has already posted inside its transaction — an invoice edit posts a
     // reversal first — does not get that entry's number handed out twice.
-    const entryNumber = await getNextEntryNumber(context.companyId, db);
-    const entry = await db.journalEntry.create({
-      data: {
-        companyId: context.companyId,
-        entryNumber,
-        entryDate: context.entryDate,
-        description: context.description,
-        status: "POSTED",
-        periodId: postingPeriod.period.id,
-        sourceType: context.sourceType,
-        sourceId: context.sourceId ?? undefined,
-        createdById: context.createdById,
-        postedById: context.createdById,
-        postedAt: new Date(),
-        periodOverrideReason: postingPeriod.requiresOverride ? postingPeriod.overrideReason : undefined,
-        periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
-        periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
-        lines: {
-          create: simulation.lines.map((line) => ({
-            accountId: line.accountId,
-            debit: line.debit,
-            credit: line.credit,
-            memo: line.memo,
-            costCenterId: line.costCenterId ?? undefined,
-          })),
+    const write = async (tx: Db) => {
+      const entryNumber = await getNextEntryNumber(context.companyId, tx);
+      const entry = await tx.journalEntry.create({
+        data: {
+          companyId: context.companyId,
+          entryNumber,
+          entryDate: context.entryDate,
+          description: context.description,
+          status: "POSTED",
+          periodId: postingPeriod.period.id,
+          sourceType: context.sourceType,
+          sourceId: context.sourceId ?? undefined,
+          createdById: context.createdById,
+          postedById: context.createdById,
+          postedAt: new Date(),
+          periodOverrideReason: postingPeriod.requiresOverride ? postingPeriod.overrideReason : undefined,
+          periodOverrideById: postingPeriod.requiresOverride ? context.createdById : undefined,
+          periodOverrideAt: postingPeriod.requiresOverride ? new Date() : undefined,
+          lines: {
+            create: entryLines.map((line) => ({
+              accountId: line.accountId,
+              debit: line.debit,
+              credit: line.credit,
+              memo: line.memo,
+              costCenterId: line.costCenterId ?? undefined,
+              currency: line.currency ?? undefined,
+              amountInCurrency: line.amountInCurrency ?? undefined,
+              exchangeRate: line.exchangeRate ?? undefined,
+            })),
+          },
         },
-      },
-      select: { id: true },
-    });
+        select: { id: true },
+      });
+      await syncPaymentLedgerEntryForSource({
+        companyId: context.companyId,
+        sourceType: context.sourceType,
+        sourceId: context.sourceId,
+        journalEntryId: entry.id,
+        db: tx,
+      });
+      return entry;
+    };
+    const entry = "$transaction" in db ? await (db as PrismaClient).$transaction((tx) => write(tx)) : await write(db);
 
     await markIntegrationEventPosted(integrationEvent.id, entry.id);
-    await syncPaymentLedgerEntryForSource({
-      companyId: context.companyId,
-      sourceType: context.sourceType,
-      sourceId: context.sourceId,
-      journalEntryId: entry.id,
-    });
     return { entryId: entry.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown posting failure";

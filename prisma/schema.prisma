@@ -111,6 +111,9 @@ model Company {
   purchasePayments              PurchasePayment[]
   debitNotes                    DebitNote[]
   purchaseWriteOffs             PurchaseWriteOff[]
+  expenseClaims                 ExpenseClaim[]
+  expenseClaimLines             ExpenseClaimLine[]
+  pettyCashVouchers             PettyCashVoucher[]
   bankAccounts                  BankAccount[]
   bankTransactions              BankTransaction[]
   bankReconciliations           BankReconciliation[]
@@ -1623,6 +1626,8 @@ model User {
   crmProjectsManaged                CrmProject[]                   @relation("CrmProjectManager")
   crmProjectsCreated                CrmProject[]                   @relation("CrmProjectCreatedBy")
   crmProjectMemberships             CrmProjectMember[]             @relation("CrmProjectMemberUser")
+  expenseClaims                     ExpenseClaim[]                 @relation("ExpenseClaimClaimant")
+  floatsHeld                        BankAccount[]                  @relation("BankAccountHolder")
   crmRequisitionsRequested          CrmRequisition[]               @relation("CrmRequisitionRequestedBy")
   crmRequisitionsApproved           CrmRequisition[]               @relation("CrmRequisitionApprovedBy")
   crmRequisitionsDisbursed          CrmRequisition[]               @relation("CrmRequisitionDisbursedBy")
@@ -3392,6 +3397,18 @@ enum ApprovalTargetType {
   /// could apply. It is inert: `lib/workflow/approvals.test.ts` asserts nothing
   /// writes it.
   IRREGULAR_PAYOUT_BATCH
+  /// D9 (books-final §2.4): every Books approval is one row here.
+  REQUISITION
+  PURCHASE_ORDER
+  PURCHASE_BILL
+  SUPPLIER_PAYMENT
+  EXPENSE_CLAIM
+  PETTY_CASH_VOUCHER
+  WRITE_OFF
+  CREDIT_NOTE
+  MANUAL_JOURNAL
+  COMMISSION
+  VAT_RETURN
 }
 
 enum ApprovalActionType {
@@ -4913,6 +4930,8 @@ enum RetailHeldCartStatus {
 /// before anything came; set by the cancel service only.
 enum RetailPurchaseOrderStatus {
   DRAFT
+  /// D11: over the limit, waiting for an approver before it is sent.
+  TO_APPROVE
   SENT
   PARTIAL
   RECEIVED
@@ -5663,9 +5682,17 @@ model RetailPurchaseOrder {
   id                String                    @id @default(uuid())
   companyId         String
   poNo              String
-  siteId            String
+  /// D11: the shop it was raised at; null for an order raised in Books (one PO table for everyone).
+  siteId            String?
   vendorId          String
   status            RetailPurchaseOrderStatus @default(DRAFT)
+  /// D11 (books-final §4.7): sent for approval over the limit, with the limit and approver as they were.
+  submittedAt       DateTime?
+  approverId        String?
+  approvalLimit     Decimal?                  @db.Decimal(14, 2)
+  approvedById      String?
+  approvedAt        DateTime?
+  decisionNote      String?
   /// Expected now: set when raised or edited, moved by a reminder's "Promised for".
   expectedDate      DateTime?
   /// Expected when it was sent. Lateness counts from it; a reminder never moves it.
@@ -5696,12 +5723,13 @@ model RetailPurchaseOrder {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 
+  bills    PurchaseBill[]
   lines    RetailPurchaseOrderLine[]
   receipts RetailGoodsReceipt[]
   requisitions CrmRequisition[]
 
   company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  site        Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  site        Site?   @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   vendor      Vendor  @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   createdBy   User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sentBy      User?   @relation("RetailPurchaseOrderSentBy", fields: [sentById], references: [id], onDelete: SetNull)
@@ -5778,6 +5806,7 @@ model RetailGoodsReceipt {
   reversedById    String?
   reverseReason   String?
 
+  bill        PurchaseBill?
   lines       RetailGoodsReceiptLine[]
   differences RetailDeliveryDifference[]
   countedBy   User?           @relation("RetailGoodsReceiptCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
@@ -6190,6 +6219,12 @@ model RetailApprovalSettings {
   countOwnerOver       Decimal                 @default(100) @db.Decimal(14, 2)
   /// "Accounts need the owner over", when opening or raising a limit.
   accountOwnerOver     Decimal                 @default(250) @db.Decimal(14, 2)
+  /// D10: bills and supplier payments over this wait for the owner (books-final §2.4).
+  paymentOwnerOver     Decimal                 @default(500) @db.Decimal(14, 2)
+  /// D10: an accountant's manual journal over this needs a second person.
+  journalSecondOver    Decimal                 @default(1000) @db.Decimal(14, 2)
+  /// D10: a petty cash voucher under this posts on the float holder's word alone.
+  voucherHolderUnder   Decimal                 @default(20) @db.Decimal(14, 2)
   askBy                RetailApprovalChannel   @default(WHATSAPP_AND_APP)
   updatedById          String?
   createdAt            DateTime                @default(now())
@@ -7148,6 +7183,19 @@ enum AccountingSourceType {
   CRM_COST_ENTRY_RECEIPT
   RETAIL_LAYBY_PAYMENT
   RETAIL_LAYBY_CANCEL
+  /// P2 (books-final §4.11): what a requisition's money went on, by category, out of 1150 Cash advances.
+  REQUISITION_ACQUITTAL
+  /// D13: a claim approved (Dr expense, Cr 2190 Staff claims payable), and its reimbursement.
+  EXPENSE_CLAIM
+  EXPENSE_CLAIM_PAYMENT
+  /// D13: a voucher spent from a float, and a float topped up to its imprest.
+  PETTY_CASH_VOUCHER
+  PETTY_CASH_TOPUP
+  /// D19: commission approved (Dr commission expense, Cr 2195) and paid.
+  CRM_COMMISSION
+  CRM_COMMISSION_PAYMENT
+  /// P3 (books-final §5.9): foreign-currency balances revalued at the month-end rate, posted on the last day and reversed on the 1st.
+  FX_REVALUATION
 }
 
 enum PostingRuleScopeType {
@@ -7328,6 +7376,8 @@ model AccountingSettings {
   defaultBankAccountId      String?
   freezeBeforeDate          DateTime?
   retainedEarningsAccountId String?
+  /// P3: ZIMRA's dates, rates and thresholds as settings, each FLAGged one marked to confirm until somebody does (lib/books/core/tax-settings.ts).
+  taxSettings               Json?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
 
@@ -7486,6 +7536,10 @@ model JournalLine {
   credit       Float    @default(0)
   memo         String?
   costCenterId String?
+  /// D4: the line in its document's currency, beside the base debit or credit; null for a line in the base currency.
+  currency         String?
+  amountInCurrency Float?
+  exchangeRate     Float?
   createdAt    DateTime @default(now())
 
   entry      JournalEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
@@ -7716,6 +7770,8 @@ model Customer {
   address       String?
   taxNumber     String?
   vatNumber     String?
+  /// D17: an appointed VAT withholding agent pays us less a third of the VAT, with a certificate.
+  isVatWithholdingAgent Boolean  @default(false)
   isActive      Boolean  @default(true)
   /// CUS-01: "CUS-00141", company-wide (`RETAIL_CUSTOMER`); the card number follows it.
   code             String?
@@ -7740,6 +7796,7 @@ model Customer {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory     TaxCategory?     @relation(fields: [taxCategoryId], references: [id])
   invoices        SalesInvoice[]
+  receipts        SalesReceipt[]
   quotations      SalesQuotation[]
   crmClients      CrmClient[]
   retailSales     RetailSale[]     @relation("RetailSaleCustomer")
@@ -7896,6 +7953,10 @@ model Vendor {
   address       String?
   taxNumber     String?
   vatNumber     String?
+  /// D17: the supplier's tax clearance (ITF263) and whether they are an appointed VAT withholding agent.
+  itf263Number          String?
+  itf263ExpiresAt       DateTime?
+  isVatWithholdingAgent Boolean  @default(false)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -7972,11 +8033,16 @@ model SalesInvoice {
   id            String               @id @default(uuid())
   companyId     String
   customerId    String
-  invoiceNumber String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  invoiceNumber String?
   invoiceDate   DateTime
   dueDate       DateTime?
   status        InvoiceStatus        @default(DRAFT)
   currency      String               @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal      Float                @default(0)
   taxTotal      Float                @default(0)
   total         Float                @default(0)
@@ -8000,6 +8066,9 @@ model SalesInvoice {
   madeByVane  Boolean @default(false)
   issuedById    String?
   issuedAt      DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -8016,8 +8085,12 @@ model SalesInvoice {
 
   fromQuotation SalesQuotation? @relation("SalesInvoiceFromQuotation", fields: [quotationId], references: [id], onDelete: SetNull)
 
+  supersedes   SalesInvoice?  @relation("SalesInvoiceRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy SalesInvoice[] @relation("SalesInvoiceRevision")
+
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model SalesInvoiceLine {
@@ -8049,6 +8122,10 @@ model SalesQuotation {
   validUntil      DateTime?
   status          QuotationStatus @default(DRAFT)
   currency        String          @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal        Float           @default(0)
   taxTotal        Float           @default(0)
   total           Float           @default(0)
@@ -8058,6 +8135,9 @@ model SalesQuotation {
   madeByVane    Boolean @default(false)
   issuedById      String?
   issuedAt        DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -8069,8 +8149,12 @@ model SalesQuotation {
   crmLeadDocuments CrmLeadDocument[]    @relation("CrmLeadDocQuotation")
   invoicesRaised   SalesInvoice[]       @relation("SalesInvoiceFromQuotation")
 
+  supersedes   SalesQuotation?  @relation("SalesQuotationRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy SalesQuotation[] @relation("SalesQuotationRevision")
+
   @@unique([companyId, quotationNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model SalesQuotationLine {
@@ -8109,6 +8193,15 @@ model SalesReceipt {
   method        String
   reference     String?
   bankAccountId String?
+  /// Whose money it is (D2): the invoice's customer, or the customer it is on account for.
+  /// Nullable for history; every writer sets it.
+  customerId    String?
+  /// The currency the money came in, the rate on its day (quote units per one base unit,
+  /// `CurrencyRate`) and the amount in the base currency, frozen when it is recorded (D2).
+  /// Rate and base amount are empty only where no rate was known for the day.
+  currency      String?
+  exchangeRate  Float?
+  baseAmount    Float?
   createdById   String?
   createdAt     DateTime @default(now())
   /// Voided in Books by the workspace's owner (`lib/books/void-receipt.ts`): the
@@ -8121,21 +8214,28 @@ model SalesReceipt {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice          SalesInvoice?     @relation(fields: [invoiceId], references: [id])
   bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id])
   createdBy        User?             @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
   voidedBy         User?             @relation("SalesReceiptVoidedBy", fields: [voidedById], references: [id])
   crmLeadDocuments CrmLeadDocument[] @relation("CrmLeadDocReceipt")
 
   @@unique([companyId, receiptNumber])
+  @@index([companyId, customerId])
 }
 
 model CreditNote {
   id          String     @id @default(uuid())
   companyId   String
   invoiceId   String
-  noteNumber  String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  noteNumber  String?
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal    Float      @default(0)
   taxTotal    Float      @default(0)
   total       Float      @default(0)
@@ -8143,6 +8243,9 @@ model CreditNote {
   createdById String?
   issuedById  String?
   issuedAt    DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -8153,8 +8256,12 @@ model CreditNote {
   issuedBy      User?            @relation("CreditNoteIssuedBy", fields: [issuedById], references: [id])
   fiscalReceipt FiscalReceipt?   @relation("CreditNoteFiscalReceipt")
 
+  supersedes   CreditNote?  @relation("CreditNoteRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy CreditNote[] @relation("CreditNoteRevision")
+
   @@unique([companyId, noteNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model CreditNoteLine {
@@ -8180,6 +8287,8 @@ model SalesWriteOff {
   companyId   String
   invoiceId   String
   amount      Float
+  /// "WO-0001", from the gapless series (D8).
+  writeOffNumber String?
   reason      String?
   status      WriteOffStatus @default(POSTED)
   createdById String?
@@ -8189,6 +8298,7 @@ model SalesWriteOff {
   invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   createdBy User?        @relation("SalesWriteOffCreatedBy", fields: [createdById], references: [id])
 
+  @@unique([companyId, writeOffNumber])
   @@index([companyId, invoiceId])
 }
 
@@ -8196,11 +8306,16 @@ model PurchaseBill {
   id             String     @id @default(uuid())
   companyId      String
   vendorId       String
-  billNumber     String
+  /// Given when received from the gapless series (D8); a draft has none.
+  billNumber     String?
   billDate       DateTime
   dueDate        DateTime?
   status         BillStatus @default(DRAFT)
   currency       String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal       Float      @default(0)
   taxTotal       Float      @default(0)
   total          Float      @default(0)
@@ -8211,11 +8326,30 @@ model PurchaseBill {
   createdById    String?
   issuedById     String?
   issuedAt       DateTime?
+  /// D7 (books-final §4.1 rule 2): the document this one replaces. Revise voids the old one and
+  /// makes this one, a draft that takes its number at issue; both stay visible and linked.
+  supersedesId  String?
+  /// D12: the goods receipt it bills (the three-way match), and the order behind it.
+  goodsReceiptId  String?    @unique
+  purchaseOrderId String?
+  /// Made for someone to check (a draft bill backfilled from a goods receipt).
+  needsReview     Boolean    @default(false)
+  /// D16: the supplier's fiscal tax invoice number, and whether FDMS says it is valid.
+  /// Input VAT is claimed only once it is VALID (books-final §4.8).
+  supplierFtiNumber String?
+  fdmsStatus      FdmsCheckStatus @default(NOT_CHECKED)
+  fdmsCheckedAt   DateTime?
+  fdmsCheckedById String?
+  /// Over the payments limit, the owner approves before it is recorded (§2.4).
+  approvedById    String?
+  approvedAt      DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   vendor              Vendor               @relation(fields: [vendorId], references: [id])
+  goodsReceipt        RetailGoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  purchaseOrder       RetailPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   lines               PurchaseBillLine[]
   payments            PurchasePayment[]
   debitNotes          DebitNote[]
@@ -8223,8 +8357,12 @@ model PurchaseBill {
   createdBy           User?                @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
   issuedBy            User?                @relation("PurchaseBillIssuedBy", fields: [issuedById], references: [id])
 
+  supersedes   PurchaseBill?  @relation("PurchaseBillRevision", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy PurchaseBill[] @relation("PurchaseBillRevision")
+
   @@unique([companyId, billNumber])
   @@index([companyId, status])
+  @@index([companyId, supersedesId])
 }
 
 model PurchaseBillLine {
@@ -8251,9 +8389,31 @@ model PurchasePayment {
   id            String   @id @default(uuid())
   companyId     String
   billId        String?
-  paymentNumber String
+  /// Given when paid from the gapless series (D8); a draft has none.
+  paymentNumber String?
+  /// D5 (books-final §4.10): Draft → To approve → Approved → Paid → Voided. Retail's are written Paid.
+  status        PurchasePaymentStatus @default(PAID)
+  submittedAt   DateTime?
+  approverId    String?
+  approvalLimit Decimal?  @db.Decimal(14, 2)
+  approvedById  String?
+  approvedAt    DateTime?
+  paidById      String?
+  voidedAt      DateTime?
+  voidedById    String?
+  voidReason    String?
+  /// When it is to be paid (a draft), or was paid.
   paidAt        DateTime
   amount        Float
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
+  /// D17: tax withheld from the supplier out of `amount` (30% without a valid ITF263, or a third of the VAT where we are a withholding agent). Cash paid is amount less this.
+  withholdingAmount Float   @default(0)
+  /// INCOME_30 (no valid ITF263), VAT_THIRD, or BOTH.
+  withholdingType   String?
+  certificateNo     String?
   method        String
   reference     String?
   bankAccountId String?
@@ -8282,10 +8442,15 @@ model DebitNote {
   id          String     @id @default(uuid())
   companyId   String
   billId      String
-  noteNumber  String
+  /// Given at issue from the gapless series (D8); a draft has none.
+  noteNumber  String?
   noteDate    DateTime
   status      NoteStatus @default(DRAFT)
   currency    String     @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Float?
   subTotal    Float      @default(0)
   taxTotal    Float      @default(0)
   total       Float      @default(0)
@@ -8329,6 +8494,8 @@ model PurchaseWriteOff {
   companyId   String
   billId      String
   amount      Float
+  /// "PWO-0001", from the gapless series (D8).
+  writeOffNumber String?
   reason      String?
   status      WriteOffStatus @default(POSTED)
   createdById String?
@@ -8338,6 +8505,7 @@ model PurchaseWriteOff {
   bill      PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
   createdBy User?        @relation("PurchaseWriteOffCreatedBy", fields: [createdById], references: [id])
 
+  @@unique([companyId, writeOffNumber])
   @@index([companyId, billId])
 }
 
@@ -8403,12 +8571,20 @@ model BankAccount {
   kind             MoneyAccountKind @default(BANK)
   /// The ledger account this money sits in (1005 Cash vault, 1010 Operating bank, 1016 Mobile money clearing …).
   ledgerAccountId  String?
+  /// D13: a petty cash float, topped up to its imprest, held by one person.
+  isFloat          Boolean  @default(false)
+  imprestAmount    Decimal? @db.Decimal(14, 2)
+  holderId         String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   ledgerAccount      ChartOfAccount?      @relation("BankAccountLedger", fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+  holder             User?                @relation("BankAccountHolder", fields: [holderId], references: [id], onDelete: SetNull)
+  expenseClaimsPaid  ExpenseClaim[]
+  pettyCashVouchers  PettyCashVoucher[]   @relation("PettyCashVoucherFloat")
+  pettyCashTopUps    PettyCashVoucher[]   @relation("PettyCashVoucherFrom")
   requisitionChange  CrmRequisition[]     @relation("CrmRequisitionChangeAccount")
   transactions       BankTransaction[]
   salesReceipts      SalesReceipt[]
@@ -8475,6 +8651,8 @@ model BankReconciliation {
   startDate        DateTime
   endDate          DateTime
   statementBalance Float                @default(0)
+  /// D15: the statement's closing date; statementBalance is its closing balance.
+  statementEndDate DateTime?
   status           ReconciliationStatus @default(OPEN)
   createdById      String?
   closedById       String?
@@ -8501,6 +8679,10 @@ model BankStatementLine {
   amount               Float
   direction            PostingDirection
   matchedTransactionId String?
+  /// D15: a line left out of matching on purpose, by whom and why.
+  excludedAt           DateTime?
+  excludedById         String?
+  excludeReason        String?
   createdAt            DateTime         @default(now())
 
   reconciliation     BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
@@ -8703,6 +8885,9 @@ model FiscalisationProviderConfig {
   /// Last FDMS call that succeeded / failed. "Stop selling" reads `lastFailedAt`.
   lastOkAt         DateTime?
   lastFailedAt     DateTime?
+  /// D18: a device registered against ZIMRA's test environment. Only then may the owner purge
+  /// what it signed (books-final §2.5, §5.12). Never on for a live device; off by default.
+  isTestDevice     Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -14549,6 +14734,13 @@ model CrmCommissionEntry {
   currency       String                   @default("USD")
   status         CrmCommissionEntryStatus @default(PENDING)
   approvedById   String?
+  /// D19: approving posts it (Dr commission expense, Cr 2195); paying clears it.
+  approvedAt     DateTime?
+  paidById       String?
+  paidBankAccountId String?
+  journalEntryId String?
+  voidedAt       DateTime?
+  voidedById     String?
   paidAt         DateTime?
   notes          String?
   calculatedAt   DateTime                 @default(now())
@@ -16068,7 +16260,8 @@ model CrmProjectMember {
 model CrmRequisition {
   id             String                 @id @default(uuid())
   companyId      String
-  requisitionNo  String
+  /// Given at Send for approval from the gapless series (D8); a draft has none.
+  requisitionNo  String?
   status         CrmRequisitionStatus   @default(DRAFT)
   category       CrmRequisitionCategory
   /// What the money is for, in the requester's words.
@@ -16083,6 +16276,10 @@ model CrmRequisition {
 
   amount   Decimal @db.Decimal(14, 2)
   currency String  @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
 
   requestedById String
   neededBy      DateTime?
@@ -16202,6 +16399,10 @@ model CrmDailyCostEntry {
   category  CrmRequisitionCategory
   amount    Decimal          @db.Decimal(14, 2)
   currency  String           @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
   description String
 
   /// Same nullability, same reason, as on a requisition: airtime belongs to
@@ -17020,4 +17221,161 @@ model ExploreQuestionRun {
 
   @@index([companyId, createdAt])
   @@index([userId])
+}
+
+/// D16: what FDMS said about a supplier's fiscal tax invoice. Checked by hand until ZIMRA offers a lookup.
+enum FdmsCheckStatus {
+  NOT_CHECKED
+  VALID
+  NOT_VALID
+}
+
+/// D5 (books-final §4.10).
+enum PurchasePaymentStatus {
+  DRAFT
+  TO_APPROVE
+  APPROVED
+  PAID
+  VOIDED
+}
+
+/// D13 (books-final §4.12).
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+  VOIDED
+}
+
+enum PettyCashVoucherKind {
+  SPEND
+  TOP_UP
+}
+
+enum PettyCashVoucherStatus {
+  DRAFT
+  TO_APPROVE
+  POSTED
+  VOIDED
+}
+
+/// D13: what someone spent from their own pocket, paid back to them (books-final §4.12).
+/// Approving posts each line's expense against 2190 Staff claims payable; reimbursing clears it.
+model ExpenseClaim {
+  id             String             @id @default(uuid())
+  companyId      String
+  /// Given at Submit from the gapless series (D8); a draft has none.
+  claimNo        String?
+  status         ExpenseClaimStatus @default(DRAFT)
+  claimantId     String
+  currency       String             @default("USD")
+  /// D3 (books-final §7): the rate frozen when it was written, its source (BASE, MANUAL or RBZ), and its total in the base currency.
+  exchangeRate  Float?
+  rateSource    String?
+  baseTotal     Decimal? @db.Decimal(14, 2)
+  total          Decimal            @default(0) @db.Decimal(14, 2)
+  notes          String?
+  /// The cost-tracker day it came from, when it came from one.
+  dailyLogId     String?            @unique
+  /// Made for someone to check: from the cost tracker, or backfilled.
+  needsReview    Boolean            @default(false)
+  reviewNote     String?
+  submittedAt    DateTime?
+  approverId     String?
+  approvalLimit  Decimal?           @db.Decimal(14, 2)
+  approvedById   String?
+  approvedAt     DateTime?
+  decisionNote   String?
+  paidById       String?
+  paidAt         DateTime?
+  bankAccountId  String?
+  voidedAt       DateTime?
+  voidedById     String?
+  voidReason     String?
+  createdById    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  claimant    User               @relation("ExpenseClaimClaimant", fields: [claimantId], references: [id])
+  bankAccount BankAccount?       @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  lines       ExpenseClaimLine[]
+
+  @@unique([companyId, claimNo])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, claimantId, status])
+}
+
+model ExpenseClaimLine {
+  id               String                  @id @default(uuid())
+  companyId        String
+  claimId          String
+  category         CrmRequisitionCategory  @default(OTHER)
+  description      String
+  spentOn          DateTime?
+  amount           Decimal                 @db.Decimal(14, 2)
+  /// Input VAT on the slip; claimed only when its FTI is VALID on FDMS (D16).
+  taxAmount        Decimal                 @default(0) @db.Decimal(14, 2)
+  ftiNumber        String?
+  fdmsStatus       FdmsCheckStatus         @default(NOT_CHECKED)
+  /// The expense account, when it is not the category's own.
+  expenseAccountId String?
+  projectId        String?
+  costCenterId     String?
+  receiptUrl       String?
+  /// The cost-tracker line it came from.
+  costEntryId      String?                 @unique
+  /// That line was already posted on its own (before claims): approving moves its payable to 2190 rather than expensing it twice.
+  alreadyPostedEntryId String?
+  sortOrder        Int                     @default(0)
+  createdAt        DateTime                @default(now())
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  claim   ExpenseClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId])
+  @@index([companyId])
+}
+
+/// D13: money spent from a petty cash float (SPEND), or the float topped up to its imprest (TOP_UP).
+model PettyCashVoucher {
+  id                String                 @id @default(uuid())
+  companyId         String
+  /// Given when posted from the gapless series (D8).
+  voucherNo         String?
+  kind              PettyCashVoucherKind   @default(SPEND)
+  status            PettyCashVoucherStatus @default(DRAFT)
+  /// The float it is spent from, or topped up.
+  bankAccountId     String
+  /// A top-up: the account the money came from.
+  fromBankAccountId String?
+  category          CrmRequisitionCategory @default(OTHER)
+  description       String
+  amount            Decimal                @db.Decimal(14, 2)
+  taxAmount         Decimal                @default(0) @db.Decimal(14, 2)
+  ftiNumber         String?
+  fdmsStatus        FdmsCheckStatus        @default(NOT_CHECKED)
+  expenseAccountId  String?
+  projectId         String?
+  costCenterId      String?
+  receiptUrl        String?
+  spentAt           DateTime
+  createdById       String
+  approvedById      String?
+  approvedAt        DateTime?
+  postedAt          DateTime?
+  voidedAt          DateTime?
+  voidedById        String?
+  voidReason        String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  float       BankAccount  @relation("PettyCashVoucherFloat", fields: [bankAccountId], references: [id], onDelete: Restrict)
+  fromAccount BankAccount? @relation("PettyCashVoucherFrom", fields: [fromBankAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, voucherNo])
+  @@index([companyId, bankAccountId, status])
 }

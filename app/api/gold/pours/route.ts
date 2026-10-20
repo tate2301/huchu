@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse, hasRole } from '@/lib/api-utils';
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { recordEvent } from "@/lib/books/core";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close";
@@ -252,14 +252,14 @@ export async function POST(request: NextRequest) {
         skipValuation: true,
       });
 
-      await captureAccountingEvent({
+      // A pour moves gold, not money: recorded, never posted (books-final §6.2, bypass 9). Its value rides in the payload.
+      await recordEvent(tx, {
         companyId: session.user.companyId,
         sourceDomain: "gold",
         sourceAction: "pour-created",
         sourceId: created.id,
         entryDate: created.pourDate,
         description: `Gold pour ${created.pourBarId} created`,
-        amount: created.valueUsd != null ? Number(created.valueUsd) : Number(created.grossWeight),
         payload: {
           siteId: created.siteId,
           grossWeight: Number(created.grossWeight),
@@ -270,8 +270,7 @@ export async function POST(request: NextRequest) {
           estimatedPurity: created.estimatedPurity != null ? Number(created.estimatedPurity) : null,
         },
         createdById: session.user.id,
-        status: "PENDING",
-      }, tx);
+      });
 
       return created;
     });

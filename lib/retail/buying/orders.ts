@@ -528,7 +528,9 @@ async function liveOrder(tx: Tx, companyId: string, id: string) {
     },
   });
   if (!order) throw new OrderRefusal(404, NOT_FOUND);
-  return order;
+  // A Books order (D11) has no shop: retail's buying screens do not move it.
+  if (!order.site) throw new OrderRefusal(409, `${order.poNo} was raised in Books, not at a shop. Open it in Books.`);
+  return { ...order, site: order.site };
 }
 
 export type Sent = { id: string; poNo: string; supplier: string; sentVia: RetailOrderSentVia; messages: QueuedMessage[] };

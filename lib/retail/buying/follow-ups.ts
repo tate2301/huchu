@@ -47,7 +47,7 @@ async function chaseReceipts(companyId: string, now: Date): Promise<number> {
       companyId,
       recipientIds: [requisition.requestedById],
       type: "CRM_REQUISITION_DECIDED",
-      title: receiptsOverdueTitle(requisition.requisitionNo, requisition.receiptsDueAt!, now),
+      title: receiptsOverdueTitle(requisition.requisitionNo ?? "Requisition", requisition.receiptsDueAt!, now),
       summary: "Account for it: what was spent, the receipt and any change.",
       entityType: "CRM_REQUISITION",
       entityId: requisition.id,

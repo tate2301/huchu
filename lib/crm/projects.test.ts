@@ -9,6 +9,7 @@
  * that is what makes it billable against the deal and visible on the
  * customer's record.
  */
+import { clearProjectLedger, spendOnProject } from "@/lib/crm/project-ledger-test-helper";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
@@ -107,6 +108,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await clearProjectLedger(companyId);
   await wipe(companyId);
   await wipe(otherCompanyId);
   await prisma.crmSite.deleteMany({ where: { companyId } });
@@ -284,23 +286,13 @@ describe("over budget", () => {
       createProject(tx, companyId, userId, { name: "No budget", dealId: unbudgetedDeal.id }),
     );
 
+    // Spend is what the ledger holds on each project's cost centre (books-final §5.3).
     for (const [projectId, amount] of [
       [over.id, 150],
       [under.id, 150],
       [unbudgeted.id, 5000],
     ] as const) {
-      await prisma.$transaction((tx) =>
-        addCostEntry(tx, {
-          companyId,
-          userId,
-          direction: "SPENT",
-          category: "MATERIALS",
-          amount,
-          currency: "USD",
-          description: "Screed",
-          projectId,
-        }),
-      );
+      await spendOnProject(companyId, projectId, amount, userId);
     }
     // Money received against a project is not spend against its budget.
     await prisma.$transaction((tx) =>

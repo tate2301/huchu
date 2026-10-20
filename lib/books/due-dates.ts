@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 /** Why a due date was not set, in a sentence. */
 export class DueDateRefused extends Error {
@@ -32,5 +33,5 @@ export async function setInvoiceDueDate(
     throw new DueDateRefused(`${invoice.invoiceNumber} cannot be due before its own date.`);
   }
   await db.salesInvoice.update({ where: { id: invoice.id }, data: { dueDate: due } });
-  return { invoiceNumber: invoice.invoiceNumber, dueDate };
+  return { invoiceNumber: docLabel(invoice.invoiceNumber), dueDate };
 }

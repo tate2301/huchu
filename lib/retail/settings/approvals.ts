@@ -42,6 +42,9 @@ export const approvalsSettings: SettingsStore = {
       adjustmentPinOver: row?.adjustmentPinOver.toFixed(2) ?? APPROVAL_DEFAULTS.adjustmentPinOver,
       countDifferences: countWords[row?.countDifferences ?? APPROVAL_DEFAULTS.countDifferences],
       accountOwnerOver: row?.accountOwnerOver.toFixed(2) ?? APPROVAL_DEFAULTS.accountOwnerOver,
+      paymentOwnerOver: row?.paymentOwnerOver.toFixed(2) ?? APPROVAL_DEFAULTS.paymentOwnerOver,
+      journalSecondOver: row?.journalSecondOver.toFixed(2) ?? APPROVAL_DEFAULTS.journalSecondOver,
+      voucherHolderUnder: row?.voucherHolderUnder.toFixed(2) ?? APPROVAL_DEFAULTS.voucherHolderUnder,
       askBy: ASK_BY_WORDS[row?.askBy ?? APPROVAL_DEFAULTS.askBy],
       // Read-only: the count segment's two labels, the second built from the stored amount.
       countDifferencesOptions: [countWords.ANY_MANAGER, countWords.OWNER_OVER_LIMIT],
@@ -78,11 +81,17 @@ export const approvalsSettings: SettingsStore = {
       adjustmentPinOver?: string;
       countDifferences?: CountApprovalRule;
       accountOwnerOver?: string;
+      paymentOwnerOver?: string;
+      journalSecondOver?: string;
+      voucherHolderUnder?: string;
       askBy?: ApprovalChannel;
     } = {};
     if (typeof changes.requisitionOwnerOver === "string") data.requisitionOwnerOver = changes.requisitionOwnerOver;
     if (typeof changes.adjustmentPinOver === "string") data.adjustmentPinOver = changes.adjustmentPinOver;
     if (typeof changes.accountOwnerOver === "string") data.accountOwnerOver = changes.accountOwnerOver;
+    if (typeof changes.paymentOwnerOver === "string") data.paymentOwnerOver = changes.paymentOwnerOver;
+    if (typeof changes.journalSecondOver === "string") data.journalSecondOver = changes.journalSecondOver;
+    if (typeof changes.voucherHolderUnder === "string") data.voucherHolderUnder = changes.voucherHolderUnder;
     if (typeof changes.belowCostNeedsOwner === "boolean") data.belowCostNeedsOwner = changes.belowCostNeedsOwner;
     if (changes.priceChanges !== undefined) data.priceChanges = ruleOf(PRICE_CHANGE_WORDS, changes.priceChanges) ?? undefined;
     if (changes.askBy !== undefined) data.askBy = ruleOf(ASK_BY_WORDS, changes.askBy) ?? undefined;

@@ -554,6 +554,40 @@ export const settingsNavEntries: SettingsNavEntry[] = [
     icon: History,
     gate: { kind: "preference", itemId: "activity" },
   },
+  // Books' core settings (books-final §3.2 "In Management"): free, whatever the plan, so a
+  // workspace without Books' screens still sets its tax details, money accounts and limits.
+  {
+    id: "money-and-tax",
+    group: "company",
+    label: "Money and tax",
+    href: "/management/money-and-tax",
+    icon: Coins,
+    gate: { kind: "preference", itemId: "money-and-tax" },
+  },
+  {
+    id: "money-accounts",
+    group: "company",
+    label: "Money accounts",
+    href: "/management/money-accounts",
+    icon: Wallet,
+    gate: { kind: "preference", itemId: "money-accounts" },
+  },
+  {
+    id: "money-approvals",
+    group: "company",
+    label: "Approvals",
+    href: "/retail/manage/approvals",
+    icon: ShieldCheck,
+    gate: { kind: "preference", itemId: "money-approvals" },
+  },
+  {
+    id: "accountant-export",
+    group: "company",
+    label: "Accountant export",
+    href: "/management/accountant-export",
+    icon: FileCheck,
+    gate: { kind: "preference", itemId: "accountant-export" },
+  },
   {
     id: "notification-routing",
     group: "company",

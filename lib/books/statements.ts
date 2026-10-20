@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { dayOf, longDay, storedDay } from "./format";
 import { invoiceBalance, invoiceState } from "./invoice-state";
@@ -44,7 +45,7 @@ export async function readStatements(
     const lines = invoices
       .filter((invoice) => invoice.customerId === customer.id && invoiceBalance(invoice) > 0)
       .map((invoice) => ({
-        number: invoice.invoiceNumber,
+        number: docLabel(invoice.invoiceNumber),
         written: longDay(storedDay(invoice.invoiceDate)),
         when: invoiceState({ ...invoice, lastReceipt: null }, today).when,
         total: invoice.total,

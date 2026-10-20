@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { billState, expensesFinding, type BillFacts } from "./expenses";
+import { billState, type BillFacts } from "./expenses";
 import { paymentsFinding } from "./payments";
 
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -15,7 +15,7 @@ const facts = (over: Partial<BillFacts>): BillFacts => ({
   ...over,
 });
 
-describe("a bill in Books → Expenses", () => {
+describe("a bill in Books → Bills", () => {
   const today = "2026-10-06";
 
   it("reads overdue in days, and what is left to pay", () => {
@@ -32,19 +32,11 @@ describe("a bill in Books → Expenses", () => {
     expect(billState(facts({ status: "DRAFT" }), today)).toMatchObject({ state: "draft", when: "Entered 20 Sep" });
     expect(billState(facts({ status: "VOIDED" }), today)).toMatchObject({ state: "void", balance: 0 });
   });
-
-  it("opens with what is to pay and how much of it is late", () => {
-    expect(expensesFinding({ amount: 1980, bills: 4 }, { amount: 420, bills: 1 })).toEqual({
-      fact: "$1,980.00 is to pay on 4 bills.",
-      rest: "1 is overdue, $420.00 in all.",
-    });
-    expect(expensesFinding({ amount: 0, bills: 0 }, { amount: 0, bills: 0 }).fact).toBe("Nothing is owed to suppliers.");
-  });
 });
 
 describe("Books → Payments' finding", () => {
   it("says what came in this month", () => {
-    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "$1,240.00 came in this month.", rest: "4 payments so far." });
+    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "US$1,240.00 came in this month.", rest: "4 payments so far." });
     expect(paymentsFinding({ amount: 0, payments: 0 }).fact).toBe("Nothing has come in this month yet.");
   });
 });

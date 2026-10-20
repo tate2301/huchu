@@ -6,6 +6,7 @@ import { getNextEntryNumber, ensurePeriodForDate, toMoney } from "@/lib/accounti
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { findForeignAccountIds, findForeignCostCenterIds } from "@/lib/accounting/ownership";
 import { ensureLedgerAccountIds } from "@/lib/accounting/chart-of-accounts";
+import { guardBooks } from "@/lib/books/core";
 
 const journalSchema = z.object({
   entryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -111,6 +112,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = journalSchema.parse(body);
+    const { refused } = await guardBooks(
+      session,
+      (validated.status ?? "DRAFT") === "POSTED" ? "journal.post" : "draft.create",
+      { kind: "journal", amount: validated.lines.reduce((sum, line) => sum + (line.debit ?? 0), 0) },
+    );
+    if (refused) return refused;
 
     if (!totalsMatch(validated.lines)) {
       return errorResponse("Debit and credit totals must balance", 400);
@@ -150,7 +157,6 @@ export async function POST(request: NextRequest) {
     }
 
     const entryDate = new Date(validated.entryDate);
-    const entryNumber = await getNextEntryNumber(session.user.companyId);
     let period = await ensurePeriodForDate(session.user.companyId, entryDate);
     let periodOverrideReason: string | undefined;
     let periodOverrideById: string | undefined;
@@ -176,10 +182,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const entry = await prisma.journalEntry.create({
+    // Numbered inside the write, so two people saving at once get consecutive numbers (D8).
+    const entry = await prisma.$transaction(async (tx) => tx.journalEntry.create({
       data: {
         companyId: session.user.companyId,
-        entryNumber,
+        entryNumber: await getNextEntryNumber(session.user.companyId, tx),
         entryDate,
         description: validated.description,
         status: validated.status ?? "DRAFT",
@@ -202,7 +209,7 @@ export async function POST(request: NextRequest) {
         },
       },
       include: { lines: true },
-    });
+    }));
 
     return successResponse(entry, 201);
   } catch (error) {

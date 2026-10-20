@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Icon, Status, VaneMark, type IconName } from "@/components/core";
+import { Avatar, Icon, Status, VaneMark, type IconName } from "@/components/core";
 import { fullTime, INBOX_MODULES, relativeTime, type InboxModule, type Segment, type SubjectKind } from "@/lib/inbox/describe";
 import type { InboxItem } from "@/lib/inbox/query";
 
@@ -17,7 +17,7 @@ import styles from "./inbox.module.css";
  */
 
 export type RowWho =
-  | { kind: "person"; name: string; initials: string }
+  | { kind: "person"; name: string; initials: string; image?: string | null }
   | { kind: "module"; icon: IconName; label: string }
   | { kind: "vane" };
 
@@ -72,7 +72,7 @@ export function rowFromItem(item: InboxItem): RowModel {
     createdAt: item.createdAt,
     unread: !item.isRead,
     who: item.actor
-      ? { kind: "person", name: item.actor.name, initials: item.actor.initials }
+      ? { kind: "person", name: item.actor.name, initials: item.actor.initials, image: item.actor.image ?? null }
       : item.module === "vane"
         ? { kind: "vane" }
         : { kind: "module", icon: meta.icon as IconName, label: meta.label },
@@ -101,11 +101,8 @@ function Who({ who }: { who: RowWho }) {
       </span>
     );
   }
-  return (
-    <span className={styles.who} title={who.name}>
-      {who.initials}
-    </span>
-  );
+  // A person: their avatar, the kit's (photo, else initials on their tint).
+  return <Avatar name={who.name} src={who.image} size={24} title={who.name} />;
 }
 
 export function Sentence({ segments }: { segments: Segment[] }) {

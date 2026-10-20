@@ -30,7 +30,7 @@ import {
 
 const include = {
   client: { select: { id: true, name: true } },
-  assignedTo: { select: { id: true, name: true } },
+  assignedTo: { select: { id: true, name: true, image: true } },
   _count: { select: { dealContacts: true } },
 } satisfies Prisma.CrmPersonInclude;
 

@@ -81,10 +81,12 @@ describe("Vane's own drafts", () => {
     // Its page says it is Vane's, what it was made from, and that nothing changed since the quote.
     const record = await readInvoiceRecord(prisma, shop.companyId, invoiceId);
     expect(record).toMatchObject({ status: "DRAFT", stateLabel: "Vane's draft", madeByVane: true, date: "On issue", quote: { number: expect.stringMatching(/^QT-/) }, changes: [] });
-    expect(record!.fact).toMatch(/^\$620\.00 to Borrowdale Brooke Clinic, due \d+ days after you issue it\.$/);
+    expect(record!.fact).toMatch(/^US\$620\.00 to Borrowdale Brooke Clinic, due \d+ days after you issue it\.$/);
 
     const issued = await action("books.invoice.issue").run(context(), action("books.invoice.issue").input.parse({ invoiceId, invoiceNumber, customer: "Borrowdale Brooke Clinic", total: "USD 620.00" }) as never);
-    expect(issued).toBe(`${invoiceNumber} is issued to Borrowdale Brooke Clinic. Send it from Books.`);
+    // A draft carries no number (D8); it is numbered from the series when issued.
+    expect(invoiceNumber).toBeNull();
+    expect(issued).toMatch(/^INV-\d{4,} is issued to Borrowdale Brooke Clinic\. Send it from Books\.$/);
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ status: "ISSUED", issuedById: shop.managerId });
     // Issued, it is not Vane's to delete.
     await expect(action("books.invoice.discard").run(context(), { invoiceId, invoiceNumber } as never)).rejects.toThrow("was issued");

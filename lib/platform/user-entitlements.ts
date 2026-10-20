@@ -93,6 +93,8 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
   BURSAR: [
     ...SCHOOL_SHARED_ALLOW_PREFIXES,
     "accounting.core",
+    // The Books pages a bursar opens (Money, Sales, Bank & cash; books-final §3.2).
+    "books.screens",
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",
@@ -156,6 +158,7 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.notifications.",
     "core.multitenancy.",
     "accounting.core",
+    "books.screens",
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",

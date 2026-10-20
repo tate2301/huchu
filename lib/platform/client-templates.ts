@@ -237,6 +237,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "ADDON_STORES_CORE",
       "ADDON_WORKFORCE_CORE",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ACCOUNTING_ADVANCED",
       "ADDON_MAINTENANCE_PRO",
     ],
@@ -266,6 +267,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     bundleCodes: [
       "ADDON_CRM_SUITE",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ACCOUNTING_ADVANCED",
       "ADDON_WORKFORCE_CORE",
     ],

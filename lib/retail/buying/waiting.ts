@@ -1,4 +1,5 @@
 import { toNumberOrZero } from "@/lib/money";
+import { otherOwners, othersWhoCan } from "@/lib/books/core/approvals";
 import { prisma } from "@/lib/prisma";
 import { registerWaitingProvider, type WaitingProvider } from "@/lib/retail/approvals/waiting";
 import { formatMoney } from "@/lib/workspace/format";
@@ -31,7 +32,9 @@ export async function decidableRequisitions(ctx: { companyId: string; userId: st
     },
   });
   const actor = { companyId: ctx.companyId, userId: ctx.userId, userRole: ctx.role };
-  return rows.filter((row) => decideRefusal(actor, row, null) === null);
+  // Who else could decide this person's own (a sole owner decides their own; books-final §2.4).
+  const [others, owners] = await Promise.all([othersWhoCan(prisma, ctx.companyId, { module: "retail", except: [ctx.userId] }), otherOwners(prisma, ctx.companyId, [ctx.userId])]);
+  return rows.filter((row) => decideRefusal(actor, row, null, others, owners) === null);
 }
 
 /** "REQ-0014, US$1,940.00, for Afdis." */
@@ -42,7 +45,7 @@ export const requisitionsWaiting: WaitingProvider = {
     const rows = await decidableRequisitions({ companyId: ctx.companyId, userId: ctx.userId, role: ctx.session.user.role ?? null });
     return rows.map((row) => ({
       key: `req-${row.id}`,
-      ref: row.requisitionNo,
+      ref: row.requisitionNo ?? "Requisition",
       text: `, ${formatMoney(toNumberOrZero(row.amount), row.currency)}, for ${row.purchaseOrderId && row.payee ? firstName(row.payee.name) : row.purpose.replace(/[.]$/, "")}.`,
       href: `/retail/buying/requisitions/${row.id}`,
       since: row.submittedAt ?? row.createdAt,

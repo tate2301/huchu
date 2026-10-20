@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Empty } from "@/components/core";
+import { ApiError, getApiErrorMessage } from "@/lib/api-client";
 
 /** While a Books page loads: its finding and rows as grey bars, so nothing jumps when they arrive. */
 export function BooksLoading() {
@@ -13,9 +14,16 @@ export function BooksLoading() {
   );
 }
 
-/** When it did not load: offline or the server refused. */
-export function BooksError({ what, onRetry }: { what: string; onRetry: () => void }) {
+/** When it did not load: offline, or the server refused (a 403 says who can see it). */
+export function BooksError({ what, onRetry, error, who }: { what: string; onRetry: () => void; error?: unknown; who?: string }) {
   const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <Empty icon="lock" title={who ?? "Only the owner, a manager or the accountant see this"}>
+        {getApiErrorMessage(error, "Ask the owner for access to Books.")}
+      </Empty>
+    );
+  }
   return (
     <Empty
       icon="warn"

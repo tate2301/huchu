@@ -1,31 +1,36 @@
 import { createSalesCreditNote, CreditNoteRefused } from "@/lib/accounting/credit-notes";
-import { salesInvoicePostingKey } from "@/lib/accounting/journals";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { docLabel } from "@/lib/books/doc-number";
 import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
+import { approvedCommissionOn, mirrorVoidedCommission } from "./core/commission";
 import { money } from "./format";
-import { InvoiceChangeRefused, isWorkspaceOwner, OWNER_ONLY, type InvoiceActor } from "./owner";
+import { canDo, type BooksActor } from "./core/can-do";
+import { fiscalise } from "./core/fiscalise";
+import { InvoiceChangeRefused, OWNER_ONLY, type InvoiceActor } from "./owner";
 import { creditLines, REASON_MAX, REASON_MIN, wasFiscalised, type CreditChoice } from "./reversal";
 
 /**
  * Reversing an issued or paid invoice from its page (Reverse), by the
- * workspace's owner only, with a reason that is kept:
+ * workspace's owner or someone the owner let (`books.void`), with a reason
+ * that is kept:
  *
- * - **Void the whole invoice.** It becomes VOIDED and its posting is reversed
- *   the way Accounting → Sales always voided one: the invoice's rule posted
- *   again with every direction inverted, under `void:<id>`. The receivables
- *   sub-ledger stops counting it. Payments on it are taken off it and stay as
- *   the customer's money on account: the receipt and its posting are kept
- *   (bank up, receivable down), and its sub-ledger line keeps the customer
- *   with no invoice. That is new: the old void left the receipts pointing at
- *   the voided invoice.
+ * - **Void the whole invoice** (books-final §4.1 rule 4, §4.3): never a bare
+ *   mirror any more. A full credit note is issued and posted for what is left
+ *   on it (all of it, less credit notes and write-offs already against it),
+ *   and sent to the fiscal device citing it when the invoice was fiscalised.
+ *   Payments on it are taken off it and stay as the customer's money on
+ *   account: the receipt and its posting are kept (bank up, receivable down),
+ *   and its sub-ledger line keeps the customer with no invoice. Commission
+ *   not yet paid on it is voided (an approved one's posting mirrored). Books'
+ *   invoice lines carry no product, so issuing one moves no stock and there
+ *   is none to bring back. Invoices voided before this with a `void:<id>`
+ *   mirror keep those entries; the VAT return reads both.
  * - **Credit part of it.** A credit note through `createSalesCreditNote`,
  *   issued and posted at once, for chosen lines or an amount.
  *
- * Fiscal: `lib/accounting/fiscalisation.ts` knows a credit note as a fiscal
- * source but has no issuer for a sales credit note or a void, so nothing goes
- * to the fiscal device. The page says the device still holds the original.
+ * A failed fiscal send waits in the fiscal register to be retried; it never
+ * undoes the note.
  */
 
 function reasonOf(reason: string | null | undefined): string {
@@ -36,17 +41,27 @@ function reasonOf(reason: string | null | undefined): string {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-export type VoidResult = { number: string; customer: string; unlinked: Array<{ id: string; number: string; amount: number }>; fiscalised: boolean };
+export type VoidResult = {
+  number: string;
+  customer: string;
+  unlinked: Array<{ id: string; number: string; amount: number }>;
+  fiscalised: boolean;
+  /** The full credit note the void issued (§4.1 rule 4); none when earlier notes and write-offs had taken it all off. */
+  creditNote?: { id: string; number: string; total: number; fiscalised: boolean; fiscalSent: boolean; fiscalReason: string | null };
+  fiscalSent?: boolean;
+  /** Commission not yet paid on it, voided with it. */
+  commissionVoided: number;
+};
 
 /**
- * Voids an invoice: VOIDED, its posting reversed (`void:<id>`), its payments
- * left as the customer's credit. The reversal posts first, so a locked period
- * refuses the void with nothing changed; posting again finds it and goes on.
- * Refused while a credit note or a write-off stands against it: voiding
- * would reverse their part twice.
+ * Voids an invoice (see the header). A draft has nothing posted and simply
+ * becomes VOIDED. Anything issued is voided through a full credit note,
+ * issued and posted now, whatever stands on it: its payments go on account,
+ * earlier credit notes and write-offs keep their part and the note takes off
+ * the rest.
  */
-export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input: { reason: string; source?: string }): Promise<VoidResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
+export async function voidInvoice(actor: InvoiceActor | BooksActor, invoiceId: string, input: { reason: string; source?: string }): Promise<VoidResult> {
+  if (!canDo(actor, "void", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },
@@ -54,58 +69,34 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
       id: true,
       invoiceNumber: true,
       status: true,
-      revision: true,
       customerId: true,
       currency: true,
       total: true,
-      subTotal: true,
-      taxTotal: true,
       customer: { select: { name: true } },
       // A void payment stays with the invoice it was on; only the rest go on account.
       receipts: { where: { voidedAt: null }, select: { id: true, receiptNumber: true, amount: true } },
-      creditNotes: { where: { status: "ISSUED" }, select: { noteNumber: true } },
-      writeOffs: { where: { status: "POSTED" }, select: { id: true } },
+      creditNotes: { where: { status: "ISSUED" }, select: { total: true } },
+      writeOffs: { where: { status: "POSTED" }, select: { amount: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
     },
   });
   if (!invoice) throw new InvoiceChangeRefused("That invoice is not here any more.", 404);
-  if (invoice.status === "VOIDED") throw new InvoiceChangeRefused(`${invoice.invoiceNumber} is void already.`);
-  if (invoice.creditNotes.length > 0) {
-    throw new InvoiceChangeRefused(`${invoice.invoiceNumber} has ${invoice.creditNotes.map((note) => note.noteNumber).join(", ")} against it. Credit the rest instead, or delete it.`);
-  }
-  if (invoice.writeOffs.length > 0) throw new InvoiceChangeRefused(`Part of ${invoice.invoiceNumber} is written off. Credit the rest instead, or delete it.`);
+  if (invoice.status === "VOIDED") throw new InvoiceChangeRefused(`${docLabel(invoice.invoiceNumber)} is void already.`);
+  const number = docLabel(invoice.invoiceNumber);
+  const fiscalised = invoice.status !== "DRAFT" && wasFiscalised(invoice.fiscalReceipt);
 
-  const now = new Date();
-  let reversalEntryId: string | null = null;
+  // The credit note first: a closed month or a refused note stops the void with nothing else changed.
+  let creditNote: VoidResult["creditNote"];
   if (invoice.status !== "DRAFT") {
-    const posted = await prisma.journalEntry.findFirst({
-      where: { companyId: actor.companyId, sourceType: "SALES_INVOICE", sourceId: salesInvoicePostingKey(invoice), status: "POSTED", reversedAt: null },
-      select: { id: true },
-    });
-    if (posted) {
-      const result = await createJournalEntryFromSource({
-        companyId: actor.companyId,
-        sourceType: "SALES_INVOICE",
-        sourceId: `void:${invoice.id}`,
-        entryDate: now,
-        description: `Void sales invoice ${invoice.invoiceNumber}`,
-        createdById: actor.userId,
-        actorRole: actor.role ?? undefined,
-        periodOverrideReason: reason,
-        amount: invoice.total,
-        netAmount: invoice.subTotal,
-        taxAmount: invoice.taxTotal,
-        grossAmount: invoice.total,
-        currency: invoice.currency,
-        invertDirection: true,
-      });
-      if (!result.entryId) throw new InvoiceChangeRefused(`${invoice.invoiceNumber} was not voided: its reversal could not be posted (${result.error ?? "no journal was written"}).`);
-      reversalEntryId = result.entryId;
-    }
+    const credited = round(invoice.creditNotes.reduce((sum, note) => sum + note.total, 0) + invoice.writeOffs.reduce((sum, row) => sum + row.amount, 0));
+    const left = round(invoice.total - credited);
+    if (left > 0.005) creditNote = await fullCreditNote(actor, { id: invoice.id, number, currency: invoice.currency, fiscalised, whole: credited <= 0.005, left }, reason);
   }
 
   const unlinked = invoice.receipts.map((receipt) => ({ id: receipt.id, number: receipt.receiptNumber, amount: round(receipt.amount) }));
-  await prisma.$transaction(async (tx) => {
+  // Approved commission on it posted its expense (D19): mirrored once the invoice is void.
+  const approved = await approvedCommissionOn(actor.companyId, { invoiceId: invoice.id });
+  const commissionVoided = await prisma.$transaction(async (tx) => {
     await tx.salesInvoice.update({ where: { id: invoice.id }, data: { status: "VOIDED", amountPaid: 0 } });
     if (unlinked.length > 0) {
       await tx.salesReceipt.updateMany({ where: { companyId: actor.companyId, invoiceId: invoice.id, voidedAt: null }, data: { invoiceId: null } });
@@ -115,11 +106,14 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
         data: { invoiceId: null, partyId: invoice.customerId },
       });
     }
-    // Aged debt reads the sub-ledger's POSTED lines: a void invoice is owed by nobody.
-    await tx.paymentLedgerEntry.updateMany({
-      where: { companyId: actor.companyId, sourceType: "SALES_INVOICE", invoiceId: invoice.id },
-      data: { status: "VOIDED" },
-    });
+    // Commission not yet paid on it goes with it (§4.3).
+    const docs = await tx.crmLeadDocument.findMany({ where: { companyId: actor.companyId, invoiceId: invoice.id }, select: { id: true } });
+    const voided = docs.length
+      ? await tx.crmCommissionEntry.updateMany({
+          where: { companyId: actor.companyId, leadDocumentId: { in: docs.map((doc) => doc.id) }, status: { in: ["PENDING", "APPROVED"] } },
+          data: { status: "VOIDED", voidedAt: new Date(), voidedById: actor.userId },
+        })
+      : { count: 0 };
     await writePlatformAuditEvent(
       {
         companyId: actor.companyId,
@@ -133,24 +127,74 @@ export async function voidInvoice(actor: InvoiceActor, invoiceId: string, input:
           was: invoice.status,
           total: invoice.total,
           currency: invoice.currency,
-          reversalEntryId,
+          creditNoteId: creditNote?.id ?? null,
+          creditNote: creditNote?.number ?? null,
+          fiscal: creditNote?.fiscalised ? { sent: creditNote.fiscalSent, reason: creditNote.fiscalReason } : null,
           // Whose money each payment is now: the Payments list reads it here when no sub-ledger line names the customer.
           receiptsOnAccount: unlinked.map((receipt) => ({ ...receipt, customerId: invoice.customerId })),
+          commissionVoided: voided.count,
           source: input.source ?? "books",
         },
       },
       tx,
     );
+    return voided.count;
   });
+  if (approved.length) await mirrorVoidedCommission(actor as BooksActor, approved, `Invoice ${number} voided`).catch((error: unknown) => console.error("[Books] commission mirror failed:", error));
 
-  return { number: invoice.invoiceNumber, customer: invoice.customer.name, unlinked, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
+  return { number, customer: invoice.customer.name, unlinked, fiscalised, creditNote, fiscalSent: creditNote?.fiscalSent, commissionVoided };
 }
 
-export type CreditResult = { number: string; note: string; total: number; currency: string; fiscalised: boolean };
+/**
+ * The void's credit note (books-final §4.1 rule 4): every line again when
+ * nothing was credited before, else the amount left, issued and posted now,
+ * and sent to the fiscal device citing the invoice when it was fiscalised.
+ */
+async function fullCreditNote(
+  actor: InvoiceActor | BooksActor,
+  invoice: { id: string; number: string; currency: string; fiscalised: boolean; whole: boolean; left: number },
+  reason: string,
+): Promise<NonNullable<VoidResult["creditNote"]>> {
+  const lines = await prisma.salesInvoiceLine.findMany({
+    where: { invoiceId: invoice.id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, description: true, quantity: true, unitPrice: true, taxRate: true, taxCodeId: true },
+  });
+  const built = invoice.whole
+    ? creditLines(invoice.number, lines, { lines: lines.map((line) => ({ lineId: line.id, quantity: line.quantity })) })
+    : creditLines(invoice.number, lines, { amount: invoice.left });
+  if ("error" in built) throw new InvoiceChangeRefused(invoice.whole ? built.error : `${built.error} Then void it.`, 409);
+  let note;
+  try {
+    note = await createSalesCreditNote(
+      { companyId: actor.companyId, userId: actor.userId },
+      { invoiceId: invoice.id, noteDate: new Date().toISOString(), currency: invoice.currency, reason, issueNow: true, lines: built.lines },
+    );
+  } catch (error) {
+    if (error instanceof CreditNoteRefused) throw new InvoiceChangeRefused(error.message, 400);
+    throw error;
+  }
+  const fiscal = invoice.fiscalised
+    ? await fiscalise(actor.companyId, { kind: "credit-note", creditNoteId: note.id }, actor.userId).catch((error: unknown) => ({
+        sent: false,
+        reason: error instanceof Error ? error.message : "The fiscal device could not be reached",
+      }))
+    : null;
+  return {
+    id: note.id,
+    number: docLabel(note.noteNumber, "credit note"),
+    total: round(note.total),
+    fiscalised: invoice.fiscalised,
+    fiscalSent: fiscal?.sent ?? false,
+    fiscalReason: fiscal ? (fiscal.reason ?? null) : null,
+  };
+}
+
+export type CreditResult = { number: string; note: string; total: number; currency: string; fiscalised: boolean; fiscalSent?: boolean };
 
 /** Credits part of an issued or paid invoice with a credit note, issued and posted now. */
-export async function creditInvoice(actor: InvoiceActor, invoiceId: string, input: { reason: string; choice: CreditChoice }): Promise<CreditResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
+export async function creditInvoice(actor: InvoiceActor | BooksActor, invoiceId: string, input: { reason: string; choice: CreditChoice }): Promise<CreditResult> {
+  if (!canDo(actor, "void", { kind: "invoice" }).allowed) throw new InvoiceChangeRefused(OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const invoice = await prisma.salesInvoice.findFirst({
     where: { id: invoiceId, companyId: actor.companyId },
@@ -170,7 +214,7 @@ export async function creditInvoice(actor: InvoiceActor, invoiceId: string, inpu
   if (invoice.status !== "ISSUED" && invoice.status !== "PAID") {
     throw new InvoiceChangeRefused(invoice.status === "DRAFT" ? `${invoice.invoiceNumber} is a draft: change it or delete it instead.` : `${invoice.invoiceNumber} is void.`);
   }
-  const built = creditLines(invoice.invoiceNumber, invoice.lines, input.choice);
+  const built = creditLines(docLabel(invoice.invoiceNumber), invoice.lines, input.choice);
   if ("error" in built) throw new InvoiceChangeRefused(built.error, 400);
   const left = round(invoice.total - invoice.creditTotal - invoice.writeOffTotal);
   if (built.total > left + 0.005) {
@@ -187,6 +231,11 @@ export async function creditInvoice(actor: InvoiceActor, invoiceId: string, inpu
     if (error instanceof CreditNoteRefused) throw new InvoiceChangeRefused(error.message, 400);
     throw error;
   }
+  // A credit note on a fiscalised invoice goes to the device too, citing it (§4.17).
+  const fiscalised = wasFiscalised(invoice.fiscalReceipt);
+  const fiscal = fiscalised
+    ? await fiscalise(actor.companyId, { kind: "credit-note", creditNoteId: note.id }, actor.userId).catch((error: unknown) => ({ sent: false, reason: error instanceof Error ? error.message : "The fiscal device could not be reached" }))
+    : null;
   await writePlatformAuditEvent({
     companyId: actor.companyId,
     actorId: actor.userId,
@@ -196,5 +245,5 @@ export async function creditInvoice(actor: InvoiceActor, invoiceId: string, inpu
     reason,
     payload: { number: invoice.invoiceNumber, creditNoteId: note.id, creditNote: note.noteNumber, total: note.total, currency: note.currency, lines: built.lines },
   });
-  return { number: invoice.invoiceNumber, note: note.noteNumber, total: round(note.total), currency: note.currency, fiscalised: wasFiscalised(invoice.fiscalReceipt) };
+  return { number: docLabel(invoice.invoiceNumber), note: docLabel(note.noteNumber, "credit note"), total: round(note.total), currency: note.currency, fiscalised, fiscalSent: fiscal?.sent ?? false };
 }

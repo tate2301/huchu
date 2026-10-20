@@ -41,18 +41,19 @@ export async function resolvePostingPeriod(input: {
     });
   }
 
-  if (period.status === "OPEN") {
+  // The freeze holds whether the month is open or closed (books-final §4.15).
+  const settings = await prisma.accountingSettings.findUnique({
+    where: { companyId: input.companyId },
+    select: { periodLockPolicy: true, freezeBeforeDate: true },
+  });
+
+  if (period.status === "OPEN" && !(settings?.freezeBeforeDate && input.entryDate <= settings.freezeBeforeDate)) {
     return {
       allowed: true,
       period,
       requiresOverride: false,
     };
   }
-
-  const settings = await prisma.accountingSettings.findUnique({
-    where: { companyId: input.companyId },
-    select: { periodLockPolicy: true, freezeBeforeDate: true },
-  });
 
   if (settings?.freezeBeforeDate && input.entryDate <= settings.freezeBeforeDate) {
     if (!hasRole(input.actorRole, ["SUPERADMIN", "MANAGER"])) {

@@ -66,9 +66,9 @@ type Binding = { file: string; pattern?: RegExp };
 /** Each row of the spec, by "key | action", and where it is bound. */
 const BINDINGS: Record<string, Binding[]> = {
   "Ctrl K | Search everything": [
-    // The existing global handler, and the top bar's search showing the key.
+    // The existing global handler, and the top bar's search button naming the key (an icon button since 19 Oct).
     { file: "components/layout/command-bar/global-command-bar.tsx", pattern: /event\.key === "k" && \(event\.metaKey \|\| event\.ctrlKey\)/ },
-    { file: "components/layout/app-bar-tools.tsx", pattern: /<Kbd>Ctrl K<\/Kbd>/ },
+    { file: "components/layout/app-bar-tools.tsx", pattern: /aria-label="Search everything, Ctrl K"/ },
   ],
   "Ctrl J | Give Vane a job (opens the Vane panel on its box)": [{ file: "components/vane/vane-panel.tsx" }],
   "/ | Search this panel, or add a block in the builder": [
@@ -98,7 +98,14 @@ const BINDINGS: Record<string, Binding[]> = {
   ],
   "K | Keep (a change Vane proposes)": [{ file: "components/build/vane-form-changes.tsx" }],
   "U | Upload a statement": [{ file: "app/books/bank/page.tsx" }],
-  "Ctrl ↵ | Upload (the statement chosen)": [{ file: "app/books/bank/page.tsx" }],
+  // The page opens the drawer; the drawer's Upload holds the key (P3b moved it into its own component).
+  "Ctrl ↵ | Upload (the statement chosen)": [{ file: "components/books/bk-upload-drawer.tsx" }],
+  "A | Accept (the chosen lines, or Vane's proposals)": [{ file: "components/books/bk-to-match-view.tsx" }],
+  "R | Retry all": [{ file: "app/books/needs-posting/page.tsx" }],
+  "E | Add or revise the opening balances": [{ file: "app/books/settings/opening-balances/page.tsx" }],
+  "D | Download the accountant export": [{ file: "components/management/money/money-views.tsx" }],
+  "A | Add Books (opens Billing)": [{ file: "components/books/bk-upsell-view.tsx" }],
+  "Ctrl ↵ | Map and retry, or Post in this month (the chosen posting's fix)": [{ file: "components/books/needs-posting-view.tsx" }],
   "Ctrl ↵ | Publish": [{ file: "components/builder/grid/builder-bar.tsx" }],
   "Ctrl ↵ | The drawer's primary (Post, Prepare, Send, Save)": [
     { file: "components/books/new-journal-drawer.tsx" },

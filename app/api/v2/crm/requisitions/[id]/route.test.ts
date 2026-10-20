@@ -1,318 +1,219 @@
 /**
- * The guards on a requisition's moves.
+ * A CRM requisition through its real route, against the test database, with
+ * only the sign-in faked (books-final §4.11, §2.4):
  *
- * These are the rules that stop money going out wrongly, and every one of them
- * is enforced on the server rather than by hiding a button:
- *
- *   - nobody approves their own request
- *   - approving and paying out are separate permissions
- *   - the state machine is checked against the row as it is now, so a second
- *     "disburse" on a requisition already paid is refused rather than paying
- *     it twice
- *
- * Mocked at the session and Prisma boundary, like the other route tests here:
- * what is under test is the decision the handler makes, not Postgres.
+ *   - a draft has no number; Send for approval gives the next in the series,
+ *     with the limit and who it waits for, written to ApprovalAction
+ *   - nobody approves their own request; over the limit only the owner does
+ *   - the approver does not pay where somebody else may; nobody pays their own
+ *   - paying out puts it on 1150 Cash advances out of the account chosen;
+ *     accounting for it expenses each category out of 1150 and brings the
+ *     change back, leaving 1150 at nothing
+ *   - a shop's requisition is never moved by these routes
+ *   - reopening and reversing are the owner's; the money is mirrored, and
+ *     accounting for it again posts afresh
  */
-import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const { validateSessionMock, capabilityMock, prismaMock, notifyMock, emitMock } = vi.hoisted(
-  () => ({
-    validateSessionMock: vi.fn(),
-    capabilityMock: vi.fn(),
-    prismaMock: {
-      crmRequisition: { findFirst: vi.fn(), update: vi.fn() },
-      crmDailyCostEntry: { findMany: vi.fn() },
-      bankAccount: { findFirst: vi.fn() },
-    },
-    notifyMock: vi.fn(),
-    emitMock: vi.fn(),
-  }),
-);
+import { prisma } from "@/lib/prisma";
+import { destroyBooksFixture, makeBooksFixture, trialBalance, type BooksFixture } from "@/lib/books/invoice-test-fixtures";
 
-vi.mock("@/lib/api-utils", () => ({
+const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
+vi.mock("@/lib/api-utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api-utils")>()),
   validateSession: validateSessionMock,
-  errorResponse: (message: string, status = 500, details?: unknown) =>
-    NextResponse.json({ error: message, ...(details !== undefined ? { details } : {}) }, { status }),
-  successResponse: <T>(data: T, status = 200) => NextResponse.json(data, { status }),
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
-vi.mock("@/lib/notifications", () => ({ emitCrmNotification: emitMock }));
-vi.mock("@/app/api/v2/crm/requisitions/_shared", () => ({ notifyApprovers: notifyMock }));
-vi.mock("../../_helpers", () => ({ requireCrmCapability: capabilityMock }));
+import { PATCH } from "./route";
+import { POST } from "../route";
 
-const { PATCH } = await import("./route");
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 
-const REQUESTER = "user-requester";
-const APPROVER = "user-approver";
+let fixture: BooksFixture;
+let repId: string;
+let ecocash: string;
+const people: Record<string, { id: string; role: string; name: string }> = {};
 
-function session(userId: string) {
-  return { session: { user: { id: userId, companyId: "company-1", role: "MANAGER" } } };
+beforeAll(async () => {
+  process.env.NEXTAUTH_SECRET ??= "test-secret";
+  fixture = await makeBooksFixture("CRM requisitions");
+  repId = (await prisma.user.create({ data: { email: `rep-${fixture.stamp}@books.test`, name: "Farai Ncube", role: "SALES_REP", companyId: fixture.companyId }, select: { id: true } })).id;
+  people.owner = { id: fixture.ownerId, role: "SUPERADMIN", name: "James Nyabadza" };
+  people.manager = { id: fixture.managerId, role: "MANAGER", name: "Tendai Moyo" };
+  people.rep = { id: repId, role: "SALES_REP", name: "Farai Ncube" };
+  const ledger = await prisma.chartOfAccount.findFirstOrThrow({ where: { companyId: fixture.companyId, code: "1016" }, select: { id: true } });
+  ecocash = (await prisma.bankAccount.create({ data: { companyId: fixture.companyId, name: "EcoCash", kind: "MOBILE", ledgerAccountId: ledger.id }, select: { id: true } })).id;
+}, 180_000);
+
+afterAll(async () => {
+  if (fixture) {
+    const { companyId } = fixture;
+    await prisma.notification.deleteMany({ where: { companyId } }).catch(() => undefined);
+    await prisma.approvalAction.deleteMany({ where: { companyId } });
+    await prisma.crmDailyCostEntry.deleteMany({ where: { companyId } });
+    await prisma.crmDailyLog.deleteMany({ where: { companyId } });
+    await prisma.crmRequisition.deleteMany({ where: { companyId } });
+    await prisma.bankTransaction.deleteMany({ where: { companyId } });
+    await prisma.site.deleteMany({ where: { companyId } }).catch(() => undefined);
+    await prisma.idSequence.deleteMany({ where: { companyId } });
+  }
+  await destroyBooksFixture(fixture);
+}, 60_000);
+
+const as = (who: keyof typeof people) =>
+  validateSessionMock.mockResolvedValue({ session: { user: { id: people[who].id, companyId: fixture.companyId, role: people[who].role, name: people[who].name, email: `${who}@books.test` } } });
+
+async function act(id: string, body: Record<string, unknown>) {
+  const response = await PATCH(
+    new NextRequest(`http://crm.test/api/v2/crm/requisitions/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+    { params: Promise.resolve({ id }) },
+  );
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> & { error?: string; requisition?: Record<string, unknown> } };
 }
 
-function patch(body: unknown) {
-  return new NextRequest("http://localhost/api/v2/crm/requisitions/req-1", {
-    method: "PATCH",
-    body: JSON.stringify(body),
+async function raise(body: Record<string, unknown>) {
+  const response = await POST(new NextRequest("http://crm.test/api/v2/crm/requisitions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+  return { status: response.status, body: (await response.json()) as { requisition: { id: string; requisitionNo: string | null; status: string } } };
+}
+
+async function spend(requisitionId: string, lines: Array<{ category: string; amount: number }>) {
+  const log = await prisma.crmDailyLog.upsert({
+    where: { companyId_userId_logDate: { companyId: fixture.companyId, userId: repId, logDate: new Date(new Date().toISOString().slice(0, 10)) } },
+    create: { companyId: fixture.companyId, userId: repId, logDate: new Date(new Date().toISOString().slice(0, 10)) },
+    update: {},
   });
-}
-
-const params = Promise.resolve({ id: "req-1" });
-
-function row(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "req-1",
-    status: "SUBMITTED",
-    requestedById: REQUESTER,
-    requisitionNo: "REQ-0001",
-    purpose: "Cement",
-    currency: "USD",
-    amount: new Prisma.Decimal("400.00"),
-    approvedAmount: null,
-    ...overrides,
-  };
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  capabilityMock.mockResolvedValue(true);
-  prismaMock.crmRequisition.update.mockImplementation(async ({ data }: { data: object }) => ({
-    ...row(),
-    ...data,
-  }));
-  prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([]);
-});
-
-/** A reported line, as the acquittal reads it. */
-function line(amount: string, receipt: boolean, direction: "SPENT" | "RECEIVED" = "SPENT") {
-  return {
-    direction,
-    amount: new Prisma.Decimal(amount),
-    receiptUrl: receipt ? "https://example.invalid/receipt.jpg" : null,
-  };
-}
-
-describe("approving", () => {
-  it("refuses somebody approving their own request", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row());
-
-    const response = await PATCH(patch({ action: "decide", approve: true }), { params });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      error: "Somebody else has to approve your own request",
+  for (const line of lines) {
+    await prisma.crmDailyCostEntry.create({
+      data: { companyId: fixture.companyId, logId: log.id, direction: "SPENT", category: line.category as never, amount: line.amount, description: `${line.category} for the Kadoma run`, requisitionId, receiptUrl: "https://slips.test/r.jpg" },
     });
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+  }
+}
+
+const approvals = (entityId: string) =>
+  prisma.approvalAction.findMany({ where: { companyId: fixture.companyId, entityId }, orderBy: { actedAt: "asc" }, select: { entityType: true, action: true, actedById: true, note: true } });
+
+describe("a CRM requisition, Draft to Accounted for", () => {
+  let id: string;
+
+  it("keeps a draft unnumbered and numbers it when it is sent for approval", async () => {
+    as("rep");
+    const draft = await raise({ category: "FUEL", purpose: "Diesel and fittings for the Kadoma run", amount: 400 });
+    expect(draft.status).toBe(201);
+    expect(draft.body.requisition).toMatchObject({ requisitionNo: null, status: "DRAFT" });
+    id = draft.body.requisition.id;
+
+    const sent = await act(id, { action: "submit" });
+    expect(sent.status).toBe(200);
+    expect(sent.body.requisition).toMatchObject({ status: "SUBMITTED", approverId: null });
+    expect(String(sent.body.requisition?.requisitionNo)).toMatch(/^REQ-\d{4,}$/);
+    expect(Number(sent.body.requisition?.approvalLimit)).toBe(500);
+    expect(await approvals(id)).toEqual([{ entityType: "REQUISITION", action: "SUBMIT", actedById: repId, note: null }]);
   });
 
-  it("refuses somebody without the permission", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    capabilityMock.mockResolvedValue(false);
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row());
-
-    const response = await PATCH(patch({ action: "decide", approve: true }), { params });
-
-    expect(response.status).toBe(403);
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+  it("refuses the requester approving it, then lets a manager under the limit", async () => {
+    as("rep");
+    expect((await act(id, { action: "decide", approve: true })).status).toBe(403);
+    as("manager");
+    const approved = await act(id, { action: "decide", approve: true });
+    expect(approved.status).toBe(200);
+    expect(approved.body.requisition).toMatchObject({ status: "APPROVED", approvedById: fixture.managerId });
+    expect((await approvals(id)).map((row) => row.action)).toEqual(["SUBMIT", "APPROVE"]);
   });
 
-  it("records the approver, the time and the cut amount", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row());
+  it("keeps the approver from paying it out when someone else may, and puts the money on the advance", async () => {
+    as("manager");
+    const refused = await act(id, { action: "disburse", bankAccountId: ecocash });
+    expect(refused).toMatchObject({ status: 403, body: { error: "You approved this, so somebody else pays it out." } });
 
-    const response = await PATCH(
-      patch({ action: "decide", approve: true, approvedAmount: 250 }),
-      { params },
-    );
-
-    expect(response.status).toBe(200);
-    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.status).toBe("APPROVED");
-    expect(update.data.approvedById).toBe(APPROVER);
-    expect(update.data.approvedAmount).toBe(250);
-    // The requester learns the answer without having to go looking.
-    expect(emitMock).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientIds: [REQUESTER] }),
-    );
-  });
-
-  it("clears any approved amount on a rejection", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row());
-
-    await PATCH(
-      patch({ action: "decide", approve: false, approvedAmount: 250, decisionNote: "No" }),
-      { params },
-    );
-
-    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.status).toBe("REJECTED");
-    expect(update.data.approvedAmount).toBeNull();
-  });
-});
-
-describe("paying out", () => {
-  it("refuses to pay something nobody approved", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "SUBMITTED" }));
-
-    const response = await PATCH(patch({ action: "disburse" }), { params });
-
-    expect(response.status).toBe(409);
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
-  });
-
-  it("refuses to pay the same requisition twice", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-
-    const response = await PATCH(patch({ action: "disburse" }), { params });
-
-    expect(response.status).toBe(409);
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
-  });
-
-  it("refuses a bank account belonging to another tenant", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "APPROVED" }));
-    prismaMock.bankAccount.findFirst.mockResolvedValue(null);
-
-    const response = await PATCH(
-      patch({ action: "disburse", bankAccountId: "11111111-2222-4333-8444-555555555555" }),
-      { params },
-    );
-
-    expect(response.status).toBe(404);
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
-  });
-
-  it("needs the paying permission, not the approving one", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "APPROVED" }));
-    capabilityMock.mockImplementation(async (_session, capability: string) =>
-      capability === "money.approve",
-    );
-
-    const response = await PATCH(patch({ action: "disburse" }), { params });
-
-    expect(response.status).toBe(403);
-  });
-});
-
-describe("submitting and withdrawing", () => {
-  it("lets only the requester submit", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DRAFT" }));
-
-    const response = await PATCH(patch({ action: "submit" }), { params });
-
-    expect(response.status).toBe(403);
-  });
-
-  it("tells the approvers when a draft is submitted", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DRAFT" }));
-
-    const response = await PATCH(patch({ action: "submit" }), { params });
-
-    expect(response.status).toBe(200);
-    expect(notifyMock).toHaveBeenCalledOnce();
-  });
-
-  it("refuses to cancel money that has already gone", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-
-    const response = await PATCH(patch({ action: "cancel" }), { params });
-
-    // The way back from a disbursement is an acquittal, not a cancellation.
-    expect(response.status).toBe(409);
-  });
-});
-
-describe("accounting for the money", () => {
-  it("refuses an acquittal from somebody else", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    capabilityMock.mockResolvedValue(false);
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-
-    const response = await PATCH(patch({ action: "acquit" }), { params });
-
-    expect(response.status).toBe(403);
-  });
-
-  it("accepts an acquittal of nothing, which is a real answer", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-
-    const response = await PATCH(patch({ action: "acquit" }), { params });
-
-    expect(response.status).toBe(200);
-    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.acquittedAmount.toString()).toBe("0");
-  });
-
-  it("settles at what the reported spend comes to, not at a typed figure", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([
-      line("250.50", true),
-      line("60.00", true),
-      // The float arriving is not something it was spent on.
-      line("400.00", true, "RECEIVED"),
+    as("owner");
+    const paid = await act(id, { action: "disburse", bankAccountId: ecocash });
+    expect(paid.status).toBe(200);
+    const entry = await prisma.journalEntry.findFirstOrThrow({
+      where: { companyId: fixture.companyId, sourceType: "CRM_REQUISITION_DISBURSEMENT", sourceId: id },
+      include: { lines: { include: { account: { select: { code: true } } } } },
+    });
+    expect(entry.lines.map((line) => [line.account.code, line.debit, line.credit]).sort()).toEqual([
+      ["1016", 0, 400],
+      ["1150", 400, 0],
     ]);
-
-    const response = await PATCH(patch({ action: "acquit", acquittedAmount: 1 }), { params });
-
-    expect(response.status).toBe(200);
-    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.acquittedAmount.toString()).toBe("310.5");
-    expect(update.data.status).toBe("ACQUITTED");
+    expect(await prisma.bankTransaction.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceId: id } })).toMatchObject({ bankAccountId: ecocash, amount: 400, direction: "DEBIT" });
   });
 
-  it("refuses while a spend line has no receipt", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false)]);
+  it("accounts for it by category, brings the change back, and leaves nothing on 1150", async () => {
+    const before = await trialBalance(fixture.companyId);
+    await spend(id, [
+      { category: "FUEL", amount: 150 },
+      { category: "MATERIALS", amount: 80 },
+      { category: "FUEL", amount: 20 },
+    ]);
+    as("rep");
+    const done = await act(id, { action: "acquit" });
+    expect(done.status).toBe(200);
+    expect(done.body.requisition).toMatchObject({ status: "ACQUITTED" });
+    expect(Number(done.body.requisition?.acquittedAmount)).toBe(250);
+    expect(Number(done.body.requisition?.changeAmount)).toBe(150);
 
-    const response = await PATCH(patch({ action: "acquit" }), { params });
-
-    expect(response.status).toBe(409);
-    expect((await response.json()).code).toBe("RECEIPTS_MISSING");
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+    const after = await trialBalance(fixture.companyId);
+    expect(after["1150"] ?? 0).toBe(0);
+    expect((after["5500"] ?? 0) - (before["5500"] ?? 0)).toBe(170);
+    expect((after["5530"] ?? 0) - (before["5530"] ?? 0)).toBe(80);
+    expect((after["1016"] ?? 0) - (before["1016"] ?? 0)).toBe(150);
+    const groups = await prisma.journalEntry.findMany({ where: { companyId: fixture.companyId, sourceType: "REQUISITION_ACQUITTAL", sourceId: { startsWith: `${id}:` } }, select: { sourceId: true } });
+    expect(groups.map((row) => row.sourceId).sort()).toEqual([`${id}:FUEL`, `${id}:MATERIALS`]);
+    expect(await prisma.bankTransaction.count({ where: { companyId: fixture.companyId, sourceType: "CRM_REQUISITION_REFUND", sourceId: id, direction: "CREDIT", amount: 150 } })).toBe(1);
+    expect(await prisma.accountingIntegrationEvent.count({ where: { companyId: fixture.companyId, status: { in: ["PENDING", "FAILED", "IGNORED"] } } })).toBe(0);
   });
 
-  it("will not let the requester waive their own receipts", async () => {
-    validateSessionMock.mockResolvedValue(session(REQUESTER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false)]);
+  it("lets only the owner reopen it, mirrors its postings, and posts afresh when accounted for again", async () => {
+    as("manager");
+    expect((await act(id, { action: "reopen", reason: "Wrong category on a slip" })).status).toBe(403);
+    as("owner");
+    const reopened = await act(id, { action: "reopen", reason: "Wrong category on a slip" });
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.requisition).toMatchObject({ status: "DISBURSED" });
+    expect((await trialBalance(fixture.companyId))["1150"]).toBe(400);
 
-    const response = await PATCH(
-      patch({ action: "acquit", waiveMissingReceipts: true, waiverNote: "Lost it" }),
-      { params },
-    );
+    as("rep");
+    expect((await act(id, { action: "acquit" })).status).toBe(200);
+    const tb = await trialBalance(fixture.companyId);
+    expect(tb["1150"] ?? 0).toBe(0);
+    expect(await prisma.journalEntry.count({ where: { companyId: fixture.companyId, sourceType: "REQUISITION_ACQUITTAL", sourceId: { startsWith: `${id}:r2:` } } })).toBe(2);
+  });
+});
 
-    expect(response.status).toBe(403);
-    expect(prismaMock.crmRequisition.update).not.toHaveBeenCalled();
+describe("the limits and the shop's requisitions", () => {
+  it("makes a request over the limit wait for the owner", async () => {
+    as("rep");
+    const asked = await raise({ category: "EQUIPMENT", purpose: "Floor grinder hire, a week", amount: 900, submit: true });
+    expect(asked.body.requisition.status).toBe("SUBMITTED");
+    const row = await prisma.crmRequisition.findUniqueOrThrow({ where: { id: asked.body.requisition.id } });
+    expect(row.approverId).toBe(fixture.ownerId);
+
+    as("manager");
+    expect(await act(row.id, { action: "decide", approve: true })).toMatchObject({ status: 403, body: { error: "Over US$500.00 needs James Nyabadza." } });
+    as("owner");
+    expect((await act(row.id, { action: "decide", approve: true })).status).toBe(200);
+    // The owner approved it, so a manager may pay it out over their limit.
+    as("manager");
+    expect((await act(row.id, { action: "disburse", bankAccountId: ecocash })).status).toBe(200);
+    // A payout reversed by the owner goes back to Approved, with its mirror.
+    as("owner");
+    const reversed = await act(row.id, { action: "reverse-payout", reason: "Paid from the wrong account" });
+    expect(reversed.status).toBe(200);
+    expect(reversed.body.requisition).toMatchObject({ status: "APPROVED", bankAccountId: null });
+    expect(await prisma.bankTransaction.count({ where: { companyId: fixture.companyId, sourceId: row.id } })).toBe(0);
+    as("manager");
+    expect((await act(row.id, { action: "disburse", bankAccountId: ecocash })).status).toBe(200);
+    expect(await prisma.journalEntry.count({ where: { companyId: fixture.companyId, sourceType: "CRM_REQUISITION_DISBURSEMENT", sourceId: `${row.id}:r2` } })).toBe(1);
   });
 
-  it("lets a manager accept them without, and keeps who and why", async () => {
-    validateSessionMock.mockResolvedValue(session(APPROVER));
-    prismaMock.crmRequisition.findFirst.mockResolvedValue(row({ status: "DISBURSED" }));
-    prismaMock.crmDailyCostEntry.findMany.mockResolvedValue([line("90.00", false), line("30.00", true)]);
-
-    const response = await PATCH(
-      patch({ action: "acquit", waiveMissingReceipts: true, waiverNote: "Pump till was down" }),
-      { params },
-    );
-
-    expect(response.status).toBe(200);
-    const update = prismaMock.crmRequisition.update.mock.calls[0][0];
-    expect(update.data.acquittedAmount.toString()).toBe("120");
-    expect(update.data.receiptsWaivedById).toBe(APPROVER);
-    expect(update.data.receiptWaiverNote).toBe("Pump till was down");
+  it("never moves a shop's requisition", async () => {
+    const site = await prisma.site.create({ data: { companyId: fixture.companyId, name: "Avondale shop", code: `AV${fixture.stamp.slice(-4)}` } });
+    const retail = await prisma.crmRequisition.create({
+      data: { companyId: fixture.companyId, requisitionNo: `REQ-S${fixture.stamp.slice(-5)}`, category: "OTHER", purpose: "Shop float", amount: 50, requestedById: repId, status: "SUBMITTED", siteId: site.id },
+    });
+    as("owner");
+    expect((await act(retail.id, { action: "decide", approve: true })).status).toBe(404);
   });
 });

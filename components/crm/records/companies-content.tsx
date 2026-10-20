@@ -33,6 +33,7 @@ import {
   tableSort,
   type ColumnRenderer,
 } from "@/components/crm/registers/table-helpers";
+import { Person } from "@/components/core";
 
 type Company = CrmCompanyRecord;
 
@@ -113,7 +114,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
       owner: {
         icon: Users,
         width: "10rem",
-        cell: (company) => <DirectoryCell value={company.assignedTo?.name} missing="Unassigned" />,
+        cell: (company) => (company.assignedTo?.name ? <Person name={company.assignedTo.name} src={company.assignedTo.image} /> : <DirectoryCell value={null} missing="Unassigned" />),
       },
       email: { icon: Mail, width: "13rem", cell: (company) => <DirectoryCell kind="email" value={company.email} missing="no email" /> },
       phone: { icon: Phone, width: "10rem", cell: (company) => <DirectoryCell kind="phone" value={company.phone} missing="no phone" /> },

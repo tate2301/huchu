@@ -69,6 +69,7 @@ afterAll(async () => {
   if (!shop) return;
   const companyId = shop.companyId;
   await prisma.purchasePayment.deleteMany({ where: { companyId } });
+  await prisma.paymentLedgerEntry.deleteMany({ where: { companyId } });
   await prisma.bankTransaction.deleteMany({ where: { companyId } });
   await prisma.retailAttachment.deleteMany({ where: { companyId } });
   await prisma.journalLine.deleteMany({ where: { entry: { companyId } } });
@@ -102,31 +103,44 @@ describe("an order's cash", () => {
 
     const ap = await prisma.journalLine.findMany({ where: { entry: { companyId: shop.companyId, sourceId: asked.id }, account: { code: "2000" } }, select: { debit: true, credit: true } });
     expect(ap.reduce((sum, line) => sum + line.debit - line.credit, 0).toFixed(2)).toBe("193.40");
+
+    // The supplier's account in the payables sub-ledger says the same (books-final §5.5, fix 1).
+    const lines = await prisma.paymentLedgerEntry.findMany({ where: { companyId: shop.companyId, sourceId: asked.id }, select: { sourceType: true, accountType: true, partyId: true, debit: true, credit: true } });
+    expect(lines.sort((x, y) => x.sourceType.localeCompare(y.sourceType))).toEqual([
+      { sourceType: "RETAIL_REQUISITION_PAYOUT", accountType: "PAYABLE", partyId: afdis, debit: 231, credit: 0 },
+      { sourceType: "RETAIL_REQUISITION_CHANGE", accountType: "PAYABLE", partyId: afdis, debit: 0, credit: 37.6 },
+    ].sort((x, y) => x.sourceType.localeCompare(y.sourceType)));
   });
 });
 
 describe("an expense's cash", () => {
-  it("posts the payout Dr the expense type's account / Cr the money account, and the change the other way", async () => {
+  it("puts the payout on 1150 Cash advances, then expenses what was spent to the expense type's account and takes the change off the advance", async () => {
     const asked = await expense(repairs, "85.00");
-    await payOut(shop.manager(), asked.id, { paid: "85.00", fromId: safe, toId: shop.ownerId, how: "Cash" }, deps);
-    expect(await entryOf("RETAIL_REQUISITION_PAYOUT", asked.id)).toEqual({ balanced: true, lines: ["1005 C 85", "5300 D 85"] });
-    await accountFor(shop.owner(), asked.id, { spent: "80.00", changeIntoId: safe, receipts: [RECEIPT] }, deps);
-    expect(await entryOf("RETAIL_REQUISITION_CHANGE", asked.id)).toEqual({ balanced: true, lines: ["1005 D 5", "5300 C 5"] });
+    await payOut(shop.owner(), asked.id, { paid: "85.00", fromId: safe, toId: shop.ownerId, how: "Cash" }, deps);
+    expect(await entryOf("RETAIL_REQUISITION_PAYOUT", asked.id)).toEqual({ balanced: true, lines: ["1005 C 85", "1150 D 85"] });
+    const done = await accountFor(shop.owner(), asked.id, { spent: "80.00", changeIntoId: safe, receipts: [RECEIPT] }, deps);
+    expect(done.accountingStatus).toBe("POSTED");
+    expect(await entryOf("RETAIL_REQUISITION_CHANGE", asked.id)).toEqual({ balanced: true, lines: ["1005 D 5", "1150 C 5"] });
+    const spent = await prisma.journalEntry.findFirstOrThrow({
+      where: { companyId: shop.companyId, sourceType: "REQUISITION_ACQUITTAL", sourceId: { startsWith: `${asked.id}:` } },
+      select: { lines: { select: { debit: true, credit: true, account: { select: { code: true } } } } },
+    });
+    expect(spent.lines.map((line) => `${line.account.code} ${line.debit > 0 ? `D ${line.debit}` : `C ${line.credit}`}`).sort()).toEqual(["1150 C 80", "5300 D 80"]);
+    const advance = await prisma.journalLine.findMany({ where: { entry: { companyId: shop.companyId, OR: [{ sourceId: asked.id }, { sourceId: { startsWith: `${asked.id}:` } }] }, account: { code: "1150" } }, select: { debit: true, credit: true } });
+    expect(advance.reduce((sum, line) => sum + line.debit - line.credit, 0)).toBe(0);
   });
 
-  it("leaves the payout PENDING when the expense type has no account, and the money stands", async () => {
+  it("posts the payout of an expense type with no account, and expenses it to its category's when it is accounted for", async () => {
     const asked = await expense(unbooked, "20.00");
-    const paid = await payOut(shop.manager(), asked.id, { paid: "20.00", fromId: safe, toId: shop.ownerId, how: "Cash" }, deps);
-    expect(paid.accountingStatus).toBe("PENDING");
-    const event = await prisma.accountingIntegrationEvent.findFirstOrThrow({ where: { companyId: shop.companyId, sourceType: "RETAIL_REQUISITION_PAYOUT", sourceId: asked.id } });
-    expect(event.status).toBe("PENDING");
-    expect(event.lastError).toContain("expenseAccount");
-    expect(await prisma.journalEntry.count({ where: { companyId: shop.companyId, sourceId: asked.id } })).toBe(0);
-    expect((await prisma.crmRequisition.findUniqueOrThrow({ where: { id: asked.id } })).status).toBe("DISBURSED");
-
-    // Given an account, it posts when tried again.
-    await prisma.retailExpenseType.update({ where: { id: unbooked }, data: { ledgerAccountId: (await prisma.chartOfAccount.findFirstOrThrow({ where: { companyId: shop.companyId, code: "5590" } })).id } });
+    const paid = await payOut(shop.owner(), asked.id, { paid: "20.00", fromId: safe, toId: shop.ownerId, how: "Cash" }, deps);
+    expect(paid.accountingStatus).toBe("POSTED");
+    expect(await entryOf("RETAIL_REQUISITION_PAYOUT", asked.id)).toEqual({ balanced: true, lines: ["1005 C 20", "1150 D 20"] });
     expect((await postPayout(shop.companyId, asked.id, { userId: shop.managerId })).accountingStatus).toBe("POSTED");
-    expect(await entryOf("RETAIL_REQUISITION_PAYOUT", asked.id)).toEqual({ balanced: true, lines: ["1005 C 20", "5590 D 20"] });
+    await accountFor(shop.owner(), asked.id, { spent: "20.00", receipts: [RECEIPT] }, deps);
+    const spent = await prisma.journalEntry.findFirstOrThrow({
+      where: { companyId: shop.companyId, sourceType: "REQUISITION_ACQUITTAL", sourceId: `${asked.id}:OTHER` },
+      select: { lines: { select: { debit: true, account: { select: { code: true } } } } },
+    });
+    expect(spent.lines.find((line) => line.debit > 0)?.account.code).toBe("5590");
   });
 });

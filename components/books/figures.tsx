@@ -2,8 +2,8 @@ import * as React from "react";
 
 import { Kit, KitScreen } from "@/components/core";
 
-/** Money in a sentence: "$1,240.00", "−$18.00", "ZWG 12,393.66". */
-const MONEY = /([+−-]?(?:\$|[A-Z]{3} )\d[\d,]*\.\d{2})/;
+/** Money in a sentence: "US$1,240.00", "−US$18.00", "ZiG 12,393.66", "ZAR 1,200.00". */
+const MONEY = /([+−-]?(?:US\$|\$|ZiG |[A-Z]{3} )\d[\d,]*\.\d{2})/;
 
 /** A sentence with its money set in tabular figures, as the kit's findings are. */
 export function Figures({ text }: { text: string }) {

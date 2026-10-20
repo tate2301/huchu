@@ -1,7 +1,11 @@
 import type { InvoiceStatus, PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
+import { customerFace, customerImage } from "./faces";
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
+import { facesOf, type Faces } from "./record-view";
 import { INVOICE_STATE_LABEL, invoiceState, type InvoiceState } from "./invoice-state";
+import type { InvoiceBoardExtras } from "./invoice-board-view";
 import type { InvoiceRemoval } from "./reversal";
 import { wasFiscalised } from "./reversal";
 import { usualTerms } from "@/lib/vane/drafts";
@@ -27,7 +31,12 @@ export type InvoiceRecord = {
   waiting: boolean;
   /** Vane's card about it, for What I read. */
   cardId: string | null;
-  customer: { id: string; name: string };
+  /** contact: the person there, for the phone's header line ("Chisipite Dental · Mrs L. Banda"). */
+  customer: { id: string; name: string; contact?: string | null; image?: string | null };
+  /** The people it names (who made, issued or voided it), with their photos. */
+  faces?: Faces;
+  /** Days past its due day while it is owed; 0 otherwise. */
+  daysOverdue: number;
   currency: string;
   /** "On issue" for a draft, else the day it is dated. */
   date: string;
@@ -72,9 +81,21 @@ export type InvoiceRecord = {
 
 /** What the person may do with it on its page (the route adds it). */
 export type InvoiceRecordPage = InvoiceRecord & {
-  can: { issue: boolean; delete: boolean; reverse: boolean; voidPayments: boolean };
+  can: {
+    issue: boolean;
+    delete: boolean;
+    reverse: boolean;
+    voidPayments: boolean;
+    /** Issue a credit note against it, and write off what is left (books-final §5.1). */
+    credit?: boolean;
+    writeOff?: boolean;
+    /** Record a payment on it. */
+    pay?: boolean;
+  };
   /** What Delete takes with it, when this person may delete it. */
   removal: InvoiceRemoval | null;
+  /** What BkInvoice draws beyond the invoice: payments, posting, history, fiscal. */
+  board?: InvoiceBoardExtras | null;
 };
 
 /** The aside's Due on a draft: its terms, and whether they are the customer's usual. */
@@ -135,9 +156,9 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
       createdAt: true,
       issuedAt: true,
       quotationId: true,
-      customer: { select: { id: true, name: true } },
-      createdBy: { select: { name: true } },
-      issuedBy: { select: { name: true } },
+      customer: { select: { id: true, name: true, contactName: true, ...customerFace } },
+      createdBy: { select: { name: true, image: true } },
+      issuedBy: { select: { name: true, image: true } },
       lines: { orderBy: { createdAt: "asc" }, select: { id: true, description: true, quantity: true, unitPrice: true, lineTotal: true, taxRate: true, taxCodeId: true } },
       creditNotes: { orderBy: { noteDate: "asc" }, select: { noteNumber: true, total: true, reason: true, noteDate: true, status: true } },
       fiscalReceipt: { select: { status: true, receiptGlobalNo: true } },
@@ -180,7 +201,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
         })
       : null,
   ]);
-  const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true } }) : null;
+  const voider = voidEvent?.actor ? await db.user.findFirst({ where: { id: voidEvent.actor, companyId }, select: { name: true, image: true } }) : null;
   const onAccount = await paymentsOnAccount(db, companyId, voidEvent?.payloadJson ?? null);
 
   const today = dayOf(now);
@@ -218,18 +239,21 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
 
   return {
     id: invoice.id,
-    number: invoice.invoiceNumber,
+    number: docLabel(invoice.invoiceNumber),
     status: invoice.status,
     stateLabel: invoice.madeByVane && draft ? "Vane's draft" : INVOICE_STATE_LABEL[state.state],
     state: { key: state.state, label: INVOICE_STATE_LABEL[state.state] },
     madeByVane: invoice.madeByVane,
     waiting: draft && invoice.madeByVane && !invoice.createdById,
     cardId: card?.id ?? null,
-    customer: invoice.customer,
+    customer: { id: invoice.customer.id, name: invoice.customer.name, contact: invoice.customer.contactName ?? null, image: customerImage(invoice.customer) },
+    faces: facesOf(invoice.createdBy, invoice.issuedBy, voider),
+    daysOverdue: state.daysOverdue,
     currency: invoice.currency,
     date: draft ? "On issue" : shortDay(dated),
     due,
-    dueTerms: draft && terms !== null ? dueTerms(terms, usualTerms(past)) : due,
+    // The aside's Terms: "14 days" (their usual marked on a draft), from its date to its due day.
+    dueTerms: terms === null ? due : draft ? dueTerms(terms, usualTerms(past)) : `${terms} ${terms === 1 ? "day" : "days"}`,
     lines: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, amount: line.lineTotal })),
     subTotal: invoice.subTotal,
     taxTotal: invoice.taxTotal,
@@ -248,7 +272,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     creditable: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, taxRate: line.taxRate, taxCodeId: line.taxCodeId })),
     paid: round(invoice.amountPaid),
     creditLeft: round(invoice.total - invoice.creditTotal - invoice.writeOffTotal),
-    credits: invoice.creditNotes.map((note) => ({ number: note.noteNumber, total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
+    credits: invoice.creditNotes.map((note) => ({ number: docLabel(note.noteNumber, "credit note"), total: note.total, reason: note.reason, date: shortDay(dayOf(note.noteDate)), voided: note.status === "VOIDED" })),
     voided: invoice.status === "VOIDED" ? { reason: voidEvent?.reason ?? null, by: voider?.name ?? null, on: voidEvent ? shortDay(dayOf(voidEvent.createdAt)) : "" } : null,
     fiscalised: wasFiscalised(invoice.fiscalReceipt),
     onAccount,

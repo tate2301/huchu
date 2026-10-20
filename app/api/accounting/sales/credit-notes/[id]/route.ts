@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
+import { numberAtIssue } from "@/lib/books/core/numbering";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 
@@ -31,14 +33,30 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Credit note not found", 404);
     }
 
+    // No going back to draft once issued; issuing and voiding are for whoever may (books-final §2.2).
+    if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
+      return errorResponse("An issued note cannot go back to draft. Void it instead.", 409);
+    }
+    const { refused } = await guardBooks(
+      session,
+      validated.status === "VOIDED" && existing.status === "ISSUED" ? "void" : validated.status === "ISSUED" ? "note.issue" : "draft.edit",
+      { kind: "credit-note" },
+    );
+    if (refused) return refused;
+
     if (validated.status === "ISSUED" && existing.invoice?.status === "DRAFT") {
       return errorResponse("Invoice must be issued before issuing a credit note", 400);
     }
 
-    const updated = await prisma.creditNote.update({
+    // Numbered at issue (D8), in the same write: a draft that is never issued takes no number.
+    const updated = await prisma.$transaction(async (tx) => tx.creditNote.update({
       where: { id },
       data: {
         status: validated.status,
+        noteNumber:
+          validated.status === "ISSUED" && existing.status === "DRAFT"
+            ? await numberAtIssue(tx, session.user.companyId, "credit-note", existing.noteNumber)
+            : undefined,
         reason: validated.reason,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
         issuedAt: validated.status === "ISSUED" ? new Date() : existing.issuedAt,
@@ -47,7 +65,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
         lines: true,
       },
-    });
+    }));
 
     if (validated.status && validated.status !== existing.status) {
       if (validated.status === "ISSUED") {

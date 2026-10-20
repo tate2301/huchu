@@ -2,8 +2,10 @@
 
 import * as React from "react";
 
+import { Kit } from "@/components/core";
 import { useShell } from "@/components/layout/shell-state";
-import { OfflineStatusButton } from "@/components/layout/offline-status-button";
+import { useVaneStatus } from "@/components/vane/use-vane";
+import { VaneButtonView } from "@/components/vane/vane-button-view";
 import {
   NotificationCenter,
   useNotificationsEnabled,
@@ -12,7 +14,6 @@ import {
 import { Bell, MagnifyingGlass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
-import { Kbd, Kit } from "@/components/core";
 
 /** The kit's quiet icon button (`.btn-quiet.btn-icon`): 32px, ink 2, a fill on hover. */
 const ICON_BUTTON =
@@ -37,31 +38,18 @@ export function SearchTrigger({ compact = false }: { compact?: boolean }) {
       </button>
     );
   }
+  // The owner, 19 Oct: Search is an icon button on the far right (Ctrl K), never a wide field in the bar.
   return (
-    <>
-      <button
-        type="button"
-        aria-label="Search everything"
-        aria-keyshortcuts="Meta+K Control+K"
-        className={cn(ICON_BUTTON, "min-[1100px]:hidden")}
-        onClick={() => shell.setCommandOpen(true)}
-      >
-        <MagnifyingGlass className="size-4" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        aria-label="Search everything"
-        aria-keyshortcuts="Meta+K Control+K"
-        onClick={() => shell.setCommandOpen(true)}
-        className="flex h-8 w-[240px] shrink-0 items-center gap-2 rounded-[6px] border-0 bg-[var(--surface)] px-3 text-left text-[14px] text-[var(--ink-3)] shadow-[0_0_0_1px_color-mix(in_oklab,var(--ink)_7%,transparent),0_1px_2px_color-mix(in_oklab,var(--ink)_5%,transparent)] hover:shadow-[0_0_0_1px_var(--line-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)] max-[1099px]:hidden"
-      >
-        <MagnifyingGlass className="size-4 shrink-0 text-[var(--ink-3)]" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate">Search everything</span>
-        <Kit contents>
-          <Kbd>Ctrl K</Kbd>
-        </Kit>
-      </button>
-    </>
+    <button
+      type="button"
+      aria-label="Search everything, Ctrl K"
+      title="Search · Ctrl K"
+      aria-keyshortcuts="Meta+K Control+K"
+      className={ICON_BUTTON}
+      onClick={() => shell.setCommandOpen(true)}
+    >
+      <MagnifyingGlass className="size-4" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -105,7 +93,26 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
 
 const noopSubscribe = () => () => {};
 
-/** The device's sync state, opening the offline panel. */
-export function DeviceStatus({ compact = false }: { compact?: boolean }) {
-  return <OfflineStatusButton className={cn("rounded-[8px] text-[var(--ink-3)]", compact && "size-11")} />;
+/**
+ * Vane in the app bar, beside Search (the owner, 19 Oct): its mark, "Vane",
+ * the count of what waits and a dot while it works; it opens and closes the
+ * panel, as the rail's mark and Ctrl J do. The device's sync state lives in
+ * the account menu now, not here.
+ */
+export function VaneBarButton() {
+  const shell = useShell();
+  const status = useVaneStatus();
+  return (
+    <Kit contents>
+      <VaneButtonView
+        open={shell.vaneOpen}
+        count={status.data?.open ?? 0}
+        working={Boolean(status.data?.working)}
+        onClick={() => {
+          if (shell.drawerOpen) shell.setDrawerOpen(false);
+          shell.setVaneOpen(!shell.vaneOpen);
+        }}
+      />
+    </Kit>
+  );
 }

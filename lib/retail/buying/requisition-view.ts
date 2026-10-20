@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { otherOwners, othersWhoCan } from "@/lib/books/core/approvals";
 import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getApprovalLimits } from "@/lib/retail/approvals/limits";
@@ -247,7 +248,10 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
   );
 
   const mine = row.requestedById === actor.userId;
-  const decide = status === "SUBMITTED" && decideRefusal(actor, row, ownerName) === null;
+  const [others, owners] = mine
+    ? await Promise.all([othersWhoCan(prisma, actor.companyId, { module: "retail", except: [actor.userId] }), otherOwners(prisma, actor.companyId, [actor.userId])])
+    : [1, 1];
+  const decide = status === "SUBMITTED" && decideRefusal(actor, row, ownerName, others, owners) === null;
   const role = actor.userRole;
   const updates = canRetailRoleDo(role, "retail.requisitions", "update");
   const receiptsOverdue = status === "DISBURSED" && row.receiptsDueAt !== null && row.receiptsDueAt < now;
@@ -264,7 +268,7 @@ export async function loadRequisitionView(actor: RetailAuditActor, id: string, n
 
   return {
     id: row.id,
-    requisitionNo: row.requisitionNo,
+    requisitionNo: row.requisitionNo ?? "Requisition",
     status,
     badge: requisitionStateBadge(status, receiptsOverdue),
     steps: requisitionSteps(status),

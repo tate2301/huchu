@@ -28,9 +28,9 @@ export type BlockingReceiptRow = {
   schoolReceiptId: string | null;
   creditNoteId: string | null;
   retailSaleId: string | null;
-  invoice: { invoiceNumber: string } | null;
+  invoice: { invoiceNumber: string | null } | null;
   schoolReceipt: { receiptNo: string } | null;
-  creditNote: { noteNumber: string } | null;
+  creditNote: { noteNumber: string | null } | null;
   retailSale: { saleNo: string } | null;
 };
 

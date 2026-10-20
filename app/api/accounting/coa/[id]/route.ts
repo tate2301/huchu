@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { guardBooks } from "@/lib/books/core";
 import { validateParentAccount } from "@/lib/accounting/chart-of-accounts";
 
 const updateSchema = z.object({
@@ -43,6 +44,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, cost centres and posting rules: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
     const { id } = await params;
     const body = await request.json();
@@ -117,6 +121,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
+    // The chart, cost centres and posting rules: the owner or the accountant (books-final §2.2).
+    const { refused: notAllowed } = await guardBooks(sessionResult.session, "setup");
+    if (notAllowed) return notAllowed;
     const { session } = sessionResult;
     const { id } = await params;
 

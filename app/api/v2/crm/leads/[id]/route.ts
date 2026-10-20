@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id, companyId: session.user.companyId },
       include: {
         client: true,
-        assignedTo: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, image: true } },
         documents: {
           orderBy: { createdAt: "desc" },
           include: {

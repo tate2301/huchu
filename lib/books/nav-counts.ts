@@ -1,25 +1,45 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import { blockingWhere } from "./needs-posting";
+
 /**
  * The figures beside Books' panel rows (design/core-modules, BooksInvoices):
  * only where the board draws one and a count is one indexed query.
  *
- * - Invoices: invoices sent and not yet paid.
- * - Bank: statement lines in an open reconciliation that match nothing yet.
+ * - Invoices: invoices sent, not yet paid and past their due date (books_nav.py: [overdue]).
+ * - Payments received: money a customer paid that sits on account, on no invoice.
+ * - Bank: statement lines in an open reconciliation that match nothing yet and are not excluded.
  * - Takings: tills closed on a day that has not been closed and banked.
+ * - Needs posting: money that has not reached the ledger (FAILED, or waiting over an hour).
+ * - Bills: bills recorded and owing that fall due by Sunday (books_nav.py: [due this week]).
+ * - Requisitions and Claims & petty cash: those waiting for approval ([to approve]).
+ * - Fiscal register: documents the fiscal device did not sign ([failed]).
  *
  * Keyed by the row's address, as the shell's badges are. A zero is left out.
  */
 
-type Db = Pick<PrismaClient, "salesInvoice" | "bankStatementLine" | "$queryRaw">;
+type Db = Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "bankStatementLine" | "accountingIntegrationEvent" | "purchaseBill" | "crmRequisition" | "expenseClaim" | "pettyCashVoucher" | "fiscalReceipt" | "$queryRaw">;
 
 export const BOOKS_COUNT_HREFS = {
   invoices: "/books/invoices",
+  onAccount: "/books/payments",
   bank: "/books/bank",
   takings: "/books/takings",
+  needs: "/books/needs-posting",
+  bills: "/books/bills",
+  requisitions: "/books/requisitions",
+  claims: "/books/claims",
+  fiscal: "/books/fiscal",
 } as const;
 
-export type BooksCounts = { invoices: number; bank: number; takings: number };
+export type BooksCounts = { invoices: number; onAccount: number; bank: number; takings: number; needs: number; bills: number; requisitions: number; claims: number; fiscal: number };
+
+/** The Sunday that ends this week, as a date to compare due dates with (today, when today is Sunday). */
+export function endOfWeek(today: Date): Date {
+  const day = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  day.setUTCDate(day.getUTCDate() + ((7 - day.getUTCDay()) % 7) + 1);
+  return day;
+}
 
 /** The badges the panel draws: a figure per row, none for a zero. */
 export function booksBadges(counts: BooksCounts): Record<string, string> {
@@ -35,9 +55,12 @@ export async function readBooksCounts(
   companyId: string,
   { takings = true }: { takings?: boolean } = {},
 ): Promise<BooksCounts> {
-  const [invoices, bank, unbanked] = await Promise.all([
-    db.salesInvoice.count({ where: { companyId, status: "ISSUED" } }),
-    db.bankStatementLine.count({ where: { matchedTransactionId: null, reconciliation: { companyId, status: "OPEN" } } }),
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const [invoices, onAccount, bank, unbanked, needs, bills, requisitions, claims, vouchers, fiscal] = await Promise.all([
+    db.salesInvoice.count({ where: { companyId, status: "ISSUED", dueDate: { lt: today } } }),
+    db.salesReceipt.count({ where: { companyId, invoiceId: null, voidedAt: null } }),
+    db.bankStatementLine.count({ where: { matchedTransactionId: null, excludedAt: null, reconciliation: { companyId, status: "OPEN" } } }),
     takings
       ? db.$queryRaw<Array<{ count: number }>>(Prisma.sql`
           SELECT count(*)::int AS count
@@ -51,6 +74,12 @@ export async function readBooksCounts(
                 AND d."businessDate" = ((s."openedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Harare')::date
             )`)
       : Promise.resolve([{ count: 0 }]),
+    db.accountingIntegrationEvent.count({ where: blockingWhere(companyId, now) }),
+    db.purchaseBill.count({ where: { companyId, status: "RECEIVED", dueDate: { lt: endOfWeek(now) } } }),
+    db.crmRequisition.count({ where: { companyId, status: "SUBMITTED" } }),
+    db.expenseClaim.count({ where: { companyId, status: "SUBMITTED" } }),
+    db.pettyCashVoucher.count({ where: { companyId, status: "TO_APPROVE" } }),
+    db.fiscalReceipt.count({ where: { companyId, status: "FAILED" } }),
   ]);
-  return { invoices, bank, takings: unbanked[0]?.count ?? 0 };
+  return { invoices, onAccount, bank, takings: unbanked[0]?.count ?? 0, needs, bills, requisitions, claims: claims + vouchers, fiscal };
 }

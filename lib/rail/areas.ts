@@ -78,6 +78,8 @@ export type RailFolder = {
   icon: LucideIcon;
   items: NavItem[];
   rank?: NavRank;
+  /** Pages in another module the level points to, as a band after its rows (Books › Settings › In Management). */
+  links?: { label: string; items: NavItem[] };
 };
 
 /**
@@ -268,10 +270,25 @@ export function areasFromSections(
     // is two questions and therefore two areas. One group is just a heading
     // over the whole section, and the section stays whole.
     if (section.panelGroups) {
-      // One place in the rail; its groups are bands inside its own panel.
+      // One place in the rail; its groups are bands inside its own panel, or
+      // levels of it where a group says so (Books' Sales, Ledger…).
+      const levels = populated.filter((group) => group.level);
       push(section.id, AREA_LABELS[section.id] ?? section.title, section.items, {
         ranked,
-        bands: populated.map((group) => ({ id: group.id, label: group.label, ...(group.trailing ? { trailing: true } : {}) })),
+        bands: populated
+          .filter((group) => !group.level)
+          .map((group) => ({ id: group.id, label: group.label, ...(group.trailing ? { trailing: true } : {}) })),
+        folders: levels.map((group) => {
+          const items = section.items.filter((item) => item.group === group.id);
+          const links = group.links && group.links.items.length > 0 ? group.links : undefined;
+          return {
+            id: group.id,
+            label: group.label,
+            icon: group.icon ?? iconFor(group.id, items),
+            items,
+            ...(links ? { links } : {}),
+          };
+        }),
       });
     } else if (flatten && (section.flattenGroups || populated.length > 1)) {
       const ungrouped = section.items.filter((item) => !item.group);
@@ -323,13 +340,10 @@ export function areasFromSections(
 
 /** The destinations an area shows as rows of its own, outside its folders and bands. */
 export function areaRows(area: RailArea): NavItem[] {
-  if (area.bands) {
-    const banded = new Set(area.bands.map((band) => band.id));
-    return area.items.filter((item) => !item.group || !banded.has(item.group));
-  }
-  if (!area.folders) return area.items;
-  const foldered = new Set(area.folders.flatMap((folder) => folder.items.map((item) => item.href)));
-  return area.items.filter((item) => !foldered.has(item.href));
+  if (!area.bands && !area.folders) return area.items;
+  const banded = new Set((area.bands ?? []).map((band) => band.id));
+  const foldered = new Set((area.folders ?? []).flatMap((folder) => folder.items.map((item) => item.href)));
+  return area.items.filter((item) => !(item.group && banded.has(item.group)) && !foldered.has(item.href));
 }
 
 /** The folder inside an area that holds a destination, or null. */

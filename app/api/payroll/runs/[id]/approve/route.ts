@@ -159,7 +159,6 @@ export async function POST(
           runNumber: updated.runNumber,
           entryDate: updated.approvedAt ?? new Date(),
           createdById: session.user.id,
-          enabledFeatures: session.user.enabledFeatures,
           actorRole: session.user.role,
         })
       } catch (error) {

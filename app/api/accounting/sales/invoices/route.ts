@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { createSalesInvoice, InvoiceRefused, invoiceSchema } from "@/lib/books/create-invoice";
+import { guardBooks } from "@/lib/books/core";
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
     const validated = invoiceSchema.parse(await request.json());
+    const { refused } = await guardBooks(session, validated.issueNow ? "issue" : "draft.create", { kind: "invoice" });
+    if (refused) return refused;
     const invoice = await createSalesInvoice({ companyId: session.user.companyId, userId: session.user.id }, validated);
     return successResponse(invoice, 201);
   } catch (error) {

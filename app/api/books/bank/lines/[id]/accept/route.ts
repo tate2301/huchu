@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { acceptMatch, BankError, proposalFor } from "@/lib/books/bank";
+import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
 
 const matchSchema = z.discriminatedUnion("kind", [
@@ -10,7 +11,8 @@ const matchSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("bill"), billId: z.string().uuid(), amount: z.number() }),
   z.object({ kind: z.literal("ecocash"), day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), amount: z.number() }),
   z.object({ kind: z.literal("transaction"), transactionId: z.string().uuid() }),
-  z.object({ kind: z.literal("bank-charges"), amount: z.number() }),
+  z.object({ kind: z.literal("bank-charges"), amount: z.number(), imtt: z.boolean().optional() }),
+  z.object({ kind: z.literal("transfer"), otherAccountId: z.string().uuid(), amount: z.number() }),
 ]);
 
 /** Without a body, Vane's match is accepted (Accept); with one, what the person chose (Choose). */
@@ -21,6 +23,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+    const { refused } = await guardBooks(session, "bank.match");
+    if (refused) return refused;
     const { id } = await params;
     const body = bodySchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) return errorResponse("That is not something a bank line can be", 400);

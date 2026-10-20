@@ -49,9 +49,9 @@ const EXECUTIVE_MODULE_ACCESS_CONFIG: Record<ExecutiveModuleKey, ExecutiveModule
   finance: {
     visibilityFeatures: ["accounting.banking", "accounting.ar", "accounting.ap"],
     reportTargets: [
-      { href: "/accounting/banking", feature: "accounting.banking" },
-      { href: "/accounting/sales", feature: "accounting.ar" },
-      { href: "/accounting/purchases", feature: "accounting.ap" },
+      { href: "/books/accounts", feature: "accounting.banking" },
+      { href: "/books/invoices", feature: "accounting.ar" },
+      { href: "/books/bills", feature: "accounting.ap" },
     ],
   },
   gold: {

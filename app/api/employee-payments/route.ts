@@ -226,8 +226,8 @@ export async function POST(request: NextRequest) {
           status: "PENDING",
         })
       } catch (error) {
-        // Accounting is optional — a payroll-only tenant has no ledger, and the
-        // payment is already recorded either way.
+        // The payment is already recorded either way; the capture's failure is
+        // logged, and the drain posts anything left PENDING.
         console.error("[Accounting] Employee payment capture failed:", error)
       }
     }

@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
+import { nextNumber } from "@/lib/books/core/numbering";
+import { postMoney } from "@/lib/books/core/post-money";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -45,35 +46,16 @@ export class CreditNoteRefused extends Error {
   }
 }
 
-const two = (value: number) => String(value).padStart(2, "0");
-
-function creditNoteNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}`;
-  const timePart = `${two(now.getHours())}${two(now.getMinutes())}`;
-  return `CN-${datePart}-${timePart}-${Math.floor(100 + Math.random() * 900)}`;
-}
-
-async function uniqueCreditNoteNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = creditNoteNumberCandidate();
-    const existing = await prisma.creditNote.findFirst({ where: { noteNumber: candidate }, select: { id: true } });
-    if (!existing) return candidate;
-  }
-  return `CN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
 export async function createSalesCreditNote(actor: { companyId: string; userId: string }, input: CreditNoteInput) {
   const invoice = await prisma.salesInvoice.findUnique({
     where: { id: input.invoiceId },
-    select: { companyId: true, status: true, currency: true },
+    select: { companyId: true, status: true, currency: true, exchangeRate: true, rateSource: true },
   });
   if (!invoice || invoice.companyId !== actor.companyId) throw new CreditNoteRefused("Invalid invoice");
   if (invoice.status === "DRAFT" || invoice.status === "VOIDED") {
     throw new CreditNoteRefused("Invoice must be issued before creating a credit note");
   }
 
-  const noteNumber = await uniqueCreditNoteNumber();
   const taxCodeIds = input.lines.map((line) => line.taxCodeId).filter((value): value is string => Boolean(value));
   const taxCodes = taxCodeIds.length
     ? await prisma.taxCode.findMany({
@@ -107,11 +89,12 @@ export async function createSalesCreditNote(actor: { companyId: string; userId: 
   const taxTotal = lines.reduce((sum, line) => sum + line.taxAmount, 0);
   const total = lines.reduce((sum, line) => sum + line.lineTotal, 0);
 
-  const creditNote = await prisma.creditNote.create({
+  // A draft carries no number; one issued now takes the next in the series, in the same write (D8).
+  const creditNote = await prisma.$transaction(async (tx) => tx.creditNote.create({
     data: {
       companyId: actor.companyId,
       invoiceId: input.invoiceId,
-      noteNumber,
+      noteNumber: input.issueNow ? await nextNumber(tx, actor.companyId, "credit-note") : null,
       noteDate,
       status: input.issueNow ? "ISSUED" : "DRAFT",
       currency: input.currency ?? invoice.currency ?? "USD",
@@ -119,6 +102,10 @@ export async function createSalesCreditNote(actor: { companyId: string; userId: 
       taxTotal,
       total,
       reason: input.reason,
+      // D3: a credit note takes its invoice's rate, so the receivable comes off at what it went on at.
+      exchangeRate: invoice.exchangeRate ?? undefined,
+      rateSource: invoice.rateSource ?? undefined,
+      baseTotal: invoice.exchangeRate ? Math.round((total / invoice.exchangeRate) * 100) / 100 : undefined,
       createdById: actor.userId,
       issuedById: input.issueNow ? actor.userId : undefined,
       issuedAt: input.issueNow ? new Date() : undefined,
@@ -128,22 +115,24 @@ export async function createSalesCreditNote(actor: { companyId: string; userId: 
       invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
       lines: true,
     },
-  });
+  }));
 
   if (creditNote.status === "ISSUED") {
     await recalcSalesInvoiceBalance(creditNote.invoiceId);
     try {
-      await createJournalEntryFromSource({
+      // Through the core: in the base currency at the invoice's rate (D3, D4).
+      await postMoney(prisma, {
         companyId: actor.companyId,
         sourceType: "SALES_CREDIT_NOTE",
         sourceId: creditNote.id,
-        entryDate: creditNote.noteDate,
+        date: creditNote.noteDate,
         description: `Credit note ${creditNote.noteNumber}`,
-        createdById: actor.userId,
         amount: creditNote.total,
         netAmount: creditNote.subTotal,
         taxAmount: creditNote.taxTotal,
         grossAmount: creditNote.total,
+        currency: creditNote.currency,
+        actor: { userId: actor.userId },
       });
     } catch (error) {
       console.error("[Accounting] Sales credit note auto-post failed:", error);

@@ -13,7 +13,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { getCurrentPageTitle } from "@/components/layout/breadcrumbs";
 import {
-  DeviceStatus,
+  VaneBarButton,
   NotificationsBell,
   SearchTrigger,
 } from "@/components/layout/app-bar-tools";
@@ -60,13 +60,15 @@ function primaryShortcut(primary: PagePrimary | null): string | undefined {
 
 /**
  * The 56px top bar (design/core-modules/spec/shell.md, `.tb-m`): the back
- * link, the page's icon and title, reference or sub and sub link; then, on the
- * right, the CRM's members, search everything (Ctrl K), the device's sync
- * state, the notifications bell with its unread count, the Vane button, the
- * page's own actions and its one primary, last, with its shortcut. The panel's
- * own Hide button and the rail hide and show the panel.
+ * link, the page's icon and title, reference or sub and sub link; then
+ * everything else in the right section (the owner, 19 Oct). Vane (its
+ * button), search everything (Ctrl K) and the notifications bell with its
+ * unread count are on every page and never move, at the far right; the CRM's
+ * members, the page's own actions and its one primary appear to their left.
+ * The device's sync state is in the account menu. The panel's own Hide
+ * button and the rail hide and show the panel.
  *
- * Below 720px it is "≡ <title> search, device, bell, ⋯ +": the menu button
+ * Below 720px it is "≡ <title> Vane, search, bell, ⋯ +": the menu button
  * opens the drawer and a create primary becomes a 44px plus; a verb primary
  * leads ⋯, and the page's other actions fold into ⋯ (as the page's
  * `phoneMenu` items when it gives them).
@@ -101,27 +103,27 @@ export function PageHeader() {
     <header className="box-border h-[calc(56px+env(safe-area-inset-top))] flex-none bg-[var(--surface)] pt-[env(safe-area-inset-top)] shadow-[inset_0_-1px_0_var(--line)]">
       {/* ≥720px */}
       <div className="flex h-full items-center gap-3 px-6 max-[719px]:hidden">
-        {back ? (
-          <>
-            <Link
-              href={back.href}
-              aria-label={`Back to ${back.label}`}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-[8px] pl-1 pr-2 text-[var(--ink-3)] no-underline hover:bg-[var(--hover)]"
-            >
-              <CaretLeft className="size-4" aria-hidden="true" />
-              {back.label}
-            </Link>
-            {title ? (
-              <span aria-hidden="true" className="text-[var(--line-strong)]">
-                /
-              </span>
-            ) : null}
-          </>
-        ) : null}
-        {pageIcon && !back
-          ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true })
-          : null}
-        <h1 className="m-0 -ml-1 min-w-0 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
+        {/* The boards' crumb (`.tb-m h1`): the page's icon, the parent in grey as the way back, a faint slash, the record. */}
+        <h1 className="m-0 flex min-w-0 items-center gap-2 text-[16px] font-semibold text-[var(--ink)]">
+          {pageIcon ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true }) : null}
+          {back ? (
+            <>
+              <Link
+                href={back.href}
+                title={`Back to ${back.label}`}
+                className="shrink-0 font-medium text-[var(--ink-3)] no-underline hover:text-[var(--ink)] hover:underline hover:underline-offset-[3px]"
+              >
+                {back.label}
+              </Link>
+              {title ? (
+                <span aria-hidden="true" className="shrink-0 font-normal text-[var(--faint)]">
+                  /
+                </span>
+              ) : null}
+            </>
+          ) : null}
+          <span className="min-w-0 truncate">{title}</span>
+        </h1>
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
             {identity.reference}
@@ -169,71 +171,89 @@ export function PageHeader() {
         <div className="flex-1" />
         <div className="flex shrink-0 items-center gap-2">
           {showMembers ? <CrmMembers className="mr-1" /> : null}
+          {/* The page's actions and primary, left of the tools that never move. */}
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+            {primary?.menu?.length ? (
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
+                    {primary.label}
+                  </Button>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  {primary.menu.map((item) => (
+                    <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuContent>
+              </Menu>
+            ) : primary?.disabled ? (
+              <span title={primary.disabled} className="inline-flex">
+                <Button variant="primary" disabled aria-description={primary.disabled}>
+                  {primary.label}
+                </Button>
+              </span>
+            ) : primary ? (
+              <Kit contents>
+                {primaryHref && !primary.onClick ? (
+                  <KitButtonLink
+                    href={primaryHref}
+                    variant="primary"
+                    icon={primary.icon}
+                    shortcut={primaryShortcut(primary)}
+                  >
+                    {primary.label}
+                  </KitButtonLink>
+                ) : (
+                  <KitButton
+                    variant="primary"
+                    icon={primary.icon}
+                    shortcut={primaryShortcut(primary)}
+                    onClick={() => runPrimary(primary)}
+                  >
+                    {primary.label}
+                  </KitButton>
+                )}
+              </Kit>
+            ) : null}
+          </div>
+          <VaneBarButton />
           <SearchTrigger />
-          <DeviceStatus />
           <NotificationsBell />
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        {primary?.menu?.length ? (
-          <Menu>
-            <MenuTrigger asChild>
-              <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
-                {primary.label}
-              </Button>
-            </MenuTrigger>
-            <MenuContent align="end">
-              {primary.menu.map((item) => (
-                <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
-                  {item.label}
-                </MenuItem>
-              ))}
-            </MenuContent>
-          </Menu>
-        ) : primary?.disabled ? (
-          <span title={primary.disabled} className="inline-flex">
-            <Button variant="primary" disabled aria-description={primary.disabled}>
-              {primary.label}
-            </Button>
-          </span>
-        ) : primary ? (
-          <Kit contents>
-            {primaryHref && !primary.onClick ? (
-              <KitButtonLink
-                href={primaryHref}
-                variant="primary"
-                icon={primary.icon}
-                shortcut={primaryShortcut(primary)}
-              >
-                {primary.label}
-              </KitButtonLink>
-            ) : (
-              <KitButton
-                variant="primary"
-                icon={primary.icon}
-                shortcut={primaryShortcut(primary)}
-                onClick={() => runPrimary(primary)}
-              >
-                {primary.label}
-              </KitButton>
-            )}
-          </Kit>
-        ) : null}
       </div>
 
       {/* <720px (Mobile board) */}
       <div className="flex h-full items-center gap-1 pl-1 pr-1 min-[720px]:hidden">
-        <button
-          type="button"
-          aria-label="Open the menu"
-          onClick={() => shell.setDrawerOpen(true)}
-          className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
-        >
-          <List weight="bold" className="size-5" aria-hidden="true" />
-        </button>
-        <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-[var(--ink)]">{title}</h1>
-        <SearchTrigger compact />
-        <DeviceStatus compact />
-        <NotificationsBell compact />
+        {/* A record goes back to its list (BkInvoicePhone: ‹ INV-0131 ⋯); a page opens the menu. */}
+        {back ? (
+          <Link
+            href={back.href}
+            aria-label={`Back to ${back.label}`}
+            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
+          >
+            <CaretLeft weight="bold" className="size-5" aria-hidden="true" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            aria-label="Open the menu"
+            onClick={() => shell.setDrawerOpen(true)}
+            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
+          >
+            <List weight="bold" className="size-5" aria-hidden="true" />
+          </button>
+        )}
+        <h1 className="m-0 min-w-0 flex-1 truncate text-[17px] font-semibold text-[var(--ink)]">{title}</h1>
+        {back ? null : (
+          <>
+            <VaneBarButton />
+            <SearchTrigger compact />
+            <NotificationsBell compact />
+          </>
+        )}
         {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>

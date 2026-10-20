@@ -34,13 +34,13 @@ describe("the Vane panel", () => {
 
   it("puts this module's cards first, newest first within each", async () => {
     const db = fakeDb([
-      item("crm-new", "crm", { label: "Open the invoice", target: "/accounting/sales/1" }, 1),
-      item("books-new", "books", { label: "Send 3 reminders", type: "send", shortcut: "S", target: "/accounting" }, 2),
-      item("books-old", "books", { label: "Match", target: "/accounting/banking" }, 30),
+      item("crm-new", "crm", { label: "Open the invoice", target: "/books/invoices/1" }, 1),
+      item("books-new", "books", { label: "Send 3 reminders", type: "send", shortcut: "S", target: "/books" }, 2),
+      item("books-old", "books", { label: "Match", target: "/books/bank" }, 30),
     ]);
     const panel = await vanePanel(db, { companyId: "c", userId: "u", module: "books" });
     expect(panel.items.map((card) => card.id)).toEqual(["books-new", "books-old", "crm-new"]);
-    expect(panel.items[0].action).toEqual({ type: "send", label: "Send 3 reminders", shortcut: "S", target: "/accounting" });
+    expect(panel.items[0].action).toEqual({ type: "send", label: "Send 3 reminders", shortcut: "S", target: "/books" });
   });
 
   it("drops an action that does not lead to a page in the app", async () => {

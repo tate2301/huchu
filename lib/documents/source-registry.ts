@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { docLabel } from "@/lib/books/doc-number";
 import { prisma } from "@/lib/prisma";
 import {
   DOCUMENT_RESOURCES_SELECT,
@@ -258,10 +259,10 @@ async function resolveInvoice(companyId: string, recordId: string): Promise<Sour
     fileName: `invoice-${invoice.invoiceNumber}.pdf`,
     payload: {
       title: "Invoice",
-      subtitle: invoice.invoiceNumber,
+      subtitle: docLabel(invoice.invoiceNumber),
       badge,
       meta: [
-        { label: "Invoice No.", value: invoice.invoiceNumber },
+        { label: "Invoice No.", value: docLabel(invoice.invoiceNumber) },
         { label: "Issue date", value: isoDate(invoice.invoiceDate) },
         { label: "Due date", value: isoDate(invoice.dueDate) },
         { label: "Currency", value: invoice.currency },
@@ -452,13 +453,13 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
     fileName: `credit-note-${note.noteNumber}.pdf`,
     payload: {
       title: "Credit note",
-      subtitle: note.noteNumber,
+      subtitle: docLabel(note.noteNumber, "credit note"),
       badge:
         note.status === "ISSUED"
           ? { label: "Issued", tone: "positive" }
           : { label: note.status, tone: "neutral" },
       meta: [
-        { label: "Credit Note No.", value: note.noteNumber },
+        { label: "Credit Note No.", value: docLabel(note.noteNumber, "credit note") },
         { label: "Date", value: isoDate(note.noteDate) },
         { label: "Against invoice", value: note.invoice?.invoiceNumber ?? "—" },
         { label: "Currency", value: currency },

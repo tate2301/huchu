@@ -1,0 +1,169 @@
+// The Books page boards' own rules (design/core-modules/tools/boards/books_pages_a.py `CSS`: Money,
+// Sales, Bills & spending), for the pages built from them. Scoped under `.ck.ck.ck .sc-bk-a` (the page
+// wraps itself in `KitScreen slug="bk-a"`), so a rule of these boards reaches only their pages and
+// never a page built from books_pages_b.py, whose boards reuse a few of the same names.
+//
+//   node design/core-modules/build/build-books-css.mjs
+//
+// writes components/core/books.css. Change the generator, never the output.
+
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "../../..");
+const postcss = createRequire(path.join(root, "node_modules/.pnpm/node_modules/"))("postcss");
+
+const boards = path.join(here, "../tools/boards");
+const source = execFileSync("python3", ["-c", "import sys; sys.argv=['x', '/nonexistent']; import books_pages_a; print(books_pages_a.CSS)"], {
+  cwd: boards,
+  encoding: "utf8",
+});
+
+const SCOPE = ".ck.ck.ck .sc-bk-a";
+// The board's own frame (its shell, its top bar and the phone's case) is the app's shell in the app.
+// Only the phone's case, its header and its foot: the phone's body, rows and lists (`.bk-ph-b`, `.bk-ph-row`,
+// `.bk-ph-list`) are the page's own at phone width.
+const BOARD_ONLY = /^\.(sh|tb-m|mn)\b|^\.bk-ph(-h|-f)?(?![\w-])/;
+
+const css = postcss.parse(source);
+css.walkRules((rule) => {
+  if (rule.parent?.type === "atrule" && /keyframes/.test(rule.parent.name)) return;
+  const selectors = rule.selectors.filter((s) => !BOARD_ONLY.test(s.trim()));
+  if (selectors.length === 0) {
+    rule.remove();
+    return;
+  }
+  rule.selectors = selectors.map((s) => `${SCOPE} ${s.trim()}`);
+});
+
+// The boards draw 1440 and a phone frame of their own; in the app the same pages take every width.
+const RESPONSIVE = `
+/* In the app's shell: each page column scrolls on its own at desktop width; under 1100px the rail and the
+   summary go under the page, and on a phone forms take one column. */
+.ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { min-height: 0; overflow: auto; }
+.ck.ck.ck .sc-bk-a .bk-acts .btn, .ck.ck.ck .sc-bk-a .bk-undo .btn { flex: none; }
+/* Full bleed (the owner, 19 Oct): a table or list with dividers runs edge to edge of its pane, its top line
+   meeting the pane's edges; the cells keep 24px inside. In a form's padded column it reaches out over the padding. */
+.ck.ck.ck .sc-bk-a .bk-bleed { overflow-x: auto; }
+.ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 24px; }
+.ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 24px; }
+/* An owing invoice's two actions at the foot of a phone (BkInvoicePhone); at desktop width they are in the top bar. */
+.ck.ck.ck .sc-bk-a .bk-ph-acts { display: none; }
+/* A record's phone body (BkInvoicePhone): drawn instead of the desktop columns under 760px. */
+.ck.ck.ck .sc-bk-a .bk-ph-only { display: none; }
+/* A form drawn its own way on a phone (BkClaimPhone): the desktop form steps aside under 760px. */
+.ck.ck.ck .sc-bk-a .bk-desk-only { display: contents; }
+/* A line's tax code reads in proportional figures, as the board's does, so "VAT 15.5%" fits its 118px. */
+.ck.ck.ck .sc-bk-a .bk-le .select { font-variant-numeric: normal; }
+/* A line of text in a full-bleed section, where the table would be: on the section's 24px edge. */
+.ck.ck.ck .sc-bk-a .bk-wide > .bk-pad { margin: 0; padding: 0 24px 24px; }
+@media (max-width: 1099px) {
+  .ck.ck.ck .sc-bk-a .mny, .ck.ck.ck .sc-bk-a .bk-rec, .ck.ck.ck .sc-bk-a .bk-fm { grid-template-columns: minmax(0, 1fr); overflow: visible; }
+  .ck.ck.ck .sc-bk-a .mny-side, .ck.ck.ck .sc-bk-a .bk-rec > .rail, .ck.ck.ck .sc-bk-a .bk-fm > .rail { box-shadow: inset 0 1px 0 var(--color-line); }
+}
+@media (max-width: 759px) {
+  .ck.ck.ck .sc-bk-a .bk-strip .kstrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ck.ck.ck .sc-bk-a .share { grid-template-columns: 24px minmax(0, 1fr) 40px 96px; gap: 8px; }
+  .ck.ck.ck .sc-bk-a .share .sh-n { width: auto; flex: 1 1 auto; }
+  .ck.ck.ck .sc-bk-a .share .grow { display: none; }
+  .ck.ck.ck .sc-bk-a .need { flex-wrap: wrap; }
+  .ck.ck.ck .sc-bk-a .need .a { margin-left: 36px; }
+  .ck.ck.ck .sc-bk-a .bk-fl { padding: 0 0 40px; }
+  .ck.ck.ck .sc-bk-a .bk-fl > section { padding: 24px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-fl > .bk-wide { padding: 24px 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-wide > header, .ck.ck.ck .sc-bk-a .bk-add { padding: 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-le th:first-child, .ck.ck.ck .sc-bk-a .bk-le td:first-child { padding-left: 16px !important; }
+  .ck.ck.ck .sc-bk-a .bk-le th:last-child, .ck.ck.ck .sc-bk-a .bk-le td:last-child { padding-right: 16px !important; }
+  .ck.ck.ck .sc-bk-a .bk-shares .share { padding: 0 16px; }
+  .ck.ck.ck .sc-bk-a .bk-strip .kt { padding: 12px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-tl li, .ck.ck.ck .sc-bk-a .bk-tl li:last-child { padding: 10px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-callout { padding: 12px 16px; }
+  .ck.ck.ck .sc-bk-a .bk-fl .form-sec { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+  .ck.ck.ck .sc-bk-a .field-row { grid-template-columns: minmax(0, 1fr); }
+  .ck.ck.ck .sc-bk-a .bk-le { min-width: 560px; }
+  .ck.ck.ck .sc-bk-a .bk-wide { overflow-x: auto; }
+  .ck.ck.ck .sc-bk-a .bk-hd, .ck.ck.ck .sc-bk-a .bk-head, .ck.ck.ck .sc-bk-a .bk-acts, .ck.ck.ck .sc-bk-a .bk-note { padding-left: 16px; padding-right: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-callout { margin: 16px 16px 0; }
+  .ck.ck.ck .sc-bk-a .bk-sums { width: auto; margin-left: 0; padding-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-figs { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-tabs { padding: 0 16px; overflow-x: auto; }
+  .ck.ck.ck .sc-bk-a .bk-rtabs { padding: 0; }
+  .ck.ck.ck .sc-bk-a .bk-title { font-size: 24px; }
+  .ck.ck.ck .sc-bk-a .bk-tl li { grid-template-columns: 16px minmax(0, 1fr) 72px; }
+  .ck.ck.ck .sc-bk-a .ws-tools { flex-wrap: wrap; height: auto; row-gap: 8px; padding-top: 8px; padding-bottom: 8px; padding-inline: 16px; }
+  .ck.ck.ck .sc-bk-a .ws-tools .ws-find { flex: 1 1 100%; width: auto; }
+  .ck.ck.ck .sc-bk-a .ws-tools .end { margin-left: 0; }
+  .ck.ck.ck .sc-bk-a .ws-tools .sepv { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-bleed .table th:first-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:first-child { padding-left: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-bleed .table th:last-child, .ck.ck.ck .sc-bk-a .bk-bleed .table td:last-child { padding-right: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-ph-acts { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 12px 16px 28px; background: var(--color-surface); box-shadow: 0 -1px 0 var(--color-line); z-index: 2; }
+  .ck.ck.ck .sc-bk-a .bk-ph-acts .btn { height: 48px; width: 100%; justify-content: center; font-size: 16px; }
+  .ck.ck.ck .sc-bk-a .bk-rec.bk-has-ph, .ck.ck.ck .sc-bk-a .bk-desk-only { display: none; }
+  .ck.ck.ck .sc-bk-a .bk-ph-only { display: block; min-height: calc(100dvh - 56px - env(safe-area-inset-top) - 144px); }
+  .ck.ck.ck .sc-bk-a .bk-ph-only .bk-ph-b { overflow: visible; flex: none; }
+}
+`;
+
+// The boards of books_pages_b.py (Bank & cash, Tax, Close the month, Settings), under `.sc-bk-b`: the same
+// way, so a page built from one of them (`KitScreen slug="bk-b"`) gets its own values and never bk-a's.
+const sourceB = execFileSync("python3", ["-c", "import sys; sys.argv=['x', '/nonexistent']; import books_pages_b; print(books_pages_b.CSS)"], {
+  cwd: boards,
+  encoding: "utf8",
+});
+const SCOPE_B = ".ck.ck.ck .sc-bk-b";
+const BOARD_ONLY_B = /^\.(sh|tb-m|mn)\b|^\.bk-ph(?![\w-])|^\.bk-ph header/;
+const cssB = postcss.parse(sourceB);
+cssB.walkRules((rule) => {
+  if (rule.parent?.type === "atrule" && /keyframes/.test(rule.parent.name)) return;
+  const selectors = rule.selectors.filter((s) => !BOARD_ONLY_B.test(s.trim()));
+  if (selectors.length === 0) {
+    rule.remove();
+    return;
+  }
+  rule.selectors = selectors.map((s) => `${SCOPE_B} ${s.trim()}`);
+});
+
+const RESPONSIVE_B = `
+/* In the app's shell (bk-b): the page column and its rail each scroll on their own at desktop width; under
+   1100px the rail goes under the page; on a phone the gutter is 16px and the tools wrap. */
+.ck.ck.ck .sc-bk-b .bk { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ck.ck.ck .sc-bk-b .bk .finding, .ck.ck.ck .sc-bk-b .bk .ws-tools { flex: none; }
+.ck.ck.ck .sc-bk-b .bk .ws-n { white-space: nowrap; }
+.ck.ck.ck .sc-bk-b .bk .table-shell { min-height: 0; }
+.ck.ck.ck .sc-bk-b .bk-tabs { margin-top: 12px; }
+.ck.ck.ck .sc-bk-b .bk-body { min-height: 0; }
+.ck.ck.ck .sc-bk-b .bk-col .table-shell { flex: 1 1 auto; }
+.ck.ck.ck .sc-bk-b .bk-rail .bk-racts { flex-wrap: wrap; }
+.ck.ck.ck .sc-bk-b .bk-ph-only { display: none; }
+.ck.ck.ck .sc-bk-b .bk-desk-only { display: contents; }
+.ck.ck.ck .sc-bk-b .bk-chk .end .btn { flex: none; }
+/* A phone board's body in the app (BkToMatchPhone, BkTaxDuePhone): the heading, the list edge to edge, the foot. */
+.ck.ck.ck .sc-bk-b .bk-ph-b { padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; flex: 1 1 auto; }
+.ck.ck.ck .sc-bk-b .bk-ph-t { font-size: 22px; font-weight: 600; color: var(--color-ink); line-height: 1.25; }
+.ck.ck.ck .sc-bk-b .bk-ph-f { position: sticky; bottom: 0; padding: 12px 16px 24px; box-shadow: inset 0 1px 0 var(--color-line); display: flex; gap: 8px; align-items: center; background: var(--color-surface); }
+@media (max-width: 1099px) {
+  .ck.ck.ck .sc-bk-b .bk-body { flex-direction: column; overflow: auto; }
+  .ck.ck.ck .sc-bk-b .bk-col { overflow: visible; flex: none; }
+  .ck.ck.ck .sc-bk-b .bk-rail { width: auto !important; box-shadow: inset 0 1px 0 var(--color-line); overflow: visible; }
+}
+@media (max-width: 759px) {
+  .ck.ck.ck .sc-bk-b .bk-tabs { padding: 0 16px; overflow-x: auto; }
+  .ck.ck.ck .sc-bk-b .ws-tools { flex-wrap: wrap; height: auto; row-gap: 8px; padding: 8px 16px; }
+  .ck.ck.ck .sc-bk-b .ws-tools .ws-find { flex: 1 1 100%; width: auto; }
+  .ck.ck.ck .sc-bk-b .ws-tools .end { margin-left: 0; }
+  .ck.ck.ck .sc-bk-b .ws-tools .sepv { display: none; }
+  .ck.ck.ck .sc-bk-b .bk-head, .ck.ck.ck .sc-bk-b .bk-pad { padding-left: 16px; padding-right: 16px; }
+  .ck.ck.ck .sc-bk-b .bk-chk { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 8px 16px; }
+  .ck.ck.ck .sc-bk-b .bk-chk > span:nth-child(3) { display: none; }
+  .ck.ck.ck .sc-bk-b .bk-desk-only { display: none; }
+  .ck.ck.ck .sc-bk-b .bk-ph-only { display: flex; flex-direction: column; }
+}
+`;
+
+const out = `/* Generated by design/core-modules/build/build-books-css.mjs from tools/boards/books_pages_a.py and books_pages_b.py. Do not edit. */\n${css.toString().trim()}\n${RESPONSIVE}\n${cssB.toString().trim()}\n${RESPONSIVE_B}`;
+fs.writeFileSync(path.join(root, "components/core/books.css"), out);
+console.log(`components/core/books.css: ${out.length} bytes`);

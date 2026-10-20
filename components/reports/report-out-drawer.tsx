@@ -4,7 +4,7 @@ import * as React from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button, Check, Drawer, Field, Kit, Segmented, Tabs } from "@/components/core";
+import { Button, Check, Drawer, Field, Kit, Segmented, Tabs, Avatars, Person } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
@@ -120,7 +120,14 @@ function Recipients({
       <Popover>
         <PopoverTrigger asChild>
           <button id="send-to" type="button" className="select rp-pick">
-            <span className="truncate">{names(picked)}</span>
+            {picked.length ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <Avatars people={picked} />
+                <span className="truncate">{names(picked)}</span>
+              </span>
+            ) : (
+              <span className="truncate">{names(picked)}</span>
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-0">
@@ -131,7 +138,7 @@ function Recipients({
                   key={person.id}
                   checked={chosen.includes(person.id)}
                   onCheckedChange={(on) => onChange(on ? [...chosen, person.id] : chosen.filter((id) => id !== person.id))}
-                  label={person.name}
+                  label={<Person name={person.name} src={person.image} />}
                 />
               ))}
               {people.length === 0 ? <p className="muted">Nobody else here can open {reportTitle}.</p> : null}
@@ -154,7 +161,7 @@ function Schedules({ schedules, onActive, busy }: { schedules: ScheduleView[]; o
             <span className="rp-sched-t">
               <b>{schedule.when}</b>
               <span className="muted">
-                {FORMAT_LABEL[`${schedule.format}:${schedule.content}`]}, to {names(schedule.recipients)}.{" "}
+                {FORMAT_LABEL[`${schedule.format}:${schedule.content}`]}, to <Avatars people={schedule.recipients} /> {names(schedule.recipients)}.{" "}
                 {schedule.active ? (schedule.nextRunAt ? `Next ${whenWords(new Date(schedule.nextRunAt))}.` : "") : "Stopped."} Set by{" "}
                 {schedule.madeBy}.
               </span>

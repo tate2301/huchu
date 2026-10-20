@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
           role: true,
           isActive: true,
           updatedAt: true,
+          image: true,
         },
         orderBy: { name: "asc" },
         skip,

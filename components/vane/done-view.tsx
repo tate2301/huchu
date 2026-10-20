@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Empty, Finding, TableShell } from "@/components/core";
+import { Empty, Finding, Person, TableShell } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import type { VaneDoneView } from "@/lib/vane/lists";
 
@@ -18,6 +18,19 @@ const PERIOD_WORDS: Record<number, string> = { 1: "today", 7: "in the last 7 day
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 /** "Today", "Yesterday", "Mon 6 Oct". */
+/** What happened next, with the person it names drawn with their avatar: "Send 3 reminders, by [JN] James, 10:14". */
+function Next({ text, who }: { text: string; who?: { name: string; image: string | null } | null }) {
+  const at = who ? text.indexOf(who.name) : -1;
+  if (!who || at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <Person name={who.name} src={who.image} />
+      {text.slice(at + who.name.length)}
+    </>
+  );
+}
+
 function dayLabel(day: string, today: Date): string {
   const key = (date: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Harare", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -137,7 +150,9 @@ export function DoneView({
                         <td>
                           <span className="ref">{row.template}</span>
                         </td>
-                        <td className={row.next === "Open" ? "fill muted" : "fill"}>{row.next}</td>
+                        <td className={row.next === "Open" ? "fill muted" : "fill"}>
+                          <Next text={row.next} who={row.who} />
+                        </td>
                         <td className="num" style={{ color: "var(--color-faint)" }}>
                           —
                         </td>

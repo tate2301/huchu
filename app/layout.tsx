@@ -17,6 +17,7 @@ import "./themes/workspace.css";
 // canvas's stylesheet, then the parts the boards draw only at rest.
 import "@/components/core/kit.css";
 import "@/components/core/parts.css";
+import "@/components/core/books.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";

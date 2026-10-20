@@ -74,7 +74,7 @@ const SELECT = {
   createdById: true,
   createdAt: true,
   updatedAt: true,
-  createdBy: { select: { name: true } },
+  createdBy: { select: { name: true, image: true } },
   uses: { select: { opens: true, lastOpenedAt: true } },
 } as const;
 
@@ -106,6 +106,7 @@ function toRecord(row: Row, definition: ReportDefinition, session: Authenticated
     params: params.data,
     audience: row.audience,
     madeBy: row.createdBy.name,
+    madeByImage: row.createdBy.image ?? null,
     madeById: row.createdById,
     mine: row.createdById === session.user.id,
     canChange: canChangeTemplate(row, person(session)),

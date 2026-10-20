@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { ButtonLink, Icon, Select, Status, type IconName } from "@/components/core";
+import { ButtonLink, Icon, Select, Status, type IconName, Avatars, Person } from "@/components/core";
 import { KitPage } from "@/components/management/ui";
 import { productInfo, type ProductKey } from "@/lib/explore/products";
 import { runResult } from "@/lib/explore/runs";
@@ -88,7 +88,18 @@ export function ExploreSettingsPageView({
                     <td>
                       <span className="cell-lead">{role.label}</span>
                     </td>
-                    <td>{role.people}</td>
+                    <td>
+                      {role.faces?.length === 1 ? (
+                        <Person name={role.faces[0]!.name} src={role.faces[0]!.image} />
+                      ) : role.faces?.length ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <Avatars people={role.faces} />
+                          <span className="truncate">{role.people}</span>
+                        </span>
+                      ) : (
+                        role.people
+                      )}
+                    </td>
                     <td className="wrap">{role.reads}</td>
                     <td>
                       {data.canChange && !role.fixed && onRoles ? (
@@ -206,7 +217,9 @@ export function ExploreSettingsPageView({
                       <tr key={run.id}>
                         <td className="num muted">{clock(run.at)}</td>
                         <td>
-                          <span className="cell-lead">{run.who}</span>
+                          <span className="cell-lead">
+                            {run.who === "Someone who has left" ? run.who : <Person name={run.who} src={run.whoImage} />}
+                          </span>
                         </td>
                         <td className="wrap" title={run.reason ?? undefined}>
                           {run.line}

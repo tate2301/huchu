@@ -226,7 +226,7 @@ export async function listActivity(args: {
           companyId: args.companyId,
           OR: [{ id: { in: actorKeys } }, { email: { in: actorKeys } }],
         },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, image: true },
       })
     : [];
   const userByKey = new Map<string, (typeof users)[number]>();
@@ -262,6 +262,7 @@ export async function listActivity(args: {
             id: user?.id ?? null,
             name: user?.name ?? text(payload.actorName) ?? user?.email ?? row.actor,
             email: user?.email ?? null,
+            image: user?.image ?? null,
           }
         : null,
       changes,

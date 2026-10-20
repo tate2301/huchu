@@ -100,7 +100,7 @@ export async function renderOrderPdf(companyId: string, id: string) {
     ["From", shop || "—"],
     ["VAT number", settings?.vatNumber ?? "—"],
     ["To", order.vendor.name],
-    ["Deliver to", order.site.name],
+    ["Deliver to", order.site?.name ?? "As agreed"],
     ["Expected", order.expectedDate ? formatDay(order.expectedDate) : "When you can"],
     [
       "Paying",
@@ -256,8 +256,8 @@ export async function renderRequisitionPdf(actor: RetailAuditActor, id: string, 
       ).join("")}</tbody></table>`
     : "";
   return {
-    ref: requisition.requisitionNo,
-    title: `Requisition ${requisition.requisitionNo}`,
+    ref: requisition.requisitionNo ?? "Requisition",
+    title: `Requisition ${requisition.requisitionNo ?? ""}`.trim(),
     subtitle: `${requisition.purpose} · ${formatMoney(amount, requisition.currency)}`,
     content: `<div class="rd-cols">
   <table class="rd-table"><caption>Request</caption><tbody>${head}</tbody></table>

@@ -58,6 +58,7 @@ import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
+import { Person } from "@/components/core";
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -105,7 +106,7 @@ type PersonDetail = {
   preferredChannel: string | null;
   customFields: Record<string, unknown> | null;
   client: { id: string; name: string } | null;
-  assignedTo: { id: string; name: string | null } | null;
+  assignedTo: { id: string; name: string | null; image?: string | null } | null;
   companyLinks: Array<{
     id: string;
     jobTitle: string | null;
@@ -220,7 +221,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
         href={person.assignedTo ? `/crm/reps/${person.assignedTo.id}` : null}
         muted
       >
-        {person.assignedTo?.name ?? "Unassigned"}
+        {person.assignedTo ? <Person name={person.assignedTo.name ?? "Unnamed"} src={person.assignedTo.image} /> : "Unassigned"}
       </EntityLink>
     </>
   );

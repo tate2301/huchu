@@ -84,7 +84,7 @@ describe("All reports", () => {
     ]);
     expect(corelith[0].copy).toEqual({ fromReport: "crm-deals" });
     expect(corelith[3].copy).toEqual({ fromTemplate: "site-visits" });
-    expect(corelith[4]).toMatchObject({ href: "/accounting/financial-reports", copy: null });
+    expect(corelith[4]).toMatchObject({ href: "/books/financials", copy: null });
   });
 
   it("counts each view and folder, and says so in the finding", () => {

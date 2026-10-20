@@ -3,6 +3,7 @@ import { z } from "zod";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
+import { nextNumber } from "@/lib/books/core/numbering";
 import { prisma } from "@/lib/prisma";
 
 import { postIssuedInvoice } from "./issue-invoice";
@@ -34,30 +35,6 @@ export const invoiceSchema = z.object({
     .min(1),
 });
 
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function buildInvoiceNumberCandidate() {
-  const now = new Date();
-  const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-  const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-  const randomPart = Math.floor(100 + Math.random() * 900);
-  return `INV-${datePart}-${timePart}-${randomPart}`;
-}
-
-async function generateUniqueInvoiceNumber() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const candidate = buildInvoiceNumberCandidate();
-    const existing = await prisma.salesInvoice.findFirst({
-      where: { invoiceNumber: candidate },
-      select: { id: true },
-    });
-    if (!existing) return candidate;
-  }
-  return `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
 export type InvoiceInput = z.infer<typeof invoiceSchema>;
 
 /** Why an invoice was not created, with the status the route answers and what it names. */
@@ -83,6 +60,8 @@ export async function createSalesInvoice(
   /** No person, with `madeByVane`: Vane's own draft, which a person issues. */
   actor: { companyId: string; userId: string | null; madeByVane?: boolean },
   validated: InvoiceInput,
+  /** The cost centre the invoice posts to (Books' form: Terms → Cost centre). */
+  options: { costCenterId?: string | null } = {},
 ) {
   if (!actor.userId && validated.issueNow) throw new InvoiceRefused("Only a person issues an invoice.");
   const customer = await prisma.customer.findUnique({
@@ -92,8 +71,6 @@ export async function createSalesInvoice(
   if (!customer || customer.companyId !== actor.companyId) {
     throw new InvoiceRefused("Invalid customer");
   }
-
-  const invoiceNumber = await generateUniqueInvoiceNumber();
 
   const resolvedTemplate = await resolveDefaultTaxTemplate({
     companyId: actor.companyId,
@@ -152,11 +129,12 @@ export async function createSalesInvoice(
   const taxTotal = computedLines.reduce((sum, line) => sum + line.taxAmount, 0);
   const total = computedLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
-  const invoice = await prisma.salesInvoice.create({
+  // A draft carries no number; one issued now takes the next in the series, in the same write (D8).
+  const invoice = await prisma.$transaction(async (tx) => tx.salesInvoice.create({
     data: {
       companyId: actor.companyId,
       customerId: validated.customerId,
-      invoiceNumber,
+      invoiceNumber: validated.issueNow ? await nextNumber(tx, actor.companyId, "invoice") : null,
       invoiceDate,
       dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
       status: validated.issueNow ? "ISSUED" : "DRAFT",
@@ -176,9 +154,9 @@ export async function createSalesInvoice(
       customer: true,
       lines: true,
     },
-  });
+  }));
 
-  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId);
+  if (invoice.status === "ISSUED" && actor.userId) await postIssuedInvoice(actor.companyId, invoice, actor.userId, { costCenterId: options.costCenterId });
 
   // If this came off a CRM quote, let the CRM know its work has been
   // invoiced. Never throws — the invoice is already real either way.

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma"
 import { recordSettlementPayment } from "@/lib/settlements/payments"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"
 import { createApprovalAction } from "@/lib/workflow/approvals"
+import { postMoney } from "@/lib/books/core"
 
 /**
  * Money out the door.
@@ -97,6 +98,8 @@ export async function POST(
       }
     }
 
+    // What this marking hands over, beyond what was paid before: the money that leaves now.
+    const before = sumMoney(batch.items.map((item) => money(item.paidAmount ?? 0)))
     const updated = await prisma.$transaction(async (tx) => {
       for (const entry of validated.items) {
         const item = itemsById.get(entry.itemId)!
@@ -182,6 +185,34 @@ export async function POST(
 
       return saved
     })
+
+    // The money left: it posts through the Books core (books-final §5.6). A gold settlement clears
+    // what the shift allocations owe the workers (GOLD_PAYOUT, Dr 2230); any other settles as a
+    // payroll disbursement. A correction that pays less posts the mirror. What cannot post waits.
+    const after = sumMoney(updated.items.map((item) => money(item.paidAmount ?? 0)))
+    const moved = after.minus(before)
+    if (!moved.isZero()) {
+      const previous = await prisma.accountingIntegrationEvent.count({
+        where: { companyId: batch.companyId, sourceId: { startsWith: `settlement:${batch.id}:` } },
+      })
+      try {
+        await postMoney(prisma, {
+          companyId: batch.companyId,
+          sourceType: batch.run.source === "GOLD" ? "GOLD_PAYOUT" : "PAYROLL_DISBURSEMENT",
+          sourceId: `settlement:${batch.id}:${previous + 1}`,
+          sourceSubtype: batch.run.source,
+          date: paidAt,
+          description: `Settlement ${batch.code} paid`,
+          amount: moved.abs(),
+          currency: batch.currency,
+          invertDirection: moved.isNegative(),
+          actor: { userId: session.user.id, role: session.user.role },
+          payload: { settlementBatchId: batch.id, invertDirection: moved.isNegative() },
+        })
+      } catch (error) {
+        console.error("[API] settlement payment posting failed:", error)
+      }
+    }
 
     return successResponse(updated)
   } catch (error) {

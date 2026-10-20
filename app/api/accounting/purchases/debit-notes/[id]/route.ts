@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { guardBooks } from "@/lib/books/core";
 import { prisma } from "@/lib/prisma";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { numberAtIssue } from "@/lib/books/core/numbering";
+import { postMoney } from "@/lib/books/core/post-money";
 import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
 
 const updateSchema = z.object({
@@ -31,14 +33,30 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return errorResponse("Debit note not found", 404);
     }
 
+    // No going back to draft once issued; issuing and voiding are for whoever may (books-final §2.2).
+    if (validated.status === "DRAFT" && existing.status !== "DRAFT") {
+      return errorResponse("An issued note cannot go back to draft. Void it instead.", 409);
+    }
+    const { refused } = await guardBooks(
+      session,
+      validated.status === "VOIDED" && existing.status === "ISSUED" ? "void" : validated.status === "ISSUED" ? "note.issue" : "draft.edit",
+      { kind: "debit-note" },
+    );
+    if (refused) return refused;
+
     if (validated.status === "ISSUED" && existing.bill?.status === "DRAFT") {
       return errorResponse("Bill must be received before issuing a debit note", 400);
     }
 
-    const updated = await prisma.debitNote.update({
+    // Numbered at issue (D8), in the same write: a draft that is never issued takes no number.
+    const updated = await prisma.$transaction(async (tx) => tx.debitNote.update({
       where: { id },
       data: {
         status: validated.status,
+        noteNumber:
+          validated.status === "ISSUED" && existing.status === "DRAFT"
+            ? await numberAtIssue(tx, session.user.companyId, "debit-note", existing.noteNumber)
+            : undefined,
         reason: validated.reason,
         issuedById: validated.status === "ISSUED" ? session.user.id : existing.issuedById,
         issuedAt: validated.status === "ISSUED" ? new Date() : existing.issuedAt,
@@ -47,22 +65,24 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         bill: { select: { billNumber: true, vendor: { select: { name: true } } } },
         lines: true,
       },
-    });
+    }));
 
     if (validated.status && validated.status !== existing.status) {
       if (validated.status === "ISSUED") {
         try {
-          await createJournalEntryFromSource({
+          // Through the core: in the base currency at its bill's rate (D3, D4).
+          await postMoney(prisma, {
             companyId: session.user.companyId,
             sourceType: "PURCHASE_DEBIT_NOTE",
             sourceId: updated.id,
-            entryDate: updated.noteDate,
+            date: updated.noteDate,
             description: `Debit note ${updated.noteNumber}`,
-            createdById: session.user.id,
             amount: updated.total,
             netAmount: updated.subTotal,
             taxAmount: updated.taxTotal,
             grossAmount: updated.total,
+            currency: updated.currency,
+            actor: { userId: session.user.id, role: session.user.role },
           });
         } catch (error) {
           console.error("[Accounting] Purchase debit note auto-post failed:", error);
@@ -80,18 +100,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             select: { id: true },
           });
           if (postedEntry) {
-            await createJournalEntryFromSource({
+            // Reversed at its bill's rate, through the core (D3, D4).
+            await postMoney(prisma, {
               companyId: session.user.companyId,
               sourceType: "PURCHASE_DEBIT_NOTE",
               sourceId: `void:${updated.id}`,
-              entryDate: new Date(),
+              date: new Date(),
               description: `Void debit note ${updated.noteNumber}`,
-              createdById: session.user.id,
               amount: updated.total,
               netAmount: updated.subTotal,
               taxAmount: updated.taxTotal,
               grossAmount: updated.total,
+              currency: updated.currency,
               invertDirection: true,
+              actor: { userId: session.user.id, role: session.user.role },
             });
           }
         } catch (error) {

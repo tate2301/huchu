@@ -19,6 +19,7 @@ export {
   type Tone,
   type PillTone,
 } from "./parts";
+export { Avatar, Avatars, Person, initials, avatarTint, type AvatarSize } from "./avatar";
 export { Tabs, Segmented, type TabItem } from "./tabs";
 export { TableShell, TableFoot, SelectCell, useSelection, type FootSum } from "./table";
 export { Drawer, DrawerSection, DrawerRow } from "./drawer";

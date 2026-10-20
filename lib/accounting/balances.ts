@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { toMoney } from "@/lib/accounting/ledger";
+import { receiptAllocation } from "@/lib/books/core/currency";
 
 type Db = Prisma.TransactionClient | PrismaClient;
 
@@ -14,14 +15,14 @@ type Db = Prisma.TransactionClient | PrismaClient;
 export async function recalcSalesInvoiceBalance(invoiceId: string, db: Db = prisma) {
   const invoice = await db.salesInvoice.findUnique({
     where: { id: invoiceId },
-    select: { id: true, total: true, status: true },
+    select: { id: true, companyId: true, total: true, status: true, currency: true, exchangeRate: true },
   });
   if (!invoice) return null;
 
-  const [receipts, credits, writeOffs] = await Promise.all([
-    db.salesReceipt.aggregate({
+  const [receiptRows, credits, writeOffs] = await Promise.all([
+    db.salesReceipt.findMany({
       where: { invoiceId, voidedAt: null },
-      _sum: { amount: true },
+      select: { amount: true, currency: true, exchangeRate: true, receivedAt: true, createdAt: true },
     }),
     db.creditNote.aggregate({
       where: { invoiceId, status: "ISSUED" },
@@ -33,7 +34,10 @@ export async function recalcSalesInvoiceBalance(invoiceId: string, db: Db = pris
     }),
   ]);
 
-  const amountPaid = toMoney(receipts._sum.amount);
+  // A receipt in another currency pays its base value at the invoice currency's rate on its day (§5.9.3).
+  let paid = 0;
+  for (const receipt of receiptRows) paid += await receiptAllocation(invoice.companyId, invoice, receipt);
+  const amountPaid = toMoney(paid);
   const creditTotal = toMoney(credits._sum.total);
   const writeOffTotal = toMoney(writeOffs._sum.amount);
   const balance = Math.max(0, toMoney(invoice.total) - amountPaid - creditTotal - writeOffTotal);
@@ -69,7 +73,8 @@ export async function recalcPurchaseBillBalance(billId: string) {
 
   const [payments, debitNotes, writeOffs] = await Promise.all([
     prisma.purchasePayment.aggregate({
-      where: { billId },
+      // Only money that left (D5): a draft, one waiting for approval or a voided one pays nothing.
+      where: { billId, status: "PAID" },
       _sum: { amount: true },
     }),
     prisma.debitNote.aggregate({

@@ -5,11 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { result, TAKE } from "@/lib/reports/loaders/shared";
 import type { ReportContext, ReportLoader } from "@/lib/reports/types";
 
-/** Money this month: what came in from each source, and the bills paid, as money out. */
+/** Money this month, from the core's one money in/out: what came in from each source, and what went out. */
 async function loadMoneyMonth(ctx: ReportContext) {
   const today = dayOf(new Date());
   const { currency } = await owedAndOverdue(prisma, ctx.companyId, today);
-  const [sources, out] = await Promise.all([cameIn(prisma, ctx.companyId, today, currency), wentOut(prisma, ctx.companyId, today)]);
+  const [sources, out] = await Promise.all([cameIn(prisma, ctx.companyId, today, currency), wentOut(prisma, ctx.companyId, today, currency)]);
   const rows = sources.map((source) => ({
     id: `in-${source.key}`,
     source: source.label,
@@ -18,14 +18,15 @@ async function loadMoneyMonth(ctx: ReportContext) {
     count: source.count,
     amount: source.amount,
   }));
-  if (out.payments > 0) {
+  for (const flow of out.flows) {
+    const supplier = flow.key === "supplier-payments";
     rows.push({
-      id: "out-bills",
-      source: "Bills",
+      id: supplier ? "out-bills" : `out-${flow.key}`,
+      source: supplier ? "Bills" : "Requisitions",
       direction: "Out",
-      detail: `${count(out.payments, "bill payment")} to suppliers`,
-      count: out.payments,
-      amount: -out.amount,
+      detail: supplier ? `${count(flow.count, "payment")} to suppliers` : `${count(flow.count, "requisition")} paid out`,
+      count: flow.count,
+      amount: -flow.amount,
     });
   }
   return result(rows);

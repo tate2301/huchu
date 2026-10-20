@@ -30,7 +30,6 @@ import {
   Megaphone,
   NoteAdd,
   Package,
-  PackageCheck,
   Payments,
   Phone,
   Receipt,
@@ -66,6 +65,16 @@ import {
   ListBullets,
   QrCode,
   ShoppingBag,
+  Warning,
+  Vault,
+  Percent,
+  BookOpen,
+  MedusaCogSixToothIcon,
+  ArrowRightUp,
+  Storefront,
+  Columns,
+  ListChecks,
+  PauseCircle,
   type LucideIcon,
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
@@ -171,6 +180,20 @@ export type NavGroup = {
    * Reports, and folded until it holds the page being looked at.
    */
   trailing?: boolean;
+  /**
+   * `panelGroups` only: the group is a level of its own rather than a band.
+   * Its row in the module's panel opens it (`LevelRow`), with the way back up
+   * at its head (Books' Sales, Bills & spending… on books_nav.py).
+   */
+  level?: boolean;
+  /** A level's mark in the panel, where its first row's would be wrong. */
+  icon?: LucideIcon;
+  /**
+   * A level's band of pages in another module, drawn after its own rows
+   * (Books › Settings › In Management). They are links out, not this module's
+   * rows, so they are filtered like rows but never counted as the module's.
+   */
+  links?: { label: string; items: NavItem[] };
 };
 
 export type NavSection = {
@@ -273,6 +296,91 @@ export const BUILD_NAV_ITEMS: BuildNavItem[] = [
   { href: "/build?used=crm", icon: Funnel, label: "CRM", group: "build-used", when: "crm" },
   { href: "/build?used=retail", icon: ShoppingBag, label: "Tender", group: "build-used", when: "retail" },
   { href: "/build?used=schools", icon: GraduationCap, label: "Schools", group: "build-used", when: "schools" },
+];
+
+/** Who keeps the books: the owner, a manager and the accountant (books-final §2.1). */
+const BOOKS_KEEPERS: UserRole[] = ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"];
+
+/**
+ * Books' levels (books_nav.py `LEVELS`), in the board's order. Money is the
+ * plain row above them. Settings and Ledger need the owner, a manager or the
+ * accountant, and so do the levels a bursar or a shop manager never works in
+ * (§3.2); the server refuses on its own.
+ */
+export const BOOKS_LEVELS: NavGroup[] = [
+  { id: "books-sales", label: "Sales", level: true, icon: ReceiptLong },
+  { id: "books-spending", label: "Bills & spending", level: true, icon: Wallet },
+  { id: "books-bank", label: "Bank & cash", level: true, icon: Vault },
+  { id: "books-tax", label: "Tax", level: true, icon: Percent },
+  { id: "books-close", label: "Close the month", level: true, icon: ListChecks },
+  { id: "books-ledger", label: "Ledger", level: true, icon: BookOpen },
+  {
+    id: "books-settings",
+    label: "Settings",
+    level: true,
+    icon: MedusaCogSixToothIcon,
+    // Set up in Management, so a workspace without Books' screens can still set them (§1.1).
+    links: {
+      label: "In Management",
+      items: [
+        { href: "/management/money-and-tax", icon: ArrowRightUp, label: "Business & tax details", roles: BOOKS_KEEPERS },
+        { href: "/management/money-accounts", icon: ArrowRightUp, label: "Money accounts", roles: BOOKS_KEEPERS },
+        { href: "/retail/manage/approvals", icon: ArrowRightUp, label: "Approvals & limits", roles: BOOKS_KEEPERS },
+        { href: "/retail/manage/fiscal", icon: ArrowRightUp, label: "Fiscal device", roles: BOOKS_KEEPERS },
+      ],
+    },
+  },
+];
+
+export const BOOKS_NAV_ITEMS: NavItem[] = [
+  { href: "/books", icon: Home, label: "Money", exact: true },
+
+  { href: "/books/invoices", icon: ReceiptLong, label: "Invoices", group: "books-sales" },
+  { href: "/books/quotes", icon: FileText, label: "Quotes", group: "books-sales" },
+  { href: "/books/payments", icon: Payments, label: "Payments received", group: "books-sales" },
+  { href: "/books/credit-notes", icon: FileCheck, label: "Credit notes", group: "books-sales" },
+  { href: "/books/customers", icon: Users, label: "Customers", group: "books-sales" },
+
+  { href: "/books/expenses", icon: Wallet, label: "All spending", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/payments-made", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/orders", icon: ListBullets, label: "Purchase orders", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/requisitions", icon: ClipboardList, label: "Requisitions", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/claims", icon: Receipt, label: "Claims & petty cash", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/suppliers", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
+
+  { href: "/books/accounts", icon: Vault, label: "Accounts", group: "books-bank" },
+  { href: "/books/bank", icon: CreditCard, label: "To match", group: "books-bank" },
+  { href: "/books/reconciliations", icon: ListChecks, label: "Reconciliations", group: "books-bank" },
+  // The tills' takings, counted and banked at the end of the day (retail only).
+  { href: "/books/takings", icon: ShoppingBag, label: "Takings", group: "books-bank", requires: [["retail.end-of-day", "view"]] },
+
+  { href: "/books/tax", icon: Calendar, label: "What's due", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/vat", icon: Percent, label: "VAT returns", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/withholding", icon: PauseCircle, label: "Withholding", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/provisional-tax", icon: Calendar, label: "Provisional tax", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/fiscal", icon: QrCode, label: "Fiscal register", group: "books-tax", roles: BOOKS_KEEPERS },
+
+  { href: "/books/periods", icon: ListBullets, label: "Checklist", group: "books-close", roles: BOOKS_KEEPERS },
+  // Money that has not reached the ledger (BkNeedsPosting).
+  { href: "/books/needs-posting", icon: Warning, label: "Needs posting", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/rates", icon: Coins, label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/year-end", icon: Calendar, label: "Year end", group: "books-close", roles: BOOKS_KEEPERS },
+
+  { href: "/books/journals", icon: BookOpen, label: "Journals", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/trial-balance", icon: TableRows, label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/financials", icon: BarChart3, label: "Financial statements", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/ledger", icon: ListBullets, label: "General ledger", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/chart", icon: Columns, label: "Chart of accounts", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/cost-centres", icon: Layers, label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/posting-rules", icon: Checklist, label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/audit", icon: History, label: "Audit trail", group: "books-ledger", roles: BOOKS_KEEPERS },
+
+  { href: "/books/settings/tax", icon: Percent, label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/numbering", icon: ListChecks, label: "Numbering", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/locks", icon: Lock, label: "Locks & periods", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/opening-balances", icon: Scale, label: "Opening balances", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/setup", icon: MedusaCogSixToothIcon, label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS },
 ];
 
 export const navSections: NavSection[] = [
@@ -946,39 +1054,14 @@ export const navSections: NavSection[] = [
     title: "Books",
     description: "Money in, owed, the bank and VAT",
     featureKey: "accounting.core",
-    // The boards' panel (design/core-modules, BooksInvoices, PageBooksJournals):
-    // the seven places money is worked on, then the ledger, then every other
-    // accounting page the module already had under More. Bands in the panel,
-    // never marks of their own in the rail.
+    // The Books panel in its final form (design/core-modules/tools/boards/books_nav.py,
+    // spec/books-final.md §3.2): Money, then a row per level that opens its own
+    // level. Saved views and Reports from Books stay as bands at each level's foot.
+    // A row whose Books page is not built yet points at today's page for the same
+    // thing until its phase builds it; a row with no page anywhere yet is left out.
     panelGroups: true,
-    groups: [
-      { id: "ledger", label: "Ledger" },
-      { id: "more", label: "More", trailing: true },
-    ],
-    items: [
-      { href: "/books", icon: Home, label: "Money" },
-      { href: "/books/invoices", icon: ReceiptLong, label: "Invoices" },
-      { href: "/books/payments", icon: Payments, label: "Payments" },
-      // The tills' takings, counted and banked at the end of the day.
-      // At a Books address (the floor's End of day, rendered here), so it keeps Books' panel.
-      { href: "/books/takings", icon: ShoppingBag, label: "Takings", requires: [["retail.end-of-day", "view"]] },
-      { href: "/books/expenses", icon: Wallet, label: "Expenses" },
-      { href: "/books/bank", icon: CreditCard, label: "Bank" },
-      { href: "/books/vat", icon: Coins, label: "VAT" },
-
-      { href: "/books/journals", icon: Scale, label: "Journals", group: "ledger" },
-      { href: "/books/periods", icon: Calendar, label: "Periods", group: "ledger" },
-      { href: "/accounting/chart-of-accounts", icon: ListBullets, label: "Chart of accounts", group: "ledger" },
-
-      { href: "/accounting/sales", icon: ReceiptLong, label: "Receivables", group: "more" },
-      { href: "/accounting/purchases", icon: PackageCheck, label: "Payables", group: "more" },
-      { href: "/accounting/financial-reports", icon: BarChart3, label: "Financial reports", group: "more" },
-      { href: "/accounting/trial-balance", icon: BarChart3, label: "Trial balance", group: "more" },
-      { href: "/accounting/receivables", icon: BarChart3, label: "Receivables report", group: "more" },
-      { href: "/accounting/payables", icon: BarChart3, label: "Payables report", group: "more" },
-      { href: "/accounting/posting-rules", icon: Checklist, label: "Posting rules", group: "more" },
-      { href: "/accounting/fiscalisation", icon: QrCode, label: "Fiscalisation", group: "more" },
-    ],
+    groups: BOOKS_LEVELS,
+    items: BOOKS_NAV_ITEMS,
   },
   {
     id: "settings",

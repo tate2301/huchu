@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { sendTemplate, WHATSAPP_NOT_SET_UP, type SendResult, type WhatsAppTemplate } from "@/lib/messaging/whatsapp";
 
@@ -78,25 +79,25 @@ export async function sendInvoiceReminders(
   for (const [index, invoice] of invoices.entries()) {
     const balance = invoiceBalance(invoice);
     if (invoice.status !== "ISSUED" || balance <= 0) {
-      outcome.skipped.push({ invoice: invoice.invoiceNumber, why: invoice.status === "DRAFT" ? "it has not been sent" : "nothing is owed on it" });
+      outcome.skipped.push({ invoice: docLabel(invoice.invoiceNumber), why: invoice.status === "DRAFT" ? "it has not been sent" : "nothing is owed on it" });
       continue;
     }
     const to = invoice.customer.whatsapp || invoice.customer.phone;
     if (!to) {
-      outcome.skipped.push({ invoice: invoice.invoiceNumber, why: `${invoice.customer.name} has no phone number` });
+      outcome.skipped.push({ invoice: docLabel(invoice.invoiceNumber), why: `${invoice.customer.name} has no phone number` });
       continue;
     }
     const text = reminderText(
-      { number: invoice.invoiceNumber, currency: invoice.currency, balance, due: invoice.dueDate ? storedDay(invoice.dueDate) : null },
+      { number: docLabel(invoice.invoiceNumber), currency: invoice.currency, balance, due: invoice.dueDate ? storedDay(invoice.dueDate) : null },
       today,
     );
     const result = await send(to, { name: INVOICE_REMINDER_TEMPLATE, params: [business, text] });
-    if (result.ok) outcome.sent.push(invoice.invoiceNumber);
+    if (result.ok) outcome.sent.push(docLabel(invoice.invoiceNumber));
     else if (result.error === WHATSAPP_NOT_SET_UP) {
       // Nothing else will go either.
-      for (const rest of invoices.slice(index)) outcome.skipped.push({ invoice: rest.invoiceNumber, why: "WhatsApp is not connected" });
+      for (const rest of invoices.slice(index)) outcome.skipped.push({ invoice: docLabel(rest.invoiceNumber), why: "WhatsApp is not connected" });
       break;
-    } else outcome.skipped.push({ invoice: invoice.invoiceNumber, why: result.error });
+    } else outcome.skipped.push({ invoice: docLabel(invoice.invoiceNumber), why: result.error });
   }
   return outcome;
 }

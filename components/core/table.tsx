@@ -90,16 +90,21 @@ export function TableFoot({
   range,
   sums = [],
   page,
+  end,
   selection,
 }: {
   /** "1 to 9 of 142". */
   range?: React.ReactNode;
   sums?: FootSum[];
+  /** A muted note or a tool at the row's end ("ZiG at 27.00 today"), before the pages. */
+  end?: React.ReactNode;
   page?: { onPrevious?: () => void; onNext?: () => void };
   selection?: {
     count: number;
     sum?: FootSum;
     actions?: React.ReactNode;
+    /** What the actions will leave out, and why ("REQ-0093 is yours, so it is skipped"). */
+    note?: React.ReactNode;
     onClear: () => void;
   };
 }) {
@@ -119,6 +124,7 @@ export function TableFoot({
           ) : null}
           {selection.actions ? <ButtonGroup aria-label="Do with the selection">{selection.actions}</ButtonGroup> : null}
           <div className="end">
+            {selection.note ? <span className="muted">{selection.note}</span> : null}
             <Kbd>Esc</Kbd>
             <Button variant="quiet" icon="x" onClick={selection.onClear} tabIndex={selectedCount ? 0 : -1}>
               Clear
@@ -133,8 +139,10 @@ export function TableFoot({
             {sum.label} <b>{sum.value}</b>
           </span>
         ))}
+        {end && !page ? <div className="end">{end}</div> : null}
         {page ? (
           <div className="end">
+            {end}
             <ButtonGroup aria-label="Pages">
               <Button icon="back" disabled={!page.onPrevious} onClick={page.onPrevious}>
                 Previous

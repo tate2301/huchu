@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, ButtonLink, Empty, FigureStrip, Finding, Kit, Segmented, type IconName, type TabItem } from "@/components/core";
+import { Button, ButtonLink, Empty, FigureStrip, Finding, Kit, Segmented, type IconName, type TabItem, Person } from "@/components/core";
 import { COMMON_PRESETS, DateRangePicker, type DayPreset } from "@/components/ui/date-picker";
 import { dayRangeWords, todayIn } from "@/lib/workspace/format";
 
@@ -371,7 +371,8 @@ export function HeatGrid({
 
 /* ── The table and its views ─────────────────────────────────────────────── */
 
-export type Cell = { text: string; tone?: "success" | "danger" | "warning" | "muted" | null; href?: string | null };
+/** `person`: the text names a person, drawn with their avatar (owner, 19 Oct). */
+export type Cell = { text: string; tone?: "success" | "danger" | "warning" | "muted" | null; href?: string | null; person?: { image: string | null } };
 
 export type InsightTable = {
   id: string;
@@ -394,10 +395,15 @@ function CellView({ cell, first }: { cell: Cell | null | undefined; first: boole
   if (cell.href && first) {
     return (
       <Link href={cell.href} className="link">
-        {cell.text}
+        {cell.person ? (
+          <Person name={cell.text} src={cell.person.image} />
+        ) : (
+          cell.text
+        )}
       </Link>
     );
   }
+  if (cell.person) return <Person name={cell.text} src={cell.person.image} />;
   return <>{cell.text}</>;
 }
 

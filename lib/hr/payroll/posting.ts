@@ -9,18 +9,18 @@
  * are summed from the same rows by the same code — which is what makes a return
  * reconcilable against its payable balance instead of merely similar to it.
  *
- * **The accounting seam.** Payroll must work in a workspace with no accounting
- * module at all; that is the point of the payroll-only product. So posting is
- * optional. When `accounting.core` is off the run completes, posts nothing, and
- * **records that it posted nothing** — the third option, silently pretending it
- * posted, is the one that loses money, because the first person to notice is
- * whoever tries to reconcile a payable balance that was never written.
+ * **Through the core.** The books engine is on in every workspace (books-final
+ * §1.1, D1), a payroll-only one included, so every approved run posts through
+ * `postMoney`. A run that could not post (no lines, a missing rule or account)
+ * still completes and **records why it posted nothing** on the run — silently
+ * pretending it posted is the option that loses money, because the first person
+ * to notice is whoever reconciles a payable balance that was never written.
  */
 
 import type { Prisma } from "@prisma/client";
 
-import { createJournalEntryFromSource, type StatutoryPostingBasis } from "@/lib/accounting/posting";
-import { hasEnabledFeature } from "@/lib/platform/gating/enforcer";
+import type { StatutoryPostingBasis } from "@/lib/accounting/posting";
+import { postMoney } from "@/lib/books/core";
 import {
   clampAtZero,
   resolveBaseCurrency,
@@ -123,7 +123,7 @@ export type PayrollPostingOutcome =
   | { posted: false; reason: string };
 
 /**
- * Post an approved run, if this workspace keeps a ledger.
+ * Post an approved run through the books core.
  *
  * Returns the outcome rather than throwing, so the caller can stamp it on the
  * run. A failure to post is not a failure to pay people.
@@ -134,17 +134,8 @@ export async function postPayrollRun(input: {
   runNumber: number;
   entryDate: Date;
   createdById: string;
-  enabledFeatures: string[] | undefined;
   actorRole?: string | null;
 }): Promise<PayrollPostingOutcome> {
-  if (!hasEnabledFeature(input.enabledFeatures, "accounting.core")) {
-    // The payroll-only product. Nothing to post to, and saying so is the point.
-    return {
-      posted: false,
-      reason: "No accounting module on this workspace — the run was not posted to a ledger.",
-    };
-  }
-
   const lines = await prisma.payrollLineItem.findMany({
     where: { runId: input.runId },
     select: {
@@ -233,14 +224,14 @@ export async function postPayrollRun(input: {
     EMPLOYER_BASES.map((basis) => statutory[basis] ?? ZERO),
   );
 
-  const result = await createJournalEntryFromSource({
+  const result = await postMoney(prisma, {
     companyId: input.companyId,
     sourceType: "PAYROLL_RUN",
     sourceId: input.runId,
     causationKey: `payroll-run:${input.runId}`,
-    entryDate: input.entryDate,
+    date: input.entryDate,
     description: `Payroll run #${input.runNumber}`,
-    createdById: input.createdById,
+    actor: { userId: input.createdById, role: input.actorRole ?? null },
     // The ledger's own currency, since that is what these figures are in now.
     currency: baseCurrency,
     amount: netAmount,
@@ -250,7 +241,6 @@ export async function postPayrollRun(input: {
     allowancesAmount,
     taxAmount: statutory.PAYE ?? ZERO,
     statutory,
-    actorRole: input.actorRole ?? undefined,
   });
 
   if (result.entryId) return { posted: true, entryId: result.entryId };

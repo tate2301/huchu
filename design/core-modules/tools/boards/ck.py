@@ -50,6 +50,44 @@ def primary(label, icon='plus', k='N'):
 def iconbtn(icon, label, cls='btn btn-quiet btn-icon'):
     return '<button class="%s" aria-label="%s">%s</button>' % (cls, label, ic(icon))
 
+# ---------- avatars (owner, 19 Oct) ----------
+# Every person or profile that can have an avatar (users, employees, CRM customers, leads and people,
+# students, guardians, teachers) shows it beside the name: the photo, else the initials on a soft tint
+# picked from the name. Businesses with no profile (suppliers, banks, ZIMRA, the workspace) get none.
+# The app's twin is `Avatar`/`Person` in components/core/avatar.tsx: same initials, same tint.
+AV_TINTS = ('var(--color-fill)', 'var(--color-info-tint)', 'var(--color-success-tint)', 'var(--color-warning-tint)', 'var(--color-accent-tint)')
+AV_FONT = {20: 9, 24: 10, 28: 11, 32: 12, 40: 14}
+
+HONORIFICS = {'mr', 'mrs', 'ms', 'miss', 'dr', 'sr', 'prof', 'rev'}
+
+def initials(name):
+    words = [re.sub(r'[^\w]', '', w) for w in re.sub(r'\([^)]*\)', ' ', name or '').split()]
+    words = [w.replace('_', '') for w in words if w.replace('_', '')]
+    if len(words) > 1 and words[0].lower() in HONORIFICS:
+        words = words[1:]
+    if not words:
+        return '?'
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[0][0] + words[1][0]).upper()
+
+def avatar_tint(name):
+    return sum(ord(c) for c in (name or '').strip()) % len(AV_TINTS)
+
+def avatar(name, size=20, photo=None):
+    style = ('width:%dpx;height:%dpx;flex:none;display:inline-grid;place-items:center;border-radius:999px;overflow:hidden;'
+             'background:%s;color:var(--color-ink-2);font-size:%dpx;font-weight:600;line-height:1;letter-spacing:0;vertical-align:middle') % (
+        size, size, AV_TINTS[avatar_tint(name)], AV_FONT.get(size, round(size * .4)))
+    inner = '<img src="%s" alt="" style="width:100%%;height:100%%;object-fit:cover">' % photo if photo else initials(name)
+    return '<span class="pav" aria-hidden="true" style="%s">%s</span>' % (style, inner)
+
+def person(name, sub=None, size=20, label=None):
+    """The avatar and the name on one line, truncating; `sub` follows in muted text. `label` draws the name
+    as given (bold, a link) while `name` still sets the initials."""
+    s = '<span class="muted truncate" style="flex:0 1000 auto;font-size:.92em">%s</span>' % sub if sub else ''
+    return ('<span class="pps" style="display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%%;vertical-align:middle">%s'
+            '<span style="display:flex;align-items:baseline;gap:6px;min-width:0"><span class="truncate">%s</span>%s</span></span>') % (avatar(name, size), label or name, s)
+
 # ---------- the rail ----------
 RAIL = [('pipeline', 'Pipeline'), ('visits', 'Site visits'), ('showroom', 'Showroom'), ('books', 'Books'),
         ('reports', 'Reports'), ('explore', 'Explore'), ('docs', 'Documents'), ('person', 'People')]
@@ -65,7 +103,7 @@ def rail(on=None, ws='Floorcode'):
     out.append('  <span class="grow"></span>')
     out.append('  <a class="rm%s" href="#vane" aria-label="Vane">%s</a>' % (' is-on' if on == 'Vane' else '', vmark(20)))
     out.append('  <a class="rm%s" href="#settings" aria-label="Management">%s</a>' % (' is-on' if on == 'Management' else '', ic('gear')))
-    out.append('  <span class="me" aria-label="James Nyabadza">%s</span>' % ic('person'))
+    out.append('  <span class="me" aria-label="James Nyabadza">%s</span>' % avatar('James Nyabadza', 32))
     out.append('</nav>')
     return '\n'.join(out)
 
@@ -94,8 +132,12 @@ def find_all():
     return '<label class="input-wrap tb-find">%s<input type="search" aria-label="Search everything" placeholder="Search everything">%s</label>' % (ic('search'), kbd('Ctrl K'))
 
 def topbar(title, icon, right='', bell=True, vane=5, find=True):
+    """The standard app bar (owner, 19 Oct): the title on the left; in the right section the page's
+    actions, then Vane, Search (an icon button for Ctrl K) and Notifications, which never move. More than two actions become one
+    button group: the primary and a dropdown. `right` is the page's actions; appbar.standard lays them out."""
+    from appbar import standard
     r = (find_all() if find else '') + (iconbtn('bell', 'Notifications') if bell else '') + (vane_btn(vane) if vane else '') + right
-    return '<header class="tb-m"><h1>%s%s</h1><div class="tb-r">%s</div></header>' % (ic(icon) if icon else '', title, r)
+    return standard('<header class="tb-m"><h1>%s%s</h1><div class="tb-r">%s</div></header>' % (ic(icon) if icon else '', title, r))
 
 def shell(rail_on, panel_html, main_html, extra=''):
     return '<div class="sh">%s%s<main class="mn">%s</main>%s</div>' % (rail(rail_on), panel_html, main_html, extra)

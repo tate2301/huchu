@@ -15,9 +15,13 @@ import type { Prisma } from "@prisma/client";
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
 import { invoiceEditLock, quoteEditLock, quoteReviseLock } from "./document-edit";
 import { setDocumentResources } from "./resources";
+import { frozenFields } from "@/lib/books/core/currency";
 import { prisma } from "@/lib/prisma";
 import { reverseJournalEntry, salesInvoicePostingKey } from "@/lib/accounting/journals";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { fiscaliseIssuedInvoice, postInvoice } from "@/lib/books/core/issue-invoice";
+import { nextNumber } from "@/lib/books/core/numbering";
+import { postMoney } from "@/lib/books/core/post-money";
+import { receiptFacts } from "@/lib/books/core/receipt-facts";
 import { reserveIdentifier } from "@/lib/id-generator";
 
 type Tx = Prisma.TransactionClient;
@@ -399,8 +403,11 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       entity: "SALES_QUOTATION",
     });
 
+    // D3: the rate on its day, frozen on the quote.
+    const frozen = await frozenFields(input.companyId, currency, new Date(), totals.total);
     const quotation = await tx.salesQuotation.create({
       data: {
+        ...frozen,
         companyId: input.companyId,
         customerId,
         quotationNumber,
@@ -519,8 +526,28 @@ export type CreateInvoiceInput = DocumentOwnerRef & {
   renderTemplateId?: string | null;
   /** Library resources the client is asked to review alongside it. */
   resourceIds?: string[];
+  /** The project the work belongs to (a job's); else the deal's project. Its cost centre goes on the journal. */
+  projectId?: string | null;
 };
 
+/** The cost centre a CRM invoice posts to: its project's, else the deal's project's, else none. */
+async function invoiceCostCentre(tx: Tx, companyId: string, owner: DocumentOwner, projectId?: string | null): Promise<string | null> {
+  if (projectId) {
+    const project = await tx.crmProject.findFirst({ where: { id: projectId, companyId }, select: { costCenterId: true } });
+    if (project?.costCenterId) return project.costCenterId;
+  }
+  if (owner.kind !== "deal") return null;
+  const project = await tx.crmProject.findFirst({ where: { dealId: owner.id, companyId }, select: { costCenterId: true } });
+  return project?.costCenterId ?? null;
+}
+
+/**
+ * A CRM invoice is issued through the Books core (books-final §5.3, fix 6):
+ * numbered from the invoice series, posted with its receivable line in the
+ * same transaction, on the project's cost centre, and fiscalised once it is
+ * committed where the workspace fiscalises. It shows in Books' invoices and
+ * the CRM's alike, as the same row.
+ */
 export async function createInvoiceForLead(input: CreateInvoiceInput) {
   const currency = input.currency ?? "USD";
   const result = await prisma.$transaction(async (tx) => {
@@ -563,11 +590,9 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
     if (lines.length === 0) throw new Error("Invoice needs at least one line");
 
     const totals = computeTotals(lines);
-    const invoiceNumber = await reserveIdentifier(tx, {
-      companyId: input.companyId,
-      entity: "SALES_INVOICE",
-    });
+    const invoiceNumber = await nextNumber(tx, input.companyId, "invoice");
     const invoiceDate = new Date();
+    const costCenterId = await invoiceCostCentre(tx, input.companyId, owner, input.projectId);
 
     const invoice = await tx.salesInvoice.create({
       data: {
@@ -594,6 +619,7 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
       },
       select: { id: true, invoiceNumber: true, total: true },
     });
+    const issuedNumber = invoice.invoiceNumber ?? invoiceNumber;
 
     const doc = await tx.crmLeadDocument.create({
       data: {
@@ -622,7 +648,7 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
         type: "DOCUMENT_CREATED",
         ...ownerKey(owner),
         clientId: owner.clientId,
-        subject: `Invoice ${invoice.invoiceNumber} issued`,
+        subject: `Invoice ${issuedNumber} issued`,
         metadata: { documentId: doc.id, invoiceId: invoice.id },
         createdById: input.userId,
       },
@@ -632,39 +658,30 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
       await tx.crmLead.update({ where: { id: owner.id }, data: { stage: "INVOICED" } });
     }
 
-    // Post the AR journal inside the same transaction (idempotent). Posting
-    // failures don't abort the invoice — the integration-event outbox records
-    // them for replay — but they must not pass silently.
-    const posting = await createJournalEntryFromSource(
-      {
-        companyId: input.companyId,
-        sourceType: "SALES_INVOICE",
-        // Revision 0 — the invoice's own id. See `salesInvoicePostingKey`.
-        sourceId: salesInvoicePostingKey({ id: invoice.id, revision: 0 }),
-        entryDate: invoiceDate,
-        description: `CRM invoice ${invoice.invoiceNumber}`,
-        createdById: input.userId,
-        amount: totals.total,
-        netAmount: totals.subTotal,
-        taxAmount: totals.taxTotal,
-        grossAmount: totals.total,
-        currency,
-      },
-      tx,
-    );
+    // Posted through the core inside the same transaction, with its
+    // receivable line (idempotent). A posting that cannot go through waits in
+    // the outbox for the drain and Needs posting; it never undoes the invoice.
+    const posting = await postInvoice(tx, {
+      companyId: input.companyId,
+      // Revision 0 — the invoice's own id. See `salesInvoicePostingKey`.
+      invoice: { id: invoice.id, invoiceNumber: issuedNumber, invoiceDate, total: totals.total, subTotal: totals.subTotal, taxTotal: totals.taxTotal, currency, postingKey: salesInvoicePostingKey({ id: invoice.id, revision: 0 }) },
+      description: `CRM invoice ${issuedNumber}`,
+      costCenterId,
+      actor: { userId: input.userId },
+    });
     if (posting.error) {
-      console.error(
-        `[CRM] Journal posting failed for invoice ${invoice.invoiceNumber}: ${posting.error} (${posting.code ?? "UNKNOWN"})`,
-      );
+      console.error(`[CRM] Journal posting failed for invoice ${issuedNumber}: ${posting.error} (${posting.code ?? "UNKNOWN"})`);
     }
 
     return {
       leadDocumentId: doc.id,
       invoiceId: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: issuedNumber,
       total: totals.total,
     };
   });
+  // Once committed, the fiscal device reads it (where the workspace fiscalises).
+  await fiscaliseIssuedInvoice(input.companyId, result.invoiceId, input.userId);
   return result;
 }
 
@@ -1097,35 +1114,21 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
       }
 
       // 3. The new figures, on the books.
-      const posting = await createJournalEntryFromSource(
-        {
-          companyId: input.companyId,
-          sourceType: "SALES_INVOICE",
-          sourceId: newPostingKey,
-          entryDate: editedAt,
-          description: `CRM invoice ${invoice.invoiceNumber} (revision ${revision})`,
-          createdById: input.userId,
-          amount: totals.total,
-          netAmount: totals.subTotal,
-          taxAmount: totals.taxTotal,
-          grossAmount: totals.total,
-          currency: invoice.currency,
-        },
-        tx,
-      );
+      // Through the core: the revision's key finds the invoice's own
+      // receivable line, which the same write updates to the new figures.
+      const posting = await postInvoice(tx, {
+        companyId: input.companyId,
+        invoice: { id: invoice.id, invoiceNumber: invoice.invoiceNumber, invoiceDate: editedAt, total: totals.total, subTotal: totals.subTotal, taxTotal: totals.taxTotal, currency: invoice.currency, postingKey: newPostingKey },
+        date: editedAt,
+        description: `CRM invoice ${invoice.invoiceNumber} (revision ${revision})`,
+        costCenterId: await invoiceCostCentre(tx, input.companyId, owner),
+        actor: { userId: input.userId },
+      });
       if (posting.error || !posting.entryId) {
         throw new Error(
           `The edit was not saved: the new figures could not be posted (${posting.error ?? "no journal was written"}).`,
         );
       }
-
-      // Where the receivables sub-ledger already carries this invoice, it
-      // carries the corrected amount now. It is keyed on the invoice, not on
-      // the posting, so the revision key would never reach it on its own.
-      await tx.paymentLedgerEntry.updateMany({
-        where: { companyId: input.companyId, sourceType: "SALES_INVOICE", sourceId: invoice.id },
-        data: { debit: totals.total, amount: totals.total, journalEntryId: posting.entryId },
-      });
 
       await tx.crmActivity.create({
         data: {
@@ -1179,10 +1182,16 @@ export type RecordReceiptInput = DocumentOwnerRef & {
   method: string;
   receivedAt?: Date | null;
   reference?: string | null;
+  /** The money account it came into; its ledger is debited and its bank side written (fix 6). */
+  bankAccountId?: string | null;
 };
 
 export async function recordReceiptForLead(input: RecordReceiptInput) {
   const receivedAt = input.receivedAt ?? new Date();
+  if (input.bankAccountId) {
+    const bank = await prisma.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId, isActive: true }, select: { id: true } });
+    if (!bank) throw new Error("That money account is not here any more");
+  }
   const outcome = await prisma.$transaction(async (tx) => {
     const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
     const invoiceDoc = await tx.crmLeadDocument.findFirst({
@@ -1193,7 +1202,7 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
 
     const invoice = await tx.salesInvoice.findFirst({
       where: { id: invoiceDoc.invoiceId, companyId: input.companyId },
-      select: { id: true, currency: true, total: true, creditTotal: true, writeOffTotal: true, status: true },
+      select: { id: true, customerId: true, currency: true, total: true, creditTotal: true, writeOffTotal: true, status: true },
     });
     if (!invoice) throw new Error("Invoice not found");
     if (invoice.status === "VOIDED") throw new Error("Invoice is voided");
@@ -1218,20 +1227,29 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
       );
     }
 
-    const receiptNumber = await reserveIdentifier(tx, {
+    const receiptNumber = await nextNumber(tx, input.companyId, "receipt");
+    const facts = await receiptFacts(tx, {
       companyId: input.companyId,
-      entity: "SALES_RECEIPT",
+      invoiceId: invoice.id,
+      bankAccountId: input.bankAccountId,
+      date: receivedAt,
+      amount: input.amount,
     });
 
     const receipt = await tx.salesReceipt.create({
       data: {
         companyId: input.companyId,
         invoiceId: invoice.id,
+        customerId: facts.customerId,
         receiptNumber,
         receivedAt,
         amount: input.amount,
+        currency: facts.currency,
+        exchangeRate: facts.exchangeRate,
+        baseAmount: facts.baseAmount,
         method: input.method,
         reference: input.reference ?? undefined,
+        bankAccountId: input.bankAccountId ?? undefined,
         createdById: input.userId,
       },
       select: { id: true, receiptNumber: true },
@@ -1262,22 +1280,19 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
       },
     });
 
-    const posting = await createJournalEntryFromSource(
-      {
-        companyId: input.companyId,
-        sourceType: "SALES_RECEIPT",
-        sourceId: receipt.id,
-        entryDate: receivedAt,
-        description: `CRM receipt ${receipt.receiptNumber}`,
-        createdById: input.userId,
-        amount: input.amount,
-        netAmount: input.amount,
-        taxAmount: 0,
-        grossAmount: input.amount,
-        currency: invoice.currency,
-      },
-      tx,
-    );
+    // Through the core: debited to the money account it came into, with its bank side (fix 6).
+    const posting = await postMoney(tx, {
+      companyId: input.companyId,
+      sourceType: "SALES_RECEIPT",
+      sourceId: receipt.id,
+      date: receivedAt,
+      description: `CRM receipt ${receipt.receiptNumber}`,
+      amount: input.amount,
+      currency: invoice.currency,
+      rate: facts.exchangeRate ?? undefined,
+      money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "IN", reference: input.reference ?? receipt.receiptNumber } : undefined,
+      actor: { userId: input.userId },
+    });
     if (posting.error) {
       console.error(
         `[CRM] Journal posting failed for receipt ${receipt.receiptNumber}: ${posting.error} (${posting.code ?? "UNKNOWN"})`,

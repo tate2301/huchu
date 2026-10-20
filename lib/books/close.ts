@@ -1,6 +1,9 @@
 import type { AccountingPeriodLockPolicy, PrismaClient } from "@prisma/client";
 
+import { reconciledTo } from "./core/bank";
+import { revaluationPlan } from "./core/revaluation";
 import { count, dayOf, money, monthName, shortDay, storedDay } from "./format";
+import { blockingWhere } from "./needs-posting";
 
 /**
  * Books → Periods and the close (design/core-modules/boards/view/PageBooksClose.html):
@@ -10,7 +13,7 @@ import { count, dayOf, money, monthName, shortDay, storedDay } from "./format";
  */
 
 export type CloseCheck = {
-  key: "journals" | "vat" | "fiscal" | "trial-balance" | "postings";
+  key: "journals" | "vat" | "fiscal" | "trial-balance" | "postings" | "reconciled" | "revaluation";
   label: string;
   state: "done" | "open" | "failed";
   note: string;
@@ -32,11 +35,7 @@ export type CloseView = {
   };
 };
 
-export const POLICY_LABEL: Record<AccountingPeriodLockPolicy, string> = {
-  STRICT: "Nobody may post",
-  MANAGER_OVERRIDE: "Managers may post, with a reason",
-  SOFT_WARN: "Anyone may post, with a reason",
-};
+export { POLICY_LABEL } from "./close-labels";
 
 const fullDay = (date: Date) => {
   const day = storedDay(date);
@@ -112,12 +111,14 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         where: { entry: { companyId, status: "POSTED", entryDate: { lte: range.lte } } },
         _sum: { debit: true, credit: true },
       }),
-      db.accountingIntegrationEvent.groupBy({ by: ["sourceType"], where: { companyId, status: "FAILED", createdAt: range }, _count: true }),
+      // What blocks the close: every FAILED event, and PENDING for over an hour (books-final §1.1 rule 5).
+      db.accountingIntegrationEvent.groupBy({ by: ["sourceType", "status"], where: blockingWhere(companyId, now, range), _count: true }),
     ]);
     const draftTotal = drafts.reduce((sum, draft) => sum + Math.max(draft.lines.reduce((s, l) => s + l.debit, 0), draft.lines.reduce((s, l) => s + l.credit, 0)), 0);
     const debit = Math.round((balance._sum.debit ?? 0) * 100) / 100;
     const credit = Math.round((balance._sum.credit ?? 0) * 100) / 100;
     const failedCount = failed.reduce((sum, group) => sum + group._count, 0);
+    const waitingCount = failed.filter((group) => group.status === "PENDING").reduce((sum, group) => sum + group._count, 0);
     const vatReady = vat && vat.status !== "DRAFT";
     const vatDay = vat?.filedAt ?? vat?.finalizedAt ?? vat?.reviewedAt;
     const vatWord = vat?.status === "FILED" ? "Filed" : vat?.status === "FINALIZED" ? "Finalised" : "Reviewed";
@@ -141,14 +142,14 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         label: "Receipts fiscalised",
         state: fiscal === 0 ? "done" : "open",
         note: fiscal === 0 ? "Every receipt reached ZIMRA" : `${count(fiscal, "queued", "queued")}${firstFiscal?.invoice ? `, ${firstFiscal.invoice.invoiceNumber}` : ""}`,
-        action: fiscal === 0 ? null : { label: "Retry", href: "/accounting/fiscalisation" },
+        action: fiscal === 0 ? null : { label: "Retry", href: "/books/fiscal?tab=failed" },
       },
       {
         key: "trial-balance",
         label: "Trial balance agrees",
         state: Math.abs(debit - credit) < 0.005 ? "done" : "failed",
         note: Math.abs(debit - credit) < 0.005 ? `${money(debit)} each side` : `Out by ${money(Math.abs(debit - credit))}`,
-        action: Math.abs(debit - credit) < 0.005 ? null : { label: "Trial balance", href: "/accounting/trial-balance" },
+        action: Math.abs(debit - credit) < 0.005 ? null : { label: "Trial balance", href: "/books/trial-balance" },
       },
       {
         key: "postings",
@@ -157,12 +158,15 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
         note:
           failedCount === 0
             ? "Nothing failed to post"
-            : failed.length === 1 && failed[0].sourceType?.startsWith("RETAIL_")
-              ? `${failedCount} Tender ${failedCount === 1 ? "sale" : "sales"} failed to post`
-              : `${count(failedCount, "posting")} failed`,
-        action: failedCount === 0 ? null : { label: "Replay", href: "replay" },
+            : waitingCount === failedCount
+              ? `${count(failedCount, "posting")} waiting over an hour`
+              : failed.length === 1 && failed[0].sourceType?.startsWith("RETAIL_")
+                ? `${failedCount} Tender ${failedCount === 1 ? "sale" : "sales"} failed to post`
+                : `${count(failedCount, "posting")} not on the ledger`,
+        action: failedCount === 0 ? null : { label: "Needs posting", href: "/books/needs-posting" },
       },
     ];
+    checks.push(...(await bankAndRevaluationChecks(db, companyId, storedDay(due.endDate))));
     closing = { id: due.id, month, checks, ready: checks.every((check) => check.state === "done") };
   }
 
@@ -177,4 +181,49 @@ export async function readClose(db: Db, companyId: string, now = new Date()): Pr
       equityAccounts,
     },
   };
+}
+
+/**
+ * P3's two checks (books-final §5.11): every bank and wallet account
+ * reconciled to the month's last day (`reconciledTo`, cash is counted
+ * instead), and the month's revaluation posted where anything is held in
+ * another currency (`revaluationPlan`).
+ */
+export async function bankAndRevaluationChecks(db: Pick<PrismaClient, "journalEntry">, companyId: string, lastDay: string): Promise<CloseCheck[]> {
+  const month = lastDay.slice(0, 7);
+  const [accounts, posted, plan] = await Promise.all([
+    reconciledTo(companyId, new Date(`${lastDay}T00:00:00.000Z`)),
+    db.journalEntry.findFirst({ where: { companyId, sourceType: "FX_REVALUATION", sourceId: `reval:${month}`, voidedAt: null }, select: { entryNumber: true, entryDate: true } }),
+    revaluationPlan(companyId, month).catch(() => null),
+  ]);
+  const behind = accounts.filter((account) => !account.reconciled);
+  const reconciled: CloseCheck = {
+    key: "reconciled",
+    label: "Every bank account reconciled",
+    state: behind.length === 0 ? "done" : "open",
+    note:
+      behind.length === 0
+        ? accounts.length === 0
+          ? "No bank or wallet account"
+          : `${accounts.length} of ${accounts.length}, to ${shortDay(lastDay)}`
+        : behind.length === 1
+          ? `${behind[0].name}${behind[0].reconciledTo ? `, reconciled to ${shortDay(behind[0].reconciledTo)}` : ", never reconciled"}`
+          : `${behind.length} of ${accounts.length} not reconciled to ${shortDay(lastDay)}`,
+    action: behind.length === 0 ? null : { label: "Reconciliations", href: "/books/reconciliations" },
+  };
+  const nothing = plan !== null && plan.items.length === 0;
+  const revaluation: CloseCheck = {
+    key: "revaluation",
+    label: "Revaluation run",
+    state: posted || nothing ? "done" : "open",
+    note: posted
+      ? `Posted ${shortDay(storedDay(posted.entryDate))}, reverses on the 1st`
+      : nothing
+        ? "Nothing held in another currency"
+        : plan && plan.missingRates.length
+          ? `No ${plan.missingRates.join(", ")} rate for ${shortDay(lastDay)}`
+          : "Not posted yet",
+    action: posted || nothing ? null : { label: "Rates", href: `/books/rates?month=${month}` },
+  };
+  return [reconciled, revaluation];
 }

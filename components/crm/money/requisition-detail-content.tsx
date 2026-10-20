@@ -81,7 +81,7 @@ type Person = { id: string; name: string | null } | null;
 type Detail = {
   requisition: {
     id: string;
-    requisitionNo: string;
+    requisitionNo: string | null;
     status: RequisitionStatus;
     category: Category;
     purpose: string;
@@ -351,7 +351,7 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         backHref="/crm/requisitions"
         backLabel="Requisitions"
         title={requisition.purpose}
-        reference={requisition.requisitionNo}
+        reference={requisition.requisitionNo ?? "Draft"}
         // The steps say where it has got to; the toolbar only carries the two
         // states that leave the path (rule 5).
         status={
@@ -380,8 +380,8 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
         }
         related={
           <RecordRelated
-            items={
-              requisition.project
+            items={[
+              ...(requisition.project
                 ? [
                     {
                       href: `/crm/projects/${requisition.project.id}`,
@@ -389,8 +389,12 @@ export function RequisitionDetailContent({ requisitionId }: { requisitionId: str
                       dot: "bg-[var(--badge-ok-fg)]",
                     },
                   ]
-                : []
-            }
+                : []),
+              // The same requisition in Books (books-final §5.3): its posting through cash advances, beside the shop's.
+              ...(requisition.requisitionNo && (permissions.mayApprove || permissions.mayDisburse)
+                ? [{ href: `/books/requisitions/${requisition.id}`, label: `${requisition.requisitionNo} in Books`, dot: "bg-[var(--badge-mute-fg)]" }]
+                : []),
+            ]}
           />
         }
         attributes={<RecordAttributes attributes={attributes} />}

@@ -24,34 +24,11 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { nextNumber } from "@/lib/books/core/numbering";
+import { receiptFacts } from "@/lib/books/core/receipt-facts";
+
 /** Union of the full PrismaClient and a transaction-scoped client. */
 export type Db = Prisma.TransactionClient;
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function formatTwoDigits(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-async function generateUniqueNumber(
-  tx: Db,
-  prefix: string,
-  exists: (candidate: string) => Promise<boolean>,
-): Promise<string> {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const now = new Date();
-    const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-    const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-    const randomPart = Math.floor(100 + Math.random() * 900);
-    const candidate = `${prefix}-${datePart}-${timePart}-${randomPart}`;
-    if (!(await exists(candidate))) {
-      return candidate;
-    }
-  }
-  return `${prefix}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 // ---------------------------------------------------------------------------
 // Vendor / Customer upsert helpers (gold-specific convenience wrappers)
@@ -169,17 +146,7 @@ export async function createPurchaseBill(
   const subTotal = params.lineItems.reduce((s, l) => s + l.totalAmount, 0);
   const totalPaid = (params.payments ?? []).reduce((s, p) => s + p.amount, 0);
 
-  const billNumber = await generateUniqueNumber(
-    tx,
-    "BILL",
-    async (candidate) => {
-      const existing = await tx.purchaseBill.findFirst({
-        where: { billNumber: candidate },
-        select: { id: true },
-      });
-      return Boolean(existing);
-    },
-  );
+  const billNumber = await nextNumber(tx, params.companyId, "bill");
 
   const bill = await tx.purchaseBill.create({
     data: {
@@ -214,17 +181,7 @@ export async function createPurchaseBill(
 
   const paymentIds: string[] = [];
   for (const payment of params.payments ?? []) {
-    const paymentNumber = await generateUniqueNumber(
-      tx,
-      "PAY",
-      async (candidate) => {
-        const existing = await tx.purchasePayment.findFirst({
-          where: { paymentNumber: candidate },
-          select: { id: true },
-        });
-        return Boolean(existing);
-      },
-    );
+    const paymentNumber = await nextNumber(tx, params.companyId, "payment");
 
     const created = await tx.purchasePayment.create({
       data: {
@@ -296,17 +253,7 @@ export async function createSalesInvoice(
   const subTotal = params.lineItems.reduce((s, l) => s + l.totalAmount, 0);
   const totalReceived = (params.receipts ?? []).reduce((s, r) => s + r.amount, 0);
 
-  const invoiceNumber = await generateUniqueNumber(
-    tx,
-    "INV",
-    async (candidate) => {
-      const existing = await tx.salesInvoice.findFirst({
-        where: { invoiceNumber: candidate },
-        select: { id: true },
-      });
-      return Boolean(existing);
-    },
-  );
+  const invoiceNumber = await nextNumber(tx, params.companyId, "invoice");
 
   const invoice = await tx.salesInvoice.create({
     data: {
@@ -341,24 +288,20 @@ export async function createSalesInvoice(
 
   const receiptIds: string[] = [];
   for (const receipt of params.receipts ?? []) {
-    const receiptNumber = await generateUniqueNumber(
-      tx,
-      "REC",
-      async (candidate) => {
-        const existing = await tx.salesReceipt.findFirst({
-          where: { receiptNumber: candidate },
-          select: { id: true },
-        });
-        return Boolean(existing);
-      },
-    );
+    const receiptNumber = await nextNumber(tx, params.companyId, "receipt");
 
+    const receivedAt = receipt.receivedAt ?? params.invoiceDate;
+    const facts = await receiptFacts(tx, { companyId: params.companyId, invoiceId: invoice.id, date: receivedAt, amount: receipt.amount });
     const created = await tx.salesReceipt.create({
       data: {
         companyId: params.companyId,
         invoiceId: invoice.id,
+        customerId: facts.customerId,
+        currency: facts.currency,
+        exchangeRate: facts.exchangeRate,
+        baseAmount: facts.baseAmount,
         receiptNumber,
-        receivedAt: receipt.receivedAt ?? params.invoiceDate,
+        receivedAt,
         amount: receipt.amount,
         method: receipt.method,
         reference: receipt.reference ?? undefined,

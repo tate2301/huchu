@@ -56,8 +56,9 @@ import {
   DetailValue,
 } from "@/app/management/master-data/operations/_components/register-fields";
 
-import { initialsOf } from "./initials";
 import styles from "./users.module.css";
+import { Avatar } from "@/components/core";
+import { VoidGrantSetting } from "@/components/books/void-grant-setting";
 
 /** Every register on this surface links its trail out to the same log. */
 const FULL_LOG_HREF = "/activity?view=workspace";
@@ -318,9 +319,7 @@ export function UserRecord({ userId }: { userId: string }) {
            and a reader should hear "Amara Nyoni" once. `ActivityTrail` hides
            its identical avatar the same way. */
         mark={
-          <span className={styles.headerMark} aria-hidden="true">
-            {initialsOf(user.name || user.email)}
-          </span>
+          <Avatar name={user.name || user.email} src={user.image} size={32} className={`is-fill ${styles.headerMark}`} />
         }
         /* Rule 5: `context="header"` renders nothing for a healthy account, so
            this is safe to pass unconditionally. */
@@ -435,6 +434,9 @@ export function UserRecord({ userId }: { userId: string }) {
         onChange={handlePermissionChange}
         onReset={() => resetPermissionsMutation.mutate()}
       />
+
+      {/* Books' "May void and revise posted documents" (books-final §2.3): the owner's to give a manager or the accountant. */}
+      <VoidGrantSetting userId={userId} name={user.name || user.email} />
 
       {/* `chainVerified` is deliberately not passed: nothing here walked
           `prevEventHash` back to the first event, and `/api/users/[id]/audit`

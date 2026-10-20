@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Books · Flows: buying</title>
+<style>x-dc{display:block}helmet{display:contents}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="../assets/core.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:1400px}
+
+.bf-sec{padding:40px 0;box-shadow:inset 0 1px 0 var(--color-line);margin-top:40px}
+.xp-sec+.bf-sec,.bf-sec+.bf-sec,.bf-sec+.xp-sec{margin-top:0}
+.bf-sh{display:grid;grid-template-columns:320px minmax(0,1fr);gap:48px;margin-bottom:24px;align-items:start}
+.bf-sh h2{font-size:18px;font-weight:600;margin:0}
+.bf-sh .aside{color:var(--color-ink-2);line-height:1.6;max-width:840px;margin:0}
+.bf-sh .mono{font-size:13px;color:var(--color-muted)}
+.bf-st{height:28px;padding:0 10px;justify-content:center;box-sizing:border-box}
+.bf-st.pill-plain{padding:0 10px;background:var(--color-surface);box-shadow:var(--shadow-ring)}
+.bf-st.is-gone{padding:0 10px;background:var(--color-surface);box-shadow:none;outline:1.5px dashed var(--color-rule);outline-offset:-1.5px;color:var(--color-muted);font-weight:400}
+.bf-st.is-gone::before{display:none}
+.bf-m{position:relative;margin:8px 0 24px}
+.bf-m>svg{position:absolute;left:0;top:0;overflow:visible}
+.bf-n{position:absolute;transform:translate(-50%,-50%);display:flex}
+.bf-n .bf-st{width:100%}
+.bf-l{position:absolute;font-size:12px;line-height:16px;color:var(--color-ink);font-weight:500}
+.bf-l i{display:block;font-style:normal;font-weight:400;color:var(--color-muted)}
+.bf-l.up{transform:translateY(calc(-100% - 5px));text-align:center}
+.bf-l.dn{transform:translateY(5px);text-align:center}
+.bf-l.rt{transform:translateY(-50%);text-align:left}
+.bf-l.lt{transform:translateY(-50%);text-align:right}
+.bf-g{position:absolute;border-radius:12px;outline:1px dashed var(--color-rule);outline-offset:0}
+.bf-g>span{position:absolute;left:12px;top:-9px;padding:0 6px;background:var(--color-surface);font-size:12px;color:var(--color-muted)}
+.bf-fx .table{font-size:13px}
+.bf-fx .table th{font-size:12px}
+.bf-fx .table.is-prose td{line-height:18px;padding-top:8px;padding-bottom:8px}
+.bf-steps{display:grid;gap:20px}
+.bf-step{position:relative;padding:16px 16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);display:flex;flex-direction:column;gap:10px;min-width:0}
+.bf-step+.bf-step::before{content:"";position:absolute;left:-17px;top:27px;width:12px;height:2px;background:var(--color-rule)}
+.bf-step+.bf-step::after{content:"";position:absolute;left:-9px;top:24px;border:4px solid transparent;border-left:5px solid var(--color-rule)}
+.bf-steps.is-wrap .bf-step::before,.bf-steps.is-wrap .bf-step::after{display:none}
+.bf-step-h{display:flex;align-items:center;gap:10px}
+.bf-step-h b{font-weight:600;color:var(--color-ink);font-size:14px;line-height:1.35}
+.bf-num{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:999px;background:var(--color-ink);color:var(--color-surface);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.bf-f{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bf-f>span:first-child{color:var(--color-muted);font-size:12px;line-height:19px}
+.bf-f .bf-st{height:22px;padding:0 8px}
+.bf-where{font-size:12px;color:var(--color-ink-2)}
+.bf-dr{display:block;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--color-ink)}
+.bf-dr .muted{font-family:var(--font-sans)}
+.bf-dr.is-amt{display:flex;justify-content:space-between;gap:8px}
+.bf-dr.is-amt b{font-weight:500;white-space:nowrap}
+.bf-mark{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.bf-mark.y{background:var(--color-success-tint);color:var(--color-success)}
+.bf-mark.l{background:var(--color-accent-tint);color:var(--color-accent)}
+.bf-mark.g{background:var(--color-warning-tint);color:var(--color-ink)}
+.bf-mark.o{background:var(--color-fill);color:var(--color-ink-2)}
+.bf-mark.t{background:var(--color-fill);color:var(--color-ink-2);font-weight:500;white-space:normal;height:auto;min-height:22px;padding:2px 6px;line-height:18px;box-sizing:border-box}
+.bf-mark.n{color:var(--color-faint);font-weight:400}
+.bf-box{padding:16px 18px;border-radius:10px;box-shadow:var(--shadow-ring);background:var(--color-surface)}
+.bf-box h3{font-size:14px;font-weight:600;margin:0 0 6px;color:var(--color-ink)}
+.bf-box p{font-size:13px;line-height:1.6;color:var(--color-ink-2);margin:0}
+.bf-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--color-fill);font-size:12px;color:var(--color-ink-2);white-space:nowrap}
+.bf-code{font-family:var(--font-mono);font-size:12px;color:var(--color-ink-2)}
+.bf-k{font-size:12px;color:var(--color-muted)}
+.bf-start{width:12px;height:12px;margin:auto;border-radius:999px;background:var(--color-ink-2)}
+
+</style></helmet>
+<div class="xp"><div class="xp-k"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.814 2.585A2.5 2.5 0 0 1 19 4.988V6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8c0-.374.104-.723.283-1.022a2.5 2.5 0 0 1 1.53-1.25zM15.5 11.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m.862-6.992L11.14 6H17V4.988a.5.5 0 0 0-.638-.48"/></svg><span>Books</span></div><h1>Flows: buying</h1><p class="lede">Asking, approving, ordering, receiving, recording the supplier’s invoice and paying, with withholding and IMTT where they apply. Two people where money leaves.</p><section class="bf-sec"><div class="bf-sh"><div><h2>Requisition to payment</h2></div><p class="aside">Halsted Builders, flooring adhesive and trims. A second person approves; a third pays where the shop has one.</p></div><div style="margin-top:0px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">1</span><b>Requisition</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Bills & spending › Requisitions › New</span></span></div><div class="bf-f"><span>Who</span><span>Blessing Zhou, rep</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Draft</span><span class="muted">→</span><span class="pill bf-st pill-warn">To approve</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span>. REQ-0094: adhesive and trims from Halsted Builders, US$1,155.00.</span></div><div class="bf-f"><span>Undo</span><span>Cancel</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">2</span><b>Approval</b></div><div class="bf-f"><span>Screen</span><span>WhatsApp and the app ask, as retail does</span></div><div class="bf-f"><span>Who</span><span>Farai Ncube, within his limit; never the requester</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-warn">To approve</span><span class="muted">→</span><span class="pill bf-st pill-ok">Approved</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span></span></div><div class="bf-f"><span>Undo</span><span>Cancel</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">3</span><b>Purchase order</b></div><div class="bf-f"><span>Screen</span><span>From the approved requisition, or New</span></div><div class="bf-f"><span>Who</span><span>buying rights</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Draft</span><span class="muted">→</span><span class="pill bf-st pill-info">Sent</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="muted">Nothing posts</span>. PO-0221 sent to Halsted.</span></div><div class="bf-f"><span>Undo</span><span>Cancel</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">4</span><b>Goods received</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Purchase orders › PO-0221 › Receive</span>; count against the PO</span></div><div class="bf-f"><span>Who</span><span>buying rights</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Counted</span><span class="muted">→</span><span class="pill bf-st pill-info">Posted</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr Stock</span><b>1,000.00</b></span><span class="bf-dr">Cr 2010 Goods received, not billed</span><span class="muted">Stock in. A draft bill, BILL-0224.</span></span></div><div class="bf-f"><span>Undo</span><span>Reverse the goods receipt</span></div></div></div></div><div style="margin-top:20px"><div class="bf-steps" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="bf-step"><div class="bf-step-h"><span class="bf-num">5</span><b>Bill</b></div><div class="bf-f"><span>Screen</span><span>Open BILL-0224, enter the FTI number and date, check on FDMS</span></div><div class="bf-f"><span>Who</span><span>buying rights; owner first over US$500</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-n">Draft</span><span class="muted">→</span><span class="pill bf-st pill-info">Recorded</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr 2010</span><b>1,000.00</b></span><span class="bf-dr is-amt"><span>Dr 2210 VAT input, once Valid</span><b>155.00</b></span><span class="bf-dr is-amt"><span>Cr Payable</span><b>1,155.00</b></span><span class="muted">Not checked is allowed, flagged.</span></span></div><div class="bf-f"><span>Undo</span><span>Void or Revise</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">6</span><b>Payment</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Payments made › New</span>, choose BILL-0224</span></div><div class="bf-f"><span>Who</span><span>approved by Farai, paid by James</span></div><div class="bf-f"><span>State</span><span><span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill bf-st pill-ok">Approved</span><span class="muted">→</span><span class="pill bf-st pill-ok">Paid</span></span></span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr is-amt"><span>Dr Payable</span><b>1,155.00</b></span><span class="bf-dr is-amt"><span>Cr CBZ current, USD</span><b>808.50</b></span><span class="bf-dr is-amt"><span>Cr 2180 Withholding</span><b>346.50</b></span><span class="bf-dr is-amt"><span>Dr IMTT</span><b>16.17</b></span><span class="bf-dr is-amt"><span>Cr CBZ current, USD</span><b>16.17</b></span><span class="muted">No ITF263 on file and US$1,000 this year <span class="pill pill-warn">To confirm</span>: 30% withheld. Certificate drafted.</span></span></div><div class="bf-f"><span>Undo</span><span>Void; the bank line reopens</span></div></div><div class="bf-step"><div class="bf-step-h"><span class="bf-num">7</span><b>Withholding return</b></div><div class="bf-f"><span>Screen</span><span><span class="bf-where">Tax › Withholding</span></span></div><div class="bf-f"><span>Who</span><span>accountant</span></div><div class="bf-f"><span>What</span><span>Return by the 5th, payment by the 10th</span></div><div class="bf-f"><span>Posts</span><span><span class="bf-dr">Dr 2180</span><span class="bf-dr">Cr money account, to ZIMRA</span></span></div><div class="bf-f"><span>Undo</span><span>Void the payment</span></div></div></div></div></section><section class="bf-sec"><div class="bf-sh"><div><h2>VAT withholding agents and undo</h2></div><p class="aside">Two rarer cases, and how each step is taken back.</p></div><div class="xp-cards" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 20V5m-5.657 5L12 4.343L17.657 10"/></svg><b>Our customer withholds VAT</b><p>Their payment is short by a third of the VAT. Record the receipt with VAT withheld by the customer and the certificate number: Dr 1170 VAT withheld receivable, which the VAT return claims.</p></div><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 5c-2.592 0-4.986.465-6.77 1.258c-.89.396-1.674.893-2.247 1.496C2.404 8.36 2 9.122 2 10v4c0 .878.404 1.639.983 2.246c.573.603 1.356 1.1 2.247 1.496C7.014 18.535 9.408 19 12 19s4.986-.465 6.77-1.258c.89-.396 1.674-.893 2.247-1.496c.579-.607.983-1.368.983-2.246v-4c0-.878-.404-1.639-.983-2.246c-.573-.603-1.356-1.1-2.247-1.496C16.986 5.465 14.592 5 12 5m8 8.08c-.375.246-.79.466-1.23.662C16.986 14.535 14.592 15 12 15s-4.986-.465-6.77-1.258A9 9 0 0 1 4 13.08V14c0 .227.1.518.432.868c.337.354.872.719 1.61 1.047C7.516 16.57 9.622 17 12 17s4.484-.43 5.958-1.085c.738-.328 1.273-.693 1.61-1.047c.333-.35.432-.641.432-.868z" clip-rule="evenodd"/></svg><b>We withhold VAT</b><p>If we are an agent (a setting in Money and tax), our supplier payments withhold a third of the VAT the same way, to 2185 VAT withheld payable.</p></div><div class="xp-card"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg><b>Undo, at each point</b><p>Requisition or PO before money moves: cancel. A goods receipt: reverse. A bill: void or revise. A payment: void, and the bank line reopens.</p></div></div></section></div>
+</x-dc>
+</body>
+</html>

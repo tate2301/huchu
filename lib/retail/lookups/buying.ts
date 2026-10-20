@@ -379,7 +379,7 @@ const requisition: LookupNoun = {
     });
     return rows.map((row): LookupOption => ({
       id: row.id,
-      label: row.requisitionNo,
+      label: row.requisitionNo ?? "Requisition",
       sub: `${formatMoney(toNumberOrZero(row.paidAmount ?? row.amount), row.currency)} paid out`,
     }));
   },

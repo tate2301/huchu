@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const findMany = vi.fn();
-vi.mock("@/lib/prisma", () => ({ prisma: { crmRequisition: { findMany: (...args: unknown[]) => findMany(...args) } } }));
+// Somebody else could decide each one: the people counts the maker-checker rule reads (books-final §2.4).
+vi.mock("@/lib/prisma", () => ({ prisma: { crmRequisition: { findMany: (...args: unknown[]) => findMany(...args) }, user: { count: async () => 2 } } }));
 
 import { requisitionsWaiting } from "./waiting";
 

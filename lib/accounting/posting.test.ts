@@ -16,14 +16,18 @@ let ownerId: string;
 const accounts = new Map<string, string>();
 let n = 0;
 
-/** An expense requisition's payout of 85.00, naming the accounts it is given. */
+/**
+ * A petty cash voucher of 85.00 to an account of its own, naming the accounts
+ * it is given: the expense, and the float it was paid from. (A shop's expense
+ * payout named its expense account until P2; it goes to 1150 Cash advances now.)
+ */
 const payout = (named: Record<string, string | null>): PostingContext => {
   n += 1;
   return {
     companyId,
-    sourceType: "RETAIL_REQUISITION_PAYOUT",
-    sourceId: `req-${n}-${Date.now()}`,
-    sourceSubtype: "EXPENSE",
+    sourceType: "PETTY_CASH_VOUCHER",
+    sourceId: `pcv-${n}-${Date.now()}`,
+    sourceSubtype: "ACCOUNT",
     entryDate: new Date(),
     description: `REQ-${String(n).padStart(4, "0")} · CoolTech Repairs`,
     createdById: ownerId,

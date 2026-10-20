@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { InvoiceChangeRefused, isWorkspaceOwner, RECEIPT_OWNER_ONLY } from "@/lib/books/owner";
+import { guardBooks } from "@/lib/books/core";
+import { InvoiceChangeRefused, RECEIPT_OWNER_ONLY } from "@/lib/books/owner";
 import { REASON_MAX } from "@/lib/books/reversal";
 import { readReceiptVoid, voidReceipt } from "@/lib/books/void-receipt";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
-    if (!isWorkspaceOwner(session.user.role)) return errorResponse(RECEIPT_OWNER_ONLY, 403);
+    if ((await guardBooks(session, "void", { kind: "receipt" })).refused) return errorResponse(RECEIPT_OWNER_ONLY, 403);
     const facts = await readReceiptVoid(session.user.companyId, (await params).id, prisma);
     if (!facts) return errorResponse("That payment is not here any more.", 404);
     return successResponse(facts);
@@ -31,9 +32,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
-    if (!isWorkspaceOwner(session.user.role)) return errorResponse(RECEIPT_OWNER_ONLY, 403);
+    const { actor, refused } = await guardBooks(session, "void", { kind: "receipt" });
+    if (refused) return errorResponse(RECEIPT_OWNER_ONLY, 403);
     const body = voidSchema.parse(await request.json().catch(() => null));
-    const actor = { companyId: session.user.companyId, userId: session.user.id, role: session.user.role };
     return successResponse(await voidReceipt(actor, (await params).id, { reason: body.reason }));
   } catch (error) {
     if (error instanceof InvoiceChangeRefused) return errorResponse(error.message, error.status);

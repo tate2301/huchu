@@ -36,7 +36,7 @@ export type InboxItem = {
   createdAt: string;
   isRead: boolean;
   module: InboxModule;
-  actor: { name: string; initials: string } | null;
+  actor: { name: string; initials: string; image?: string | null } | null;
   sentence: Segment[];
   second: string | null;
   concern: { ref: string; fact: string | null; status: Concern["status"]; kind: Concern["kind"] } | null;
@@ -118,7 +118,7 @@ type Row = {
     entityId: string | null;
     createdAt: Date;
     /** Who did it (`Notification.actorId`), since 15 Oct. */
-    actor: { name: string } | null;
+    actor: { name: string; image?: string | null } | null;
   };
 };
 
@@ -151,7 +151,7 @@ async function shape(rows: Row[], companyId: string, viewerName: string | null, 
       createdAt: n.createdAt.toISOString(),
       isRead: row.isRead,
       module: inboxModule,
-      actor: actorName && actorName !== viewerName ? { name: actorName, initials: initialsOf(actorName) } : null,
+      actor: actorName && actorName !== viewerName ? { name: actorName, initials: initialsOf(actorName), image: row.notification.actor?.name === actorName ? (row.notification.actor.image ?? null) : null } : null,
       sentence: segments,
       second: secondLineFor({ sentence: segments.map((s) => s.text).join(""), title: n.title, summary: n.summary, used, changes }),
       concern: concern
@@ -194,7 +194,7 @@ export async function listInbox(args: {
         id: true,
         isRead: true,
         notification: {
-          select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true } } },
+          select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
         },
       },
       orderBy: [{ notification: { createdAt: "desc" } }, { createdAt: "desc" }],
@@ -229,7 +229,7 @@ export async function getInboxDetail(args: {
       id: true,
       isRead: true,
       notification: {
-        select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true } } },
+        select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
       },
     },
   });

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Books · Payments made</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+<link rel="stylesheet" href="/_blob/99852cf059ec2fd037ee27b1340107ec">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0;background:var(--color-surface);font-family:var(--font-sans);color:var(--color-ink)}
+.sh,.rb2,.st,.ex{height:900px}
+
+.bk{display:flex;flex-direction:column;flex:1;min-height:0}
+.tb-m h1{white-space:nowrap}
+.bk .finding{flex:none}
+.bk-tabs{padding:0 24px;flex:none;margin-top:12px}
+.bk-tabs .tab .n{font-weight:400;color:var(--color-muted);font-variant-numeric:tabular-nums}
+.bk-tabs .tab[aria-selected="true"] .n{color:var(--color-ink-2)}
+.bk .ws-tools{flex:none}
+.bk .ws-n{white-space:nowrap}
+.bk .table-shell{min-height:0}
+.bk .table td .sub2{font-size:12px;color:var(--color-muted);margin-left:6px}
+.bk-rec{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
+.bk-rec>.rail{background:var(--color-surface)}
+.bk-main{min-width:0;padding-bottom:40px}
+.bk-head{padding:28px 24px 4px;display:flex;flex-direction:column;gap:10px}
+.bk-k{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--color-muted)}
+.bk-k b{font-weight:500;color:var(--color-ink)}
+.bk-title{font:600 28px/1.2 var(--font-sans);letter-spacing:var(--tracking-display);color:var(--color-ink);font-variant-numeric:tabular-nums}
+.bk-title small{font-weight:400;font-size:18px;color:var(--color-muted);letter-spacing:0}
+.bk-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 24px 0}
+.bk-acts .sepv{width:1px;height:20px;background:var(--color-line);margin:0 4px}
+.bk-sums{margin-left:auto;width:340px;display:flex;flex-direction:column;gap:6px;padding:12px 24px 4px;font-size:14px}
+.bk-sums div{display:flex;justify-content:space-between;gap:16px;color:var(--color-ink-2);font-variant-numeric:tabular-nums}
+.bk-sums .t{padding-top:8px;margin-top:2px;box-shadow:inset 0 1px 0 var(--color-rule);font-weight:600;color:var(--color-ink);font-size:16px}
+.bk-sums .m{color:var(--color-muted);font-size:13px}
+.bk-note{display:flex;align-items:flex-start;gap:8px;padding:8px 24px 0;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bk-note .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--color-muted)}
+.bk-tl{list-style:none;margin:0;padding:4px 24px}
+.bk-tl li{display:grid;grid-template-columns:16px minmax(0,1fr) 110px;gap:12px;padding:8px 0;font-size:13px;line-height:1.5;color:var(--color-ink-2);box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-tl li:last-child{box-shadow:none}
+.bk-tl .d{width:8px;height:8px;border-radius:999px;background:var(--color-faint);margin-top:6px}
+.bk-tl .d.ok{background:var(--color-success)}.bk-tl .d.in{background:var(--color-accent)}.bk-tl .d.wa{background:var(--color-warning)}
+.bk-tl b{font-weight:500;color:var(--color-ink)}
+.bk-tl time{color:var(--color-muted);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.bk-sel{position:relative}
+.bk-fm{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
+.bk-fl{padding:32px 24px 56px;display:flex;flex-direction:column;gap:40px;min-width:0}
+.bk-fl .form-sec{grid-template-columns:180px minmax(0,1fr);column-gap:32px}
+.bk-le td{padding:4px 6px!important;height:44px}
+.bk-le td:first-child{padding-left:0!important}.bk-le th:first-child{padding-left:0!important}
+.bk-le td:last-child{padding-right:0!important}.bk-le th:last-child{padding-right:0!important}
+.bk-le th{background:transparent;padding:0 6px}
+.bk-le .input,.bk-le .select{height:32px;font-size:14px}
+.bk-le .select{padding-right:26px;background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%}
+.bk-wide{display:flex;flex-direction:column;gap:12px}
+.bk-wide>header{display:flex;align-items:baseline;gap:12px}.bk-wide>header h2{font-size:16px;font-weight:600;color:var(--color-ink)}.bk-wide>header p{font-size:13px;color:var(--color-muted)}
+.bk-le .input.num{text-align:right}
+.bk-hint{font-size:13px;line-height:1.5;color:var(--color-muted)}
+.bk-hint b{font-weight:500;color:var(--color-ink-2)}
+.bk-box{border-radius:10px;box-shadow:var(--shadow-ring);padding:14px 16px;display:flex;gap:12px;align-items:flex-start;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bk-box.warn{background:var(--color-warning-tint);box-shadow:none}
+.bk-box.ok{background:var(--color-success-tint);box-shadow:none}
+.bk-box>.ic{width:18px;height:18px;flex:none;margin-top:1px;color:var(--color-ink-2)}
+.bk-box b{font-weight:600;color:var(--color-ink)}
+.bk-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:16px 24px 0;border-radius:10px;box-shadow:var(--shadow-ring);overflow:hidden}
+.bk-steps>div{padding:12px 14px;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--color-muted);min-width:0}
+.bk-steps>div+div{box-shadow:inset 1px 0 0 var(--color-line)}
+.bk-steps b{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--color-ink);font-size:14px}
+.bk-steps b .ic{width:16px;height:16px;color:var(--color-success)}
+.bk-figs{display:grid;gap:0;margin:16px 24px 0;border-radius:10px;box-shadow:var(--shadow-ring);overflow:hidden}
+.bk-figs>div{padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.bk-figs>div+div{box-shadow:inset 1px 0 0 var(--color-line)}
+.bk-figs .l{font-size:13px;color:var(--color-muted);white-space:nowrap}
+.bk-figs .v{font:600 20px/1.3 var(--font-sans);font-variant-numeric:tabular-nums;color:var(--color-ink);white-space:nowrap}
+.bk-figs .s{font-size:12px;color:var(--color-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-rtabs{padding:0 24px;margin-top:20px}
+.bk .rail section .btn{justify-content:flex-start}
+.bk-undo{display:flex;flex-direction:column;gap:12px}
+.bk-undo>div{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:start;font-size:13px;line-height:1.5;color:var(--color-ink-2)}
+.bk-undo .btn{width:96px;justify-content:flex-start}
+.mny-in .share{grid-template-columns:24px minmax(0,1fr) 56px 112px}
+.bk-ph{width:390px;height:844px;display:flex;flex-direction:column;background:var(--color-surface);position:relative;overflow:hidden}
+.bk-ph-h{display:flex;align-items:center;gap:4px;height:56px;padding:0 8px;box-shadow:inset 0 -1px 0 var(--color-line);flex:none}
+.bk-ph-h b{font-size:17px;font-weight:600;color:var(--color-ink);flex:1;min-width:0}
+.bk-ph-b{flex:1;min-height:0;overflow:hidden;padding:20px 16px;display:flex;flex-direction:column;gap:20px}
+.bk-ph-f{flex:none;padding:12px 16px 28px;display:flex;flex-direction:column;gap:8px;box-shadow:0 -1px 0 var(--color-line);background:var(--color-surface)}
+.bk-ph-f .btn{height:48px;width:100%;font-size:16px}
+.bk-ph-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;font-size:15px;box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-ph-row span:first-child{color:var(--color-muted)}
+.bk-ph-row span:last-child{color:var(--color-ink);text-align:right}
+.bk-ph-need{display:grid;grid-template-columns:20px minmax(0,1fr) 16px;gap:12px;align-items:start;min-height:56px;padding:12px 0;box-shadow:inset 0 -1px 0 var(--color-line);font-size:14px;line-height:1.4}
+.bk-ph-need b{display:block;font-weight:500;color:var(--color-ink);font-size:15px}
+.bk-ph-need .ic{color:var(--color-muted)}.bk-ph-need>.ic:first-child{margin-top:1px}.bk-ph-need>.ic:last-child{align-self:center}
+.bk-ph-need span span{color:var(--color-muted)}
+
+.mny{display:grid;grid-template-columns:minmax(0,1fr) 344px;flex:1;min-height:0}.mny-main{padding-bottom:var(--space-48);min-width:0}.mny-side{box-shadow:inset 1px 0 0 var(--color-line)}
+.share{grid-template-columns:24px minmax(0,1fr) 48px 112px;gap:var(--space-12)}
+.bk-ic{display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--color-muted)}.bk-ic .ic{width:20px;height:20px}
+.need{display:flex;align-items:flex-start;gap:var(--space-12);padding-top:14px;padding-bottom:14px}.need .bk-ic{height:20px}.need .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.need .lead{color:var(--color-ink);font-weight:500;line-height:20px}.need .d{font-size:var(--text-13);color:var(--color-muted);line-height:18px}.need .a{flex:none;align-self:center}
+.share .bk-ic{align-self:center;height:20px}.share .sh-n{width:220px;flex:none;color:var(--color-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-strip{padding:16px 24px 0}
+.bk-strip .kt-n{color:var(--color-muted);white-space:normal;line-height:1.4}
+
+.bk-hd{padding:32px 24px 0;display:flex;flex-direction:column;gap:6px}
+.bk-hd .tr{display:flex;align-items:center;gap:12px;min-width:0}
+.bk-hd .ml{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--color-muted)}
+.bk-hd .ml i{font-style:normal;color:var(--color-faint)}
+.bk-rec .group-head{padding-top:40px}
+.bk-rec .bk-strip{padding:24px 24px 0}
+.bk-rec .bk-rtabs{margin-top:32px}
+.bk-rec .bk-sums{padding-top:16px}
+.bk-callout{margin:24px 24px 0}
+.bk-callout .grow{flex:1;min-width:0}
+.bk-callout .btn{flex:none;align-self:center}
+.bk-tl li{grid-template-columns:16px minmax(0,1fr) 96px}
+.bk .rail .attrs{row-gap:10px;grid-template-columns:88px minmax(0,1fr)}
+
+.bk-shares .share{padding:0 24px}
+.bk-strip,.bk-rec .bk-strip{padding:0;margin-top:24px}
+.bk-strip .kstrip{border-radius:0;background:none;box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-strip .kt{padding:16px 24px}
+.bk-tl{padding:0;box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-tl li,.bk-tl li:last-child{padding:10px 24px;box-shadow:inset 0 -1px 0 var(--color-line)}
+.bk-kvt tbody tr:first-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.table tfoot tr.bk-sr td{height:36px;background:none;font-weight:400;color:var(--color-ink-2);box-shadow:none}
+.table tfoot tr.bk-sr:first-child td{padding-top:8px}
+.table tfoot tr.bk-sr.t td{height:44px;font-weight:600;color:var(--color-ink);box-shadow:inset 0 1px 0 var(--color-line)}
+.table tfoot tr.bk-sr:last-child td{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-fl>.bk-wt{padding-bottom:0}.bk-fl>.bk-wt+section{box-shadow:none}
+.bk-rtabs+.bk-callout{margin-top:0}
+.bk-callout{margin:24px 0 0;border-radius:0;padding:14px 24px}
+.bk-box:not(.warn):not(.ok){box-shadow:none;padding:0;border-radius:0}
+.bk-fl{padding:0 0 48px;gap:0}.bk-fl>section:last-child{padding-bottom:0}
+.bk-fl>section{padding:32px 24px}
+.bk-fl>section+section{box-shadow:inset 0 1px 0 var(--color-line)}
+.bk-fl>.bk-wide{padding:32px 0 20px;gap:16px}
+.bk-wide>header{padding:0 24px}
+.bk-le th:first-child,.bk-le td:first-child{padding-left:24px!important}
+.bk-le th:last-child,.bk-le td:last-child{padding-right:24px!important}
+.bk-le th{box-shadow:inset 0 1px 0 var(--color-line),inset 0 -1px 0 var(--color-line)}
+.bk-add{padding:0 24px}.bk-add .btn{margin-left:-12px}
+.bk-stp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.bk-stp li{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:12px;align-items:start;font-size:13px;line-height:20px;color:var(--color-muted)}
+.bk-stp .n{width:20px;height:20px;border-radius:999px;display:grid;place-items:center;font-size:11px;font-weight:500;line-height:1;color:var(--color-ink-2);box-shadow:inset 0 0 0 1px var(--color-rule);font-variant-numeric:tabular-nums}
+.bk-stp .t{display:flex;flex-direction:column;min-width:0}
+.bk-stp b{font-weight:500;font-size:14px;color:var(--color-ink)}
+.bk-ph-b{padding-left:0;padding-right:0}
+.bk-ph-b>*{margin-left:16px;margin-right:16px}
+.bk-ph-b>.bk-ph-list{margin-left:0;margin-right:0}
+.bk-ph-list .bk-ph-row,.bk-ph-list .bk-ph-need{padding-left:16px;padding-right:16px}
+.bk-ph-list>b,.bk-ph-list>.bk-ph-lh{display:flex;padding:0 16px 4px}
+
+</style></helmet>
+<div class="sh"><nav class="rail-m" aria-label="Modules">
+  <span class="ws-tile" aria-label="Floorcode"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M15 9.18V3.694a1.5 1.5 0 0 0-1.974-1.423l-8 2.666A1.5 1.5 0 0 0 4 6.36V19H3a1 1 0 1 0 0 2h18a1 1 0 1 0 0-2h-1v-7.59a1.5 1.5 0 0 0-1.206-1.471zm0 0V19h1V9.38z" clip-rule="evenodd"/></svg></span>
+  <a class="rm" href="#Pipeline" aria-label="Pipeline"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M3 4.5A1.5 1.5 0 0 1 4.5 3h15A1.5 1.5 0 0 1 21 4.5v2.086A2 2 0 0 1 20.414 8L15 13.414V21a1 1 0 0 1-1.447.894l-3.724-1.861A1.5 1.5 0 0 1 9 18.69v-5.277L3.586 8A2 2 0 0 1 3 6.586z" clip-rule="evenodd"/></svg></a><a class="rm" href="#Site visits" aria-label="Site visits"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7h18zM16 3a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v3H3V7a2 2 0 0 1 2-2h2V4a1 1 0 0 1 2 0v1h6V4a1 1 0 0 1 1-1"/></svg></a><a class="rm" href="#Showroom" aria-label="Showroom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.586 3A2 2 0 0 1 18 3.586L20.414 6A2 2 0 0 1 21 7.414V19a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7.414A2 2 0 0 1 3.586 6L6 3.586A2 2 0 0 1 7.414 3zM15 11a1 1 0 0 0-1 1a2 2 0 1 1-4 0a1 1 0 1 0-2 0a4 4 0 0 0 8 0a1 1 0 0 0-1-1M5.414 7h13.172l-2-2H7.414z"/></svg></a><a class="rm is-on" href="#Books" aria-label="Books" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.814 2.585A2.5 2.5 0 0 1 19 4.988V6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8c0-.374.104-.723.283-1.022a2.5 2.5 0 0 1 1.53-1.25zM15.5 11.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m.862-6.992L11.14 6H17V4.988a.5.5 0 0 0-.638-.48"/></svg></a><a class="rm" href="#Reports" aria-label="Reports"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 21H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3zm6-18a2 2 0 0 1 2 2v16H9V5a2 2 0 0 1 2-2zm7 5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3V8z"/></svg></a><a class="rm" href="#Explore" aria-label="Explore"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M4.5 3h15A2.5 2.5 0 0 1 22 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 18.5v-13A2.5 2.5 0 0 1 4.5 3m1.8 5.7l2.8 2.8l-2.8 2.8l1.4 1.4l4.2-4.2l-4.2-4.2zM12 14.5v2h6v-2z" clip-rule="evenodd"/></svg></a><a class="rm" href="#Documents" aria-label="Documents"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 6a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v10h.75c.69 0 1.25.56 1.25 1.25V19a3 3 0 0 1-3 3h-8v.01H8a3 3 0 0 1-3-3V9H3.25C2.56 9 2 8.44 2 7.75zm3 1V5a1 1 0 0 0-1 1v1zm4.826 13c.113-.316.174-.656.174-1.01V18h9v1a1 1 0 0 1-1 1zM9 9a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2h-4a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg></a><a class="rm" href="#People" aria-label="People"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 13c2.396 0 4.575.694 6.178 1.672c.8.489 1.484 1.064 1.978 1.69c.486.615.844 1.351.844 2.138c0 .845-.411 1.512-1.003 1.986c-.56.45-1.299.747-2.084.955C16.336 21.86 14.23 22 12 22s-4.336-.14-5.913-.559c-.785-.207-1.524-.505-2.084-.955C3.41 20.012 3 19.345 3 18.5c0-.787.358-1.523.844-2.139c.494-.625 1.178-1.2 1.978-1.69C7.425 13.695 9.605 13 12 13m0-11a5 5 0 1 1 0 10a5 5 0 0 1 0-10"/></svg></a>
+  <span class="grow"></span>
+  <a class="rm" href="#vane" aria-label="Vane"><svg class="vn" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  <a class="rm" href="#settings" aria-label="Management"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14.035 2.808c.369-.266.89-.39 1.402-.203a10 10 0 0 1 2.981 1.725c.417.35.57.86.524 1.313c-.075.752.058 1.48.42 2.106c.361.627.924 1.106 1.615 1.417c.414.187.782.576.875 1.113a10 10 0 0 1 0 3.44a1.51 1.51 0 0 1-.875 1.114c-.69.311-1.254.79-1.616 1.416c-.361.627-.494 1.354-.419 2.106c.046.452-.107.964-.524 1.313a10 10 0 0 1-2.981 1.724a1.51 1.51 0 0 1-1.402-.202c-.614-.442-1.31-.691-2.035-.691c-.724 0-1.42.249-2.035.691a1.51 1.51 0 0 1-1.402.202a10 10 0 0 1-2.981-1.724c-.417-.35-.57-.86-.524-1.313c.075-.752-.058-1.48-.42-2.106c-.361-.627-.925-1.105-1.615-1.416a1.51 1.51 0 0 1-.876-1.114a10 10 0 0 1 0-3.44c.094-.537.462-.926.876-1.113c.69-.311 1.254-.79 1.616-1.417c.361-.627.494-1.354.419-2.106a1.51 1.51 0 0 1 .524-1.313a10 10 0 0 1 2.981-1.725a1.51 1.51 0 0 1 1.402.203c.614.442 1.31.691 2.035.691c.724 0 1.42-.249 2.035-.691M12 8.999a3 3 0 1 0 0 6a3 3 0 0 0 0-6"/></svg></a>
+  <span class="me" aria-label="James Nyabadza"><span class="pav" aria-hidden="true" style="width:32px;height:32px;flex:none;display:inline-grid;place-items:center;border-radius:999px;overflow:hidden;background:var(--color-warning-tint);color:var(--color-ink-2);font-size:12px;font-weight:600;line-height:1;letter-spacing:0;vertical-align:middle">JN</span></span>
+</nav><aside class="panel-m" aria-label="Books">
+  <div class="pm-h"><b>Books</b><button class="btn btn-quiet btn-icon" aria-label="Hide the panel"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M9 4v16m-4 0h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z"/></svg></button></div>
+  <label class="input-wrap pm-find"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m15.879 15.879l4.242 4.242M18 10.5a7.5 7.5 0 1 1-15 0a7.5 7.5 0 0 1 15 0Z"/></svg><input type="search" aria-label="Search Books" placeholder="Search"><span class="kbd">/</span></label>
+  <div class="pm-body"><a class="pn" href="#Books" aria-label="Back to Books"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg><span class="truncate" style="color:var(--color-muted)">Books</span></a><div class="pg-h" style="margin-top:4px;font-size:var(--text-14);color:var(--color-ink);font-weight:600">Bills & spending</div><a class="pn" href="#All spending"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.814 2.585A2.5 2.5 0 0 1 19 4.988V6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8c0-.374.104-.723.283-1.022a2.5 2.5 0 0 1 1.53-1.25zM15.5 11.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3m.862-6.992L11.14 6H17V4.988a.5.5 0 0 0-.638-.48"/></svg><span class="truncate">All spending</span></a><a class="pn" href="#Bills"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 6a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v10h.75c.69 0 1.25.56 1.25 1.25V19a3 3 0 0 1-3 3h-8v.01H8a3 3 0 0 1-3-3V9H3.25C2.56 9 2 8.44 2 7.75zm3 1V5a1 1 0 0 0-1 1v1zm4.826 13c.113-.316.174-.656.174-1.01V18h9v1a1 1 0 0 1-1 1zM9 9a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2h-4a1 1 0 0 1-1-1m0 4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1" clip-rule="evenodd"/></svg><span class="truncate">Bills</span><span class="pn-n">4</span></a><a class="pn is-on" href="#Payments made" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM4 14.003v2.006a.875.875 0 0 1 .991.991h2.006Q7 16.938 7 16.875a2.875 2.875 0 0 0-3-2.872M19.875 14a2.875 2.875 0 0 0-2.872 3h2.006a.875.875 0 0 1 .991-.991v-2.006zM12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8m0 2a2 2 0 1 1 0 4a2 2 0 0 1 0-4M5 7.125a.875.875 0 0 1-1 .866v2.006q.062.003.125.003A2.875 2.875 0 0 0 7 7.125V7H5zm12 0a2.875 2.875 0 0 0 3 2.872V7.991A.875.875 0 0 1 19.009 7h-2.006z"/></svg><span class="truncate">Payments made</span></a><a class="pn" href="#Purchase orders"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4.5 17.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3m15.5 0a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 0 1 0-3zm-15.5-7a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3m15.5 0a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 0 1 0-3zm-15.5-7a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3m15.5 0a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 1 1 0-3z"/></svg><span class="truncate">Purchase orders</span></a><a class="pn" href="#Requisitions"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m17.827 13.241l-7.173 7.174A2 2 0 0 1 9.239 21H4.006a1.01 1.01 0 0 1-1.01-1.011v-5.232a2 2 0 0 1 .586-1.414l7.174-7.174zm-3.931-10.21a2 2 0 0 1 2.828 0l4.243 4.241a2 2 0 0 1 0 2.83l-1.726 1.725l-7.07-7.071z"/></svg><span class="truncate">Requisitions</span><span class="pn-n">2</span></a><a class="pn" href="#Claims & petty cash"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.586 3A2 2 0 0 1 18 3.586L20.414 6A2 2 0 0 1 21 7.414V19a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7.414A2 2 0 0 1 3.586 6L6 3.586A2 2 0 0 1 7.414 3zM15 11a1 1 0 0 0-1 1a2 2 0 1 1-4 0a1 1 0 1 0-2 0a4 4 0 0 0 8 0a1 1 0 0 0-1-1M5.414 7h13.172l-2-2H7.414z"/></svg><span class="truncate">Claims & petty cash</span><span class="pn-n">1</span></a><a class="pn" href="#Suppliers"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M2 6a3 3 0 0 1 3-3h13a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-3v-5a3 3 0 0 0-3-3h-1a3 3 0 0 0-3 3v5H5a3 3 0 0 1-3-3zm16-1a1 1 0 0 1 1 1v2a2 2 0 0 1-3.972.335a1 1 0 0 0-1.01-.835H14a1 1 0 0 0-1 1a1.5 1.5 0 0 1-3 0a1 1 0 0 0-1-1h-.018a1 1 0 0 0-1.01.835A2 2 0 0 1 4 8V6a1 1 0 0 1 1-1z" clip-rule="evenodd"/><path fill="currentColor" d="M10 21h3v-5a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1z"/></svg><span class="truncate">Suppliers</span></a><div class="pg"><div class="pg-h"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M17.657 9.343L12 15L6.343 9.343"/></svg><span>Saved views</span><button class="btn btn-quiet btn-icon pg-add" aria-label="Add to Saved views"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 3.5A1.5 1.5 0 0 1 13.5 5v5.5H19a1.5 1.5 0 0 1 0 3h-5.5V19a1.5 1.5 0 0 1-3 0v-5.5H5a1.5 1.5 0 0 1 0-3h5.5V5A1.5 1.5 0 0 1 12 3.5" clip-rule="evenodd"/></svg></button></div><a class="pn" href="#Overdue"><span class="pn-dot"></span><span class="truncate">Overdue</span><span class="pn-m">shared</span></a><a class="pn" href="#Pomona Offices"><span class="pn-dot"></span><span class="truncate">Pomona Offices</span><span class="pn-m">you</span></a><a class="pn" href="#Paid this month"><span class="pn-dot"></span><span class="truncate">Paid this month</span><span class="pn-m">shared</span></a></div></div>
+  <div class="pm-foot"><a class="pn" href="#Help"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2m0 14a1 1 0 1 0 0 2h.002a1 1 0 0 0 0-2zm0-9.5a3.625 3.625 0 0 0-3.625 3.625a1 1 0 1 0 2 0a1.625 1.625 0 1 1 2.23 1.509c-.675.27-1.605.963-1.605 2.116V14a1 1 0 1 0 2 0v-.246a.2.2 0 0 1 .043-.063a.8.8 0 0 1 .306-.2A3.626 3.626 0 0 0 12 6.5"/></svg><span class="truncate">Help</span></a></div>
+</aside><main class="mn"><header class="tb-m"><h1><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM4 14.003v2.006a.875.875 0 0 1 .991.991h2.006Q7 16.938 7 16.875a2.875 2.875 0 0 0-3-2.872M19.875 14a2.875 2.875 0 0 0-2.872 3h2.006a.875.875 0 0 1 .991-.991v-2.006zM12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8m0 2a2 2 0 1 1 0 4a2 2 0 0 1 0-4M5 7.125a.875.875 0 0 1-1 .866v2.006q.062.003.125.003A2.875 2.875 0 0 0 7 7.125V7H5zm12 0a2.875 2.875 0 0 0 3 2.872V7.991A.875.875 0 0 1 19.009 7h-2.006z"/></svg>Payments made</h1><div class="tb-r"><button class="btn btn-primary"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 3.5A1.5 1.5 0 0 1 13.5 5v5.5H19a1.5 1.5 0 0 1 0 3h-5.5V19a1.5 1.5 0 0 1-3 0v-5.5H5a1.5 1.5 0 0 1 0-3h5.5V5A1.5 1.5 0 0 1 12 3.5" clip-rule="evenodd"/></svg>Pay suppliers<span class="kbd" style="background:transparent;color:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.32)">N</span></button><button class="btn vn-b" aria-pressed="false" aria-label="Vane, 5 for you"><svg class="vn" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect width="24" height="24" rx="6" fill="var(--color-ink)"/><path d="M5 12h10" stroke="var(--color-surface)" stroke-width="2.2" stroke-linecap="round"/><path d="M19.5 12 14 8v8z" fill="var(--color-surface)"/><path d="M5 8.5 7.5 12 5 15.5" stroke="var(--color-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="ask-l">Vane</span><span class="vn-c">5</span><span class="live-d" aria-hidden="true"></span></button><button class="btn btn-quiet btn-icon" aria-label="Search everything, Ctrl K" title="Search · Ctrl K"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m15.879 15.879l4.242 4.242M18 10.5a7.5 7.5 0 1 1-15 0a7.5 7.5 0 0 1 15 0Z"/></svg></button><button class="btn btn-quiet btn-icon" aria-label="Notifications"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14.826 19A3 3 0 0 1 12 21a3 3 0 0 1-2.825-2zM12 2a7 7 0 0 1 7 7v3.528a1 1 0 0 0 .106.447l1.717 3.433A1.1 1.1 0 0 1 19.838 18H4.162a1.1 1.1 0 0 1-.984-1.592l1.717-3.433A1 1 0 0 0 5 12.528V9a7 7 0 0 1 7-7"/></svg></button></div></header><div class="bk"><div class="finding"><p class="lede-figure"><span class="num">US$6,088.90</span> was paid out this month. <span class="q"><span class="num">US$1,301.68</span> to Mutare Timber Works waits for you.</span></p></div><div class="tabs bk-tabs" role="tablist" aria-label="Payment views"><button class="tab" role="tab" aria-selected="true">All <span class="n">318</span></button><button class="tab" role="tab" aria-selected="false">To approve <span class="n">1</span></button><button class="tab" role="tab" aria-selected="false">Paid <span class="n">311</span></button><button class="tab" role="tab" aria-selected="false">Void <span class="n">6</span></button></div><div class="ws-tools"><label class="input-wrap ws-find"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m15.879 15.879l4.242 4.242M18 10.5a7.5 7.5 0 1 1-15 0a7.5 7.5 0 0 1 15 0Z"/></svg><input type="search" aria-label="Search payments" placeholder="Search payments"></label><span class="chipsel">Paid to <b>Anyone</b><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M17.657 9.343L12 15L6.343 9.343"/></svg></span><span class="chipsel">From <b>Any account</b><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M17.657 9.343L12 15L6.343 9.343"/></svg></span><button class="btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M3 4.5A1.5 1.5 0 0 1 4.5 3h15A1.5 1.5 0 0 1 21 4.5v2.086A2 2 0 0 1 20.414 8L15 13.414V21a1 1 0 0 1-1.447.894l-3.724-1.861A1.5 1.5 0 0 1 9 18.69v-5.277L3.586 8A2 2 0 0 1 3 6.586z" clip-rule="evenodd"/></svg>Filters</button><span class="ws-n">8 payments</span><div class="end"><span class="sepv"></span><button class="btn btn-quiet"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M18 5v14m-2.828-2L18 19.828L20.828 17M4 12h9M4 5h9M4 19h7"/></svg>Sort</button><button class="btn btn-quiet"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 16v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4m8-13v12m-4.243-3.586L12 15.657l4.243-4.243"/></svg>Export</button></div></div><div class="table-shell" style="position:relative"><div class="table-scroll" tabindex="0" aria-label="Payments made"><table class="table" aria-label="Payments made" style="table-layout:fixed"><colgroup><col style="width:44px"><col style="width:110px"><col style="width:80px"><col style="width:220px"><col><col style="width:130px"><col style="width:220px"></colgroup><thead><tr><th class="sel"><label class="check"><input type="checkbox" aria-label="Select every row on this page"></label></th><th>Payment</th><th>Date</th><th>Paid to</th><th>For</th><th>State</th><th class="num">Amount</th></tr></thead><tbody><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0062"></label></td><td><span class="ref">PAY-0062</span></td><td><span class="muted">18 Oct</span></td><td><span class="cell-lead">Mutare Timber Works</span></td><td class="fill"><span class="ref">BILL-0220</span></td><td><span class="status status-warning" style="color:var(--color-ink);font-weight:500">To approve</span></td><td class="num">US$1,301.68</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0061"></label></td><td><span class="ref">PAY-0061</span></td><td><span class="muted">14 Oct</span></td><td><span class="cell-lead">ZIMRA</span></td><td class="fill"><span class="cell-lead">VAT, September</span></td><td><span class="status status-success">Paid</span></td><td class="num">US$1,184.60</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0060"></label></td><td><span class="ref">PAY-0060</span></td><td><span class="muted">10 Oct</span></td><td><span class="cell-lead">NSSA</span></td><td class="fill"><span class="cell-lead">NSSA, September</span></td><td><span class="status status-success">Paid</span></td><td class="num">ZiG 7,654.50 <span class="muted" style="font-size:12px">US$283.50</span></td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0059"></label></td><td><span class="ref">PAY-0059</span></td><td><span class="muted">10 Oct</span></td><td><span class="cell-lead">ZIMRA</span></td><td class="fill"><span class="cell-lead">PAYE, September</span></td><td><span class="status status-success">Paid</span></td><td class="num">US$648.40</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0058"></label></td><td><span class="ref">PAY-0058</span></td><td><span class="muted">9 Oct</span></td><td><span class="cell-lead">Tile Trader Zimbabwe</span></td><td class="fill"><span class="ref">BILL-0216</span></td><td><span class="status status-success">Paid</span></td><td class="num">US$2,210.00</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0057"></label></td><td><span class="ref">PAY-0057</span></td><td><span class="muted">5 Oct</span></td><td><span class="cell-lead">Halsted Builders</span></td><td class="fill"><span class="ref">BILL-0219</span></td><td><span class="status status-success">Paid</span></td><td class="num">US$312.40</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0056"></label></td><td><span class="ref">PAY-0056</span></td><td><span class="muted">1 Oct</span></td><td><span class="cell-lead">Kingsway Property</span></td><td class="fill"><span class="ref">BILL-0218</span></td><td><span class="status status-success">Paid</span></td><td class="num">US$1,450.00</td></tr><tr><td class="sel"><label class="check"><input type="checkbox" aria-label="Select PAY-0055"></label></td><td><span class="ref">PAY-0055</span></td><td><span class="muted">1 Oct</span></td><td><span class="cell-lead">Kingsway Property</span></td><td class="fill"><span class="cell-lead">Paid twice, voided</span></td><td><span class="status" style="color:var(--color-muted)">Void</span></td><td class="num"><span class="muted" style="text-decoration:line-through">US$1,450.00</span></td></tr></tbody></table></div><div class="table-foot"><div class="foot-row foot-main"><span class="num">1 to 8 of 318</span><span class="foot-sum">Paid in October <b>US$6,088.90</b></span><span class="foot-sum">IMTT <b>US$120.36</b></span><span class="foot-sum">To approve <b>US$1,301.68</b></span><div class="end"><div class="btn-group" role="group" aria-label="Pages"><button class="btn" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14.657 17.657L9 12l5.657-5.657"/></svg>Previous</button><button class="btn">Next<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9.343 6.343L15 12l-5.657 5.657"/></svg></button></div></div></div></div></div></div></main></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

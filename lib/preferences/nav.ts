@@ -161,6 +161,10 @@ export function canViewPreferenceItem(
   // Which reports are offered and how they open is a workspace decision, made
   // by the same people who decide who works here.
   if (itemId === "reports") return isOrgAdminRole(role);
+  // Books' core settings in Management: the owner, a manager or the accountant (books-final §3.2).
+  if (itemId === "money-and-tax" || itemId === "money-accounts" || itemId === "money-approvals" || itemId === "accountant-export") {
+    return role === "SUPERADMIN" || role === "MANAGER" || role === "FINANCE_OFFICER";
+  }
   if (itemId === "users") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }

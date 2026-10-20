@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payNowRefusal } from "@/lib/books/core/supplier-payments";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { recordPurchasePayment } from "@/lib/accounting/payments";
+import { ReceiptRefused, recordPurchasePayment } from "@/lib/accounting/payments";
+import { guardBooks } from "@/lib/books/core";
 
 const paymentSchema = z.object({
   billId: z.string().uuid().optional(),
@@ -52,6 +54,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = paymentSchema.parse(body);
+    const { actor, refused } = await guardBooks(session, "pay", { kind: "payment" });
+    if (refused) return refused;
+    const overLimit = await payNowRefusal(actor, validated.amount);
+    if (overLimit) return errorResponse(overLimit, 403);
 
     if (validated.billId) {
       const bill = await prisma.purchaseBill.findUnique({
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
     const payment = await recordPurchasePayment({
       companyId: session.user.companyId,
       userId: session.user.id,
+      role: session.user.role,
       billId: validated.billId,
       paidAt: new Date(validated.paidAt),
       amount: validated.amount,
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
     }
+    if (error instanceof ReceiptRefused) return errorResponse(error.message, error.status);
     console.error("[API] POST /api/accounting/purchases/payments error:", error);
     return errorResponse("Failed to create payment");
   }

@@ -12,7 +12,7 @@ import type { ReportDefinition } from "@/lib/reports/types";
  * tool and no route here, and its reader is only granted SELECT.
  */
 
-export type SchedulePerson = { id: string; name: string };
+export type SchedulePerson = { id: string; name: string; image?: string | null };
 
 export type ScheduleView = {
   id: string;
@@ -37,16 +37,16 @@ type Actor = { companyId: string; userId: string; role: string };
 export async function readersOf(companyId: string, definition: ReportDefinition): Promise<SchedulePerson[]> {
   const users = await prisma.user.findMany({
     where: { companyId, isActive: true },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, image: true },
     orderBy: { name: "asc" },
   });
   const allowed = await Promise.all(
     users.map(async (user) => {
       const enabledFeatures = await getEffectiveFeaturesForUser({ companyId, userId: user.id, role: user.role });
-      return canReadReport(definition, { role: user.role, enabledFeatures }) ? { id: user.id, name: user.name } : null;
+      return canReadReport(definition, { role: user.role, enabledFeatures }) ? { id: user.id, name: user.name, image: user.image ?? null } : null;
     }),
   );
-  return allowed.filter((person): person is SchedulePerson => person !== null);
+  return allowed.filter((person) => person !== null);
 }
 
 export async function listSchedules(actor: Actor, reportKey: string): Promise<ScheduleView[]> {
@@ -56,8 +56,8 @@ export async function listSchedules(actor: Actor, reportKey: string): Promise<Sc
     include: { createdBy: { select: { name: true } } },
   });
   const ids = [...new Set(rows.flatMap((row) => row.recipientIds))];
-  const people = await prisma.user.findMany({ where: { companyId: actor.companyId, id: { in: ids } }, select: { id: true, name: true } });
-  const named = new Map(people.map((person) => [person.id, person.name]));
+  const people = await prisma.user.findMany({ where: { companyId: actor.companyId, id: { in: ids } }, select: { id: true, name: true, image: true } });
+  const named = new Map(people.map((person) => [person.id, person]));
   const manager = isOrgAdminRole(actor.role);
   return rows.map((row) => ({
     id: row.id,
@@ -67,7 +67,7 @@ export async function listSchedules(actor: Actor, reportKey: string): Promise<Sc
     time: row.time,
     format: row.format,
     content: row.content,
-    recipients: row.recipientIds.flatMap((id) => (named.has(id) ? [{ id, name: named.get(id)! }] : [])),
+    recipients: row.recipientIds.flatMap((id) => (named.has(id) ? [{ id, name: named.get(id)!.name, image: named.get(id)!.image ?? null }] : [])),
     active: row.active,
     nextRunAt: row.nextRunAt?.toISOString() ?? null,
     lastSentAt: row.lastSentAt?.toISOString() ?? null,

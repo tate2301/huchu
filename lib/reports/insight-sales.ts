@@ -24,6 +24,7 @@ export type SalesReport = {
 export type RepRow = {
   repId: string;
   name: string;
+  image?: string | null;
   leads: number;
   quotes: number;
   won: number;
@@ -118,7 +119,8 @@ export function bucketLabel(period: string): string {
   return new Date(`${period}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-type Cell = { text: string; tone?: "success" | "danger" | "warning" | "muted" | null; href?: string | null };
+/** `person`: the text is a person, drawn with their avatar (owner, 19 Oct). */
+type Cell = { text: string; tone?: "success" | "danger" | "warning" | "muted" | null; href?: string | null; person?: { image: string | null } };
 
 /** By owner or by source: the same columns and the same sums. */
 export function groupTable(id: "owner" | "source", rows: GroupedPerformance[], money: Money) {
@@ -141,7 +143,7 @@ export function groupTable(id: "owner" | "source", rows: GroupedPerformance[], m
     rows: rows.map((row) => ({
       id: row.key,
       cells: {
-        name: { text: row.label },
+        name: id === "owner" && row.key !== "unassigned" ? { text: row.label, person: { image: null } } : { text: row.label },
         open: { text: String(row.open) },
         won: { text: String(row.won) },
         lost: { text: String(row.lost) },
@@ -185,7 +187,7 @@ export function repTable(rows: RepRow[], money: Money) {
     rows: rows.map((row) => ({
       id: row.repId,
       cells: {
-        name: { text: row.name, href: `/crm/reps/${row.repId}` },
+        name: { text: row.name, href: `/crm/reps/${row.repId}`, person: { image: row.image ?? null } },
         leads: { text: String(row.leads) },
         quotes: { text: String(row.quotes) },
         rate: { text: `${row.winRate}%` },

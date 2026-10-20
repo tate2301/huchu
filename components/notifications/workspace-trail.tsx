@@ -67,7 +67,7 @@ export function rowFromEntry(entry: ActivityLogEntry): RowModel {
     createdAt: entry.createdAt,
     unread: false,
     who: entry.actor
-      ? { kind: "person", name: entry.actor.name, initials: initialsOf(entry.actor.name) }
+      ? { kind: "person", name: entry.actor.name, initials: initialsOf(entry.actor.name), image: entry.actor.image ?? null }
       : { kind: "module", icon: AREA_ICON[entry.module ?? ""] ?? "activity", label: entry.moduleLabel ?? "Workspace" },
     sentence: entrySentence(entry),
     concern: ref

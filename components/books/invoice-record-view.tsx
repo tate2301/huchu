@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 
-import { Pill } from "@/components/core";
+import { Person, Pill } from "@/components/core";
 import { VaneDraftNote } from "@/components/vane/vane-draft-note";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecord } from "@/lib/books/invoice-record";
 import type { InvoiceState } from "@/lib/books/invoice-state";
+
+import { Said } from "./bk-record";
 
 const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, ""));
 
@@ -106,15 +108,23 @@ export function InvoiceRecordView({ invoice, canVoidPayments = false }: { invoic
       <aside className="kaside" style={{ width: 320 }} aria-label={`Invoice ${invoice.number}`}>
         <span className="sec-title">Invoice</span>
         <dl className="attrs">
-          <Attr term="Customer">{invoice.customer.name}</Attr>
+          <Attr term="Customer">
+            <Person name={invoice.customer.name} src={invoice.customer.image} />
+          </Attr>
           {invoice.deal ? <Attr term="For">{invoice.deal}</Attr> : quote ? <Attr term="For">{quote.number}</Attr> : null}
           <Attr term="Date">{invoice.date}</Attr>
-          <Attr term="Due">{invoice.dueTerms}</Attr>
+          <Attr term="Due">{invoice.status === "DRAFT" ? invoice.dueTerms : invoice.due}</Attr>
           <Attr term="Status">
             <Pill tone={TONE[invoice.state.key]}>{invoice.state.label}</Pill>
           </Attr>
-          <Attr term="Made by">{invoice.madeBy}</Attr>
-          {invoice.issuedBy ? <Attr term="Issued by">{invoice.issuedBy}</Attr> : null}
+          <Attr term="Made by">
+            <Said text={invoice.madeBy} faces={invoice.faces} />
+          </Attr>
+          {invoice.issuedBy ? (
+            <Attr term="Issued by">
+              <Said text={invoice.issuedBy} faces={invoice.faces} />
+            </Attr>
+          ) : null}
           {invoice.status !== "DRAFT" && invoice.status !== "VOIDED" ? (
             <Attr term="Owed">
               <span className="mono">{money(invoice.balance, invoice.currency)}</span>

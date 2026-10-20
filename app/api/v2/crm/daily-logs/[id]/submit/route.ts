@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { submitDailyLog } from "@/lib/crm/daily-log";
+import { claimFromDailyLog } from "@/lib/books/core/claims";
 import { reportHeadline, saveDailyReport, type DailyReportSummary } from "@/lib/crm/daily-report";
 import { emitCrmNotification, getCrmManagerRecipients } from "@/lib/notifications";
 
@@ -36,10 +37,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return errorResponse("You can only submit your own day", 403);
     }
 
-    const { submitted, report } = await prisma.$transaction(async (tx) => {
+    const { submitted, report, claim } = await prisma.$transaction(async (tx) => {
       const submitted = await submitDailyLog(tx, companyId, id);
       const report = await saveDailyReport(tx, companyId, log.userId, log.logDate);
-      return { submitted, report };
+      // Spent from their own pocket (no requisition behind it): a draft claim, for them to check and send (D13).
+      const claim = await claimFromDailyLog(tx, companyId, id);
+      return { submitted, report, claim };
     });
 
     const summary = report.summary as unknown as DailyReportSummary;
@@ -72,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.error("[API] daily report notification failed:", error);
     }
 
-    return successResponse({ log: submitted, report });
+    return successResponse({ log: submitted, report, claimId: claim?.id ?? null });
   } catch (error) {
     if (error instanceof Error && error.message.includes("before submitting")) {
       return errorResponse(error.message, 400);

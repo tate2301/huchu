@@ -1,4 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { approvedCommissionOn, mirrorVoidedCommission } from "./core/commission";
+import { docLabel } from "@/lib/books/doc-number";
 
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
@@ -6,7 +8,10 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform";
 import { prisma } from "@/lib/prisma";
 
 import { dayOf, shortDay, storedDay } from "./format";
-import { InvoiceChangeRefused, isWorkspaceOwner, RECEIPT_OWNER_ONLY, type InvoiceActor } from "./owner";
+import { canDo } from "./core/can-do";
+import { markVoided } from "./core/void-money";
+import { InvoiceChangeRefused, RECEIPT_OWNER_ONLY, type InvoiceActor } from "./owner";
+import type { BooksActor } from "./core/can-do";
 import { onAccountCustomers } from "./payments";
 import { REASON_MAX, REASON_MIN, wasFiscalised } from "./reversal";
 
@@ -134,7 +139,7 @@ function factsOf(found: Gathered, voider: string | null): ReceiptVoidFacts {
     invoice: invoice
       ? {
           id: invoice.id,
-          number: invoice.invoiceNumber,
+          number: docLabel(invoice.invoiceNumber),
           paid: invoice.status === "PAID",
           owedAfter: invoice.status === "VOIDED" ? 0 : Math.min(round(invoice.total - invoice.creditTotal - invoice.writeOffTotal), round(owedNow + receipt.amount)),
         }
@@ -180,7 +185,7 @@ export type ReceiptVoidResult = {
  * `void:<id>` and goes on. Everything else changes in one transaction.
  */
 export async function voidReceipt(actor: InvoiceActor, receiptId: string, input: { reason: string; source?: string }): Promise<ReceiptVoidResult> {
-  if (!isWorkspaceOwner(actor.role)) throw new InvoiceChangeRefused(RECEIPT_OWNER_ONLY, 403);
+  if (!canDo(actor, "void", { kind: "receipt" }).allowed) throw new InvoiceChangeRefused(RECEIPT_OWNER_ONLY, 403);
   const reason = reasonOf(input.reason);
   const found = await gather(prisma, actor.companyId, receiptId);
   if (!found) throw new InvoiceChangeRefused("That payment is not here any more.", 404);
@@ -215,9 +220,12 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
     });
     if (!result.entryId) throw new InvoiceChangeRefused(`${receipt.receiptNumber} was not voided: its reversal could not be posted (${result.error ?? "no journal was written"}).`);
     reversalEntryId = result.entryId;
+    await markVoided(posted.id, result.entryId, actor.userId);
   }
 
-  return prisma.$transaction(
+  // Approved commission on it posted its expense (D19): mirrored once the payment is void.
+  const commission = await approvedCommissionOn(actor.companyId, { receiptId: receipt.id });
+  const voided = await prisma.$transaction(
     async (tx) => {
       // Looked at again inside the transaction: someone else may have voided it meanwhile.
       const still = await tx.salesReceipt.findFirst({ where: { id: receipt.id, companyId: actor.companyId }, select: { voidedAt: true } });
@@ -293,7 +301,7 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
         amount: round(receipt.amount),
         currency: facts.currency,
         customer: facts.customer,
-        invoice: receipt.invoice && balance ? { number: receipt.invoice.invoiceNumber, status: balance.status, owed: receipt.invoice.status === "VOIDED" ? 0 : round(balance.balance) } : null,
+        invoice: receipt.invoice && balance ? { number: docLabel(receipt.invoice.invoiceNumber), status: balance.status, owed: receipt.invoice.status === "VOIDED" ? 0 : round(balance.balance) } : null,
         bankLine: facts.bankLine,
         fiscalised: facts.fiscalised,
         reversalEntryId,
@@ -301,5 +309,7 @@ export async function voidReceipt(actor: InvoiceActor, receiptId: string, input:
     },
     { timeout: 30_000 },
   );
+  if (commission.length) await mirrorVoidedCommission(actor as BooksActor, commission, `Payment ${receipt.receiptNumber} voided`).catch((error: unknown) => console.error("[Books] commission mirror failed:", error));
+  return voided;
 }
 

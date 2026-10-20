@@ -689,15 +689,15 @@ export async function getExecutiveDashboardAggregations({
     },
     "/reports/attendance": { count: activeWorkers, label: "Active workers" },
     "/reports/shift": { count: pendingApprovals, label: "Pending checks" },
-    "/accounting": {
+    "/books": {
       count: Math.max(0, Math.round(openReceivables + openPayables)),
       label: "Open ledgers",
     },
-    "/accounting/banking": {
+    "/books/accounts": {
       count: Math.max(0, Math.round(Math.abs(nearTermNetPosition))),
       label: "Cash delta",
     },
-    "/accounting/financial-statements": {
+    "/books/financials": {
       count: Math.max(0, Math.round(openReceivables + openPayables)),
       label: "Open finance items",
     },

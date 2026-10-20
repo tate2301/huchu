@@ -23,6 +23,11 @@ export interface FeatureCatalogEntry {
   description: string;
   domain: FeatureDomain;
   defaultEnabled: boolean;
+  /**
+   * On in every workspace and never switched off, whatever the plan, bundles
+   * or flags say: the books engine (`accounting.core`, books-final §1.1, D1).
+   */
+  alwaysOn?: boolean;
 }
 
 export interface FeatureBundleDefinition {
@@ -120,7 +125,14 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.payslips", name: "Payslips", description: "Per-employee payslips showing every stage of the calculation.", domain: "hr", defaultEnabled: false }),
   f({ key: "hr.employee-self-service", name: "Employee Self-Service", description: "Lets an employee view their own payslips and nobody else's.", domain: "hr", defaultEnabled: false }),
 
-  f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false }),
+  // The books engine (books-final §1.1, D1): the ledger, posting, numbering,
+  // periods, tax and the accountant export every module posts through. On in
+  // every workspace and never switched off; what is sold is `books.screens`.
+  f({ key: "accounting.core", name: "Books engine", description: "The ledger every module posts to, and the accountant export. On in every workspace.", domain: "accounting", defaultEnabled: true, alwaysOn: true }),
+  // The Books screens (books-final §1.2, D1): every page under /books (Takings
+  // keeps its retail gate) and the APIs only those pages call. Without it a
+  // Books address shows what the screens add, and the engine keeps posting.
+  f({ key: "books.screens", name: "Books screens", description: "Invoices and bills, bank matching, VAT returns, the month's close and the ledger, on screen.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false }),
@@ -395,6 +407,15 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     ],
   },
   {
+    // The Books screens as their own add-on (D1). Every tier and template that
+    // carries the engine's bundle carries this too, so no workspace that had
+    // Books lost its screens; a workspace without it keeps the engine.
+    code: "ADDON_BOOKS_SCREENS",
+    name: "Books screens",
+    description: "The Books pages: invoices and bills, bank matching, VAT returns, the month's close and the ledger.",
+    features: ["books.screens"],
+  },
+  {
     code: "ADDON_ACCOUNTING_ADVANCED",
     name: "Accounting Advanced",
     description: "AR/AP, banking, cost centers, and multi-currency.",
@@ -492,6 +513,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
 
 export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
   ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
+  ADDON_BOOKS_SCREENS: ["ADDON_ACCOUNTING_CORE"],
   ADDON_ZIMRA_FISCAL: ["ADDON_ACCOUNTING_CORE"],
   ADDON_GOLD_ADVANCED: ["ADDON_GOLD_CORE"],
   // Retail does not own stock. Every retail movement — sale, refund, receipt,
@@ -557,6 +579,7 @@ export const TIERS: TierDefinition[] = [
     includedBundles: [
       "ADDON_OPERATIONS_CORE",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ZIMRA_FISCAL",
     ],
   },
@@ -577,6 +600,7 @@ export const TIERS: TierDefinition[] = [
       // capability it is legally compelled to have. Every tier above FISCAL
       // bundles these two.
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ZIMRA_FISCAL",
     ],
   },
@@ -596,6 +620,7 @@ export const TIERS: TierDefinition[] = [
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ZIMRA_FISCAL",
     ],
   },
@@ -615,6 +640,7 @@ export const TIERS: TierDefinition[] = [
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ACCOUNTING_ADVANCED",
       "ADDON_ZIMRA_FISCAL",
       "ADDON_CRM_SUITE",
@@ -641,6 +667,7 @@ export const TIERS: TierDefinition[] = [
       "ADDON_GOLD_ADVANCED",
       "ADDON_COMMODITY_SETTLEMENTS",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ACCOUNTING_ADVANCED",
       "ADDON_ZIMRA_FISCAL",
       "ADDON_ADVANCED_PAYROLL",
@@ -666,6 +693,7 @@ export const TIERS: TierDefinition[] = [
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_BOOKS_SCREENS",
       "ADDON_ACCOUNTING_ADVANCED",
       "ADDON_ZIMRA_FISCAL",
       "ADDON_CRM_SUITE",

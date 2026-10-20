@@ -54,7 +54,14 @@ export type ReservableIdEntity =
   | "CRM_SITE"
   | "SALES_QUOTATION"
   | "SALES_INVOICE"
-  | "SALES_RECEIPT";
+  | "SALES_RECEIPT"
+  | "SALES_CREDIT_NOTE"
+  | "SALES_WRITE_OFF"
+  | "PURCHASE_BILL"
+  | "PURCHASE_DEBIT_NOTE"
+  | "PURCHASE_WRITE_OFF"
+  | "EXPENSE_CLAIM"
+  | "PETTY_CASH_VOUCHER";
 
 type EntityConfig = {
   prefix: string;
@@ -143,6 +150,16 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   SALES_QUOTATION: { prefix: "QTN", requiresSiteId: false },
   SALES_INVOICE: { prefix: "INV", requiresSiteId: false },
   SALES_RECEIPT: { prefix: "REC", requiresSiteId: false },
+  // Books' gapless series (D8, books-final §4.1 rule 8): given at issue, never at draft.
+  // A supplier payment shares RETAIL_SUPPLIER_PAYMENT's "PAY" series, so one table has one.
+  SALES_CREDIT_NOTE: { prefix: "CN", requiresSiteId: false },
+  SALES_WRITE_OFF: { prefix: "WO", requiresSiteId: false },
+  PURCHASE_BILL: { prefix: "BILL", requiresSiteId: false },
+  PURCHASE_DEBIT_NOTE: { prefix: "DN", requiresSiteId: false },
+  PURCHASE_WRITE_OFF: { prefix: "PWO", requiresSiteId: false },
+  // Claims and petty-cash vouchers come with their tables in P2 (D13); the series is ready.
+  EXPENSE_CLAIM: { prefix: "CLM", requiresSiteId: false },
+  PETTY_CASH_VOUCHER: { prefix: "PCV", requiresSiteId: false },
 };
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -429,11 +446,15 @@ async function findEntityMaxExistingCode(
       return extractMaxFromCodes(records.map((record) => record.receiptNo), prefix);
     }
     case "RETAIL_SUPPLIER_PAYMENT": {
+      // The group's number, and a single payment's own ("PAY-0021", or "PAY-0019/1" in a group).
       const records = await db.purchasePayment.findMany({
-        where: { companyId, groupNo: { not: null } },
-        select: { groupNo: true },
+        where: { companyId },
+        select: { groupNo: true, paymentNumber: true },
       });
-      return extractMaxFromCodes(records.map((record) => record.groupNo!), prefix);
+      return extractMaxFromCodes(
+        records.flatMap((record) => [record.groupNo, (record.paymentNumber ?? "").replace(/\/\d+$/, "")]),
+        prefix,
+      );
     }
     case "RETAIL_SHIFT": {
       // Company-wide (FLR-03): a per-site counter collides between Harare and Borrowdale.
@@ -596,6 +617,26 @@ async function findEntityMaxExistingCode(
         select: { receiptNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.receiptNumber), prefix);
+    }
+    case "SALES_CREDIT_NOTE": {
+      const records = await db.creditNote.findMany({ where: { companyId }, select: { noteNumber: true } });
+      return extractMaxFromCodes(records.map((record) => record.noteNumber), prefix);
+    }
+    case "SALES_WRITE_OFF": {
+      const records = await db.salesWriteOff.findMany({ where: { companyId }, select: { writeOffNumber: true } });
+      return extractMaxFromCodes(records.map((record) => record.writeOffNumber), prefix);
+    }
+    case "PURCHASE_BILL": {
+      const records = await db.purchaseBill.findMany({ where: { companyId }, select: { billNumber: true } });
+      return extractMaxFromCodes(records.map((record) => record.billNumber), prefix);
+    }
+    case "PURCHASE_DEBIT_NOTE": {
+      const records = await db.debitNote.findMany({ where: { companyId }, select: { noteNumber: true } });
+      return extractMaxFromCodes(records.map((record) => record.noteNumber), prefix);
+    }
+    case "PURCHASE_WRITE_OFF": {
+      const records = await db.purchaseWriteOff.findMany({ where: { companyId }, select: { writeOffNumber: true } });
+      return extractMaxFromCodes(records.map((record) => record.writeOffNumber), prefix);
     }
     default:
       return 0;

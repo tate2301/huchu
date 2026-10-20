@@ -98,7 +98,7 @@ const LINK_ICON_BY_HREF_PREFIX: Array<{ prefix: string; icon: IconKey }> = [
   { prefix: "/gold", icon: "gold" },
   { prefix: "/stores", icon: "stores" },
   { prefix: "/people", icon: "workforce" },
-  { prefix: "/accounting", icon: "finance" },
+  { prefix: "/books", icon: "finance" },
   { prefix: "/maintenance", icon: "maintenance" },
   { prefix: "/compliance", icon: "compliance" },
   { prefix: "/reports", icon: "reports" },

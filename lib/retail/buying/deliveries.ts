@@ -1,5 +1,6 @@
 import { Prisma, type RetailDeliveryPaying } from "@prisma/client";
 
+import { draftBillFromGoodsReceipt } from "@/lib/books/core/bills";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, quantity as units, sumMoney, toNumberOrZero } from "@/lib/money";
@@ -575,6 +576,9 @@ export async function postDelivery(tx: Tx, actor: RetailAuditActor, receiptId: s
     });
   }
 
+  // D12: the supplier's bill for it, a draft until their fiscal tax invoice comes (books-final §4.7).
+  await draftBillFromGoodsReceipt(tx, companyId, receipt.id, actor.userId);
+
   const inStock = sumMoney(receipt.lines.map((line) => line.quantity));
   const value = sumMoney(receipt.lines.map((line) => line.lineTotal));
   const damaged = sumMoney(receipt.lines.map((line) => line.damagedQuantity));
@@ -610,7 +614,7 @@ export async function postDelivery(tx: Tx, actor: RetailAuditActor, receiptId: s
   };
 }
 
-/** After the goods commit: Dr Stock / Cr 2300 GRNI at Σ quantity × cost ex VAT. A locked period is not a reason to refuse a delivery that arrived. */
+/** After the goods commit: Dr Stock / Cr 2010 Goods received, not billed at Σ quantity × cost ex VAT. A locked period is not a reason to refuse a delivery that arrived. */
 async function postReceiptJournal(actor: RetailAuditActor, receiptId: string, at: Date, periodOverrideReason: string | null, post: PostJournal) {
   const receipt = await prisma.retailGoodsReceipt.findUniqueOrThrow({ where: { id: receiptId }, include: { lines: true } });
   const value = toNumberOrZero(sumMoney(receipt.lines.map((line) => line.lineTotal)));

@@ -142,7 +142,7 @@ export function BankPageView({
       </Empty>
     );
   }
-  const counts: Record<BankTab, number | null> = { "to-match": data.counts.toMatch, matched: null, everything: null };
+  const counts: Record<BankTab, number | null> = { "to-match": data.counts.toMatch, matched: null, excluded: null, everything: null };
   return (
     <>
       <div className="tools">
