@@ -152,3 +152,59 @@ export function taxSetupMovedTo(searchParams: Query): string {
   const { view, ...rest } = searchParams;
   return mapped(TAX_VIEWS[first(view) ?? ""] ?? "/books/settings/tax", rest);
 }
+
+// ── P5: the Ledger and Settings levels (books-final §3.4) ──────────────────────
+
+const FINANCIAL_TABS: Record<string, string> = {
+  profit: "pl",
+  pl: "pl",
+  "profit-and-loss": "pl",
+  income: "pl",
+  balance: "bs",
+  bs: "bs",
+  "balance-sheet": "bs",
+  "cash-flow": "cf",
+  cf: "cf",
+};
+
+/** `/accounting/financial-statements` and `/accounting/financial-reports` → Financial statements, on the statement they named. */
+export function financialsMovedTo(searchParams: Query): string {
+  const { view, tab, ...rest } = searchParams;
+  const which = FINANCIAL_TABS[first(view) ?? first(tab) ?? ""];
+  return mapped(which && which !== "pl" ? `/books/financials?tab=${which}` : "/books/financials", rest);
+}
+
+/** `/accounting/trial-balance` → Trial balance; a date range stays a range. */
+export function trialBalanceMovedTo(searchParams: Query): string {
+  const { startDate, endDate, periodId, ...rest } = searchParams;
+  void periodId;
+  const from = first(startDate)?.slice(0, 10);
+  const to = first(endDate)?.slice(0, 10);
+  if (from || to) return mapped(`/books/trial-balance?view=range${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, rest);
+  return mapped("/books/trial-balance", rest);
+}
+
+/** `/accounting/chart-of-accounts` → Chart of accounts; `?action=new-account` opens New account there. */
+export function chartMovedTo(searchParams: Query): string {
+  return movedTo("/books/chart", searchParams);
+}
+
+/** `/accounting/cost-centers` → Cost centres. */
+export function costCentresMovedTo(searchParams: Query): string {
+  return movedTo("/books/cost-centres", searchParams);
+}
+
+const POSTING_VIEWS: Record<string, string> = {
+  "rule-library": "/books/posting-rules",
+  simulation: "/books/posting-rules",
+  "retail-defaults": "/books/posting-rules?tab=tenders",
+  failures: "/books/needs-posting",
+  seed: "/books/settings/setup",
+  readiness: "/books/posting-rules?tab=readiness",
+};
+
+/** `/accounting/posting-rules` → Posting rules; its failures are Needs posting and its seed is Set up the books. */
+export function postingRulesMovedTo(searchParams: Query): string {
+  const { view, ...rest } = searchParams;
+  return mapped(POSTING_VIEWS[first(view) ?? ""] ?? "/books/posting-rules", rest);
+}

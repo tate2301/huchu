@@ -70,7 +70,7 @@ function FixPanel({
             <Button variant="ink" icon="check" shortcut="Ctrl ↵" busy={busy} disabled={busy || !account} onClick={() => onMap(account)}>
               Map and retry
             </Button>
-            <ButtonLink variant="quiet" icon="plus" href="/accounting/chart-of-accounts">
+            <ButtonLink variant="quiet" icon="plus" href="/books/chart">
               Make a new account
             </ButtonLink>
           </div>

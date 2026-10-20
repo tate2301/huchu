@@ -323,7 +323,8 @@ export const BOOKS_LEVELS: NavGroup[] = [
     links: {
       label: "In Management",
       items: [
-        { href: "/retail/manage/company", icon: ArrowRightUp, label: "Business & tax details", roles: BOOKS_KEEPERS },
+        { href: "/management/money-and-tax", icon: ArrowRightUp, label: "Business & tax details", roles: BOOKS_KEEPERS },
+        { href: "/management/money-accounts", icon: ArrowRightUp, label: "Money accounts", roles: BOOKS_KEEPERS },
         { href: "/retail/manage/approvals", icon: ArrowRightUp, label: "Approvals & limits", roles: BOOKS_KEEPERS },
         { href: "/retail/manage/fiscal", icon: ArrowRightUp, label: "Fiscal device", roles: BOOKS_KEEPERS },
       ],
@@ -364,16 +365,22 @@ export const BOOKS_NAV_ITEMS: NavItem[] = [
   // Money that has not reached the ledger (BkNeedsPosting).
   { href: "/books/needs-posting", icon: Warning, label: "Needs posting", group: "books-close", roles: BOOKS_KEEPERS },
   { href: "/books/rates", icon: Coins, label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/year-end", icon: Calendar, label: "Year end", group: "books-close", roles: BOOKS_KEEPERS },
 
   { href: "/books/journals", icon: BookOpen, label: "Journals", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/accounting/trial-balance", icon: TableRows, label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/accounting/financial-statements", icon: BarChart3, label: "Financial statements", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/accounting/chart-of-accounts", icon: Columns, label: "Chart of accounts", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/accounting/cost-centers", icon: Layers, label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/accounting/posting-rules", icon: Checklist, label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/trial-balance", icon: TableRows, label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/financials", icon: BarChart3, label: "Financial statements", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/ledger", icon: ListBullets, label: "General ledger", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/chart", icon: Columns, label: "Chart of accounts", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/cost-centres", icon: Layers, label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/posting-rules", icon: Checklist, label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/audit", icon: History, label: "Audit trail", group: "books-ledger", roles: BOOKS_KEEPERS },
 
   { href: "/books/settings/tax", icon: Percent, label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
-  { href: "/accounting", icon: MedusaCogSixToothIcon, label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS, exact: true },
+  { href: "/books/settings/numbering", icon: ListChecks, label: "Numbering", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/locks", icon: Lock, label: "Locks & periods", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/opening-balances", icon: Scale, label: "Opening balances", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/setup", icon: MedusaCogSixToothIcon, label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS },
 ];
 
 export const navSections: NavSection[] = [

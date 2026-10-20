@@ -34,19 +34,21 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
     expect(level("books-spending")).toEqual(["All spending", "Bills", "Payments made", "Purchase orders", "Requisitions", "Claims & petty cash", "Suppliers"]);
     expect(level("books-bank")).toEqual(["Accounts", "To match", "Reconciliations", "Takings"]);
     expect(level("books-tax")).toEqual(["What's due", "VAT returns", "Withholding", "Provisional tax", "Fiscal register"]);
-    expect(level("books-close")).toEqual(["Checklist", "Needs posting", "Rates & revaluation"]);
+    expect(level("books-close")).toEqual(["Checklist", "Needs posting", "Rates & revaluation", "Year end"]);
     expect(level("books-ledger")).toEqual([
       "Journals",
       "Trial balance",
       "Financial statements",
+      "General ledger",
       "Chart of accounts",
       "Cost centres",
       "Posting rules",
+      "Audit trail",
     ]);
-    expect(level("books-settings")).toEqual(["Tax codes & rules", "Set up the books"]);
+    expect(level("books-settings")).toEqual(["Tax codes & rules", "Numbering", "Locks & periods", "Opening balances", "Set up the books"]);
     const settings = books.groups?.find((group) => group.id === "books-settings");
     expect(settings?.links?.label).toBe("In Management");
-    expect(settings?.links?.items.map((item) => item.label)).toEqual(["Business & tax details", "Approvals & limits", "Fiscal device"]);
+    expect(settings?.links?.items.map((item) => item.label)).toEqual(["Business & tax details", "Money accounts", "Approvals & limits", "Fiscal device"]);
   });
 
   it("puts every Sales and Bills & spending row at its Books address, and Needs posting under Close the month", () => {
@@ -54,7 +56,7 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
     expect(books.items.find((item) => item.label === "Needs posting")?.group).toBe("books-close");
     const hrefs = books.items.map((item) => item.href);
     expect(hrefs).toEqual(expect.arrayContaining(["/books/journals", "/books/vat", "/books/periods"]));
-    expect(hrefs.some((href) => /^\/accounting\/(journals|tax|periods|sales|receivables|purchases|payables)(\?|$)/.test(href))).toBe(false);
+    expect(hrefs.some((href) => href.startsWith("/accounting"))).toBe(false);
   });
 
   it("points every row at a page that exists: no dead links", async () => {

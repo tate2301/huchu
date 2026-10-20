@@ -140,7 +140,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "chart-of-accounts",
     label: "Chart of Accounts",
-    href: "/accounting/chart-of-accounts",
+    href: "/books/chart",
     icon: TableRows,
     featureKey: "accounting.chart-of-accounts",
     categoryId: "core",
@@ -164,7 +164,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "posting-rules",
     label: "Posting Rules",
-    href: "/accounting/posting-rules",
+    href: "/books/posting-rules",
     icon: Checklist,
     featureKey: "accounting.posting-rules",
     categoryId: "core",
@@ -221,7 +221,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "financial-reports",
     label: "Financial Reports",
-    href: "/accounting/financial-reports",
+    href: "/books/financials",
     icon: BarChart3,
     featureKey: "accounting.financial-statements",
     categoryId: "reports",
@@ -229,7 +229,7 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "trial-balance",
     label: "Trial Balance",
-    href: "/accounting/trial-balance",
+    href: "/books/trial-balance",
     icon: BarChart3,
     featureKey: "accounting.trial-balance",
     categoryId: "reports",

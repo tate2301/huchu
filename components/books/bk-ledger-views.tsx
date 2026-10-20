@@ -13,6 +13,8 @@ import { BkChip, BkTabs } from "./bk-list";
 import { BooksFinding } from "./figures";
 
 const cell = (n: number) => (Math.abs(n) < 0.005 ? "" : n2(n));
+/** "45.2%", "−1.3%", never "-0.0%". */
+const pct = (share: number) => (Math.abs(share) < 0.05 ? "0.0%" : `${share < 0 ? "−" : ""}${Math.abs(share).toFixed(1)}%`);
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 
 /** Ranges a person picks most, as of today: this month, last month, this year, since the books started. */
@@ -254,7 +256,7 @@ export function BkFinancialsView({ data, onQuery, exportHref }: { data: Financia
                         {n2(amount)}
                       </td>
                     ))}
-                    {share ? <td className="num">{row.share === null || row.share === undefined ? "" : <span className={row.kind === "line" ? "muted" : undefined}>{row.share.toFixed(1)}%</span>}</td> : null}
+                    {share ? <td className="num">{row.share === null || row.share === undefined ? "" : <span className={row.kind === "line" ? "muted" : undefined}>{pct(row.share)}</span>}</td> : null}
                   </tr>
                 ),
               )}

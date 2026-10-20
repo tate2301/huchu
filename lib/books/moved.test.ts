@@ -106,3 +106,27 @@ describe("P3's old addresses: banking, currency, fiscalisation, tax setup (books
     for (const out of [bankingMovedTo({}), currencyMovedTo({}), fiscalisationMovedTo({}), taxSetupMovedTo({})]) expect(out).not.toMatch(/accounting/);
   });
 });
+
+describe("P5's old addresses: the ledger's pages (books-final §3.4)", async () => {
+  const { chartMovedTo, costCentresMovedTo, financialsMovedTo, postingRulesMovedTo, trialBalanceMovedTo } = await import("./moved");
+
+  it("sends the statements and the reports hub to Financial statements, on the one named", () => {
+    expect(financialsMovedTo({})).toBe("/books/financials");
+    expect(financialsMovedTo({ view: "balance-sheet" })).toBe("/books/financials?tab=bs");
+    expect(financialsMovedTo({ tab: "cash-flow", cc: "x" })).toBe("/books/financials?tab=cf&cc=x");
+  });
+
+  it("keeps a trial balance's range, and the chart's New account", () => {
+    expect(trialBalanceMovedTo({})).toBe("/books/trial-balance");
+    expect(trialBalanceMovedTo({ startDate: "2026-09-01T00:00:00.000Z", endDate: "2026-09-30" })).toBe("/books/trial-balance?view=range&from=2026-09-01&to=2026-09-30");
+    expect(chartMovedTo({ action: "new-account" })).toBe("/books/chart?action=new-account");
+    expect(costCentresMovedTo({})).toBe("/books/cost-centres");
+  });
+
+  it("sends each posting studio view to where it lives now, never back to /accounting", () => {
+    expect(postingRulesMovedTo({})).toBe("/books/posting-rules");
+    expect(postingRulesMovedTo({ view: "retail-defaults" })).toBe("/books/posting-rules?tab=tenders");
+    expect(postingRulesMovedTo({ view: "failures" })).toBe("/books/needs-posting");
+    expect(postingRulesMovedTo({ view: "seed" })).toBe("/books/settings/setup");
+  });
+});
