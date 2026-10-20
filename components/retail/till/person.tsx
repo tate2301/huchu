@@ -1,18 +1,43 @@
 "use client";
 
 /**
- * What sits under the person at the top of the rail: my activity, till
+ * People at the till: Customers and a customer, with their lay-bys (T4-1);
+ * and what sits under the person at the top of the rail: my activity, till
  * settings (this till, my PIN, unpair) and help.
  */
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowsCounterClockwise, CashRegister, Check, Key, LinkBreak, ListChecks, Money, Printer, Prohibit, Tag, Vault, X } from "@/lib/icons";
+import {
+  Archive,
+  ArrowsCounterClockwise,
+  CaretLeft,
+  CashRegister,
+  Check,
+  IdentificationCard,
+  Key,
+  LinkBreak,
+  ListChecks,
+  MagnifyingGlass,
+  Medal,
+  Money,
+  Printer,
+  Prohibit,
+  Receipt,
+  ShoppingCart,
+  Star,
+  Tag,
+  CircleUserRound,
+  Users,
+  Vault,
+  X,
+} from "@/lib/icons";
 import { listOfflineRetailOperations } from "@/lib/retail/offline-runtime";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
@@ -21,14 +46,261 @@ import { wasApproved, type TillActivityEntry, type TillActivityKind } from "@/li
 import { TILL_PIN_LOCKED } from "@/lib/retail/till-pin";
 import { hoursWords, percentWords, voidPinSentence } from "@/lib/retail/till-rule-words";
 import { setDevicePrefs, useDevicePrefs } from "./device-prefs";
-import { count, dayMonth, hhmm, TENDER_LABEL, usd } from "./format";
-import type { TillRulesForTill } from "./types";
-import { Empty, ErrorLine, LoadFailed, PinDots, Segmented, TillDialog } from "./parts";
+import { count, dayMonth, firstName, hhmm, TENDER_LABEL, usd, whole } from "./format";
+import type { PosCustomer, TillRulesForTill } from "./types";
+import { Avatar, Empty, ErrorLine, LoadFailed, PinDots, Segmented, TillDialog, useWindowKeys } from "./parts";
 import { printReceipt } from "./pay-tray";
 import { KeyList } from "./keys";
+import { customerLine, freeKey, LaybyRecord, LaybyRowButton, useLaybyRows, type LaybyRow } from "./layby";
 import { useTillLock } from "./lock";
 import { cue } from "./sound";
 import { useTill } from "./state";
+
+/* ─── Customers ──────────────────────────────────────────────────────── */
+
+type Show = "all" | "laybys" | "customers";
+const SHOW: Array<{ value: Show; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "laybys", label: "Lay-bys" },
+  { value: "customers", label: "Customers" },
+];
+type Chosen = { kind: "layby" | "customer"; id: string; at: number };
+
+/** "today", else "on 3 October". */
+const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
+
+/**
+ * Customers (T4-1): one search finds lay-bys, by customer or LAY number, and
+ * customers, by name, phone or card. The rows on the left; the chosen lay-by
+ * or customer in the sale column's place.
+ */
+export function CustomersScreen() {
+  const [typed, setTyped] = React.useState("");
+  const [term, setTerm] = React.useState("");
+  const [show, setShow] = React.useState<Show>("all");
+  const [chosen, setChosen] = React.useState<Chosen | null>(null);
+  const [phoneRecord, setPhoneRecord] = React.useState(false);
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setTerm(typed.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [typed]);
+
+  const laybys = useLaybyRows(term, show !== "customers");
+  const people = useQuery({
+    queryKey: ["retail-pos-customer-search", term, 30],
+    enabled: term.length >= 2 && show !== "laybys",
+    queryFn: () => fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(term)}&limit=30`),
+  });
+  const laybyRows = show === "customers" ? [] : (laybys.data ?? []);
+  const customerRows = show === "laybys" || term.length < 2 ? [] : (people.data?.data ?? []);
+  const first: Chosen | null = laybyRows[0]
+    ? { kind: "layby", id: laybyRows[0].id, at: 0 }
+    : customerRows[0]
+      ? { kind: "customer", id: customerRows[0].id, at: 0 }
+      : null;
+  const shown =
+    chosen && (chosen.kind === "layby" ? laybyRows.some((row) => row.id === chosen.id) : customerRows.some((row) => row.id === chosen.id)) ? chosen : first;
+  const customer = shown?.kind === "customer" ? (customerRows.find((row) => row.id === shown.id) ?? null) : null;
+  const choose = (kind: Chosen["kind"], id: string) => {
+    setChosen((now) => ({ kind, id, at: (now?.at ?? 0) + 1 }));
+    setPhoneRecord(true);
+  };
+
+  const loading = (show !== "customers" && laybys.isPending) || (show !== "laybys" && term.length >= 2 && people.isPending);
+  const failed = show !== "customers" && laybys.isError ? laybys : show !== "laybys" && people.isError ? people : null;
+  const both = laybyRows.length > 0 && customerRows.length > 0;
+  const sub = [laybyRows.length ? count(laybyRows.length, "lay-by") : null, customerRows.length ? count(customerRows.length, "customer") : null].filter(Boolean).join(" · ");
+
+  return (
+    <div className={`bench hx cu${phoneRecord ? " is-sale" : ""}`}>
+      <main className="main hx-main" aria-label="Customers">
+        <div className="hx-head">
+          <h1>Customers</h1>
+          {!loading && sub ? <span className="hx-sub">{sub}</span> : null}
+        </div>
+        <label className="input-wrap cu-find">
+          <MagnifyingGlass className="ic" />
+          <input
+            type="search"
+            aria-label="Find a customer or a lay-by"
+            placeholder="Name, phone, card or LAY number"
+            autoComplete="off"
+            autoFocus
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+          />
+        </label>
+        <div className="hx-pills is-quiet" role="radiogroup" aria-label="Show">
+          {SHOW.map((option) => (
+            <button key={option.value} type="button" role="radio" className="hx-pill is-quiet" aria-checked={show === option.value} onClick={() => setShow(option.value)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {loading ? (
+          <div className="hx-list" aria-busy="true">
+            {[0, 1, 2].map((index) => (
+              <span key={index} className="skeleton hx-skeleton" />
+            ))}
+          </div>
+        ) : failed ? (
+          <LoadFailed icon={Users} title={failed === laybys ? "Lay-bys did not load" : "Customers did not load"} error={failed.error} onRetry={() => void failed.refetch()} />
+        ) : !laybyRows.length && !customerRows.length ? (
+          <Empty
+            icon={show === "laybys" ? Archive : Users}
+            title={term.length >= 2 ? `Nothing matches “${term}”` : show === "laybys" ? "No lay-bys yet" : "Find a customer"}
+          />
+        ) : (
+          <div className="hx-list cu-list">
+            {laybyRows.length ? (
+              <section aria-label="Lay-bys">
+                {both || show === "all" ? <h2 className="cu-label">Lay-bys</h2> : null}
+                {laybyRows.map((row: LaybyRow) => (
+                  <div key={row.id} className="hx-item">
+                    <LaybyRowButton row={row} chosen={shown?.kind === "layby" && shown.id === row.id} onChoose={() => choose("layby", row.id)} />
+                  </div>
+                ))}
+              </section>
+            ) : null}
+            {customerRows.length ? (
+              <section aria-label="Customers">
+                {both || show === "all" ? <h2 className="cu-label">Customers</h2> : null}
+                {customerRows.map((row) => (
+                  <div key={row.id} className="hx-item">
+                    <button type="button" className="hx-row" aria-current={shown?.kind === "customer" && shown.id === row.id ? "true" : undefined} onClick={() => choose("customer", row.id)}>
+                      <span className="hx-glyph">
+                        <CircleUserRound className="ic" />
+                      </span>
+                      <span className="hx-text">
+                        <span className="hx-t">
+                          <span className="truncate">{row.name}</span>
+                          {row.tier ? <span className="hx-tag">{row.tier}</span> : null}
+                        </span>
+                        <span className="hx-s num">{customerLine(row) || "No phone"}</span>
+                      </span>
+                      <span />
+                    </button>
+                  </div>
+                ))}
+              </section>
+            ) : null}
+          </div>
+        )}
+      </main>
+      <aside className="bench-side hx-side" aria-label={customer ? customer.name : shown ? "The lay-by" : "Customer"}>
+        {shown?.kind === "layby" ? (
+          <LaybyRecord key={`${shown.id}:${shown.at}`} id={shown.id} onBack={() => setPhoneRecord(false)} />
+        ) : customer ? (
+          <CustomerRecord
+            key={customer.id}
+            customer={customer}
+            laybys={(laybys.data ?? []).filter((row) => row.customerId === customer.id)}
+            onLayby={(id) => {
+              setShow("all");
+              choose("layby", id);
+            }}
+            onBack={() => setPhoneRecord(false)}
+          />
+        ) : null}
+      </aside>
+    </div>
+  );
+}
+
+/** A customer in the sale column's place: who they are, their points and last sale, their lay-bys, and Start a sale. */
+function CustomerRecord({
+  customer,
+  laybys,
+  onLayby,
+  onBack,
+}: {
+  customer: PosCustomer;
+  laybys: LaybyRow[];
+  onLayby: (id: string) => void;
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const { selectCustomer, isPosHost } = useTill();
+  const start = () => {
+    selectCustomer(customer);
+    router.push(getPosPortalHref("checkout", isPosHost));
+  };
+  useWindowKeys((event) => {
+    if (event.key !== "Enter" || !freeKey(event)) return;
+    event.preventDefault();
+    start();
+  });
+
+  return (
+    <>
+      <div className="bar sale-head">
+        <button type="button" className="btn btn-icon is-touch when-phone" aria-label="Back to Customers" onClick={onBack}>
+          <CaretLeft className="ic" />
+        </button>
+        <h1>Customer</h1>
+        {customer.code ? <span className="hx-code num">{customer.code}</span> : null}
+      </div>
+      <div className="hx-scroll">
+        <div className="cu-who">
+          <Avatar name={customer.name} size={40} />
+          <div>
+            <b>{customer.name}</b>
+            {customer.phone ? <span className="num text-left">{customer.phone}</span> : null}
+          </div>
+        </div>
+        <dl className="facts hx-facts">
+          <div className="fact">
+            <Star className="ic" />
+            <dt>{whole(customer.points)} points</dt>
+            <dd>{usd(customer.worth)}</dd>
+          </div>
+          {customer.tier ? (
+            <div className="fact">
+              <Medal className="ic" />
+              <dt>{customer.tier}</dt>
+              <dd />
+            </div>
+          ) : null}
+          {customer.cardNo ? (
+            <div className="fact">
+              <IdentificationCard className="ic" />
+              <dt>Card</dt>
+              <dd>{customer.cardNo}</dd>
+            </div>
+          ) : null}
+          <div className="fact">
+            <Receipt className="ic" />
+            <dt>{customer.lastSale ? `Last sale, ${usd(customer.lastSale.total)} ${onDay(customer.lastSale.at)}` : "No sales yet"}</dt>
+            <dd>{customer.lastSale?.saleNo ?? ""}</dd>
+          </div>
+        </dl>
+        {laybys.length ? (
+          <dl className="facts hx-facts">
+            {laybys.map((row) => (
+              <button key={row.id} type="button" className="fact is-link" onClick={() => onLayby(row.id)}>
+                <Archive className="ic" />
+                <dt className="truncate">
+                  {row.laybyNo}, {row.what}
+                </dt>
+                <dd>{row.statusKey === "PAYING" ? `${usd(row.left)} left` : row.state}</dd>
+              </button>
+            ))}
+          </dl>
+        ) : null}
+        <span className="grow" />
+      </div>
+      <div className="hx-keys is-one">
+        <button type="button" className="take-key" onClick={start}>
+          <ShoppingCart className="ic" />
+          Start a sale for {firstName(customer.name)}
+          <span className="kbd on-primary" aria-hidden="true">
+            ↵
+          </span>
+        </button>
+      </div>
+    </>
+  );
+}
 
 /* ─── My activity ────────────────────────────────────────────────────── */
 
