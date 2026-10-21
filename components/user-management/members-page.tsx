@@ -14,7 +14,7 @@ import { OwnsChrome } from "@/components/management/ui";
 import { PreferencesShell } from "@/components/preferences/preferences-shell";
 import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
-import { addSeatAction, notNowAction, removeRequestAction, revokeAction, sendAgainAction, type Done } from "@/app/preferences/organization/users/actions";
+import { removeRequestAction, revokeAction, sendAgainAction, type Done } from "@/app/preferences/organization/users/actions";
 import type { MemberItem, MembersPage } from "@/lib/teams/members-view";
 import { addMemberLabel } from "@/components/teams/seats";
 import { clock, dayShort } from "@/lib/teams/words";
@@ -209,11 +209,8 @@ export function MembersPage({ page }: { page: MembersPage }) {
                         </div>
                       </div>
                       <div className="wp-end">
-                        {viewer.isOwner && request.state === "open" ? (
-                          <>
-                            <Button onClick={() => void act(() => notNowAction(request.ref), "Not now")}>Not now</Button>
-                            <Button variant="primary" onClick={() => void act(() => addSeatAction(request.ref), `Seat added, invite sent to ${first(request.name)}`)}>Add the seat</Button>
-                          </>
+                        {request.state === "open" ? (
+                          <span className="muted">Waiting for {ownerFirst}</span>
                         ) : (
                           <Button onClick={() => void act(() => removeRequestAction(request.ref), "Request removed")}>Remove</Button>
                         )}

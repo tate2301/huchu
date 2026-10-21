@@ -10,6 +10,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { InboxDrawerView } from "@/components/notifications/inbox-drawer";
 import { InboxRow, InboxSkeleton, rowFromItem, type RowModel } from "@/components/notifications/inbox-row";
 import { useInboxMutations, useNow } from "@/components/notifications/notification-center";
+import { TeamsAsks } from "@/components/notifications/teams-asks";
 import { rowFromEntry, TrailDrawer } from "@/components/notifications/workspace-trail";
 import { useToast } from "@/components/ui/use-toast";
 import { useDebounced } from "@/hooks/use-debounced";
@@ -414,7 +415,10 @@ export function ActivityInbox() {
                 )}
               </div>
             </div>
-            <div className={styles.column}>{body}</div>
+            <div className={styles.column}>
+              {state.view === "needs" ? <TeamsAsks /> : null}
+              {body}
+            </div>
           </div>
         </div>
       </Kit>
