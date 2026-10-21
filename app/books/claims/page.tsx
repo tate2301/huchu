@@ -4,7 +4,6 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BkClaimsView, type ClaimMoves } from "@/components/books/bk-claims-view";
-import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { useListQuery } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -12,11 +11,10 @@ import { ButtonLink, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { bulkWords, eachOf } from "@/lib/books/bulk";
 import type { ClaimQuery, ClaimsPage } from "@/lib/books/claims-list";
 import { money } from "@/lib/books/format";
 
-const NEW_CLAIM = { label: "New claim", icon: "plus" as const, href: "/books/claims/new", shortcut: "N" };
+const NEW_VOUCHER = { label: "New voucher", icon: "plus" as const, href: "/books/claims/new?paid=float", shortcut: "V" };
 
 /**
  * Books → Bills & spending → Claims & petty cash (BkClaims, D13). A claim is
@@ -28,9 +26,7 @@ const NEW_CLAIM = { label: "New claim", icon: "plus" as const, href: "/books/cla
 function BooksClaims() {
   const { toast } = useToast();
   const client = useQueryClient();
-  // Void and Delete permanently over the selected claims (P4): as this person's role allows; the result row by row.
-  const undo = useBulkUndo("claim", () => client.invalidateQueries({ queryKey: ["books"] }));
-  const { search, onQuery, exportHref } = useListQuery<ClaimQuery>({ view: "claims", period: "any", sort: "newest" });
+  const { search, onQuery } = useListQuery<ClaimQuery>({ view: "claims", period: "any", sort: "newest" });
 
   const list = useQuery({
     queryKey: ["books", "claims", search],
@@ -56,39 +52,24 @@ function BooksClaims() {
     approveVoucher: (row) => void run(() => fetchJson(`/api/books/petty-cash/${row.id}`, { method: "PATCH", body: JSON.stringify({ action: "approve" }) }), { title: `${row.number} is approved`, description: "It is posted from the float." }),
     topUp: (row, accountId) =>
       void run(() => fetchJson("/api/books/petty-cash", { method: "POST", body: JSON.stringify({ action: "top-up", floatId: row.id, fromBankAccountId: accountId }) }), { title: `${row.name} is topped up`, description: `${money(row.spent, row.currency)} back to its imprest.` }),
-    approveClaims: async (rows) => {
-      const outcome = await eachOf(rows, (row) => row.number, (row) => fetchJson(`/api/books/claims/${row.id}`, { method: "PATCH", body: JSON.stringify({ action: "approve" }) }), (error) => getApiErrorMessage(error, "it did not go through"));
-      const words = bulkWords(outcome, "approved", ["claim", "claims"]);
-      toast({ title: words.title, description: words.description, variant: words.ok ? "success" : "destructive" });
-      await client.invalidateQueries({ queryKey: ["books"] });
-    },
   };
 
   return (
     <>
-      <PageChrome title="Claims & petty cash" primary={NEW_CLAIM}>
+      <PageChrome title="Claims & petty cash" primary={NEW_VOUCHER}>
         <Kit contents>
-          <ButtonLink href="/books/claims/new?paid=float" icon="expenses">
-            New voucher
-          </ButtonLink>
+          <ButtonLink href="/books/claims/new">New claim</ButtonLink>
         </Kit>
       </PageChrome>
       <BooksPage screen="bk-a">
         {list.data ? (
-          <BkClaimsView
-            data={list.data}
-            onQuery={onQuery}
-            exportHref={exportHref("/api/books/claims")}
-            moves={moves}
-            undoEntries={(rows) => undo.entries(rows.map((row) => ({ id: row.id, label: row.number, posted: ["APPROVED", "PAID", "VOIDED"].includes(row.status), party: row.person.name, amount: money(row.amount, row.currency) })))}
-          />
+          <BkClaimsView data={list.data} onQuery={onQuery} moves={moves} />
         ) : list.isError ? (
           <BooksError what="Claims" onRetry={() => list.refetch()} />
         ) : (
           <BooksLoading />
         )}
       </BooksPage>
-      {undo.node}
     </>
   );
 }

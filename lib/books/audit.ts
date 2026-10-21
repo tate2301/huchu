@@ -26,6 +26,8 @@ export const auditQuery = z.object({
   q: z.string().trim().max(100).catch(""),
   kind: z.enum(AUDIT_KINDS).catch("all"),
   dates: z.enum(AUDIT_DATES).catch("this-month"),
+  /** One person's name: only what they did. */
+  who: z.string().trim().max(100).catch(""),
   page: z.coerce.number().int().min(1).catch(1),
   event: z.string().max(80).catch(""),
 });
@@ -58,6 +60,8 @@ export type AuditPage = {
   sums: { void: number; revise: number; delete: number };
   selected: AuditRow | null;
   chainUnbroken: boolean;
+  /** Everyone with a row in the window, for the Who filter. */
+  people: string[];
 };
 
 export const AUDIT_PAGE_SIZE = 25;
@@ -217,7 +221,8 @@ export async function readAudit(db: Db, companyId: string, query: AuditQuery, no
   }
   rows.sort((a, b) => (a.at < b.at ? 1 : -1));
   const needle = query.q.toLowerCase();
-  const matching = rows.filter((row) => (query.kind === "all" || row.kind === query.kind) && (!needle || [row.who.name, row.what, row.detail ?? "", row.reason ?? ""].some((text) => text.toLowerCase().includes(needle))));
+  const people = [...new Set(rows.map((row) => row.who.name))].sort((a, b) => a.localeCompare(b, "en-GB"));
+  const matching = rows.filter((row) => (query.kind === "all" || row.kind === query.kind) && (!query.who || row.who.name === query.who) && (!needle || [row.who.name, row.what, row.detail ?? "", row.reason ?? ""].some((text) => text.toLowerCase().includes(needle))));
   const start = (query.page - 1) * AUDIT_PAGE_SIZE;
   const page = matching.slice(start, start + AUDIT_PAGE_SIZE);
   const count = (kind: AuditKind) => rows.filter((row) => row.kind === kind).length;
@@ -234,6 +239,7 @@ export async function readAudit(db: Db, companyId: string, query: AuditQuery, no
     sums: { void: count("void"), revise: count("revise"), delete: count("delete") },
     selected,
     chainUnbroken: brokenLinks === 0,
+    people,
   };
 }
 

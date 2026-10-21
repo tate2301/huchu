@@ -44,7 +44,7 @@ function BooksBills() {
     (next: Partial<BillQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        const empty = value === null || value === "" || (key === "view" && value === "to-pay") || (key === "period" && value === "any") || (key === "sort" && value === "due") || (key === "page" && value === 1);
+        const empty = value === null || value === "" || (key === "view" && value === "to-pay") || (key === "due" && value === "any") || (key === "sort" && value === "due") || (key === "page" && value === 1);
         if (empty) merged.delete(key);
         else merged.set(key, String(value));
       }
@@ -58,7 +58,7 @@ function BooksBills() {
   const action = params.get("action");
   React.useEffect(() => {
     if (action !== "new-debit-note" && action !== "new-write-off") return;
-    toast({ title: action === "new-debit-note" ? "Open the bill it is for" : "Open the bill to write off", description: `Then ${action === "new-debit-note" ? "Debit note" : "Write off"} in its menu.` });
+    toast({ title: action === "new-debit-note" ? "Open the bill it is for" : "Open the bill to write off" });
     onQuery({ action: null } as Partial<BillQuery> & { action: null });
   }, [action, onQuery, toast]);
 
@@ -75,7 +75,7 @@ function BooksBills() {
     }
     toast({
       title: done.length ? `${done.length === 1 ? done[0] : `${done.length} bills`} recorded` : "Nothing was recorded",
-      description: skipped.length ? `Skipped: ${skipped.join(" ")}` : "Each is posted to the books.",
+      description: skipped.length ? `Skipped: ${skipped.join(" ")}` : undefined,
       variant: done.length ? "success" : "destructive",
     });
     await client.invalidateQueries({ queryKey: ["books"] });

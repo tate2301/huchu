@@ -2,9 +2,8 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { ageBucket, AGE_BUCKETS, type AgeBucket } from "./invoices";
 import { invoiceBalance } from "./invoice-state";
-import { customerFace, customerImage } from "./faces";
-import { count, dayOf, money, shortDay, storedDay } from "./format";
-import type { CustomerPage, CustomerQuery, CustomerRow, CustomersView, CustomerView, StatementLine } from "./customers-view";
+import { count, dayOf, methodWord, money, shortDay, storedDay } from "./format";
+import { CUSTOMER_AGES, customerAge, type CustomerAge, type CustomerPage, type CustomerQuery, type CustomerRep, type CustomerRow, type CustomersView, type CustomerView, type StatementLine } from "./customers-view";
 
 /**
  * Books → Sales → Customers (BkCustomers) and one customer (BkCustomer): who
@@ -18,7 +17,25 @@ type Db = PrismaClient;
 const round = (n: number) => Math.round(n * 100) / 100;
 const midnight = (day: string) => new Date(`${day}T00:00:00.000Z`);
 
-type Position = { owes: number; overdue: number; onAccount: number; lastPaid: Date | null; ages: Record<AgeBucket, number> };
+type Position = { owes: number; overdue: number; onAccount: number; lastPaid: Date | null; ages: Record<AgeBucket, number>; age: Record<CustomerAge, number> };
+
+const emptyAge = (): Record<CustomerAge, number> => ({ notDue: 0, d1to7: 0, d8to30: 0, over30: 0 });
+
+/** The photo and the account owner of the CRM client a customer is linked to. */
+const clientFace = {
+  crmClients: {
+    where: { archivedAt: null, mergedIntoId: null },
+    orderBy: { updatedAt: "desc" },
+    select: { avatarUrl: true, assignedTo: { select: { id: true, name: true, image: true } } },
+    take: 5,
+  },
+} as const;
+type WithClients = { crmClients?: Array<{ avatarUrl: string | null; assignedTo: { id: string; name: string | null; image: string | null } | null }> };
+const faceOf = (customer: WithClients) => customer.crmClients?.find((client) => client.avatarUrl)?.avatarUrl ?? null;
+const repOf = (customer: WithClients): CustomerRep | null => {
+  const user = customer.crmClients?.find((client) => client.assignedTo)?.assignedTo;
+  return user ? { id: user.id, name: user.name ?? "Unnamed", image: user.image } : null;
+};
 
 const emptyAges = (): Record<AgeBucket, number> => Object.fromEntries(AGE_BUCKETS.map((bucket) => [bucket, 0])) as Record<AgeBucket, number>;
 
@@ -36,7 +53,7 @@ async function positions(db: Db, companyId: string, currency: string, today: str
   const at = (id: string) => {
     let entry = map.get(id);
     if (!entry) {
-      entry = { owes: 0, overdue: 0, onAccount: 0, lastPaid: null, ages: emptyAges() };
+      entry = { owes: 0, overdue: 0, onAccount: 0, lastPaid: null, ages: emptyAges(), age: emptyAge() };
       map.set(id, entry);
     }
     return entry;
@@ -50,6 +67,7 @@ async function positions(db: Db, companyId: string, currency: string, today: str
     const late = due ? Math.round((midnight(today).getTime() - midnight(due).getTime()) / 86_400_000) : 0;
     if (late > 0) entry.overdue += balance;
     entry.ages[ageBucket(late)] += balance;
+    entry.age[customerAge(late)] += balance;
   }
   for (const row of onAccount) if (row.customerId) at(row.customerId).onAccount += row._sum.amount ?? 0;
   for (const row of paid) if (row.customerId) at(row.customerId).lastPaid = row._max.receivedAt;
@@ -58,6 +76,7 @@ async function positions(db: Db, companyId: string, currency: string, today: str
     entry.overdue = round(entry.overdue);
     entry.onAccount = round(entry.onAccount);
     for (const bucket of AGE_BUCKETS) entry.ages[bucket] = round(entry.ages[bucket]);
+    for (const age of CUSTOMER_AGES) entry.age[age] = round(entry.age[age]);
   }
   return map;
 }
@@ -77,18 +96,27 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
   if (query.q) base.OR = [{ name: { contains: query.q, mode: "insensitive" } }, { contactName: { contains: query.q, mode: "insensitive" } }, { phone: { contains: query.q } }];
   if (query.vat === "yes") base.vatNumber = { not: null };
   if (query.vat === "no") base.vatNumber = null;
+  if (query.rep) base.crmClients = { some: { assignedToId: query.rep, archivedAt: null, mergedIntoId: null } };
   const owingIds = [...map.entries()].filter(([, entry]) => entry.owes > 0.005).map(([id]) => id);
   const accountIds = [...map.entries()].filter(([, entry]) => entry.onAccount > 0.005).map(([id]) => id);
   const where: Prisma.CustomerWhereInput =
     query.view === "owing" || query.view === "by-age" ? { ...base, id: { in: owingIds } } : query.view === "on-account" ? { ...base, id: { in: accountIds } } : base;
-  const [all, owing, onAccount, matching, records, currencies] = await Promise.all([
+  const [all, owing, onAccount, matching, records, currencies, owners] = await Promise.all([
     db.customer.count({ where: base }),
     db.customer.count({ where: { ...base, id: { in: owingIds } } }),
     db.customer.count({ where: { ...base, id: { in: accountIds } } }),
     db.customer.count({ where }),
-    db.customer.findMany({ where, select: { id: true, name: true, contactName: true, phone: true, ...customerFace }, orderBy: { name: "asc" }, take: 5000 }),
+    db.customer.findMany({ where, select: { id: true, code: true, name: true, contactName: true, phone: true, ...clientFace }, orderBy: { name: "asc" }, take: 5000 }),
     db.salesInvoice.findMany({ where: { companyId }, select: { currency: true }, distinct: ["currency"] }),
+    db.crmClient.findMany({
+      where: { companyId, customerId: { not: null }, assignedToId: { not: null }, archivedAt: null, mergedIntoId: null },
+      distinct: ["assignedToId"],
+      select: { assignedTo: { select: { id: true, name: true, image: true } } },
+    }),
   ]);
+  const reps: CustomerRep[] = owners
+    .flatMap((owner) => (owner.assignedTo ? [{ id: owner.assignedTo.id, name: owner.assignedTo.name ?? "Unnamed", image: owner.assignedTo.image }] : []))
+    .sort((a, b) => a.name.localeCompare(b.name));
   // Who owes most first on the money tabs; A to Z on All.
   const sorted =
     query.view === "all" && query.sort === "name"
@@ -99,8 +127,12 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
     const entry = map.get(record.id);
     return {
       id: record.id,
+      code: record.code,
       name: record.name,
-      image: customerImage(record),
+      rep: repOf(record),
+      age: entry?.age ?? emptyAge(),
+      balance: round((entry?.owes ?? 0) - (entry?.onAccount ?? 0)),
+      image: faceOf(record),
       contact: record.contactName ?? record.phone ?? null,
       owes: entry?.owes ?? 0,
       overdue: entry?.overdue ?? 0,
@@ -132,6 +164,7 @@ export async function readCustomers(db: Db, companyId: string, query: CustomerQu
     totals: { owed: round(totals.owed), overdue: round(totals.overdue), onAccount: round(totals.onAccount) },
     currency,
     currencies: currencies.map((row) => row.currency).sort(),
+    reps,
     query,
   };
 }
@@ -158,16 +191,16 @@ export async function readStatement(db: Db, companyId: string, customerId: strin
       select: { id: true, writeOffNumber: true, createdAt: true, amount: true },
     }),
   ]);
-  type Event = { day: string; document: string; detail: string; href: string | null; invoiced: number; paid: number };
+  type Event = { day: string; what: string; document: string; detail: string; href: string | null; invoiced: number; paid: number };
   const events: Event[] = [];
   for (const invoice of invoices) {
     // A voided invoice is cancelled by its credit note or mirror: it shows, and nets to nothing.
     if (invoice.status === "VOIDED") continue;
-    events.push({ day: storedDay(invoice.invoiceDate), document: invoice.invoiceNumber ?? "Invoice", detail: invoice.lines[0]?.description ?? "", href: `/books/invoices/${invoice.id}`, invoiced: invoice.total, paid: 0 });
+    events.push({ day: storedDay(invoice.invoiceDate), what: "Invoice", document: invoice.invoiceNumber ?? "Invoice", detail: invoice.lines[0]?.description ?? "", href: `/books/invoices/${invoice.id}`, invoiced: invoice.total, paid: 0 });
   }
-  for (const receipt of receipts) events.push({ day: storedDay(receipt.receivedAt), document: receipt.receiptNumber, detail: receipt.method, href: null, invoiced: 0, paid: receipt.amount });
-  for (const note of credits) events.push({ day: storedDay(note.noteDate), document: note.noteNumber ?? "Credit note", detail: "Credit note", href: null, invoiced: 0, paid: note.total });
-  for (const writeOff of writeOffs) events.push({ day: storedDay(writeOff.createdAt), document: writeOff.writeOffNumber ?? "Write-off", detail: "Written off", href: null, invoiced: 0, paid: writeOff.amount });
+  for (const receipt of receipts) events.push({ day: storedDay(receipt.receivedAt), what: `Payment, ${methodWord(receipt.method)}`, document: receipt.receiptNumber, detail: receipt.method, href: null, invoiced: 0, paid: receipt.amount });
+  for (const note of credits) events.push({ day: storedDay(note.noteDate), what: "Credit note", document: note.noteNumber ?? "Credit note", detail: "Credit note", href: null, invoiced: 0, paid: note.total });
+  for (const writeOff of writeOffs) events.push({ day: storedDay(writeOff.createdAt), what: "Write-off", document: writeOff.writeOffNumber ?? "Write-off", detail: "Written off", href: null, invoiced: 0, paid: writeOff.amount });
   events.sort((a, b) => a.day.localeCompare(b.day) || b.invoiced - a.invoiced);
   let opening = 0;
   let balance = 0;
@@ -183,7 +216,7 @@ export async function readStatement(db: Db, companyId: string, customerId: strin
     balance += event.invoiced - event.paid;
     invoiced += event.invoiced;
     paid += event.paid;
-    lines.push({ date: shortDay(event.day), document: event.document, detail: event.detail, href: event.href, invoiced: event.invoiced ? round(event.invoiced) : null, paid: event.paid ? round(event.paid) : null, balance: round(balance) });
+    lines.push({ date: shortDay(event.day), what: event.what, document: event.document, detail: event.detail, href: event.href, invoiced: event.invoiced ? round(event.invoiced) : null, paid: event.paid ? round(event.paid) : null, balance: round(balance) });
   }
   if (lines.length === 0) balance = opening;
   return { lines, opening: round(opening), closing: round(balance), invoiced: round(invoiced), paid: round(paid) };
@@ -192,7 +225,7 @@ export async function readStatement(db: Db, companyId: string, customerId: strin
 export async function readCustomer(db: Db, companyId: string, id: string, period: { from?: string | null; to?: string | null } = {}, now = new Date()): Promise<CustomerView | null> {
   const customer = await db.customer.findFirst({
     where: { id, companyId },
-    select: { id: true, name: true, contactName: true, phone: true, email: true, address: true, vatNumber: true, taxNumber: true, createdAt: true, ...customerFace },
+    select: { id: true, code: true, name: true, contactName: true, phone: true, email: true, address: true, vatNumber: true, taxNumber: true, createdAt: true, ...clientFace },
   });
   if (!customer) return null;
   const today = dayOf(now);
@@ -227,7 +260,9 @@ export async function readCustomer(db: Db, companyId: string, id: string, period
   const page: CustomerPage = {
     id: customer.id,
     name: customer.name,
-    image: customerImage(customer),
+    image: faceOf(customer),
+    code: customer.code,
+    rep: repOf(customer),
     line: [customer.contactName ? `Accounts: ${customer.contactName}` : null, `Customer since ${new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "Africa/Harare" }).format(customer.createdAt)}`].filter(Boolean) as string[],
     contact: { phone: customer.phone, email: customer.email, address: customer.address },
     tax: { vatNumber: customer.vatNumber, tin: customer.taxNumber },

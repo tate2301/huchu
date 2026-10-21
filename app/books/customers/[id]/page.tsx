@@ -2,21 +2,24 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { BkState, BkTabs } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
-import { BooksPage } from "@/components/books/figures";
-import { Button, ButtonLink, Empty, Input, Kit, Avatar } from "@/components/core";
+import { BooksPage, Cents } from "@/components/books/figures";
+import { Avatar, Button, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { ApiError, fetchJson } from "@/lib/api-client";
+import { useToast } from "@/components/ui/use-toast";
+import { ConfirmDialog } from "@/components/workspace/confirm-dialog";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import type { Ask } from "@/lib/workspace/ask";
 import type { CustomerView } from "@/lib/books/customers-view";
 import { money, shortDay } from "@/lib/books/format";
 import { statementMessage, whatsappLink, whatsappNumber } from "@/lib/books/statement-message";
 
-type Page = CustomerView & { can: { invoice: boolean; pay: boolean } };
+type Page = CustomerView & { can: { invoice: boolean; pay: boolean; delete: boolean } };
 type Tab = "activity" | "invoices" | "payments" | "statement" | "details";
 
 const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -31,54 +34,47 @@ function Boxed({ children }: { children: React.ReactNode }) {
   return <div className="bk-bleed" style={{ marginTop: 16 }}>{children}</div>;
 }
 
+const withYear = (day: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
+
+/** A date the statement is read between: the button names it, pressing it opens the date picker. */
+function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (day: string) => void }) {
+  const input = React.useRef<HTMLInputElement>(null);
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        className="chipsel is-set"
+        onClick={() => {
+          const field = input.current;
+          if (!field) return;
+          if (typeof field.showPicker === "function") field.showPicker();
+          else field.focus();
+        }}
+      >
+        {label} <b>{withYear(value)}</b>
+      </button>
+      <input
+        ref={input}
+        type="date"
+        aria-label={label}
+        value={value}
+        tabIndex={-1}
+        onChange={(event) => (event.target.value ? onChange(event.target.value) : undefined)}
+        style={{ position: "absolute", inset: 0, opacity: 0, pointerEvents: "none" }}
+      />
+    </span>
+  );
+}
+
 function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to: string) => void }) {
   const { statement } = data;
-  const [from, setFrom] = React.useState(statement.from);
-  const [to, setTo] = React.useState(statement.to);
-  const phone = whatsappNumber(data.contact.phone);
-  const [custom, setCustom] = React.useState(false);
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "20px 24px 0" }}>
-        <MenuButton
-          className="chipsel is-set"
-          label="Period"
-          items={[
-            { key: "this", label: "This month so far", onSelect: () => onPeriod(`${statement.to.slice(0, 7)}-01`, statement.to) },
-            { key: "three", label: "The last three months", onSelect: () => onPeriod(statement.from, statement.to) },
-            { key: "year", label: "This year", onSelect: () => onPeriod(`${statement.to.slice(0, 4)}-01-01`, statement.to) },
-            { separator: true },
-            { key: "custom", label: "Choose the dates", checked: custom, onSelect: () => setCustom(true) },
-          ]}
-        >
-          Period <b>{`${shortDay(statement.from)} to ${shortDay(statement.to)} ${statement.to.slice(0, 4)}`}</b>
-        </MenuButton>
-        {custom ? (
-        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-          <Input type="date" aria-label="From" value={from} onChange={(event) => setFrom(event.target.value)} style={{ width: 150 }} />
-          <Input type="date" aria-label="To" value={to} onChange={(event) => setTo(event.target.value)} style={{ width: 150 }} />
-          <Button variant="quiet" onClick={() => onPeriod(from, to)}>
-            Show
-          </Button>
-        </span>
-        ) : null}
-        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-          <ButtonLink variant="quiet" icon="export" href={`/books/statements?customers=${data.id}`} target="_blank">
-            Download PDF
-          </ButtonLink>
-          {/* WhatsApp opens with the statement written; the person sends it there. */}
-          {phone ? (
-            <ButtonLink icon="whatsapp" href={whatsappLink(phone, statementMessage(data))} target="_blank" rel="noopener">
-              Send by WhatsApp
-            </ButtonLink>
-          ) : (
-            <Button icon="whatsapp" disabled title={`No phone number on file for ${data.name}`}>
-              Send by WhatsApp
-            </Button>
-          )}
-        </span>
+      <div className="ws-tools" style={{ boxShadow: "none" }}>
+        <DateFilter label="From" value={statement.from} onChange={(day) => onPeriod(day, day > statement.to ? day : statement.to)} />
+        <DateFilter label="To" value={statement.to} onChange={(day) => onPeriod(day < statement.from ? day : statement.from, day)} />
       </div>
-      <Boxed>
+      <div className="bk-bleed">
         <table className="table" aria-label="Statement">
           <colgroup>
             <col style={{ width: 90 }} />
@@ -86,56 +82,68 @@ function Statement({ data, onPeriod }: { data: Page; onPeriod: (from: string, to
             <col style={{ width: 130 }} />
             <col style={{ width: 130 }} />
             <col style={{ width: 130 }} />
+            <col style={{ width: 150 }} />
           </colgroup>
           <thead>
             <tr>
               <th>Date</th>
-              <th>Document</th>
-              <th className="num">Invoiced</th>
+              <th>What</th>
+              <th>Number</th>
+              <th className="num">Charged</th>
               <th className="num">Paid</th>
-              <th className="num">Balance</th>
+              <th className="num">Balance, {data.currency}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td className="muted">{shortDay(statement.from)}</td>
-              <td>Opening balance</td>
+              <td className="muted">Opening balance</td>
+              <td />
               <td className="num" />
               <td className="num" />
-              <td className="num">{plain(statement.opening)}</td>
+              <td className="num">
+                <Cents value={statement.opening} currency={data.currency} />
+              </td>
             </tr>
             {statement.lines.map((line, index) => (
               <tr key={index}>
                 <td className="muted">{line.date}</td>
+                <td>{line.what}</td>
                 <td>
-                  <span className="cell-lead">
-                    {line.href ? (
-                      <Link className="ref" href={line.href}>
-                        {line.document}
-                      </Link>
-                    ) : (
-                      <span className="ref">{line.document}</span>
-                    )}{" "}
-                    <span className="muted">{line.detail}</span>
-                  </span>
+                  {line.href ? (
+                    <Link className="ref" href={line.href}>
+                      {line.document}
+                    </Link>
+                  ) : (
+                    <span className="ref">{line.document}</span>
+                  )}
                 </td>
-                <td className="num">{line.invoiced !== null ? plain(line.invoiced) : ""}</td>
-                <td className="num">{line.paid !== null ? plain(line.paid) : ""}</td>
-                <td className="num">{plain(line.balance)}</td>
+                <td className="num">{line.invoiced !== null ? <Cents value={line.invoiced} currency={data.currency} /> : null}</td>
+                <td className="num">{line.paid !== null ? <Cents value={line.paid} currency={data.currency} /> : null}</td>
+                <td className="num">
+                  <Cents value={line.balance} currency={data.currency} />
+                </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="tot">
-              <td>{shortDay(statement.to)}</td>
+              <td />
               <td>Closing balance</td>
-              <td className="num">{plain(statement.invoiced)}</td>
-              <td className="num">{plain(statement.paid)}</td>
-              <td className="num">{plain(statement.closing)}</td>
+              <td />
+              <td className="num">
+                <Cents value={statement.invoiced} currency={data.currency} />
+              </td>
+              <td className="num">
+                <Cents value={statement.paid} currency={data.currency} />
+              </td>
+              <td className="num">
+                <Cents value={statement.closing} currency={data.currency} />
+              </td>
             </tr>
           </tfoot>
         </table>
-      </Boxed>
+      </div>
     </>
   );
 }
@@ -157,6 +165,49 @@ function CustomerRecord() {
   });
   const data = customer.data;
   const notFound = customer.error instanceof ApiError && customer.error.status === 404;
+  const { toast } = useToast();
+  const client = useQueryClient();
+  const [removing, setRemoving] = React.useState<"delete" | "archive" | null>(null);
+  const ask: Ask | null = !data || !removing
+    ? null
+    : removing === "delete"
+      ? { title: `Delete ${data.name}?`, body: "They are removed for good. A customer with invoices, payments or quotes cannot be deleted: archive them instead.", keep: "Keep customer", go: "Delete customer", fill: "bad" }
+      : { title: `Archive ${data.name}?`, body: "They leave the lists and forms. Their invoices and payments stay as they are, and you can find them in the records.", keep: "Keep customer", go: "Archive customer", fill: "action" };
+  const remove = async () => {
+    if (!removing || !data) return;
+    try {
+      await fetchJson(`/api/books/customers/${id}`, { method: "DELETE", body: JSON.stringify({ archive: removing === "archive" }) });
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "Check the connection and try again."));
+    }
+    toast({ title: removing === "delete" ? `${data.name} is deleted` : `${data.name} is archived`, variant: "success" });
+    await client.invalidateQueries({ queryKey: ["books"] });
+    router.push("/books/customers");
+  };
+
+  const [printing, setPrinting] = React.useState(false);
+  /** The statement as a PDF file, for the period on screen: downloaded, never the open page printed. */
+  const downloadStatement = async () => {
+    if (!data || printing) return;
+    setPrinting(true);
+    try {
+      const response = await fetch(`/api/books/customers/${id}/statement?from=${data.statement.from}&to=${data.statement.to}`);
+      if (!response.ok) throw new Error("The statement could not be made.");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `statement-${data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${data.statement.to}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({ title: "The statement did not download", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
+    } finally {
+      setPrinting(false);
+    }
+  };
+  const send = data && whatsappNumber(data.contact.phone) ? () => window.open(whatsappLink(whatsappNumber(data.contact.phone)!, statementMessage(data)), "_blank", "noopener") : null;
 
   return (
     <>
@@ -164,10 +215,18 @@ function CustomerRecord() {
         title={data?.name ?? "Customer"}
         backHref="/books/customers"
         backLabel="Customers"
-        primary={data?.can.invoice ? { label: "New invoice", icon: "plus", shortcut: "N", href: `/books/invoices/new?customer=${id}` } : null}
+        primary={send ? { label: "Send statement", icon: "whatsapp", shortcut: "S", onClick: send } : null}
       >
         {data ? (
           <Kit contents>
+            <Button icon="print" busy={printing} disabled={printing} onClick={downloadStatement}>
+              Print statement
+            </Button>
+            {data.can.pay ? (
+              <ButtonLink icon="payments" shortcut="R" href={`/books/payments/new?customer=${id}`}>
+                Record a payment
+              </ButtonLink>
+            ) : null}
             <MenuButton
               iconOnly
               icon="more"
@@ -176,14 +235,16 @@ function CustomerRecord() {
               label="More actions"
               aria-label="More actions"
               items={[
-                ...(data.can.pay ? [{ key: "pay", icon: "payments" as const, label: "Record a payment", onSelect: () => router.push(`/books/payments/new?customer=${id}`) }] : []),
-                { key: "statement", icon: "print", label: "Print the statement", onSelect: () => window.open(`/books/statements?customers=${id}`, "_blank", "noopener") },
+                ...(data.can.invoice ? [{ key: "invoice", icon: "plus" as const, label: "New invoice", onSelect: () => router.push(`/books/invoices/new?customer=${id}`) }] : []),
                 { key: "crm", icon: "users", label: "Their payments", onSelect: () => router.push(`/books/payments?customer=${id}`) },
+                ...(data.can.invoice ? [{ separator: true as const }, { key: "archive", icon: "keep" as const, label: "Archive customer", onSelect: () => setRemoving("archive") }] : []),
+                ...(data.can.delete ? [{ key: "delete", icon: "x" as const, danger: true, label: "Delete customer", onSelect: () => setRemoving("delete") }] : []),
               ]}
             />
           </Kit>
         ) : null}
       </PageChrome>
+      {ask ? <ConfirmDialog ask={ask} open onOpenChange={(open) => (open ? undefined : setRemoving(null))} onConfirm={remove} /> : null}
       {data ? (
         <div className="bk bk-rec">
           <div className="bk-main">

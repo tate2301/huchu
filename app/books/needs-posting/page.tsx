@@ -7,10 +7,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { NeedsPostingPageView, type NeedsPostingData } from "@/components/books/needs-posting-view";
-import { Empty } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { NeedsPostingQuery } from "@/lib/books/needs-posting";
 
 type RetrySummary = { tried: number; posted: number; failed: number; held: number };
@@ -31,11 +30,15 @@ function NeedsPosting() {
   const params = useSearchParams();
   const client = useQueryClient();
   const { toast } = useToast();
-  const selected = params.get("event");
   const listParams = new URLSearchParams(params.toString());
-  listParams.delete("event");
   const search = listParams.toString();
 
+  const tab = params.get("tab") === "waiting" ? "waiting" : "failed";
+  const waitingBelow = useQuery({
+    queryKey: ["books", "needs-posting", "waiting-below"],
+    queryFn: () => fetchJson<NeedsPostingData>("/api/books/needs-posting?tab=waiting"),
+    enabled: tab === "failed",
+  });
   const view = useQuery({
     queryKey: ["books", "needs-posting", search],
     queryFn: () => fetchJson<NeedsPostingData>(`/api/books/needs-posting${search ? `?${search}` : ""}`),
@@ -61,12 +64,6 @@ function NeedsPosting() {
     },
     [params, replace],
   );
-  const select = (id: string) => {
-    const merged = new URLSearchParams(params.toString());
-    merged.set("event", id);
-    replace(merged);
-  };
-
   const refresh = () => client.invalidateQueries({ queryKey: ["books"] });
   const done = (summary: RetrySummary) => {
     toast({ title: summary.posted ? "Posted" : "Not posted yet", description: outcome(summary) });
@@ -87,7 +84,6 @@ function NeedsPosting() {
   });
 
   const data = view.data;
-  const forbidden = view.error instanceof ApiError && view.error.status === 403;
   const nothing = !data || data.counts.failed + data.counts.waiting === 0;
   return (
     <>
@@ -105,25 +101,19 @@ function NeedsPosting() {
             : null
         }
       />
-      <BooksPage screen="books-needs-posting">
+      <BooksPage screen="bk-b">
         {data ? (
           <NeedsPostingPageView
             data={data}
-            selectedId={selected}
+            waiting={waitingBelow.data ?? null}
             busy={retry.isPending || change.isPending}
-            exportHref={`/api/books/needs-posting?${new URLSearchParams([...listParams.entries(), ["format", "csv"]]).toString()}`}
             onQuery={onQuery}
-            onSelect={select}
             onRetry={(ids) => retry.mutate(ids)}
             onMap={(id, accountId) => change.mutate({ id, body: { action: "map", accountId } })}
             onRedate={(id) => change.mutate({ id, body: { action: "this-month" } })}
           />
-        ) : forbidden ? (
-          <Empty icon="lock" title="Needs posting is for the people who keep the books">
-            The owner, a manager or the accountant sees what has not reached the ledger. Ask one of them.
-          </Empty>
         ) : view.isError ? (
-          <BooksError what="Needs posting" onRetry={() => view.refetch()} />
+          <BooksError what="Needs posting" onRetry={() => view.refetch()} error={view.error} />
         ) : (
           <BooksLoading />
         )}
@@ -132,12 +122,12 @@ function NeedsPosting() {
   );
 }
 
-/** Close the month → Needs posting (design/core-modules/boards/view/BkNeedsPosting.html). */
+/** Close the month → Needs posting (design/books/html/bk-needs-posting.html). */
 export default function NeedsPostingPage() {
   return (
     <React.Suspense
       fallback={
-        <BooksPage screen="books-needs-posting">
+        <BooksPage screen="bk-b">
           <BooksLoading />
         </BooksPage>
       }

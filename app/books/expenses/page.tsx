@@ -16,7 +16,7 @@ import type { SpendingPage, SpendingQuery } from "@/lib/books/spending";
 
 /**
  * Books → Bills & spending → All spending (BkSpending): read only, every
- * money-out document this month. Record spending (N) is the one menu that
+ * money-out document this month. Record spending (E) is the one menu that
  * starts each kind: a bill, a claim, a petty cash voucher or a requisition.
  */
 function BooksSpending() {
@@ -38,7 +38,7 @@ function BooksSpending() {
     <>
       <PageChrome title="All spending">
         <Kit contents>
-          <MenuButton variant="primary" icon="plus" shortcut="N" label="Record spending" items={record}>
+          <MenuButton variant="primary" icon="plus" shortcut="E" label="Record spending" items={record}>
             Record spending
           </MenuButton>
         </Kit>

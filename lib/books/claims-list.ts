@@ -1,7 +1,7 @@
 import type { ExpenseClaimStatus, PettyCashVoucherStatus, Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { dayOf, money, monthName, monthStart } from "./format";
+import { dayOf, money, monthName, monthStart, shortDay } from "./format";
 import { periodRange, PERIODS } from "./period";
 
 /**
@@ -51,7 +51,7 @@ export function readClaimQuery(params: URLSearchParams): ClaimQuery {
 
 export type ClaimRow = { id: string; number: string; person: { id: string; name: string; image: string | null }; forWhat: string; status: ExpenseClaimStatus; state: string; amount: number; currency: string };
 export type FloatRow = { id: string; name: string; holder: string | null; holderImage: string | null; currency: string; imprest: number; spent: number; vouchers: number; left: number };
-export type VoucherRow = { id: string; number: string; float: string; forWhat: string; status: PettyCashVoucherStatus; state: string; amount: number; currency: string; createdById: string; kind: "SPEND" | "TOP_UP" };
+export type VoucherRow = { id: string; number: string; float: string; forWhat: string; date: string; slip: boolean; status: PettyCashVoucherStatus; state: string; amount: number; currency: string; createdById: string; kind: "SPEND" | "TOP_UP" };
 
 export type ClaimsView = {
   finding: { fact: string; rest: string | null };
@@ -170,6 +170,8 @@ export async function readClaims(db: Db, companyId: string, query: ClaimQuery, s
       number: voucher.voucherNo ?? "Draft",
       float: voucher.float.name,
       forWhat: voucher.description,
+      date: shortDay(dayOf(voucher.spentAt)),
+      slip: Boolean(voucher.receiptUrl),
       status: voucher.status,
       state: VOUCHER_STATE[voucher.status],
       amount: round(Number(voucher.amount)),
@@ -203,7 +205,7 @@ export function claimsCsv(view: ClaimsView): string {
     view.query.view === "floats"
       ? [["Float", "Held by", "Imprest", "Spent since top-up", "Left"], ...view.floats.map((row) => [row.name, row.holder ?? "", row.imprest.toFixed(2), row.spent.toFixed(2), row.left.toFixed(2)])]
       : view.query.view === "vouchers"
-        ? [["Voucher", "Float", "For", "State", "Amount"], ...view.vouchers.map((row) => [row.number, row.float, row.forWhat, row.state, row.amount.toFixed(2)])]
+        ? [["Voucher", "Float", "For", "Date", "Slip", "State", "Currency", "Amount"], ...view.vouchers.map((row) => [row.number, row.float, row.forWhat, row.date, row.slip ? "Photo" : "", row.state, row.currency, row.amount.toFixed(2)])]
         : [["Claim", "Person", "For", "State", "Currency", "Amount"], ...view.claims.map((row) => [row.number, row.person.name, row.forWhat, row.state, row.currency, row.amount.toFixed(2)])];
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
 }

@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { monthName, shortDay, storedDay } from "./format";
+import { money, monthName, shortDay, storedDay } from "./format";
 
 /**
  * Books → Ledger → Journals (design/core-modules/boards/view/BkJournals.html):
@@ -12,6 +12,9 @@ import { monthName, shortDay, storedDay } from "./format";
 export const JOURNAL_TABS = ["all", "draft", "to-approve", "posted", "reversed"] as const;
 export type JournalTab = (typeof JOURNAL_TABS)[number];
 export const JOURNAL_TAB_LABEL: Record<JournalTab, string> = { all: "All", draft: "Drafts", "to-approve": "To approve", posted: "Posted", reversed: "Reversed" };
+
+export const JOURNAL_PERIODS = ["any", "this", "last-two", "year"] as const;
+export type JournalPeriod = (typeof JOURNAL_PERIODS)[number];
 
 export const JOURNAL_SORTS = ["needs", "newest", "oldest"] as const;
 export type JournalSort = (typeof JOURNAL_SORTS)[number];
@@ -57,6 +60,8 @@ export const journalQuerySchema = z.object({
   q: z.string().trim().max(100).catch(""),
   sort: z.enum(JOURNAL_SORTS).catch("needs"),
   source: z.string().trim().max(60).catch(""),
+  period: z.enum(JOURNAL_PERIODS).catch("any"),
+  by: z.string().trim().max(60).catch(""),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type JournalQuery = z.infer<typeof journalQuerySchema>;
@@ -72,15 +77,26 @@ export type JournalRow = {
   source: string;
   amount: number;
   state: JournalState;
+  /** Who made it. */
+  madeBy: { id: string; name: string; image: string | null };
+  /** "Over $1,000: a second person posts it", "Reversed by JE-0433, 29 Sep", or where a document's journal came from. */
+  note: string | null;
 };
+
+/** What this person may do with journals, from the one matrix (`canDo`): the page draws only these. */
+export type JournalCan = { create: boolean; post: boolean; deleteDraft: boolean; reverse: boolean };
 
 export type JournalsView = {
   finding: { fact: string; rest: string | null };
   counts: Record<JournalTab, number>;
   rows: JournalRow[];
   range: { from: number; to: number; of: number };
-  draftTotal: number;
-  waitingTotal: number;
+  /** The Period chip's choices, with "Oct" and "Sep, Oct" named from today. */
+  periods: Array<{ value: JournalPeriod; label: string }>;
+  periodLabel: string;
+  /** Everyone who has made a journal, for Made by. */
+  makers: Array<{ id: string; name: string; image: string | null }>;
+  can: JournalCan;
   /** The sources the Source chip offers: the ones this workspace has journals from. */
   sources: Array<{ value: string; label: string }>;
   currency: string;
@@ -160,7 +176,7 @@ export function journalsFinding(drafts: Array<{ month: string }>, waiting = 0): 
   return { fact, rest: waits };
 }
 
-type Db = Pick<PrismaClient, "journalEntry" | "approvalAction" | "accountingSettings">;
+type Db = Pick<PrismaClient, "journalEntry" | "approvalAction" | "accountingSettings" | "retailApprovalSettings" | "user">;
 
 /** The drafts waiting for a second person: each one's last MANUAL_JOURNAL approval row is a SUBMIT. */
 async function waitingIds(db: Db, companyId: string): Promise<string[]> {
@@ -170,8 +186,33 @@ async function waitingIds(db: Db, companyId: string): Promise<string[]> {
   return [...last].filter(([, action]) => action === "SUBMIT").map(([id]) => id);
 }
 
-function where(companyId: string, query: JournalQuery, waiting: string[]): Prisma.JournalEntryWhereInput {
-  const parts: Prisma.JournalEntryWhereInput[] = [{ companyId }];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** The days a Period covers, as stored (UTC midnights), or none for Any. */
+function periodRange(period: JournalPeriod, today: string, fyStartMonth: number): { gte: Date; lt: Date } | null {
+  if (period === "any") return null;
+  const [y, m] = today.split("-").map(Number) as [number, number];
+  const start = period === "this" ? Date.UTC(y, m - 1, 1) : period === "last-two" ? Date.UTC(y, m - 2, 1) : Date.UTC(m >= fyStartMonth ? y : y - 1, fyStartMonth - 1, 1);
+  return { gte: new Date(start), lt: new Date(Date.UTC(y, m, 1)) };
+}
+
+/** "Oct", "Sep, Oct": the months a Period names. */
+function periodWord(period: JournalPeriod, today: string): string {
+  const [y, m] = today.split("-").map(Number) as [number, number];
+  if (period === "any") return "Any";
+  if (period === "this") return MONTHS[m - 1]!;
+  if (period === "last-two") return `${MONTHS[(m + 10) % 12]}, ${MONTHS[m - 1]}`;
+  return "This year";
+}
+
+/** What every count and list shares: this workspace, the period and who made it. */
+function base(companyId: string, query: JournalQuery, today: string, fyStartMonth: number): Prisma.JournalEntryWhereInput[] {
+  const range = periodRange(query.period, today, fyStartMonth);
+  return [{ companyId }, ...(range ? [{ entryDate: range }] : []), ...(query.by ? [{ createdById: query.by }] : [])];
+}
+
+function where(companyId: string, query: JournalQuery, waiting: string[], today: string, fyStartMonth: number): Prisma.JournalEntryWhereInput {
+  const parts: Prisma.JournalEntryWhereInput[] = base(companyId, query, today, fyStartMonth);
   if (query.tab !== "all") parts.push(tabWhere(query.tab, waiting));
   if (query.source) parts.push({ sourceType: query.source as never });
   if (query.q) {
@@ -189,28 +230,59 @@ const amountOf = (lines: Array<{ debit: number; credit: number }>) => {
   return Math.round(Math.max(debit, credit) * 100) / 100;
 };
 
-const SELECT = { id: true, entryNumber: true, entryDate: true, description: true, sourceType: true, sourceId: true, status: true, reversedAt: true, voidedAt: true, lines: { select: { debit: true, credit: true } } } as const;
+const SELECT = {
+  id: true,
+  entryNumber: true,
+  entryDate: true,
+  description: true,
+  sourceType: true,
+  sourceId: true,
+  status: true,
+  reversedAt: true,
+  voidedAt: true,
+  createdBy: { select: { id: true, name: true, image: true } },
+  reversalEntry: { select: { entryNumber: true, entryDate: true } },
+  reversalOfEntry: { select: { entryNumber: true } },
+  lines: { select: { debit: true, credit: true } },
+} as const;
 
-export async function readJournals(db: Db, companyId: string, query: JournalQuery): Promise<JournalsView> {
+type Record_ = Prisma.JournalEntryGetPayload<{ select: typeof SELECT }>;
+
+/** The Note column: what a second person waits on, what reversed it, or where a document's journal came from. */
+function noteOf(record: Record_, state: JournalState, limit: number, currency: string): string | null {
+  if (state === "to-approve") return limit > 0 ? `Over ${money(limit, currency)}: a second person posts it` : null;
+  if (record.reversalEntry) return `Reversed by ${journalRef(record.reversalEntry.entryNumber)}, ${shortDay(storedDay(record.reversalEntry.entryDate))}`;
+  if (record.reversalOfEntry) return `Reverses ${journalRef(record.reversalOfEntry.entryNumber)}`;
+  return record.sourceType === "MANUAL" ? null : sourceLabel(record.sourceType);
+}
+
+export async function readJournals(db: Db, companyId: string, query: JournalQuery, can: JournalCan, now = new Date()): Promise<JournalsView> {
+  const today = now.toISOString().slice(0, 10);
+  const settings0 = await db.accountingSettings.findUnique({ where: { companyId }, select: { fiscalYearStartMonth: true } });
+  const fy = settings0?.fiscalYearStartMonth ?? 1;
   const waiting = await waitingIds(db, companyId);
   const waitingSet = new Set(waiting);
-  const filter = where(companyId, query, waiting);
-  const counted = (tab: Exclude<JournalTab, "all">) => db.journalEntry.count({ where: { AND: [{ companyId }, tabWhere(tab, waiting)] } });
+  const filter = where(companyId, query, waiting, today, fy);
+  const counted = (tab: Exclude<JournalTab, "all">) => db.journalEntry.count({ where: { AND: [...base(companyId, query, today, fy), tabWhere(tab, waiting)] } });
   // "Needs you first": waiting, then drafts, then the rest newest first. The
   // DRAFT rows are few, so they are read whole and the posted ones paged after them.
   const order: Prisma.JournalEntryOrderByWithRelationInput[] = query.sort === "oldest" ? [{ entryDate: "asc" }, { entryNumber: "asc" }] : [{ entryDate: "desc" }, { entryNumber: "desc" }];
-  const [matching, all, draft, toApprove, posted, reversed, drafts, settings, sourceGroups] = await Promise.all([
+  const [matching, all, draft, toApprove, posted, reversed, drafts, settings, sourceGroups, makerGroups, limits] = await Promise.all([
     db.journalEntry.count({ where: filter }),
-    db.journalEntry.count({ where: { companyId } }),
+    db.journalEntry.count({ where: { AND: base(companyId, query, today, fy) } }),
     counted("draft"),
     counted("to-approve"),
     counted("posted"),
     counted("reversed"),
-    db.journalEntry.findMany({ where: { companyId, status: "DRAFT" }, select: { id: true, entryDate: true, lines: { select: { debit: true, credit: true } } }, orderBy: { entryDate: "asc" } }),
+    db.journalEntry.findMany({ where: { companyId, status: "DRAFT" }, select: { id: true, entryDate: true }, orderBy: { entryDate: "asc" } }),
     db.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } }),
     db.journalEntry.groupBy({ by: ["sourceType"], where: { companyId }, _count: { _all: true } }),
+    db.journalEntry.groupBy({ by: ["createdById"], where: { companyId }, _count: { _all: true } }),
+    db.retailApprovalSettings.findUnique({ where: { companyId }, select: { journalSecondOver: true } }),
   ]);
-  let records: Array<Prisma.JournalEntryGetPayload<{ select: typeof SELECT }>>;
+  const makers = makerGroups.length ? await db.user.findMany({ where: { id: { in: makerGroups.map((group) => group.createdById) } }, select: { id: true, name: true, image: true }, orderBy: { name: "asc" } }) : [];
+  const limit = limits ? Number(limits.journalSecondOver) : 1000;
+  let records: Record_[];
   const skip = (query.page - 1) * JOURNAL_PAGE_SIZE;
   if (query.sort === "needs") {
     const first = await db.journalEntry.findMany({ where: { AND: [filter, { status: "DRAFT" }] }, select: SELECT, orderBy: order });
@@ -227,26 +299,33 @@ export async function readJournals(db: Db, companyId: string, query: JournalQuer
   const from = matching === 0 ? 0 : skip + 1;
   const plainDrafts = drafts.filter((row) => !waitingSet.has(row.id));
   const waitingRows = drafts.filter((row) => waitingSet.has(row.id));
-  const total = (rows: typeof drafts) => Math.round(rows.reduce((sum, row) => sum + amountOf(row.lines), 0) * 100) / 100;
+  const currency = settings?.baseCurrency ?? "USD";
   return {
     finding: journalsFinding(plainDrafts.map((row) => ({ month: monthName(storedDay(row.entryDate)) })), waitingRows.length),
     counts,
-    rows: records.map((record) => ({
-      id: record.id,
-      ref: refOrNull(record.entryNumber),
-      date: shortDay(storedDay(record.entryDate)),
-      memo: record.description,
-      source: sourceLabel(record.sourceType),
-      amount: amountOf(record.lines),
-      state: journalState(record, waitingSet),
-    })),
+    rows: records.map((record) => {
+      const state = journalState(record, waitingSet);
+      return {
+        id: record.id,
+        ref: refOrNull(record.entryNumber),
+        date: shortDay(storedDay(record.entryDate)),
+        memo: record.description,
+        source: sourceLabel(record.sourceType),
+        amount: amountOf(record.lines),
+        state,
+        madeBy: { id: record.createdBy.id, name: record.createdBy.name, image: record.createdBy.image ?? null },
+        note: noteOf(record, state, limit, currency),
+      };
+    }),
     range: { from, to: from === 0 ? 0 : from + records.length - 1, of: matching },
-    draftTotal: total(plainDrafts),
-    waitingTotal: total(waitingRows),
+    periods: JOURNAL_PERIODS.map((value) => ({ value, label: periodWord(value, today) })),
+    periodLabel: periodWord(query.period, today),
+    makers: makers.map((user) => ({ id: user.id, name: user.name, image: user.image ?? null })),
+    can,
     sources: sourceGroups
       .map((group) => ({ value: group.sourceType as string, label: sourceLabel(group.sourceType) }))
       .sort((a, b) => (a.value === "MANUAL" ? -1 : b.value === "MANUAL" ? 1 : a.label.localeCompare(b.label))),
-    currency: settings?.baseCurrency ?? "USD",
+    currency,
     query,
   };
 }
@@ -310,10 +389,11 @@ export async function readJournal(db: DetailDb, companyId: string, id: string): 
 }
 
 /** The list as it is filtered, every page, for Export. */
-export async function journalsCsv(db: Db, companyId: string, query: JournalQuery): Promise<string> {
+export async function journalsCsv(db: Db, companyId: string, query: JournalQuery, now = new Date()): Promise<string> {
   const waiting = await waitingIds(db, companyId);
   const waitingSet = new Set(waiting);
-  const records = await db.journalEntry.findMany({ where: where(companyId, query, waiting), select: SELECT, orderBy: [{ entryDate: "desc" }, { entryNumber: "desc" }], take: 10_000 });
+  const settings = await db.accountingSettings.findUnique({ where: { companyId }, select: { fiscalYearStartMonth: true } });
+  const records = await db.journalEntry.findMany({ where: where(companyId, query, waiting, now.toISOString().slice(0, 10), settings?.fiscalYearStartMonth ?? 1), select: SELECT, orderBy: [{ entryDate: "desc" }, { entryNumber: "desc" }], take: 10_000 });
   const cell = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
   const lines = ["Number,Date,Memo,Source,Amount,State"];
   for (const record of records) {

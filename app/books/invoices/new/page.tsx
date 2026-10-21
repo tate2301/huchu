@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { BkBox, BkField, BkFormPage, BkSeg, FormSec, RailFigure, RailSteps, todayHarare, WideSec } from "@/components/books/bk-form";
+import { BkBox, BkField, BkFormPage, BkSeg, BkTotals, FormSec, todayHarare, WideSec } from "@/components/books/bk-form";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { Button, Check, Icon, Input, Kit, Select, TextArea } from "@/components/core";
@@ -86,17 +86,6 @@ function NewInvoiceForm({ options }: { options: Options }) {
     save.mutate(intent);
   };
 
-  const steps: Array<[string, string]> = [
-    ["It gets the next number", options.nextNumber],
-    foreign
-      ? rate
-        ? ["The rate is fixed", `${rate.rate.toFixed(2)}, ${rate.source}`]
-        : ["It needs a rate", `${currencyWord(form.currency)} to ${currencyWord(options.base)}1, in Rates`]
-      : ["It is in", `${currencyWord(form.currency)}, the books' own currency`],
-    ["FDMS signs it", `in ${form.currency}, where this workspace fiscalises`],
-    ["It posts", customer ? `and ${customer.name} owes it` : "and the customer owes it"],
-  ];
-
   return (
     <>
       <PageChrome
@@ -111,24 +100,8 @@ function NewInvoiceForm({ options }: { options: Options }) {
           </Button>
         </Kit>
       </PageChrome>
-      <BkFormPage
-        rail={
-          <>
-            <RailFigure
-              title="Total"
-              figure={money(totals.total, form.currency)}
-              rows={[
-                ["Before VAT", money(totals.net, form.currency)],
-                [totals.rates.length === 1 ? `VAT at ${totals.rates[0]}%` : "VAT", money(totals.tax, form.currency)],
-                ...(foreign && rate ? ([[`In ${currencyWord(options.base)}`, money(totals.total / rate.rate, options.base)]] as Array<[string, string]>) : []),
-                ["Due", due ? shortDay(due) : "No date"],
-              ]}
-            />
-            <RailSteps title="When you press Issue" steps={steps} />
-          </>
-        }
-      >
-        <FormSec title="Customer" text="Who the invoice is to.">
+      <BkFormPage>
+        <FormSec title="Customer">
           <BkField label="Customer" htmlFor="inv-customer" error={errors.customerId}>
             <Select id="inv-customer" value={form.customerId} onChange={(event) => set("customerId", event.target.value)}>
               <option value="">Choose a customer</option>
@@ -140,12 +113,7 @@ function NewInvoiceForm({ options }: { options: Options }) {
             </Select>
           </BkField>
           {customer ? (
-            customer.vatNumber && customer.tin ? (
-              <BkBox tone="ok" icon="check">
-                <b>VAT number and TIN on file.</b>
-                {quote ? ` Made from ${quote.quotationNumber}.` : null}
-              </BkBox>
-            ) : (
+            customer.vatNumber && customer.tin ? null : (
               <BkBox tone="warn" icon="warn">
                 <b>{customer.vatNumber ? "No TIN on file." : "No VAT number on file."}</b> FDMS needs both when the buyer is registered for VAT.
               </BkBox>
@@ -153,7 +121,7 @@ function NewInvoiceForm({ options }: { options: Options }) {
           ) : null}
         </FormSec>
 
-        <FormSec title="Currency" text={`Reports show it in ${currencyWord(options.base)}.`}>
+        <FormSec title="Currency">
           <BkField label="Currency">
             <BkSeg
               label="Currency"
@@ -164,7 +132,7 @@ function NewInvoiceForm({ options }: { options: Options }) {
           </BkField>
           {foreign ? (
             <div className="field-row">
-              <BkField label={`Rate, ${currencyWord(form.currency)} to ${currencyWord(options.base)}1`} hint={rate ? "Fixed when you press Issue" : "No rate for this currency yet: add today's in Rates"}>
+              <BkField label={`Rate, ${currencyWord(form.currency)} to ${currencyWord(options.base)}1`} hint={rate ? undefined : "No rate for this currency yet: add today's in Rates"}>
                 <label className="input-wrap">
                   <Icon name="lock" />
                   <input aria-label="Rate" value={rate ? rate.rate.toFixed(2) : "—"} readOnly />
@@ -245,9 +213,17 @@ function NewInvoiceForm({ options }: { options: Options }) {
               Add a line
             </Button>
           </div>
+          <BkTotals
+            rows={[
+              ["Before VAT", plain(totals.net)],
+              [totals.rates.length === 1 ? `VAT at ${totals.rates[0]}%` : "VAT", plain(totals.tax)],
+              ...(foreign && rate ? ([[`In ${currencyWord(options.base)}`, plain(totals.total / rate.rate)]] as Array<[string, string]>) : []),
+            ]}
+            total={[`Total, ${currencyWord(form.currency)}`, plain(totals.total)]}
+          />
         </WideSec>
 
-        <FormSec title="Terms" text="When it is due.">
+        <FormSec title="Terms">
           <div className="field-row">
             <BkField label="Invoice date" htmlFor="inv-date" error={errors.invoiceDate}>
               <Input id="inv-date" type="date" value={form.invoiceDate} onChange={(event) => set("invoiceDate", event.target.value)} />

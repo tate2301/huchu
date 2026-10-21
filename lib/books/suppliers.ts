@@ -28,6 +28,7 @@ export const supplierQuerySchema = z.object({
   currency: z.string().trim().max(3).nullable().catch(null),
   sort: z.enum(["owed", "name"]).catch("owed"),
   itf: z.enum(["any", "valid", "missing"]).catch("any"),
+  vat: z.enum(["any", "yes", "no"]).catch("any"),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type SupplierQuery = z.infer<typeof supplierQuerySchema>;
@@ -39,6 +40,7 @@ export function readSupplierQuery(params: URLSearchParams): SupplierQuery {
     currency: params.get("currency") || null,
     sort: params.get("sort") ?? undefined,
     itf: params.get("itf") ?? undefined,
+    vat: params.get("vat") ?? undefined,
     page: params.get("page") ?? undefined,
   });
 }
@@ -46,6 +48,8 @@ export function readSupplierQuery(params: URLSearchParams): SupplierQuery {
 export type SupplierRow = {
   id: string;
   name: string;
+  /** Their code in the books ("S-0007"), when they have one. */
+  code: string | null;
   contact: string | null;
   owed: number;
   overdue: number;
@@ -53,8 +57,10 @@ export type SupplierRow = {
   openBills: number;
   currency: string;
   /** D17: their tax clearance, and what was withheld from them this year. */
-  itf263: { state: Itf263State; label: string };
+  itf263: { state: Itf263State; label: string; expires: string | null };
   withheld: number;
+  /** Their VAT number, when they are VAT registered. */
+  vatNumber: string | null;
 };
 export type AgeRow = { id: string; name: string; current: number; days30: number; days60: number; days90: number; over90: number; total: number };
 export type WriteOffRow = { id: string; number: string; supplier: { id: string; name: string }; bill: { id: string; number: string }; reason: string | null; date: string; amount: number; voided: boolean };
@@ -162,7 +168,7 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   const currency = (query.currency ?? base).toUpperCase();
   const nameWhere: Prisma.VendorWhereInput = { companyId, ...(query.q ? { OR: [{ name: { contains: query.q, mode: "insensitive" } }, { contactName: { contains: query.q, mode: "insensitive" } }] } : {}) };
   const [vendors, owed, paid, lines, writeOffs, writeOffCount] = await Promise.all([
-    db.vendor.findMany({ where: nameWhere, select: { id: true, name: true, contactName: true, itf263Number: true, itf263ExpiresAt: true }, orderBy: { name: "asc" }, take: 2000 }),
+    db.vendor.findMany({ where: nameWhere, select: { id: true, name: true, contactName: true, code: true, vatNumber: true, itf263Number: true, itf263ExpiresAt: true }, orderBy: { name: "asc" }, take: 2000 }),
     owedBySupplier(db, companyId, today, currency),
     paidThisYear(db, companyId, today),
     query.view === "by-age"
@@ -185,12 +191,13 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
   const all: SupplierRow[] = vendors.map((vendor) => {
     const row = owed.get(vendor.id);
     const itf = itf263State(vendor, now);
-    return { id: vendor.id, name: vendor.name, contact: vendor.contactName, owed: row?.owed ?? 0, overdue: row?.overdue ?? 0, paidYear: paid.get(vendor.id) ?? 0, openBills: row?.open ?? 0, currency, itf263: { state: itf.state, label: itf.label }, withheld: paid.withheld.get(vendor.id) ?? 0 };
+    return { id: vendor.id, name: vendor.name, code: vendor.code?.trim() || null, contact: vendor.contactName, owed: row?.owed ?? 0, overdue: row?.overdue ?? 0, paidYear: paid.get(vendor.id) ?? 0, openBills: row?.open ?? 0, currency, itf263: { state: itf.state, label: itf.label, expires: itf.expires }, withheld: paid.withheld.get(vendor.id) ?? 0, vatNumber: vendor.vatNumber?.trim() || null };
   });
   const owing = all.filter((row) => row.owed > 0.005);
   const missing = all.filter((row) => row.itf263.state !== "Valid");
   const byItf = (rows: SupplierRow[]) => (query.itf === "valid" ? rows.filter((row) => row.itf263.state === "Valid") : query.itf === "missing" ? rows.filter((row) => row.itf263.state !== "Valid") : rows);
-  const listed = byItf(query.view === "owed" ? owing : query.view === "missing-itf263" ? missing : all).sort((a, b) => (query.sort === "name" ? a.name.localeCompare(b.name) : b.owed - a.owed || a.name.localeCompare(b.name)));
+  const byVat = (rows: SupplierRow[]) => (query.vat === "yes" ? rows.filter((row) => row.vatNumber) : query.vat === "no" ? rows.filter((row) => !row.vatNumber) : rows);
+  const listed = byVat(byItf(query.view === "owed" ? owing : query.view === "missing-itf263" ? missing : all)).sort((a, b) => (query.sort === "name" ? a.name.localeCompare(b.name) : b.owed - a.owed || a.name.localeCompare(b.name)));
   const names = new Map(vendors.map((vendor) => [vendor.id, vendor.name]));
   const ages = query.view === "by-age" ? (await supplierAges(db, companyId, lines, names, now, base)).filter((row) => names.has(row.id)) : [];
   const skip = (query.page - 1) * pageSize;
@@ -443,6 +450,6 @@ export function suppliersCsv(view: SuppliersView): string {
       ? [["Supplier", "Up to 30 days", "31 to 60", "61 to 90", "Over 90", "We owe"], ...view.ages.map((row) => [row.name, row.current.toFixed(2), row.days30.toFixed(2), row.days60.toFixed(2), (row.days90 + row.over90).toFixed(2), row.total.toFixed(2)])]
       : view.query.view === "write-offs"
         ? [["Write-off", "Supplier", "Bill", "Why", "Date", "Amount"], ...view.writeOffs.map((row) => [row.number, row.supplier.name, row.bill.number, row.reason ?? "", row.date, row.amount.toFixed(2)])]
-        : [["Supplier", "Open bills", "We owe", "Overdue", "Paid this year"], ...view.rows.map((row) => [row.name, row.openBills, row.owed.toFixed(2), row.overdue.toFixed(2), row.paidYear.toFixed(2)])];
+        : [["Supplier", "VAT number", "ITF263", "Expires", "Open bills", "Paid this year", "Withheld this year", "We owe", "Overdue"], ...view.rows.map((row) => [row.name, row.vatNumber ?? "", row.itf263.state === "Valid" ? "On file" : row.itf263.state === "Expired" ? "Expired" : "Missing", row.itf263.expires ?? "", row.openBills, row.paidYear.toFixed(2), row.withheld.toFixed(2), row.owed.toFixed(2), row.overdue.toFixed(2)])];
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
 }

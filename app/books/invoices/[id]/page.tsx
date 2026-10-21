@@ -106,13 +106,16 @@ export default function BooksInvoicePage() {
     ? record.can.issue
       ? { label: "Issue", icon: "send" as const, shortcut: "I", onClick: () => (issue.isPending ? undefined : issue.mutate()), disabled: issue.isPending ? "Issuing it" : undefined }
       : { label: "Issue", disabled: "Your role cannot issue invoices. A manager or the accountant can." }
-    : null;
+    : record?.state.key === "overdue" && record.balance > 0.005
+      ? { label: "Send a reminder", icon: "whatsapp" as const, shortcut: "S", onClick: () => (remind.isPending ? undefined : remind.mutate()), disabled: remind.isPending ? "Sending" : undefined }
+      : null;
+  const overdue = record?.state.key === "overdue";
   // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
   const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
 
   // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2).
   const menu: MenuEntry[] = [];
-  if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
+  if (record && owing && !overdue) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
     menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
     if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
@@ -150,15 +153,15 @@ export default function BooksInvoicePage() {
             {owing ? (
               <ButtonGroup aria-label="Record a payment, and more">
                 {can?.pay ? (
-                  <ButtonLink variant="primary" icon="payments" shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+                  <ButtonLink variant={overdue ? undefined : "primary"} icon="payments" shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
                     Record a payment
                   </ButtonLink>
                 ) : (
-                  <Button variant="primary" icon="payments" shortcut="R" disabled title="Your role cannot record payments.">
+                  <Button variant={overdue ? undefined : "primary"} icon="payments" shortcut="R" disabled title="Your role cannot record payments.">
                     Record a payment
                   </Button>
                 )}
-                <MenuButton variant="primary" iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
+                <MenuButton variant={overdue ? undefined : "primary"} iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
               </ButtonGroup>
             ) : menu.length > 0 ? (
               <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />

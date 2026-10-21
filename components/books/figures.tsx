@@ -57,3 +57,16 @@ export function BooksPage({ screen, children }: { screen: string; children: Reac
     </Kit>
   );
 }
+
+/** An amount with its cents muted; a true minus. */
+export function Cents({ value, currency }: { value: number; currency: string }) {
+  const text = new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value));
+  const cut = text.lastIndexOf(".");
+  return (
+    <span className="num">
+      {value < 0 ? "−" : ""}
+      {cut < 0 ? text : text.slice(0, cut)}
+      {cut < 0 ? null : <i style={{ fontStyle: "normal", color: "var(--color-muted)" }}>{text.slice(cut)}</i>}
+    </span>
+  );
+}

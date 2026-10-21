@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { Button, Icon, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import {
@@ -17,8 +17,8 @@ import {
 } from "@/lib/books/invoices";
 import type { InvoiceState } from "@/lib/books/invoice-state";
 
-import { BkChip, BkQuietTools, BkState, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";
+import { BooksFinding, Cents } from "./figures";
 
 const TONE: Record<InvoiceState, Parameters<typeof BkState>[0]["tone"]> = {
   draft: "plain",
@@ -48,6 +48,7 @@ export function BkInvoicesView({
   data,
   onQuery,
   exportHref,
+  statementsHref,
   bulk,
   busy = false,
   canIssue,
@@ -57,6 +58,8 @@ export function BkInvoicesView({
   data: InvoicesView;
   onQuery: (next: Partial<InvoiceQuery>) => void;
   exportHref: string;
+  /** Statements for the customer in the filter, or for everyone. */
+  statementsHref: string;
   bulk: InvoiceBulk;
   busy?: boolean;
   canIssue: boolean;
@@ -65,6 +68,8 @@ export function BkInvoicesView({
   undoEntries?: (rows: InvoiceRow[]) => MenuEntry[];
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
+  const source = React.useMemo(() => data.rows, [data?.rows]);
+  const layout = useBkLayout("invoices", [{ key: "customer", label: "Customer", nth: 3 }, { key: "issued", label: "Issued", nth: 4 }, { key: "due", label: "Due", nth: 5 }, { key: "state", label: "State", nth: 6 }, { key: "fiscal", label: "FDMS", nth: 7 }, { key: "note", label: "Note", nth: 10 }], [{ key: "customer", label: "Customer", by: (row) => row.customer.name }, { key: "state", label: "State", by: (row) => row.stateLabel }], source);
   const selection = useSelection(ids);
   const query = data.query;
   const selected = data.rows.filter((row) => selection.isSelected(row.id));
@@ -138,9 +143,11 @@ export function BkInvoicesView({
           </>
         }
         filters={INVOICE_PERIODS.map((period) => ({ key: period, label: INVOICE_PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
-        end={<BkQuietTools onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} />}
+        end={<BkQuietTools middle={layout.tools} onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} extra={<Link className="btn btn-quiet" href={statementsHref}><Icon name="print" />Statements</Link>} />}
       />
-      <TableShell
+      <div className={layout.wrap} style={{ display: "contents" }}>
+{layout.style}
+<TableShell
         label="Invoices"
         foot={
           <TableFoot
@@ -180,58 +187,68 @@ export function BkInvoicesView({
           <table className="table" aria-label="Invoices">
             <colgroup>
               <col style={{ width: 44 }} />
-              <col style={{ width: 120 }} />
+              <col style={{ width: 112 }} />
               <col />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 220 }} />
-              <col style={{ width: 160 }} />
-              <col style={{ width: 150 }} />
+              <col style={{ width: 84 }} />
+              <col style={{ width: 84 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 128 }} />
+              <col style={{ width: 128 }} />
+              <col style={{ width: 168 }} />
             </colgroup>
             <thead>
               <tr>
                 <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>Invoice</th>
+                <th>Number</th>
                 <th>Customer</th>
+                <th>Issued</th>
+                <th>Due</th>
                 <th>State</th>
-                <th>When</th>
-                <th className="num">Total</th>
+                <th>FDMS</th>
+                <th className="num">Total, {data.currency}</th>
                 <th className="num">Balance</th>
+                <th>Note</th>
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row) => (
+              {layout.rows((row) => (
                 <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                   <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                   <td>
-                    <Link className={row.state === "draft" ? "muted" : "ref"} href={`/books/invoices/${row.id}`}>
-                      {row.number}
-                    </Link>
+                    {row.state === "draft" ? (
+                      <Link className="muted" href={`/books/invoices/${row.id}`}>
+                        No number
+                      </Link>
+                    ) : (
+                      <Link className="ref" href={`/books/invoices/${row.id}`}>
+                        {row.number}
+                      </Link>
+                    )}
                   </td>
                   <td>
                     <span className="cell-lead">
                       <Person name={row.customer.name} src={row.customer.image} />
                     </span>
                   </td>
+                  <td className="muted">{row.issued ?? "—"}</td>
+                  <td className="muted">{row.due ?? "—"}</td>
                   <td>
                     <BkState tone={TONE[row.state]}>{row.stateLabel}</BkState>
                   </td>
-                  <td>
-                    {row.fiscalFailed ? <span style={{ color: "var(--color-danger)" }}>Not signed by FDMS</span> : <span className="muted">{row.when}</span>}
+                  <td>{row.fiscal ? <BkState tone={row.fiscal === "Valid" ? "success" : row.fiscal === "Failed" ? "danger" : "warning"}>{row.fiscal}</BkState> : <span className="muted">—</span>}</td>
+                  <td className="num">
+                    <Cents value={row.total} currency={row.currency} />
                   </td>
-                  <td className="num muted">{money(row.total, row.currency)}</td>
-                  {row.balance > 0 && row.state !== "draft" ? (
-                    <td className="num" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
-                      {money(row.balance, row.currency)}
-                    </td>
-                  ) : (
-                    <td className="num muted">—</td>
-                  )}
+                  <td className="num">{row.balance > 0 && row.state !== "draft" ? <Cents value={row.balance} currency={row.currency} /> : <span className="muted">—</span>}</td>
+                  <td className="muted">{row.state === "draft" ? "Not issued" : row.when}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </TableShell>
+</div>
     </div>
   );
 }

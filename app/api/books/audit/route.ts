@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { refused } = await guardBooks(sessionResult.session, "view", { area: "ledger" });
     if (refused) return refused;
     const params = new URL(request.url).searchParams;
-    const query = auditQuery.parse(Object.fromEntries(["q", "kind", "dates", "page", "event"].map((key) => [key, params.get(key) ?? undefined])));
+    const query = auditQuery.parse(Object.fromEntries(["q", "kind", "dates", "who", "page", "event"].map((key) => [key, params.get(key) ?? undefined])));
     const companyId = sessionResult.session.user.companyId;
     if (params.get("format") === "csv") {
       return new NextResponse(await auditCsv(prisma, companyId, query), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="audit-trail.csv"' } });

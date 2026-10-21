@@ -8,18 +8,17 @@ import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { downloadCsv } from "@/components/books/bk-list";
 import { BkPaymentsView } from "@/components/books/bk-payments-view";
-import { ButtonLink, Kit } from "@/components/core";
 import { ReceiptVoidDrawer } from "@/components/books/receipt-actions";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
-import type { PaymentQuery, PaymentsPage } from "@/lib/books/payments";
+import { PAYMENT_BANK_LABEL, type PaymentQuery, type PaymentsPage } from "@/lib/books/payments";
 import type { ReceiptVoidResult } from "@/lib/books/void-receipt";
 
 /** Books' own form (BkPaymentNew). */
-const RECORD_PAYMENT = { label: "Record a payment", icon: "plus" as const, href: "/books/payments/new", shortcut: "N" };
+const RECORD_PAYMENT = { label: "Record a payment", icon: "plus" as const, href: "/books/payments/new", shortcut: "R" };
 
 /** What the toast says once a payment is void: where its money went and what opened again. */
 function voidedSentence(done: ReceiptVoidResult): string {
@@ -95,25 +94,20 @@ function BooksPayments() {
 
   return (
     <>
-      <PageChrome title="Payments received" primary={RECORD_PAYMENT}>
-        <Kit contents>
-          <ButtonLink href="/books/bank" icon="match">
-            Match bank lines
-          </ButtonLink>
-        </Kit>
-      </PageChrome>
+      <PageChrome title="Payments received" primary={RECORD_PAYMENT} />
       <BooksPage screen="bk-a">
         {payments.data ? (
           <BkPaymentsView
             data={payments.data}
             onQuery={onQuery}
             canVoid={canVoid}
+            matchHref="/books/bank"
             onVoid={(row) => setVoiding({ id: row.id, number: row.number })}
             onExport={(rows) =>
               downloadCsv(
                 "payments.csv",
-                ["Payment", "Date", "Customer", "For", "Into", "Currency", "Amount"],
-                rows.map((row) => [row.number, row.received, row.customer ?? "", row.voided ? "Void" : (row.invoice ?? "On account"), row.into ?? "", row.currency, row.amount.toFixed(2)]),
+                ["Number", "Customer", "Date", "Into", "How", "Paid", "Bank", "Currency", "Amount"],
+                rows.map((row) => [row.number, row.customer ?? "", row.received, row.into ?? "", row.method, row.voided ? "Void" : (row.invoice ?? "On account"), row.bank ? PAYMENT_BANK_LABEL[row.bank] : "", row.currency, row.amount.toFixed(2)]),
               )
             }
             exportHref={`/api/books/payments?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}

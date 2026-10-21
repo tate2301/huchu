@@ -2,7 +2,8 @@
 
 import * as React from "react";
 
-import { Button, Drawer, Field, Input, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, Drawer, Field, Icon, Input, Person, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import {
   JOURNAL_SORT_LABEL,
@@ -10,22 +11,24 @@ import {
   JOURNAL_STATE_WORD,
   JOURNAL_TAB_LABEL,
   JOURNAL_TABS,
+  type JournalCan,
   type JournalDetail,
   type JournalQuery,
   type JournalRow,
   type JournalsView,
 } from "@/lib/books/journals";
 
-import { Lead, n2, St } from "./bk-b";
-import { BkChip, BkQuietTools, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { n2 } from "./bk-b";
+import { BkChip, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";
+import { Cents } from "./figures";
 
-const STATE_TONE: Record<JournalRow["state"], string> = { draft: "Draft", "to-approve": "To approve", posted: "Posted", reversed: "Reversed", voided: "Void" };
+const TONE: Record<JournalRow["state"], Parameters<typeof BkState>[0]["tone"]> = { draft: "plain", "to-approve": "warning", posted: "success", reversed: "void", voided: "void" };
 
 /**
  * Books → Ledger → Journals (design/core-modules/boards/view/BkJournals.html):
- * the finding, the tabs by state, the search with Sort and Source, and six
- * columns; a draft has no number yet. A row opens its lines in a drawer.
+ * the tabs by state, the search with Period, Made by and Filters, and eight
+ * columns on 32px rows; a draft has no number yet. A row opens its lines in a
+ * drawer.
  */
 export function JournalsPageView({
   data,
@@ -41,17 +44,40 @@ export function JournalsPageView({
   exportHref: string;
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
+  const source = React.useMemo(() => data.rows, [data.rows]);
+  const layout = useBkLayout(
+    "journals",
+    [
+      { key: "narrative", label: "Narrative", nth: 3 },
+      { key: "date", label: "Date", nth: 4 },
+      { key: "by", label: "Made by", nth: 5 },
+      { key: "state", label: "State", nth: 6 },
+      { key: "note", label: "Note", nth: 8 },
+    ],
+    [
+      { key: "state", label: "State", by: (row) => JOURNAL_STATE_WORD[row.state] },
+      { key: "by", label: "Made by", by: (row) => row.madeBy.name },
+    ],
+    source,
+  );
   const selection = useSelection(ids);
   const query = data.query;
   const selected = data.rows.filter((row) => selection.isSelected(row.id));
   const drafts = selected.filter((row) => row.state === "draft");
   const { from, to, of } = data.range;
   const c = data.currency;
-  const source = data.sources.find((option) => option.value === query.source);
-  const filtered = Boolean(query.q || query.source);
+  const maker = data.makers.find((option) => option.id === query.by);
+  const sourceChosen = data.sources.find((option) => option.value === query.source);
+  const filtered = Boolean(query.q || query.source || query.by || query.period !== "any");
+
+  const filters: MenuEntry[] = [
+    { key: "any", label: "Any source", checked: !query.source, onSelect: () => onQuery({ source: "", page: 1 }) },
+    { separator: true },
+    ...data.sources.map((option) => ({ key: option.value, label: option.label, checked: query.source === option.value, onSelect: () => onQuery({ source: option.value, page: 1 }) })),
+  ];
+
   return (
-    <div className="bk">
-      <BooksFinding finding={data.finding} />
+    <div className="bk bk-dense">
       <BkTabs
         label="Journals"
         value={query.tab}
@@ -62,122 +88,151 @@ export function JournalsPageView({
         find="Search journals"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={`${of.toLocaleString("en-GB")} ${of === 1 ? "journal" : "journals"}`}
+        count={of.toLocaleString("en-GB")}
         chips={
           <>
             <BkChip
-              label="Sort"
-              value={JOURNAL_SORT_LABEL[query.sort]}
-              set={query.sort === "needs"}
-              items={JOURNAL_SORTS.map((sort) => ({ key: sort, label: JOURNAL_SORT_LABEL[sort], checked: query.sort === sort, onSelect: () => onQuery({ sort, page: 1 }) }))}
+              label="Period"
+              value={data.periodLabel}
+              set={query.period !== "any"}
+              items={data.periods.map((option) => ({ key: option.value, label: option.label, checked: query.period === option.value, onSelect: () => onQuery({ period: option.value, page: 1 }) }))}
             />
             <BkChip
-              label="Source"
-              value={source?.label ?? "Any"}
-              set={Boolean(source)}
+              label="Made by"
+              value={maker?.name ?? "Anyone"}
+              set={Boolean(maker)}
               items={[
-                { key: "any", label: "Any source", checked: !query.source, onSelect: () => onQuery({ source: "", page: 1 }) },
+                { key: "anyone", label: "Anyone", checked: !query.by, onSelect: () => onQuery({ by: "", page: 1 }) },
                 { separator: true },
-                ...data.sources.map((option) => ({ key: option.value, label: option.label, checked: query.source === option.value, onSelect: () => onQuery({ source: option.value, page: 1 }) })),
+                ...data.makers.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image ?? undefined} />, checked: query.by === option.id, onSelect: () => onQuery({ by: option.id, page: 1 }) })),
               ]}
             />
           </>
         }
-        end={<BkQuietTools exportHref={exportHref} />}
-      />
-      <TableShell
-        label="Journals"
-        foot={
-          <TableFoot
-            range={of === 0 ? "None" : `${from} to ${to} of ${of.toLocaleString("en-GB")}`}
-            sums={[
-              { label: "Drafts", value: money(data.draftTotal, c) },
-              { label: "To approve", value: money(data.waitingTotal, c) },
-            ]}
-            page={{
-              onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
-              onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
-            }}
-            selection={{
-              count: selected.length,
-              sum: { label: "Total", value: money(selected.reduce((sum, row) => sum + row.amount, 0), c) },
-              onClear: selection.clear,
-              note: selected.length > drafts.length && drafts.length ? "Only drafts post; the rest are skipped" : undefined,
-              actions: drafts.length ? (
-                <Button icon="check" onClick={() => onPost(drafts)}>
-                  Post {drafts.length}
-                </Button>
-              ) : null,
-            }}
-          />
+        filters={filters}
+        end={
+          <>
+            <MenuButton
+              variant="quiet"
+              icon="sort"
+              label="Sort"
+              items={JOURNAL_SORTS.map((sort) => ({ key: sort, label: JOURNAL_SORT_LABEL[sort], checked: query.sort === sort, onSelect: () => onQuery({ sort, page: 1 }) }))}
+            >
+              Sort
+            </MenuButton>
+            {layout.tools}
+            <a className="btn" href={exportHref} download>
+              <Icon name="export" />
+              Export
+            </a>
+          </>
         }
-      >
-        {data.rows.length === 0 ? (
-          <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-            <b>{filtered ? "No journal matches" : query.tab === "all" ? "No journals yet" : `No ${JOURNAL_TAB_LABEL[query.tab].toLowerCase()} journals`}</b>
-            <p className="muted">{filtered ? "Clear the search or the Source to see the rest." : "Make one with New journal. Documents post their own journals here as they are issued."}</p>
-          </div>
-        ) : (
-          <table className="table" aria-label="Journals">
-            <colgroup>
-              <col style={{ width: 44 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 90 }} />
-              <col />
-              <col style={{ width: 150 }} />
-              <col style={{ width: 130 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>Number</th>
-                <th>Date</th>
-                <th className="fill">Memo</th>
-                <th className="num">Amount</th>
-                <th>State</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr
-                  key={row.id}
-                  aria-selected={selection.isSelected(row.id) || undefined}
-                  tabIndex={0}
-                  style={{ cursor: "pointer" }}
-                  onClick={(event) => {
-                    if ((event.target as HTMLElement).closest("label.check")) return;
-                    onOpen(row.id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onOpen(row.id);
-                  }}
-                >
-                  <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.ref ?? row.memo}`} />
-                  <td>{row.ref ? <span className="ref">{row.ref}</span> : <span className="muted">No number yet</span>}</td>
-                  <td>
-                    <span className="muted">{row.date}</span>
-                  </td>
-                  <td className="fill truncate" title={row.memo}>
-                    <Lead sub={row.source}>{row.memo}</Lead>
-                  </td>
-                  <td className="num">{money(row.amount, c)}</td>
-                  <td>
-                    <St word={STATE_TONE[row.state]} label={JOURNAL_STATE_WORD[row.state]} />
-                  </td>
+      />
+      <div className={layout.wrap} style={{ display: "contents" }}>
+        {layout.style}
+        <TableShell
+          label="Journals"
+          foot={
+            <TableFoot
+              range={of === 0 ? "None" : `${from} to ${to} of ${of.toLocaleString("en-GB")}`}
+              page={{
+                onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
+                onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
+              }}
+              selection={{
+                count: selected.length,
+                sum: { label: "Total", value: money(selected.reduce((sum, row) => sum + row.amount, 0), c) },
+                onClear: selection.clear,
+                note: selected.length > drafts.length && drafts.length ? "Only drafts post; the rest are skipped" : undefined,
+                actions:
+                  drafts.length && data.can.post ? (
+                    <Button icon="check" onClick={() => onPost(drafts)}>
+                      Post {drafts.length}
+                    </Button>
+                  ) : null,
+              }}
+            />
+          }
+        >
+          {data.rows.length === 0 ? (
+            <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+              <b>{filtered ? "No journal matches" : query.tab === "all" ? "No journals yet" : `No ${JOURNAL_TAB_LABEL[query.tab].toLowerCase()} journals`}</b>
+            </div>
+          ) : (
+            <table className="table" aria-label="Journals">
+              <colgroup>
+                <col style={{ width: 44 }} />
+                <col style={{ width: 112 }} />
+                <col />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 168 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 280 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every journal" />
+                  <th>Number</th>
+                  <th>Narrative</th>
+                  <th>Date</th>
+                  <th>Made by</th>
+                  <th>State</th>
+                  <th className="num">Amount, {c}</th>
+                  <th>Note</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableShell>
+              </thead>
+              <tbody>
+                {layout.rows((row) => (
+                  <tr
+                    key={row.id}
+                    aria-selected={selection.isSelected(row.id) || undefined}
+                    tabIndex={0}
+                    style={{ cursor: "pointer" }}
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest("label.check")) return;
+                      onOpen(row.id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") onOpen(row.id);
+                    }}
+                  >
+                    <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.ref ?? row.memo}`} />
+                    <td>{row.ref ? <span className="ref">{row.ref}</span> : <span className="muted">No number</span>}</td>
+                    <td className="fill truncate" title={row.memo}>
+                      <span className="cell-lead">{row.memo}</span>
+                    </td>
+                    <td className="muted">{row.date}</td>
+                    <td>
+                      <span className="cell-lead">
+                        <Person name={row.madeBy.name} src={row.madeBy.image ?? undefined} />
+                      </span>
+                    </td>
+                    <td>
+                      <BkState tone={TONE[row.state]}>{JOURNAL_STATE_WORD[row.state]}</BkState>
+                    </td>
+                    <td className="num">
+                      <Cents value={row.amount} currency={c} />
+                    </td>
+                    <td className="muted truncate" title={row.note ?? undefined}>
+                      {row.note}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </TableShell>
+      </div>
     </div>
   );
 }
 
 /**
- * One journal in a drawer: its lines with their cost centres, the slip, and
- * what can be done by its state. Post (or send for a second person), Approve
- * and post, Send back, Delete a draft; Reverse a posted manual journal.
+ * One journal in a drawer: its lines with their cost centres, and what can be
+ * done by its state and by this person's rights. Post (or send for a second
+ * person), Approve and post, Send back, Delete a draft; Reverse a posted
+ * manual journal, for the owner or whoever may void.
  */
 export function JournalDrawer({
   journal,
@@ -185,12 +240,14 @@ export function JournalDrawer({
   onOpenChange,
   onAct,
   busy,
+  can,
 }: {
   journal: JournalDetail | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAct: (action: "post" | "approve" | "withdraw" | "reverse" | "delete", input: { reason?: string; periodOverrideReason?: string }) => void;
   busy: boolean;
+  can: JournalCan | null;
 }) {
   const [reason, setReason] = React.useState("");
   const [reversing, setReversing] = React.useState(false);
@@ -200,16 +257,20 @@ export function JournalDrawer({
   }, [journal?.id, open]);
   const state = journal?.state;
   const title = journal ? journal.ref ?? "Draft journal" : "Journal";
-  const footer = !journal ? null : state === "draft" ? (
+  const footer = !journal || !can ? null : state === "draft" ? (
     <>
-      <Button variant="quiet" icon="x" disabled={busy} onClick={() => onAct("delete", {})}>
-        Delete the draft
-      </Button>
-      <Button variant="primary" icon="check" shortcut="Ctrl ↵" busy={busy} disabled={busy || (journal.needsReason && reason.trim().length < 3)} onClick={() => onAct("post", { periodOverrideReason: reason.trim() || undefined })}>
-        Post this journal
-      </Button>
+      {can.deleteDraft ? (
+        <Button variant="quiet" icon="x" disabled={busy} onClick={() => onAct("delete", {})}>
+          Delete the draft
+        </Button>
+      ) : null}
+      {can.post ? (
+        <Button variant="primary" icon="check" shortcut="Ctrl ↵" busy={busy} disabled={busy || (journal.needsReason && reason.trim().length < 3)} onClick={() => onAct("post", { periodOverrideReason: reason.trim() || undefined })}>
+          Post this journal
+        </Button>
+      ) : null}
     </>
-  ) : state === "to-approve" ? (
+  ) : state === "to-approve" && can.post ? (
     <>
       <Button disabled={busy} onClick={() => onAct("withdraw", { reason: reason.trim() || undefined })}>
         Send back
@@ -218,7 +279,7 @@ export function JournalDrawer({
         Approve and post
       </Button>
     </>
-  ) : state === "posted" && journal.manual ? (
+  ) : state === "posted" && journal.manual && can.reverse ? (
     reversing ? (
       <>
         <Button variant="quiet" onClick={() => setReversing(false)}>
@@ -237,10 +298,10 @@ export function JournalDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} title={title} sub={journal ? journal.meta : undefined} width={640} footer={footer}>
       {journal ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 16 }}>
+        <div className="bk-dense" style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 16 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "baseline", padding: "16px 24px 0" }}>
             <b style={{ fontSize: 16, color: "var(--color-ink)", flex: 1 }}>{journal.memo}</b>
-            <St word={STATE_TONE[journal.state]} label={JOURNAL_STATE_WORD[journal.state]} />
+            <BkState tone={TONE[journal.state]}>{JOURNAL_STATE_WORD[journal.state]}</BkState>
           </div>
           <table className="table" style={{ tableLayout: "fixed" }} aria-label="Lines">
             <colgroup>
@@ -261,7 +322,7 @@ export function JournalDrawer({
               {journal.lines.map((line, index) => (
                 <tr key={index}>
                   <td className="truncate">
-                    <span className="ref">{line.code}</span> {line.account}
+                    <span className="bk-code">{line.code}</span> {line.account}
                   </td>
                   <td className="truncate">{line.costCentre ?? <span className="muted">General</span>}</td>
                   <td className="num">{line.debit ? n2(line.debit) : ""}</td>
@@ -278,7 +339,7 @@ export function JournalDrawer({
               </tr>
             </tfoot>
           </table>
-          {[journal.currencyNote, journal.waitingFor, journal.link, journal.periodNote].filter(Boolean).map((note) => (
+          {[journal.currencyNote, journal.waitingFor, journal.link].filter(Boolean).map((note) => (
             <span key={note} className="muted" style={{ padding: "0 24px" }}>
               {note}
             </span>
@@ -297,7 +358,7 @@ export function JournalDrawer({
           ) : null}
           {reversing ? (
             <div style={{ padding: "0 24px" }}>
-              <Field label="Why it is reversed" htmlFor="journal-reason" help="Kept in the audit trail. The mirror is dated today.">
+              <Field label="Why it is reversed" htmlFor="journal-reason">
                 <Input id="journal-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
               </Field>
             </div>

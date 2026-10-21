@@ -3,21 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { Button, Icon, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { money } from "@/lib/books/format";
-import { PAYMENT_PERIOD_LABEL, PAYMENT_PERIODS, PAYMENT_TAB_LABEL, PAYMENT_VIEWS, type PaymentQuery, type PaymentRow, type PaymentsView } from "@/lib/books/payments";
+import { count, money } from "@/lib/books/format";
+import { PAYMENT_BANK_LABEL, PAYMENT_PERIOD_LABEL, PAYMENT_PERIODS, PAYMENT_TAB_LABEL, PAYMENT_VIEWS, PAYMENTS_PAGE_SIZE, type PaymentQuery, type PaymentRow, type PaymentsView } from "@/lib/books/payments";
 
-import { BkChip, BkQuietTools, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";
+import { Cents } from "./figures";
 
 /**
- * Books → Sales → Payments received (design/core-modules/boards/view/BkPaymentsIn.html):
- * this month's money in and what of it sits on account, the tabs, the search
- * and filters, and six columns. A void payment stays listed, struck through,
- * and in no sum. Selecting one offers Void to whoever may (the owner, or a
+ * Books → Sales → Payments received (design/books/html/bk-payments.html): the
+ * tabs, the search and filters, eight columns on one line each, the total, and
+ * the one payment on no invoice whose customer owes. A void payment stays
+ * listed, struck through, and in no sum. Selecting one offers Void to whoever may (the owner, or a
  * granted manager or accountant); the server refuses on its own.
  */
+/** The totals row: on the fill, sticking to the bottom of the scroll, as the design draws it. */
+const footCell: React.CSSProperties = { position: "sticky", bottom: 0, zIndex: 1, height: 40, background: "var(--color-fill)", color: "var(--color-ink)", fontWeight: 600, whiteSpace: "nowrap" };
+
 export function BkPaymentsView({
   data,
   onQuery,
@@ -26,6 +29,7 @@ export function BkPaymentsView({
   onVoid,
   onExport,
   undoEntries,
+  matchHref,
 }: {
   data: PaymentsView;
   onQuery: (next: Partial<PaymentQuery>) => void;
@@ -35,8 +39,12 @@ export function BkPaymentsView({
   onExport: (rows: PaymentRow[]) => void;
   /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
   undoEntries?: (rows: PaymentRow[]) => MenuEntry[];
+  /** Bank → To match, where payments wait for their statement line. */
+  matchHref: string;
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
+  const source = React.useMemo(() => data.rows, [data?.rows]);
+  const layout = useBkLayout("payments", [{ key: "customer", label: "Customer", nth: 3 }, { key: "date", label: "Date", nth: 4 }, { key: "into", label: "Into", nth: 5 }, { key: "how", label: "How", nth: 6 }, { key: "paid", label: "Paid", nth: 7 }, { key: "bank", label: "Bank", nth: 8 }], [{ key: "customer", label: "Customer", by: (row) => row.customer ?? "On account" }, { key: "into", label: "Into", by: (row) => row.into ?? "No account" }, { key: "how", label: "How", by: (row) => row.method }], source);
   const selection = useSelection(ids);
   const query = data.query;
   const selected = data.rows.filter((row) => selection.isSelected(row.id));
@@ -48,7 +56,6 @@ export function BkPaymentsView({
 
   return (
     <div className="bk">
-      <BooksFinding finding={data.finding} />
       <BkTabs
         label="Payment views"
         value={query.view}
@@ -59,7 +66,7 @@ export function BkPaymentsView({
         find="Search payments"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={of === 1 ? "1 payment" : `${of.toLocaleString("en-GB")} payments`}
+        count={of.toLocaleString("en-GB")}
         chips={
           <>
             <BkChip
@@ -73,8 +80,8 @@ export function BkPaymentsView({
               ]}
             />
             <BkChip
-              label="Into"
-              value={account?.name ?? "Any account"}
+              label="Account"
+              value={account?.name ?? "Any"}
               set={Boolean(account)}
               items={[
                 { key: "any", label: "Any account", checked: !query.account, onSelect: () => onQuery({ account: null, page: 1 }) },
@@ -82,20 +89,24 @@ export function BkPaymentsView({
                 ...data.accounts.map((option) => ({ key: option.id, label: option.name, checked: query.account === option.id, onSelect: () => onQuery({ account: option.id, page: 1 }) })),
               ]}
             />
+            <BkChip
+              label="Date"
+              value={query.period === "any" ? "Any" : PAYMENT_PERIOD_LABEL[query.period]}
+              set={query.period !== "any"}
+              items={PAYMENT_PERIODS.map((period) => ({ key: period, label: PAYMENT_PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
+            />
           </>
         }
         filters={PAYMENT_PERIODS.map((period) => ({ key: period, label: PAYMENT_PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
-        end={<BkQuietTools onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} />}
+        end={<BkQuietTools middle={layout.tools} onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} extra={<Link className="btn btn-quiet" href={matchHref}><Icon name="match" />Match bank lines</Link>} />}
       />
-      <TableShell
+      <div className={layout.wrap} style={{ display: "contents" }}>
+{layout.style}
+<TableShell
         label="Payments received"
         foot={
           <TableFoot
-            range={of === 0 ? "None" : `${from} to ${to} of ${of}`}
-            sums={[
-              { label: data.month.name, value: money(data.month.amount, data.currency) },
-              { label: "On account", value: money(data.month.onAccount, data.currency) },
-            ]}
+            range={of === 0 ? "None" : `${from}–${to} of ${of} · Rows ${PAYMENTS_PAGE_SIZE}`}
             page={{
               onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
               onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
@@ -130,67 +141,98 @@ export function BkPaymentsView({
             <p className="muted">{filtered || query.view !== "all" ? "Clear the search or the filters to see the rest." : "Record one with Record a payment."}</p>
           </div>
         ) : (
-          <table className="table" aria-label="Payments received">
-            <colgroup>
-              <col style={{ width: 44 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 80 }} />
-              <col style={{ width: 230 }} />
-              <col />
-              <col style={{ width: 170 }} />
-              <col style={{ width: 190 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>Payment</th>
-                <th>Date</th>
-                <th>Customer</th>
-                <th>For</th>
-                <th>Into</th>
-                <th className="num">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
-                  <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
-                  <td>
-                    <span className="ref">{row.number}</span>
+          <>
+            <table className="table" aria-label="Payments received">
+              <colgroup>
+                <col style={{ width: 44 }} />
+                <col style={{ width: 112 }} />
+                <col />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 176 }} />
+                <col style={{ width: 136 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 144 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every payment" />
+                  <th>Number</th>
+                  <th>Customer</th>
+                  <th>Date</th>
+                  <th>Into</th>
+                  <th>How</th>
+                  <th>Paid</th>
+                  <th>Bank</th>
+                  <th className="num">Amount, {data.currency}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {layout.rows((row) => (
+                  <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
+                    <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
+                    <td>
+                      <span className="ref">{row.number}</span>
+                    </td>
+                    <td>
+                      <span className="cell-lead">{row.customer ? <Person name={row.customer} src={row.customerImage} /> : "Not named"}</span>
+                    </td>
+                    <td className="muted">{row.received}</td>
+                    <td>{row.into ?? <span className="muted">—</span>}</td>
+                    <td className="muted">{row.method}</td>
+                    <td>
+                      {row.voided ? (
+                        <span className="muted" title={row.voided.reason ?? undefined}>
+                          Void{row.voided.by ? `, ${row.voided.by}` : ""} {row.voided.on}
+                        </span>
+                      ) : row.invoiceId ? (
+                        <Link className="ref" href={`/books/invoices/${row.invoiceId}`}>
+                          {row.invoice}
+                        </Link>
+                      ) : (
+                        <BkState tone="warning">On account</BkState>
+                      )}
+                    </td>
+                    <td>
+                      {row.bank ? <BkState tone={row.bank === "matched" ? "void" : "warning"}>{PAYMENT_BANK_LABEL[row.bank]}</BkState> : <span className="muted">—</span>}
+                    </td>
+                    <td className="num" style={row.voided ? { textDecoration: "line-through", color: "var(--color-muted)" } : undefined}>
+                      <Cents value={row.amount} currency={row.currency} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td style={footCell} />
+                  <td style={footCell} colSpan={7}>
+                    {count(of, "payment")}
                   </td>
-                  <td className="muted">{row.received}</td>
-                  <td>
-                    <span className="cell-lead">{row.customer ? <Person name={row.customer} src={row.customerImage} /> : "Not named"}</span>
-                  </td>
-                  <td className="fill">
-                    {row.voided ? (
-                      <span className="muted" title={row.voided.reason ?? undefined}>
-                        Void
-                        {row.voided.by ? (
-                          <>
-                            , <Person name={row.voided.by} src={row.voided.byImage} />
-                          </>
-                        ) : null}{" "}
-                        {row.voided.on}
-                      </span>
-                    ) : row.invoiceId ? (
-                      <Link className="ref" href={`/books/invoices/${row.invoiceId}`}>
-                        {row.invoice}
-                      </Link>
-                    ) : (
-                      <span className="muted">On account</span>
-                    )}
-                  </td>
-                  <td className="muted">{row.into}</td>
-                  <td className="num" style={row.voided ? { textDecoration: "line-through", color: "var(--color-muted)" } : undefined}>
-                    {money(row.amount, row.currency)}
+                  <td style={footCell} className="num">
+                    <Cents value={data.received} currency={data.currency} />
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </tfoot>
+            </table>
+            {data.allocate ? (
+              <div className="bk-box warn bk-callout" data-note="warn">
+                <Icon name="warn" />
+                <span className="grow">
+                  <b>
+                    {data.allocate.customer} paid <Cents value={data.allocate.amount} currency={data.allocate.currency} /> with no invoice named.
+                  </b>{" "}
+                  They owe <Cents value={data.allocate.invoice.owed} currency={data.allocate.currency} /> on {data.allocate.invoice.number}. Allocate it there?
+                </span>
+                <Link className="btn" href={`/books/invoices/${data.allocate.invoice.id}`}>
+                  <Icon name="check" />
+                  Allocate to {data.allocate.invoice.number}
+                </Link>
+              </div>
+            ) : null}
+          </>
         )}
       </TableShell>
+</div>
     </div>
   );
 }

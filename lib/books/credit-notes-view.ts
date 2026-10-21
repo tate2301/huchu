@@ -46,6 +46,9 @@ export type CreditRow = {
   amount: number;
   currency: string;
   date: string;
+  /** The VAT on a credit note, and where FDMS has got to with it; a write-off has neither. */
+  vat: number | null;
+  fiscal: "Valid" | "Pending" | "Failed" | null;
 };
 
 export type CreditNotesView = {
@@ -56,6 +59,8 @@ export type CreditNotesView = {
   /** This month's credits (or write-offs) and the drafts waiting, in `currency`. */
   month: { name: string; amount: number; drafts: number };
   currency: string;
+  /** What the filters match, in `currency`, the void left out: the totals row. */
+  totals: { vat: number | null; amount: number };
   customers: Array<{ id: string; name: string; image?: string | null }>;
   query: CreditQuery;
 };

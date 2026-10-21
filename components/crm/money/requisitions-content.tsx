@@ -41,7 +41,7 @@ type ListResponse = {
 
 const QUEUES: Array<{ value: Queue; label: string }> = [
   { value: "MINE", label: "Mine" },
-  { value: "AWAITING_DECISION", label: "Waiting on me" },
+  { value: "AWAITING_DECISION", label: "To approve" },
   { value: "APPROVED", label: "Approved" },
   { value: "OUTSTANDING", label: "Outstanding" },
 ];
