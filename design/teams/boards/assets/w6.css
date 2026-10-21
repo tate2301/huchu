@@ -1,0 +1,140 @@
+/* W6 · Mufaro Hardware sets up Tender. Layer over teams.css and onboarding.css; every class starts w6-. */
+
+/* fields */
+.w6-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s4) var(--s5); max-width: 720px; }
+.w6-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.w6-f--wide { grid-column: 1 / -1; }
+.w6-l { color: var(--ink-2); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.w6-l .i { width: 14px; height: 14px; color: var(--ink-3); }
+.w6-in { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 9px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--ink); font-size: var(--t-body); white-space: nowrap; overflow: hidden; }
+.w6-in .i { width: 15px; height: 15px; color: var(--ink-3); }
+.w6-in--focus { box-shadow: inset 0 0 0 1px var(--action), 0 0 0 3px var(--sel-bg); }
+.w6-in--ok { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.w6-in--bad { box-shadow: inset 0 0 0 1px var(--bad), 0 0 0 3px var(--bad-soft); }
+.w6-in__end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: var(--t-cap); }
+.w6-in__end--ok { color: var(--ok); }
+.w6-in__end--bad { color: var(--bad); }
+.w6-caret { width: 1.5px; height: 18px; background: var(--action); animation: w6blink 1s steps(1) infinite; margin-left: -6px; }
+@keyframes w6blink { 50% { opacity: 0; } }
+.w6-err { color: var(--bad); font-size: var(--t-cap); font-weight: 500; }
+.w6-logo { display: flex; align-items: center; gap: var(--s3); }
+
+/* switch */
+.w6-sw { width: 34px; height: 20px; border-radius: 99px; background: var(--line-strong); position: relative; flex: none; transition: background-color 160ms var(--ease); }
+.w6-sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 99px; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22); transition: left 160ms var(--ease); }
+.w6-sw--on { background: var(--action-fill); }
+.w6-sw--on::after { left: 16px; }
+
+/* rows of tills, payment methods and people */
+.w6-rows { display: flex; flex-direction: column; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; max-width: 760px; }
+.w6-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: var(--s3); align-items: center; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); min-height: 64px; box-sizing: border-box; }
+.w6-row:last-child { border-bottom: 0; }
+.w6-row--open { background: var(--ground); align-items: start; }
+.w6-row__mark { width: 40px; height: 40px; border-radius: 10px; background: var(--tray); color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; }
+.w6-row__mark .i { width: 20px; height: 20px; }
+.w6-row__t { color: var(--ink); font-weight: 600; }
+.w6-row__s { color: var(--ink-3); font-size: var(--t-cap); margin-top: 2px; }
+.w6-row__end { display: flex; align-items: center; gap: var(--s2); }
+.w6-row__body { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--s3); padding-top: 4px; }
+
+/* the six-digit pairing code */
+.w6-code { display: flex; gap: 8px; align-items: center; }
+.w6-code span { width: 44px; height: 52px; border-radius: 10px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.w6-code span.is-now { box-shadow: inset 0 0 0 1.5px var(--action), 0 0 0 3px var(--sel-bg); }
+.w6-code i { width: 8px; }
+
+/* a Counter Mini drawn small, for the tills step */
+.w6-mini { width: 220px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 0; }
+.w6-mini__screen { width: 220px; height: 136px; border-radius: 12px; background: #24140e; padding: 8px; box-sizing: border-box; box-shadow: 0 12px 28px -12px rgba(36, 20, 14, 0.5); }
+.w6-mini__in { width: 100%; height: 100%; border-radius: 6px; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.w6-mini__code { font-size: 22px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.w6-mini__base { width: 120px; height: 22px; background: linear-gradient(180deg, #3a2a22, #24140e); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); margin-top: -2px; }
+
+/* receipt preview */
+.w6-receipt { width: 272px; align-self: center; background: #fff; padding: 18px 18px 26px; font-family: var(--font-mono); font-size: 11px; line-height: 1.55; color: #2b2622; box-shadow: 0 0 0 1px rgba(36, 20, 14, 0.07), 0 18px 36px -18px rgba(36, 20, 14, 0.35); position: relative; animation: arrive 320ms var(--ease-out) both; }
+.w6-receipt::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; background: linear-gradient(-45deg, transparent 6px, #fff 0) 0 0 / 12px 8px repeat-x, linear-gradient(45deg, transparent 6px, #fff 0) 0 0 / 12px 8px repeat-x; }
+.w6-receipt__c { text-align: center; }
+.w6-receipt__b { font-weight: 600; font-size: 12.5px; }
+.w6-receipt__hr { border-top: 1px dashed #cfc6bd; margin: 8px 0; }
+.w6-receipt__r { display: flex; justify-content: space-between; gap: 8px; }
+.w6-receipt__qr { width: 64px; height: 64px; margin: 6px auto 0; border: 1.5px dashed #cfc6bd; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #a89c94; }
+.w6-receipt__qr .i { width: 22px; height: 22px; }
+.w6-receipt__logo { width: 34px; height: 34px; border-radius: 9px; background: #b84a0c; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.w6-hl { background: #fff3c4; box-shadow: 0 0 0 3px #fff3c4; border-radius: 2px; }
+
+/* side preview pane */
+.w6-prev { background: var(--ground); border-left: 1px solid var(--line); padding: var(--s6) var(--s5); display: flex; flex-direction: column; gap: var(--s4); min-height: 0; }
+.w6-prev__h { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; }
+
+/* the till's pay screen, small */
+.w6-payprev { background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px rgba(36, 20, 14, 0.07), 0 18px 36px -18px rgba(36, 20, 14, 0.3); padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+.w6-payprev__due { color: var(--ink); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.w6-payprev__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.w6-paybtn { height: 56px; border-radius: 10px; background: var(--tray); display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--ink); font-weight: 600; font-size: var(--t-body); }
+.w6-paybtn .i { width: 20px; height: 20px; color: var(--ink-2); }
+.w6-paybtn--off { background: transparent; box-shadow: inset 0 0 0 1px dashed var(--line); color: var(--faint); border: 1.5px dashed var(--line-strong); }
+.w6-paybtn--off .i { color: var(--faint); }
+.w6-paybtn--new { animation: w6pop 420ms var(--ease-out) both; }
+@keyframes w6pop { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+/* what a role can do */
+.w6-can { display: grid; grid-template-columns: 1fr 1fr; gap: 2px var(--s4); }
+.w6-can__i { display: flex; align-items: center; gap: 8px; min-height: 30px; color: var(--ink); }
+.w6-can__i .i { width: 15px; height: 15px; color: var(--ok); }
+.w6-can__i--no { color: var(--faint); }
+.w6-can__i--no .i { color: var(--faint); }
+
+/* PIN boxes in the add-a-person panel */
+.w6-pin { display: flex; gap: 8px; }
+.w6-pin span { width: 40px; height: 44px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); display: inline-flex; align-items: center; justify-content: center; }
+.w6-pin span b { width: 10px; height: 10px; border-radius: 99px; background: var(--ink); }
+.w6-pin--bad span { box-shadow: inset 0 0 0 1px var(--bad); }
+
+/* ── the Counter Mini, full size ───────────────────────────────────────────── */
+.w6-board { width: 1120px; height: 700px; background: #fff; display: flex; align-items: center; justify-content: center; }
+.w6-dev { width: 1064px; height: 644px; border-radius: 30px; background: #24140e; padding: 22px; box-sizing: border-box; box-shadow: 0 30px 60px -30px rgba(36, 20, 14, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.06); position: relative; }
+.w6-dev::after { content: ""; position: absolute; top: 9px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 99px; background: #4a3a33; }
+.w6-scr { width: 1020px; height: 600px; border-radius: 10px; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.w6-scr__bar { height: 52px; flex: none; display: flex; align-items: center; gap: var(--s3); padding: 0 var(--s5); border-bottom: 1px solid var(--line); color: var(--ink-2); }
+.w6-scr__bar .i { width: 18px; height: 18px; }
+.w6-big { color: var(--ink); font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
+.w6-bigcode { display: flex; gap: 14px; }
+.w6-bigcode span { width: 76px; height: 96px; border-radius: 16px; background: var(--tray); display: inline-flex; align-items: center; justify-content: center; color: var(--ink); font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums; animation: w6pop 360ms var(--ease-out) both; }
+.w6-bigcode span:nth-child(2) { animation-delay: 40ms; } .w6-bigcode span:nth-child(3) { animation-delay: 80ms; } .w6-bigcode span:nth-child(5) { animation-delay: 120ms; } .w6-bigcode span:nth-child(6) { animation-delay: 160ms; } .w6-bigcode span:nth-child(7) { animation-delay: 200ms; }
+.w6-bigcode i { width: 18px; }
+.w6-timer { height: 6px; width: 520px; border-radius: 99px; background: var(--tray); overflow: hidden; }
+.w6-timer i { display: block; height: 100%; width: 62%; background: var(--action); border-radius: 99px; }
+
+/* sign in with a PIN */
+.w6-who { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4); }
+.w6-who__p { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: var(--s4) var(--s2); border-radius: 16px; color: var(--ink); font-weight: 600; font-size: 16px; text-align: center; }
+.w6-who__p img, .w6-who__p .face { width: 80px; height: 80px; }
+.w6-who__p small { color: var(--ink-3); font-weight: 500; font-size: 13px; margin-top: -6px; }
+.w6-who__p--on { background: var(--sel-bg); box-shadow: inset 0 0 0 2px var(--ink); }
+.w6-dots { display: flex; gap: 16px; justify-content: center; }
+.w6-dots b { width: 16px; height: 16px; border-radius: 99px; box-shadow: inset 0 0 0 2px var(--line-strong); }
+.w6-dots b.on { background: var(--ink); box-shadow: none; animation: w6pop 200ms var(--ease-out) both; }
+.w6-keys { display: grid; grid-template-columns: repeat(3, 96px); gap: 10px; justify-content: center; }
+.w6-key { height: 64px; border-radius: 14px; background: var(--tray); border: 0; color: var(--ink); font: inherit; font-size: 26px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.w6-key .i { width: 24px; height: 24px; color: var(--ink-2); }
+.w6-key--down { background: var(--active); transform: scale(0.96); }
+.w6-key--go { background: var(--action-fill); color: var(--on-action); font-size: 18px; }
+
+/* ── practice sale preview ─────────────────────────────────────────────────── */
+.w6-practice { position: relative; border-radius: 16px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--line); padding: var(--s5); display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: var(--s5); max-width: 760px; }
+.w6-practice__tag { position: absolute; top: -12px; left: var(--s5); height: 24px; padding: 0 10px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); font-size: var(--t-cap); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; box-shadow: inset 0 0 0 1px var(--warn-line); }
+.w6-line { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 40px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.w6-line__q { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.w6-line__v { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* failures */
+.w6-fail { width: 1440px; height: 900px; box-sizing: border-box; padding: var(--s6); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s6) var(--s5); align-content: start; background: #fff; }
+.w6-fail__c { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.w6-fail__n { color: var(--ink); font-weight: 600; }
+.w6-fail__f { border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); background: var(--surface); }
+
+@media (prefers-reduced-motion: reduce) {
+  .w6-receipt, .w6-bigcode span, .w6-dots b.on, .w6-paybtn--new, .w6-caret { animation: none; }
+}
+.w6-in__end--ok .i { color: var(--ok); }
+.w6-in__end--bad .i { color: var(--bad); }

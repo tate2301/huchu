@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
-import { PANEL_COOKIE } from "@/lib/rail/panel-cookie";
+import { PANEL_COOKIE } from "@/lib/nav/panel-cookie";
 
 /**
  * The shell's own state (00-foundations 5.3): whether the module panel is

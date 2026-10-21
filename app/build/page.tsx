@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BuildFrame, BuildError, BuildLoading } from "@/components/build/build-frame";
-import { useMounted } from "@/components/layout/workspace-rail/module-groups";
+import { useMounted } from "@/hooks/use-mounted";
 import { BuildHomeView } from "@/components/build/build-home-view";
 import { BUILD_HOME_KEY, fetchBuildHome } from "@/components/build/build-data";
 import { NewDrawer } from "@/components/build/new-drawer";

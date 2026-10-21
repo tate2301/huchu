@@ -435,7 +435,7 @@ describe("workspace sidebar model", () => {
         "/retail/sales",
         "/retail/shifts",
         "/retail/laybys",
-        "/retail/end-of-day",
+        "/retail/shifts/end-of-day",
         "/retail/customers",
       ]);
     });

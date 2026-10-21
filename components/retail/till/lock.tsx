@@ -37,12 +37,14 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useToast } from "@/components/ui/use-toast";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CheckCircle, Key, UserSwitch } from "@/lib/icons";
+import { UserSwitch } from "@/lib/icons";
 import { TILL_LOCK_COOKIE, TILL_PIN_LOCKED, tillPinDenial } from "@/lib/retail/till-pin";
 import type { TillPinStatus } from "@/lib/retail/till-pin-status";
-import { count, firstName, pairedWhen } from "./format";
-import { Avatar, ErrorLine, GateSide, Keypad, KeysPaused, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
+import { count, firstName } from "./format";
+import { GateButton, GateError, GateFrame, GateStrip, GateWho, PinLockedSide, PinPad } from "./gate";
+import { KeysPaused, PinDots, useKeypadKeys, type KeypadKey } from "./parts";
 import { useSignOut } from "./sign-out";
 import { useTill } from "./state";
 
@@ -169,6 +171,13 @@ export function TillLockProvider({
   );
 }
 
+/** The strip over the lock: the till's details can come from the device's cache, which the server does not have. */
+function LockStrip() {
+  const { context: known } = useTill();
+  const context = useHydrated() ? known : null;
+  return <GateStrip shop={context?.site.name} till={context?.till.name} logo={context?.receipt.logoUrl} />;
+}
+
 function LockScreen({ onUnlocked }: { onUnlocked: (mustChange: boolean, typed: string) => void }) {
   const { data: session } = useSession();
   const { shiftHere, cart, context } = useTill();
@@ -232,68 +241,68 @@ function LockScreen({ onUnlocked }: { onUnlocked: (mustChange: boolean, typed: s
   useKeypadKeys(onKey, !pinLocked);
 
   const items = cart.reduce((sum, item) => sum + (Number.isInteger(item.quantity) ? item.quantity : 1), 0);
-  const side = (
-    <GateSide
-      lede={context ? `${context.till.name} at ${context.site.name}.` : tillName}
-      quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
-      step="done"
-      till={context?.till.name}
-    />
-  );
+  const image = session?.user?.image;
 
   return (
-    <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+    <GateFrame
+      ref={screen}
+      className="is-over"
+      strip={<LockStrip />}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+    >
       {pinLocked ? (
-        <div className="gate-form">
-          <div className="who-head">
-            <Avatar name={name} image={session?.user?.image} size={40} />
-            <div>
-              <h1 id={titleId} className="text-title">{firstName(name)}’s PIN is locked</h1>
-              <p className="muted">{TILL_PIN_LOCKED}</p>
-            </div>
-          </div>
-          <PinDots length={4} wrong label="PIN locked" />
-          <p>Until a new one comes, {firstName(name)} signs in with their password, or someone else sells.</p>
-          <div className="actions">
-            <button type="button" className="btn btn-lg grow" onClick={() => requestSignOut({ next: "password" })}>
-              <Key className="ic" />
-              Use my password
-            </button>
-            <button type="button" className="btn btn-lg grow" onClick={someoneElse}>
-              <UserSwitch className="ic" />
-              Someone else
-            </button>
-          </div>
-        </div>
+        <>
+          <section className="gate-l">
+            <GateWho
+              name={name}
+              image={image}
+              titleId={titleId}
+              title={`${firstName(name)}’s PIN is locked`}
+              sub={TILL_PIN_LOCKED}
+              bad
+            />
+          </section>
+          <PinLockedSide onPassword={() => requestSignOut({ next: "password" })} onSomeoneElse={someoneElse} />
+        </>
       ) : (
-        <div className="gate-form">
-          <div className="who-head">
-            <Avatar name={name} image={session?.user?.image} size={40} />
-            <div>
-              <h1 id={titleId} className="text-title">{tillName} is locked</h1>
-              <p className="muted">
-                {name}
-                {shiftHere ? (
-                  <>
-                    {" · "}
-                    <span className="num">{shiftHere.shiftNo}</span>
-                  </>
-                ) : null}
-                {items ? ` · ${count(items, "item")} waiting` : ""}
-              </p>
+        <>
+          <section className="gate-l">
+            <GateWho
+              name={name}
+              image={image}
+              titleId={titleId}
+              title={`${tillName} is locked`}
+              sub={
+                <>
+                  {name}
+                  {shiftHere ? (
+                    <>
+                      {" · "}
+                      <span className="num">{shiftHere.shiftNo}</span>
+                    </>
+                  ) : null}
+                  {items ? ` · ${count(items, "item")} waiting` : ""}
+                </>
+              }
+            />
+            <div className="gate-foot">
+              <GateButton icon={UserSwitch} onClick={someoneElse}>
+                Someone else
+              </GateButton>
             </div>
-          </div>
-          <PinDots length={pin.length} wrong={Boolean(error)} />
-          {error ? <ErrorLine large>{error}</ErrorLine> : null}
-          <Keypad onKey={onKey} disabled={checking} />
-          <button type="button" className="btn btn-lg" onClick={someoneElse}>
-            <UserSwitch className="ic" />
-            Someone else
-          </button>
-        </div>
+          </section>
+          <section className="gate-r">
+            <div className="gate-pinl">{firstName(name)}’s PIN</div>
+            <PinDots length={pin.length} wrong={Boolean(error)} />
+            {error ? <GateError>{error}</GateError> : null}
+            <PinPad onKey={onKey} onGo={() => pin.length === 4 && void submit(pin)} goLabel="Unlock" busy={checking} />
+          </section>
+        </>
       )}
-      {side}
-    </div>
+    </GateFrame>
   );
 }
 
@@ -309,14 +318,11 @@ const MISMATCH = "Those two do not match. Type your new PIN again.";
  * `currentPin` is the sent PIN when it was typed at the lock; a session opened
  * with it needs none (`chooseTillPin`).
  *
- * It says what is happening at each step: that the sent PIN worked and they are
- * signed in, which row they are typing, that the first entry can be their PIN
- * (asked of the server at once, so the sent PIN is refused before it is typed
- * twice), and, once saved, that their PIN is set.
+ * The first entry is asked of the server at once, so the sent PIN, or one too
+ * easy to guess, is refused before it is typed twice.
  */
 function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; onChosen: () => void }) {
   const { data: session } = useSession();
-  const { context } = useTill();
   const { requestSignOut } = useSignOut();
   const { toast } = useToast();
   const [first, setFirst] = useState<string | null>(null);
@@ -324,7 +330,6 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"checking" | "saving" | null>(null);
   const name = session?.user?.name ?? "";
-  const tillName = context?.till.name ?? "The till";
   const titleId = useId();
   const screen = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -367,13 +372,20 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
     setBusy("saving");
     try {
       await send(chosen, false);
-      toast({ title: "Your PIN is set. Use it from now on.", variant: "success" });
+      toast({ title: "Your PIN is set.", variant: "success" });
       onChosen();
     } catch (caught) {
       refuse(refusal(caught));
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Four digits typed: the first time it is checked, the second it must match and is saved. */
+  const settle = (full: string) => {
+    if (first === null) void take(full);
+    else if (full !== first) refuse(MISMATCH);
+    else void save(full);
   };
 
   const onKey = (key: KeypadKey) => {
@@ -384,71 +396,52 @@ function ChoosePinScreen({ currentPin, onChosen }: { currentPin: string | null; 
     if (key.kind !== "digit" || pin.length >= 4) return;
     const next = pin + key.value;
     setPin(next);
-    if (next.length < 4) return;
-    if (first === null) void take(next);
-    else if (next !== first) refuse(MISMATCH);
-    else void save(next);
+    if (next.length === 4) settle(next);
   };
   useKeypadKeys(onKey);
 
-  const help =
-    busy === "checking"
-      ? "Checking it…"
-      : busy === "saving"
-        ? "Saving your PIN…"
-        : first === null
-          ? "Not the PIN you were sent, not four of the same digit and not four in a row, like 1111 or 1234."
-          : "The same four digits, to be sure.";
-
   return (
-    <div ref={screen} className="gate is-locked" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-      <div className="gate-form">
-        <span className="saved is-large">
-          <CheckCircle className="ic" />
-          {name ? `Signed in as ${firstName(name)} with the PIN you were sent` : "Signed in with the PIN you were sent"}
-        </span>
-        <div className="who-head">
-          <Avatar name={name || "You"} image={session?.user?.image} size={40} />
-          <div>
-            <h1 id={titleId} className="text-title">Now choose your own PIN</h1>
-            <p className="muted">The till opens once you have. The one you were sent stops working.</p>
-          </div>
+    <GateFrame
+      ref={screen}
+      className="is-over"
+      strip={<LockStrip />}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+    >
+      <section className="gate-l">
+        <GateWho
+          name={name || "You"}
+          image={session?.user?.image}
+          titleId={titleId}
+          title="Now choose your own PIN"
+          sub={name ? `Signed in as ${firstName(name)} with the PIN you were sent` : "Signed in with the PIN you were sent"}
+        />
+        <div className="gate-foot">
+          <GateButton icon={UserSwitch} onClick={() => requestSignOut()}>
+            Someone else
+          </GateButton>
         </div>
-        <div className="pin-rows">
-          <div className="pin-row">
-            <span className="label">New PIN</span>
-            <PinDots length={first !== null ? 4 : pin.length} wrong={Boolean(error)} />
-            {error ? (
-              <ErrorLine large>{error}</ErrorLine>
-            ) : first !== null ? (
-              <span className="saved">
-                <CheckCircle className="ic" />
-                Can be your PIN
-              </span>
-            ) : null}
-          </div>
-          <div className={first === null ? "pin-row is-later" : "pin-row"}>
-            <span className="label">Again</span>
-            <PinDots length={first === null ? 0 : pin.length} />
-          </div>
+      </section>
+      <section className="gate-r">
+        <div className={first === null ? "gate-twin is-now" : "gate-twin"}>
+          <div className="gate-pinl">New PIN</div>
+          <PinDots length={first !== null ? 4 : pin.length} wrong={Boolean(error)} label={`New PIN, ${first !== null ? 4 : pin.length} of 4 digits typed`} />
         </div>
-        {error ? null : (
-          <span className="help" role="status">
-            {help}
-          </span>
-        )}
-        <Keypad onKey={onKey} disabled={busy !== null} />
-        <button type="button" className="btn btn-lg" onClick={() => requestSignOut()}>
-          <UserSwitch className="ic" />
-          Someone else
-        </button>
-      </div>
-      <GateSide
-        lede={context ? `${context.till.name} at ${context.site.name}.` : tillName}
-        quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
-        step={2}
-        till={context?.till.name}
-      />
-    </div>
+        <div className={first === null ? "gate-twin is-later" : "gate-twin is-now"}>
+          <div className="gate-pinl">Again</div>
+          <PinDots length={first === null ? 0 : pin.length} label={`Again, ${first === null ? 0 : pin.length} of 4 digits typed`} />
+        </div>
+        {error ? <GateError>{error}</GateError> : null}
+        <PinPad
+          onKey={onKey}
+          onGo={() => pin.length === 4 && settle(pin)}
+          goLabel={first === null ? "Next" : "Save the PIN"}
+          go="check"
+          busy={busy !== null}
+        />
+      </section>
+    </GateFrame>
   );
 }

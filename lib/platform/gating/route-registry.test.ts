@@ -21,7 +21,7 @@ describe("retail page prefixes", () => {
     ["/retail/sales", "retail.pos"],
     ["/retail/laybys", "retail.pos"],
     ["/retail/shifts", "retail.shifts"],
-    ["/retail/end-of-day", "retail.shifts"],
+    ["/retail/shifts/end-of-day", "retail.shifts"],
     ["/retail/customers", "crm.customers"],
     ["/retail/accounts", "crm.customers"],
     ["/api/v2/retail/customers/abc", "retail.core"],
@@ -41,5 +41,28 @@ describe("retail page prefixes", () => {
     for (const path of ["/retail/catalog", "/retail/purchasing/orders", "/retail/merchandising/pricing"]) {
       expect(resolveFeatureKeyForPath(path)).toBe("retail.core");
     }
+  });
+});
+
+describe("pages moved into their group keep the gate they had", () => {
+  const cases: Array<[string, string]> = [
+    ["/retail/shifts/end-of-day", "retail.shifts"],
+    ["/crm/projects/jobs", "crm.core"],
+    ["/crm/tasks/follow-ups", "crm.core"],
+    ["/schools/students/applications", "schools.admissions"],
+    ["/schools/students/guardians", "schools.core"],
+    ["/schools/students/leavers", "schools.students"],
+    ["/schools/attendance/calendar", "schools.core"],
+    ["/schools/attendance/timetable", "schools.core"],
+    ["/schools/results/exams", "schools.exams"],
+    ["/schools/results/exams/reference", "schools.exams"],
+    ["/schools/staff/teachers", "schools.teachers"],
+    ["/schools/staff/teachers/t1/assignments", "schools.teachers"],
+    ["/schools/families/messages", "schools.core"],
+    ["/schools/families/notices", "schools.core"],
+    ["/schools/families/meetings", "schools.core"],
+  ];
+  it.each(cases)("%s is %s", (pathname, key) => {
+    expect(resolveFeatureKeyForPath(pathname)).toBe(key);
   });
 });

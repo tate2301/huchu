@@ -1,0 +1,23 @@
+/* Sheets on the Counter Mini (the board's .pos-sheet): every till dialog and popover, touch-sized.
+   A small dialog is 520 wide, 24 round, a 24px title, 60px buttons; the one that goes is orange. */
+.dialog:not(.dialog-lg) { width: min(520px, calc(100vw - var(--space-32))); border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(36, 20, 14, 0.5); }
+.dialog:not(.dialog-lg) .dialog-body { gap: 18px; padding: 28px 28px 8px; }
+.dialog:not(.dialog-lg) .dialog-body h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.dialog:not(.dialog-lg) .dialog-body p { font-size: 15px; }
+.dialog:not(.dialog-lg) .dialog-foot { gap: 10px; padding: 18px 28px 28px; box-shadow: none; background: transparent; }
+.dialog .dialog-foot .btn { height: 60px; padding: 0 24px; border-radius: 16px; font-size: 17px; font-weight: 600; }
+.dialog .dialog-foot .btn .ic { width: 20px; height: 20px; }
+.dialog .dialog-foot .btn-primary { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }
+.dialog .dialog-foot .btn-primary .kbd { background: rgba(255, 255, 255, 0.2); color: var(--color-accent-ink); }
+.dialog .dialog-foot .btn-primary:disabled { background: var(--color-fill); color: var(--color-faint); }
+.dialog-lg { border-radius: 24px; }
+.dialog-lg .dialog-head h2 { font-size: 22px; font-weight: 600; }
+.dialog .keypad { gap: 6px; }
+.dialog .keypad button { height: 56px; border-radius: 14px; background: var(--color-fill); box-shadow: none; font-family: var(--font-sans); font-size: 24px; font-weight: 600; }
+.dialog .input, .dialog .input-wrap { height: 52px; border-radius: 14px; font-size: 17px; }
+.dialog .input:focus, .dialog .input-wrap:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.pop.is-till { border-radius: 18px; }
+.pop.is-till .menu-item { height: 48px; font-size: 15px; border-radius: 10px; }
+.pop.is-till .menu-item .ic { width: 20px; height: 20px; }
+.pop.is-till .pop-foot .btn { height: 52px; border-radius: 14px; font-size: 16px; }
+.pop.is-till .pop-foot .btn-ink, .pop.is-till .pop-foot .btn-primary { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: none; }

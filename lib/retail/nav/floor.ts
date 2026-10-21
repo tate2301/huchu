@@ -24,7 +24,7 @@ export const floorNav: RetailNavModule = {
     // FLR-06: goods put aside and paid off over time.
     { href: "/retail/laybys", icon: Package, label: "Lay-bys", requires: [["retail.laybys", "view"]] },
     // After Lay-bys: the day closes after its last sale and hand-over.
-    { href: "/retail/end-of-day", icon: Clock, label: "End of day", requires: [["retail.end-of-day", "view"]] },
+    { href: "/retail/shifts/end-of-day", icon: Clock, label: "End of day", requires: [["retail.end-of-day", "view"]] },
     { href: "/retail/customers", icon: Users, label: "Customers", requires: [["retail.customers", "view"]] },
   ],
 };

@@ -8,9 +8,8 @@
  */
 
 import * as React from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence } from "framer-motion";
 
 import { useToast } from "@/components/ui/use-toast";
@@ -18,26 +17,26 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Barcode,
   CaretLeft,
-  CaretRight,
+  DotsThree,
   HandCoins,
   IdentificationCard,
   MagnifyingGlass,
   Archive,
   Package,
   ShoppingCart,
+  Trash,
   Tray,
-  UserSwitch,
   WifiSlash,
   X,
 } from "@/lib/icons";
-import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { enumLabel } from "@/lib/retail/words";
 import { percentWords, PRICE_UP_SENTENCE } from "@/lib/retail/till-rule-words";
-import { count, firstName, hhmm, pairedWhen, usd } from "./format";
+import { count, firstName, usd } from "./format";
 import { KeySheet } from "./keys";
 import { RollingFigure } from "./motion";
-import { Avatar, Empty, ErrorLine, GateSide, Keypad, type KeypadKey, LoadFailed, Segmented, typeAmount, useKeypadKeys, useWindowKeys } from "./parts";
-import { PayTray, payWays, TenderMark, type PayWay } from "./pay-tray";
+import { Empty, ErrorLine, LoadFailed, Segmented, TillPopover, useWindowKeys } from "./parts";
+import { PayTray, payWays } from "./pay-tray";
+import { OpenShiftScreen } from "./shift";
 import { useApproval } from "./approval";
 import { LaybyStartDialog } from "./layby";
 import { bottlesBackCredit } from "./cart-pricing";
@@ -53,11 +52,9 @@ import {
   VoucherSoldLines,
 } from "./floor-parts";
 import { asksForId, caseMoment, licenceEyebrow, licenceSentence } from "./moments";
-import { CustomerPopover, DiscountPopover, DropSaleButton, HoldPopover, ReasonDialog, SaleLine, useDropSale } from "./sale-parts";
+import { CustomerPopover, DiscountPopover, HoldPopover, ReasonDialog, SaleLine, useDropSale } from "./sale-parts";
 import { saleChangeWords } from "./sale-words";
 import { parseScan } from "./scan-match";
-import { DOORS, PersonMenu } from "./shell";
-import { useSignOut } from "./sign-out";
 import { cue } from "./sound";
 import { useTill } from "./state";
 import { ProductTile, QuickRow } from "./tile";
@@ -67,27 +64,6 @@ import type { PaymentRow, PosCatalogItem } from "./types";
 /** The product as the shelf holds it after a case was opened. */
 const withStock = (item: PosCatalogItem, onHand: number): PosCatalogItem =>
   item.inventoryItem ? { ...item, inventoryItem: { ...item.inventoryItem, currentStock: onHand } } : item;
-
-/** Whether the line is up, and since when it has been down. */
-export function useConnection() {
-  const [online, setOnline] = React.useState(true);
-  const [since, setSince] = React.useState<Date | null>(null);
-  React.useEffect(() => {
-    const update = () => {
-      const now = navigator.onLine;
-      setOnline(now);
-      setSince((current) => (now ? null : (current ?? new Date())));
-    };
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return { online, since };
-}
 
 export function SellScreen() {
   const { shiftHere, shiftLoading, context } = useTill();
@@ -105,7 +81,7 @@ export function SellScreen() {
     );
   }
   if (!context) return <ContextMissing />;
-  if (!shiftHere) return <OpenShiftGate />;
+  if (!shiftHere) return <OpenShiftScreen />;
   return <Workbench />;
 }
 
@@ -121,95 +97,6 @@ function ContextMissing() {
 
 /* ─── 3. Open the shift ───────────────────────────────────────────────── */
 
-function OpenShiftGate() {
-  const { data: session } = useSession();
-  const { context } = useTill();
-  const { requestSignOut } = useSignOut();
-  const queryClient = useQueryClient();
-  // The float the till's last close left, and whether the shop counts a ZiG float (W-37).
-  const defaults = useQuery({
-    queryKey: ["retail-pos-shift-defaults"],
-    queryFn: async () => (await fetchJson<{ data: { float: string; hint: string; takesZig: boolean; zigFloat: string } }>("/api/v2/retail/pos/shifts/new")).data,
-    staleTime: 0,
-  });
-  const [typedUsd, setFloat] = React.useState<string | null>(null);
-  const [zigFloat, setZigFloat] = React.useState("");
-  const [field, setField] = React.useState<"usd" | "zig">("usd");
-  const float = typedUsd ?? (defaults.data?.float ? String(Number(defaults.data.float)) : "");
-  const takesZig = Boolean(defaults.data?.takesZig);
-  const value = Number(float || "0");
-  const zigValue = Number(zigFloat || "0");
-  const open = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/v2/retail/pos/shifts", {
-        method: "POST",
-        body: JSON.stringify({ openingFloat: value, ...(takesZig ? { openingFloatZig: zigValue } : {}) }),
-      }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] }),
-  });
-  const onKey = (key: KeypadKey) => {
-    if (field === "zig") setZigFloat((current) => typeAmount(current, key));
-    else setFloat(typeAmount(float, key));
-  };
-  useKeypadKeys(onKey);
-  useWindowKeys((event) => {
-    if (event.key === "Enter" && !open.isPending) {
-      event.preventDefault();
-      open.mutate();
-    }
-  });
-
-  return (
-    <div className="gate is-over">
-      <div className="gate-form">
-        <div>
-          <h1 className="text-display">Open the shift</h1>
-          <p className="under">
-            {session?.user?.name ?? "You"} on {context?.till.name}
-            {context?.nextShiftNo ? (
-              <>
-                , shift <span className="num">{context.nextShiftNo}</span>
-              </>
-            ) : null}
-            . Count the float into the drawer.
-          </p>
-        </div>
-        <button type="button" className={field === "usd" ? "tender" : "tender is-quiet"} aria-pressed={field === "usd"} onClick={() => setField("usd")}>
-          <span className="l">US$ float</span>
-          <span className="tender-figure">{usd(value)}</span>
-        </button>
-        <span className="help">{defaults.data?.hint ?? "Counted in."}</span>
-        {takesZig ? (
-          <button type="button" className={field === "zig" ? "tender" : "tender is-quiet"} aria-pressed={field === "zig"} onClick={() => setField("zig")}>
-            <span className="l">ZiG float</span>
-            <span className="tender-figure">ZiG {zigValue.toFixed(2)}</span>
-          </button>
-        ) : null}
-        <Keypad onKey={onKey} left="dot" disabled={open.isPending} />
-        {open.isError ? <ErrorLine large>{getApiErrorMessage(open.error)}</ErrorLine> : null}
-        <button type="button" className="btn btn-primary btn-touch btn-block" aria-busy={open.isPending || undefined} onClick={() => open.mutate()}>
-          <CaretRight className="ic" />
-          Open shift with {usd(value)}
-          {takesZig && zigValue > 0 ? ` and ZiG ${zigValue.toFixed(2)}` : ""}
-        </button>
-        <button
-          type="button"
-          className="btn btn-quiet self-start"
-          onClick={() => requestSignOut()}
-        >
-          <UserSwitch className="ic" />
-          Someone else
-        </button>
-      </div>
-      <GateSide
-        lede={context ? `${context.till.name} at ${context.site.name}.` : ""}
-        quiet={context ? `Paired ${pairedWhen(context.device.pairedAt)} by ${context.device.pairedBy}.` : ""}
-        step={3}
-        till={context?.till.name}
-      />
-    </div>
-  );
-}
 
 /* ─── The workbench ───────────────────────────────────────────────────── */
 
@@ -412,15 +299,12 @@ function Workbench() {
       <Shelf searchRef={searchRef} onAdd={add} onAddBundle={addBundleOf} onShowSale={() => setPhoneSale(true)} onTake={openTray} />
       <aside className="bench-side" aria-label="This sale">
         <SaleColumn
-          ways={ways}
-          way={way}
-          onWay={setWayKey}
           onTake={openTray}
           onBack={() => setPhoneSale(false)}
           holding={holding}
           onHolding={setHolding}
         />
-        {trayOpen ? <PayTray key={way.key} way={way} ways={ways} onClose={() => setTrayOpen(false)} onTake={take} onNext={next} /> : null}
+        {trayOpen ? <PayTray key={way.key} way={way} ways={ways} onWay={setWayKey} onClose={() => setTrayOpen(false)} onTake={take} onNext={next} /> : null}
       </aside>
       <AgeCheckDialog
         open={idCheck}
@@ -491,7 +375,6 @@ function Shelf({
   const [finding, setFinding] = React.useState(0);
   // A code the till does not know: the box shakes once, and the till says so out loud.
   const [unknown, setUnknown] = React.useState(false);
-  const { data: session } = useSession();
   const { toast } = useToast();
   // The product whose stock is being adjusted from its tile's long press (STK-04).
   const [adjusting, setAdjusting] = React.useState<PosCatalogItem | null>(null);
@@ -511,18 +394,13 @@ function Shelf({
     findScanned,
     alcohol,
     features,
-    pendingOfflineSales,
-    offlineStop,
-    isPosHost,
     cart,
     lineStopped,
     amountDue,
     selectedCustomer,
   } = useTill();
-  const { online, since } = useConnection();
   // A tablet's keyboard would cover the shelf: the search takes focus only where there is a pointer.
   const [pointer] = React.useState(() => typeof window === "undefined" || !window.matchMedia("(hover: none)").matches);
-  const name = session?.user?.name ?? "You";
   const selling = cart.filter((item) => !lineStopped(item)).length;
   const empty = !selling;
   const stoppedUntil = alcohol.sellable ? undefined : alcohol.startsAt;
@@ -541,46 +419,6 @@ function Shelf({
 
   return (
     <main className="main">
-      <div className="bar">
-        <h1>{context?.till.name}</h1>
-        <span className="note when-wide">
-          {context?.site.name}
-        </span>
-        <div className="end">
-          {pendingOfflineSales ? (
-            <Link className="btn btn-quiet" href={getPosPortalHref("offline", isPosHost)}>
-              <WifiSlash className="ic" />
-              {pendingOfflineSales} waiting to send
-            </Link>
-          ) : online ? (
-            <span className="status status-success note">
-              Up to date
-            </span>
-          ) : null}
-          <span className="when-phone">
-            <PersonMenu
-              doors={DOORS.filter((entry) => !entry.phone)}
-              trigger={
-                <button type="button" className="btn btn-icon" aria-label={`${name}, open the menu`}>
-                  <Avatar name={name} image={session?.user?.image} />
-                </button>
-              }
-            />
-          </span>
-        </div>
-      </div>
-      {!online ? (
-        <div className="banner banner-warning">
-          <WifiSlash className="ic" />
-          <span>
-            <b className="weight-500">No connection{since ? ` since ${hhmm(since)}` : ""}.</b>{" "}
-            {/* Once the offline window has closed, the shell's banner says selling has stopped. */}
-            {offlineStop
-              ? null
-              : "Cash sales are saved on this till and sent when it is back. Card, EcoCash and InnBucks still need their reference."}
-          </span>
-        </div>
-      ) : null}
       {licence ? <LicenceBanner eyebrow={licenceEyebrow(context?.till.name ?? "This till", now)} sentence={licence} /> : null}
       <div className="tools">
         <label className={`input-wrap input-lg grow${unknown ? " is-shake" : ""}`} onAnimationEnd={() => setUnknown(false)}>
@@ -760,17 +598,11 @@ function SaleWords() {
 }
 
 function SaleColumn({
-  ways,
-  way,
-  onWay,
   onTake,
   onBack,
   holding,
   onHolding,
 }: {
-  ways: PayWay[];
-  way: PayWay;
-  onWay: (key: string) => void;
   onTake: () => void;
   onBack: () => void;
   /** Hold is open: pressed, or H on the keyboard. */
@@ -804,6 +636,8 @@ function SaleColumn({
     features,
   } = useTill();
   const orderOff = Math.max(discountAmount - lineDiscountTotal - bundleSaving - promotionSaving - voucherSaving - pointsOff, 0);
+  // Anything off the sale: then what it came to before is worth a line.
+  const offs = lineDiscountTotal + bundleSaving + promotionSaving + orderOff + voucherSaving + pointsOff;
   const depositsOn = Boolean(features?.emptiesAndDeposits);
   // Lines stopped by the licence hours do not sell, so they are not counted.
   const sellingLines = cart.filter((item) => !lineStopped(item));
@@ -827,26 +661,16 @@ function SaleColumn({
 
   return (
     <>
-      <div className="bar">
+      <div className="bar sale-head">
         <button type="button" className="btn btn-quiet when-phone" onClick={onBack}>
           <CaretLeft className="ic" />
           Products
         </button>
-        <h1>This sale</h1>
+        <h1>Sale</h1>
         <SaleWords />
-        <span className="note when-wide">
-          {selling ? count(selling, "item") : ""}
-        </span>
         <div className="end">
-          <OpenDrawerButton />
-          {cart.length ? (
-            <>
-              <LaybyButton />
-              <HoldPopover open={holding} onOpenChange={onHolding} />
-              <DropSaleButton />
-            </>
-          ) : null}
           <CustomerPopover />
+          <SaleMore />
         </div>
       </div>
       {!cart.length ? (
@@ -879,10 +703,12 @@ function SaleColumn({
       <div className="totals has-pin">
         {!empty ? (
           <>
-            <div className="l">
-              <span>Before discounts</span>
-              <span>{usd(beforeDiscounts)}</span>
-            </div>
+            {offs > 0.004 ? (
+              <div className="l">
+                <span>Before discounts</span>
+                <span>{usd(beforeDiscounts)}</span>
+              </div>
+            ) : null}
             {lineDiscountTotal > 0.004 ? (
               <div className="l">
                 <span>Line discount</span>
@@ -919,10 +745,6 @@ function SaleColumn({
                 <span className="off-figure">{usd(-pointsOff)}</span>
               </div>
             ) : null}
-            <div className="l">
-              <span>{vatIncluded ? "VAT where it applies, included" : "VAT where it applies, added"}</span>
-              <span>{usd(taxAmount)}</span>
-            </div>
             {/* Liquor panel 3: deposits and bottles back sit outside the goods, then what is paid. */}
             {deposits > 0.004 ? (
               <div className="l">
@@ -943,71 +765,37 @@ function SaleColumn({
               </div>
             ) : null}
             {deposits > 0.004 || bottlesBack > 0.004 || vouchersSoldTotal > 0.004 ? <div className="rule" /> : null}
+            <div className="l sum">
+              <span>{count(selling, "item")}</span>
+              <span>
+                VAT {usd(taxAmount)}
+                {vatIncluded ? null : " added"}
+              </span>
+            </div>
           </>
         ) : null}
-        <div className="l total">
-          <span>{deposits > 0.004 || bottlesBack > 0.004 ? "To pay" : "Total"}</span>
-          <RollingFigure className="figure" value={amountDue} format={usd} />
-        </div>
         {cart.length ? (
           <div className="row">
             <DiscountPopover />
             <GiftVoucherPopover />
           </div>
         ) : null}
-        {!empty ? (
-          <div
-            role="radiogroup"
-            aria-label="How they are paying"
-            className="pay-ways"
-            onKeyDown={(event) => {
-              // A radio group moves with the arrows, and choosing is moving.
-              const step = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 0;
-              if (!step) return;
-              event.preventDefault();
-              const at = ways.findIndex((entry) => entry.key === way.key);
-              const next = ways[(at + step + ways.length) % ways.length].key;
-              onWay(next);
-              event.currentTarget.querySelector<HTMLButtonElement>(`[data-way="${next}"]`)?.focus();
-            }}
-          >
-            {ways.map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                className="pay"
-                role="radio"
-                data-way={entry.key}
-                aria-checked={way.key === entry.key}
-                tabIndex={way.key === entry.key ? 0 : -1}
-                onClick={() => onWay(entry.key)}
-              >
-                <TenderMark tender={entry.choices.length === 1 ? entry.choices[0].tender : entry.key} />
-                <span>
-                  {entry.label} {entry.meta ? <span className="meta">{entry.meta}</span> : null}
-                </span>
-                <span className="radio" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className={`pin-bottom${depositsOn ? " side-by-side is-one" : ""}`}>
-          {depositsOn ? <BottlesBackButton emptyCart={!cart.length} /> : null}
+        {depositsOn ? <BottlesBackButton emptyCart={!cart.length} /> : null}
+        <div className="sale-keys">
+          <HoldPopover open={holding} onOpenChange={onHolding} disabled={!cart.length} />
           <button
             type="button"
-            className="btn btn-primary btn-touch btn-block"
+            className="take-key"
             disabled={empty || Boolean(discountCeiling) || Boolean(offlineStop) || Boolean(bundleProblem)}
             onClick={onTake}
           >
-            <HandCoins className="ic" />
-            {depositsOn ? `Pay ${usd(amountDue)}` : `Take ${usd(amountDue)}`}
-            {!empty && !discountCeiling && !offlineStop && !bundleProblem ? <span className="kbd on-primary">Enter</span> : null}
+            {depositsOn ? "Pay" : "Take"}
+            <RollingFigure className="num" value={amountDue} format={usd} />
+            {!empty && !discountCeiling && !offlineStop && !bundleProblem ? <span className="kbd on-primary">↵</span> : null}
           </button>
         </div>
         {empty ? null : discountCeiling ? (
           <ErrorLine>{discountCeiling} Change the line, then take the money.</ErrorLine>
-        ) : offlineStop ? (
-          <p className="help is-centred">{offlineStop}</p>
         ) : approvalLine ? (
           <p className="help is-centred">{approvalLine}</p>
         ) : null}
@@ -1016,54 +804,63 @@ function SaleColumn({
   );
 }
 
-/* ─── The drawer and lay-bys ──────────────────────────────────────────── */
+/* ─── More on the sale ────────────────────────────────────────────────── */
 
-/** "Open drawer" (SET-06, FLR-09): only on a till with a drawer; a manager approves it when the till rules say so. */
-function OpenDrawerButton() {
+/** The sale's less frequent acts behind one key: the drawer, a lay-by, dropping the sale. */
+function SaleMore() {
   const { toast } = useToast();
-  const { context, approvers, isOffline } = useTill();
+  const { context, approvers, isOffline, cart } = useTill();
+  const drop = useDropSale();
+  const [open, setOpen] = React.useState(false);
+  const [layby, setLayby] = React.useState(false);
   const approval = useApproval({ approvers: approvers.sell, reason: "Open the drawer without a sale" });
-  const [busy, setBusy] = React.useState(false);
-  if (!context?.till.hasDrawer) return null;
-  const open = () => {
-    setBusy(true);
+  const hasDrawer = Boolean(context?.till.hasDrawer);
+  const openDrawer = () => {
     approval
       .run((approver) => fetchJson("/api/v2/retail/pos/drawer/open", { method: "POST", body: JSON.stringify(approver ? { approver } : {}) }))
       .then((done) => {
         if (done) toast({ title: "Drawer opened.", variant: "success" });
       })
-      .catch((error: unknown) => toast({ title: "The drawer did not open", description: getApiErrorMessage(error), variant: "destructive" }))
-      .finally(() => setBusy(false));
+      .catch((error: unknown) => toast({ title: "The drawer did not open", description: getApiErrorMessage(error), variant: "destructive" }));
   };
-  return (
-    <>
-      <button
-        type="button"
-        className="btn"
-        disabled={busy || isOffline}
-        aria-busy={busy || undefined}
-        title={isOffline ? "Needs the line: no connection now." : undefined}
-        onClick={open}
-      >
-        <Tray className="ic" />
-        Open drawer
-      </button>
-      {approval.dialog}
-    </>
+  const item = (label: string, Icon: React.ComponentType<{ className?: string }>, act: () => void, disabled = false) => (
+    <button
+      type="button"
+      className="menu-item"
+      role="menuitem"
+      disabled={disabled}
+      onClick={() => {
+        setOpen(false);
+        act();
+      }}
+    >
+      <Icon className="ic" />
+      {label}
+    </button>
   );
-}
-
-/** "Lay-by" on the cart: put the lines aside for a customer with a deposit (W-42). */
-function LaybyButton() {
-  const { isOffline } = useTill();
-  const [open, setOpen] = React.useState(false);
+  if (!hasDrawer && !cart.length) return null;
   return (
     <>
-      <button type="button" className="btn" disabled={isOffline} title={isOffline ? "Needs the line: no connection now." : undefined} onClick={() => setOpen(true)}>
-        <Archive className="ic" />
-        Lay-by
-      </button>
-      {open ? <LaybyStartDialog onClose={() => setOpen(false)} /> : null}
+      <TillPopover
+        open={open}
+        onOpenChange={setOpen}
+        label="More"
+        align="end"
+        size="sm"
+        trigger={
+          <button type="button" className="btn btn-icon is-touch" aria-label="More">
+            <DotsThree className="ic" />
+          </button>
+        }
+      >
+        <div className="menu is-flat" role="menu" aria-label="More">
+          {hasDrawer ? item("Open drawer", Tray, openDrawer, isOffline) : null}
+          {cart.length ? item("Lay-by", Archive, () => setLayby(true), isOffline) : null}
+          {cart.length ? item("Drop this sale", Trash, drop) : null}
+        </div>
+      </TillPopover>
+      {layby ? <LaybyStartDialog onClose={() => setLayby(false)} /> : null}
+      {approval.dialog}
     </>
   );
 }

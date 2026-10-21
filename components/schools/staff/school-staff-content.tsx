@@ -36,7 +36,7 @@ import { SchoolStaffSheet } from "./school-staff-sheet";
  *
  * The bursar, the secretary, the nurse, the groundsman, the cooks, the drivers,
  * the security. A school runs on them and the campus module could not name one
- * of them: `/schools/teachers` is a *teaching* register — it carries subjects,
+ * of them: `/schools/staff/teachers` is a *teaching* register — it carries subjects,
  * classes and a form group, none of which a matron has — so a cook entered
  * there would be a teacher who teaches nothing.
  *

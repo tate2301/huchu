@@ -89,12 +89,12 @@ const PAGES: readonly Target[] = [
     landsOn: "/management/master-data/schools/years",
     heading: "Years and terms",
   },
-  { name: "guardians", path: "/schools/guardians", heading: "Guardians" },
+  { name: "guardians", path: "/schools/students/guardians", heading: "Guardians" },
   { name: "students", path: "/schools/students", heading: "Students" },
   { name: "attendance", path: "/schools/attendance", heading: "Attendance" },
-  { name: "teachers", path: "/schools/teachers", heading: "Teachers" },
+  { name: "teachers", path: "/schools/staff/teachers", heading: "Teachers" },
   { name: "results", path: "/schools/results", heading: "Results" },
-  { name: "timetable", path: "/schools/timetable", heading: "Timetable" },
+  { name: "timetable", path: "/schools/attendance/timetable", heading: "Timetable" },
 ];
 
 /**

@@ -1,0 +1,315 @@
+/* The platform's one sidebar: a 244px column on the ground colour. Role
+   tokens only, so each product keeps its own colours. */
+
+.sidebar {
+  --ring: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent);
+  --raised: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+  width: 244px;
+  height: 100%;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ground);
+  box-shadow: inset -1px 0 0 var(--line);
+  box-sizing: border-box;
+}
+
+.fill {
+  width: 100%;
+  min-width: 296px;
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px 8px;
+}
+
+.collapse {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.collapse:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.collapse:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+}
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 4px 8px 8px;
+}
+
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.group {
+  display: block;
+  margin-top: 12px;
+}
+
+.group:first-child {
+  margin-top: 0;
+}
+
+.label,
+.labelButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 24px;
+  margin: 0 0 2px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 24px;
+  text-align: left;
+}
+
+.labelButton {
+  cursor: pointer;
+}
+
+.labelButton:hover {
+  color: var(--ink);
+}
+
+.list,
+.kids {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--ink-2, var(--ink));
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.current,
+.current:hover {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--ring), var(--raised);
+}
+
+.link {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+}
+
+.current .icon {
+  color: var(--ink);
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.badge {
+  flex: none;
+  min-width: 16px;
+  padding: 0 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.toggle,
+.more {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.toggle:hover,
+.more:hover {
+  background: var(--tray);
+  color: var(--ink);
+}
+
+/* The arrange button shows when the row is looked at, held or focused. */
+.more {
+  display: none;
+}
+
+.row:hover .more,
+.row:focus-within .more,
+.more[aria-expanded="true"] {
+  display: inline-flex;
+}
+
+.caret {
+  flex: none;
+  transition: transform 120ms ease;
+}
+
+.caretOpen {
+  transform: rotate(90deg);
+}
+
+.kids {
+  margin: 2px 0 4px 18px;
+  padding-left: 8px;
+  box-shadow: inset 1px 0 0 var(--line);
+}
+
+.kid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink-2, var(--ink));
+  text-decoration: none;
+}
+
+.kid:hover {
+  background: var(--hover);
+}
+
+.foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.footRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2, var(--ink));
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.footRow:hover {
+  background: var(--hover);
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 0;
+}
+
+.live {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--action);
+  animation: sidebar-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sidebar-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.link:focus-visible,
+.kid:focus-visible,
+.toggle:focus-visible,
+.more:focus-visible,
+.labelButton:focus-visible,
+.footRow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    transition: none;
+  }
+
+  .live {
+    animation: none;
+  }
+}

@@ -236,7 +236,7 @@ export function CrmDashboardContent() {
                 : `${needsAttention} past due · ${tasks.open} open in total`
             }
             status={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-            onClick={() => router.push("/crm/follow-ups")}
+            onClick={() => router.push("/crm/tasks/follow-ups")}
           />
           <RowCard
             icon={<CheckCircle className="size-4" />}
@@ -296,7 +296,7 @@ export function CrmDashboardContent() {
                     .join(" · ")
             }
             status={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-            onClick={() => router.push("/crm/work-orders")}
+            onClick={() => router.push("/crm/projects/jobs")}
           />
           <RowCard
             icon={<Calendar className="size-4" />}

@@ -1,0 +1,1683 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-19T19:40:00Z"
+  },
+  "title": "Corelith teams and collaboration",
+  "launch": {
+    "view": "canvas",
+    "page": "till"
+  },
+  "pages": [
+    {
+      "id": "w1",
+      "name": "W1 · A deal worked by the team"
+    },
+    {
+      "id": "w2",
+      "name": "W2 · Adding someone when every seat is taken"
+    },
+    {
+      "id": "w3",
+      "name": "W3 · Corelith signs up for Pabasa on a phone"
+    },
+    {
+      "id": "w4",
+      "name": "W4 · A member's access"
+    },
+    {
+      "id": "w5",
+      "name": "W5 · Vane learns the company in setup"
+    },
+    {
+      "id": "w6",
+      "name": "W6 · Mufaro Hardware sets up Tender"
+    },
+    {
+      "id": "w7",
+      "name": "W7 · Across the workspace"
+    },
+    {
+      "id": "w8",
+      "name": "W8 · The team on a deal, and the first quote"
+    },
+    {
+      "id": "till",
+      "name": "Till · Tender on the Counter Mini"
+    },
+    {
+      "id": "shell",
+      "name": "The gate · home, members, notifications"
+    },
+    {
+      "id": "kit",
+      "name": "Kit: collaboration and people"
+    },
+    {
+      "id": "archive",
+      "name": "Archive · record explorations A to D"
+    }
+  ],
+  "boards": {
+    "W1-1-notifications.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Sean opens Gerald's mention",
+      "page": "w1",
+      "expand": "fill"
+    },
+    "DealNyatsime.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · The deal, with Gerald's comment open",
+      "page": "w1",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "W1-3-call.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · On a call, the decision pinned, Gerald asked to approve",
+      "page": "w1",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "W1-4-email.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · Emailing the school, from the deal",
+      "page": "w1",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "W1-5-after.dc.html": {
+      "x": 6080,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · After: email, approval and call on the activity",
+      "page": "w1",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "W1-6-approve-phone.dc.html": {
+      "x": 0,
+      "y": 1560,
+      "w": 390,
+      "h": 844,
+      "title": "6 · Gerald approves on his phone",
+      "page": "w1"
+    },
+    "W1-F-failures.dc.html": {
+      "x": 470,
+      "y": 1560,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong in W1",
+      "page": "w1"
+    },
+    "Main.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Record A · Tabs in the centre, position in the panel",
+      "page": "archive",
+      "expand": "fill"
+    },
+    "A2-record-b.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Record B · One timeline, everything else in the panel",
+      "page": "archive",
+      "expand": "fill"
+    },
+    "A7-record-c.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Record C · B's timeline and call, A's tabs and panel, Campsite's threads",
+      "page": "archive",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "RecordD.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Record D · toward Attio: Overview, highlights, details panel",
+      "page": "archive",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "RecordDComments.dc.html": {
+      "x": 6080,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Record D · Activity with the comments panel open",
+      "page": "archive",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "A3-home-tender.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Home · Mufaro Hardware, setting up",
+      "page": "shell",
+      "expand": "fill"
+    },
+    "A4-members.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Members · 5 of 5 seats",
+      "page": "shell",
+      "expand": "fill"
+    },
+    "A5-member.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "A member · Tinashe Gumbo's permissions",
+      "page": "shell",
+      "expand": "fill"
+    },
+    "A6-notifications.dc.html": {
+      "x": 0,
+      "y": 1560,
+      "w": 1440,
+      "h": 900,
+      "title": "Notifications · Needs you, worked through with the record open",
+      "page": "shell",
+      "expand": "fill"
+    },
+    "P1-record-phone.dc.html": {
+      "x": 0,
+      "y": 2820,
+      "w": 390,
+      "h": 844,
+      "title": "Phone · J-0142 on site",
+      "page": "shell"
+    },
+    "P2-notifications-phone.dc.html": {
+      "x": 470,
+      "y": 2820,
+      "w": 390,
+      "h": 844,
+      "title": "Phone · Needs you",
+      "page": "shell"
+    },
+    "P3-members-phone.dc.html": {
+      "x": 940,
+      "y": 2820,
+      "w": 390,
+      "h": 844,
+      "title": "Phone · Members",
+      "page": "shell"
+    },
+    "P4-home-phone.dc.html": {
+      "x": 1410,
+      "y": 2820,
+      "w": 390,
+      "h": 844,
+      "title": "Phone · Setting up the shop",
+      "page": "shell"
+    },
+    "K1-collaboration.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 1860,
+      "title": "Kit · Presence, calls, composer, timeline",
+      "page": "kit"
+    },
+    "K2-people.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 1760,
+      "title": "Kit · Members, seats, permissions, setup, notifications",
+      "page": "kit"
+    },
+    "K6-panel.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1632,
+      "h": 1540,
+      "title": "The right panel · invoice, quote, builder, client",
+      "page": "kit"
+    },
+    "K7-bar-and-panel.dc.html": {
+      "x": 4752,
+      "y": 300,
+      "w": 1272,
+      "h": 2881,
+      "title": "The top bar, Vane in it, and the panel's states",
+      "page": "kit"
+    },
+    "K3-timeline-anatomy.dc.html": {
+      "x": 0,
+      "y": 3400,
+      "w": 1440,
+      "h": 2200,
+      "title": "Timeline · the row, what an event carries, three densities, grouping",
+      "page": "kit"
+    },
+    "K3b-timeline-states.dc.html": {
+      "x": 1520,
+      "y": 3400,
+      "w": 1440,
+      "h": 1500,
+      "title": "Timeline · post, filter, days, and every state",
+      "page": "kit"
+    },
+    "K4-timeline-modules.dc.html": {
+      "x": 3040,
+      "y": 3400,
+      "w": 1440,
+      "h": 1500,
+      "title": "Timeline by module · Pabasa sales and Books",
+      "page": "kit"
+    },
+    "K4b-timeline-industries.dc.html": {
+      "x": 4560,
+      "y": 3400,
+      "w": 1440,
+      "h": 1500,
+      "title": "Timeline by industry · Tender retail, Campus, Maintenance, Huchu gold",
+      "page": "kit"
+    },
+    "K5-timeline-contexts.dc.html": {
+      "x": 6080,
+      "y": 3400,
+      "w": 1440,
+      "h": 1400,
+      "title": "One event, many records · a payment and a site visit",
+      "page": "kit"
+    },
+    "O1-start.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Kudakwashe drops the company profile on the first setup step",
+      "page": "w5"
+    },
+    "O2-reading.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · Vane reads page 9 of 12; what it finds appears as it goes",
+      "page": "w5"
+    },
+    "O3-review.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Keep what's right: one question, each price with its page",
+      "page": "w5"
+    },
+    "O4-for-you.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · Three steps filled in; Vane answers from what was kept",
+      "page": "w5"
+    },
+    "O6-knowledge.dc.html": {
+      "x": 6080,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · Knowledge afterwards, a price open in the standard panel",
+      "page": "w5"
+    },
+    "O5-photo-phone.dc.html": {
+      "x": 0,
+      "y": 1560,
+      "w": 390,
+      "h": 844,
+      "title": "Photographing the printed extras list on the phone",
+      "page": "w5"
+    },
+    "O7-tender-price-list.dc.html": {
+      "x": 470,
+      "y": 1560,
+      "w": 1440,
+      "h": 900,
+      "title": "Tender: Mufaro Hardware's price list becomes 214 products, 12 skipped",
+      "page": "w5"
+    },
+    "O-F-failures.dc.html": {
+      "x": 1990,
+      "y": 1560,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong when Vane reads a document",
+      "page": "w5"
+    },
+    "W2-1-ask.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Tatenda fills the invite and meets 5 of 5",
+      "page": "w2"
+    },
+    "W2-2-sean-phone.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "2 · Sean gets the request in Needs you",
+      "page": "w2"
+    },
+    "W2-3-pay-phone.dc.html": {
+      "x": 1990,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "3 · Sean adds the seat and pays US$25.16",
+      "page": "w2"
+    },
+    "W2-4-sent.dc.html": {
+      "x": 2460,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · 6 of 6: the invite goes by WhatsApp",
+      "page": "w2"
+    },
+    "W2-5-join-phone.dc.html": {
+      "x": 3980,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "5 · Tariro opens the invite and enters the code",
+      "page": "w2"
+    },
+    "W2-6-deals-phone.dc.html": {
+      "x": 4450,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "6 · Tariro lands on the deals",
+      "page": "w2"
+    },
+    "W2-7-in.dc.html": {
+      "x": 4920,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "7 · Tariro is in, open in the panel",
+      "page": "w2"
+    },
+    "W2-F-failures.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong when adding a seat",
+      "page": "w2"
+    },
+    "W3-1-start.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "1 · Start Pabasa",
+      "page": "w3"
+    },
+    "W3-2-code.dc.html": {
+      "x": 470,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "2 · The code from the email",
+      "page": "w3"
+    },
+    "W3-3-workspace.dc.html": {
+      "x": 940,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "3 · Corelith, Harare, logo",
+      "page": "w3"
+    },
+    "W3-4-business.dc.html": {
+      "x": 1410,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "4 · Vane reads corelith.co.zw",
+      "page": "w3"
+    },
+    "W3-5-clients.dc.html": {
+      "x": 1880,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "5 · 52 clients, 12 skipped",
+      "page": "w3"
+    },
+    "W3-6-stages.dc.html": {
+      "x": 2350,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "6 · How a deal moves",
+      "page": "w3"
+    },
+    "W3-7-team.dc.html": {
+      "x": 2820,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "7 · Inviting the other four",
+      "page": "w3"
+    },
+    "W3-8-for-you.dc.html": {
+      "x": 3290,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "8 · Corelith is set up",
+      "page": "w3"
+    },
+    "W3-9-first-deal.dc.html": {
+      "x": 3760,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "9 · The first deal: Marondera High School",
+      "page": "w3"
+    },
+    "W3-10-join-desktop.dc.html": {
+      "x": 0,
+      "y": 1544,
+      "w": 1440,
+      "h": 900,
+      "title": "10 · Tatenda joins Corelith on his computer",
+      "page": "w3"
+    },
+    "W3-F-failures.dc.html": {
+      "x": 1520,
+      "y": 1544,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong in W3",
+      "page": "w3"
+    },
+    "W4-1-members.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Members: 6 of 6, Tatenda opens Simbarashe",
+      "page": "w4"
+    },
+    "W4-2-simbarashe.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · Simbarashe can now see every deal",
+      "page": "w4"
+    },
+    "W4-3-gerald.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Gerald is an admin: role locked for Tatenda",
+      "page": "w4"
+    },
+    "W4-4-suspend.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · Suspend Munashe until 2 November",
+      "page": "w4"
+    },
+    "W4-5-seat-free.dc.html": {
+      "x": 6080,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · 5 of 6, Munashe suspended",
+      "page": "w4"
+    },
+    "W4-6-offer.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "6 · Sean offers ownership to Tatenda",
+      "page": "w4"
+    },
+    "W4-7-tatenda-offer.dc.html": {
+      "x": 1520,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "7 · Tatenda's Needs you: the offer",
+      "page": "w4"
+    },
+    "W4-8-owner.dc.html": {
+      "x": 3040,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "8 · Tatenda owns Corelith; Sean is an admin",
+      "page": "w4"
+    },
+    "W4-9-simbarashe-phone.dc.html": {
+      "x": 4560,
+      "y": 1600,
+      "w": 390,
+      "h": 844,
+      "title": "9 · Simbarashe's phone: every deal arrives",
+      "page": "w4"
+    },
+    "W4-F-failures.dc.html": {
+      "x": 5030,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong with access",
+      "page": "w4"
+    },
+    "W6-1-shop.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Your shop, the receipt printing as she types",
+      "page": "w6"
+    },
+    "W6-3-tills.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Tills: Till 2 paired, Till 1's code typed in",
+      "page": "w6"
+    },
+    "W6-3b-till-pairing.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 1120,
+      "h": 700,
+      "title": "Counter Mini: pair this till",
+      "page": "w6"
+    },
+    "W6-4-getting-paid.dc.html": {
+      "x": 5760,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · Getting paid",
+      "page": "w6"
+    },
+    "W6-5-fiscal.dc.html": {
+      "x": 7280,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · Fiscal receipts: ZIMRA checking device 21457",
+      "page": "w6"
+    },
+    "W6-6-staff.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "6 · Staff: Blessing with a PIN, 4 of 5 seats",
+      "page": "w6"
+    },
+    "W6-7-practice.dc.html": {
+      "x": 1520,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "7 · A practice sale, skipped",
+      "page": "w6"
+    },
+    "W6-8-home.dc.html": {
+      "x": 3040,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "8 · Home, ready to sell",
+      "page": "w6"
+    },
+    "W6-9-till-pin.dc.html": {
+      "x": 4560,
+      "y": 1600,
+      "w": 1120,
+      "h": 700,
+      "title": "Counter Mini: Rumbidzai signs in with her PIN",
+      "page": "w6"
+    },
+    "W6-10-phone-join.dc.html": {
+      "x": 5760,
+      "y": 1600,
+      "w": 390,
+      "h": 844,
+      "title": "Tendai joins from his phone",
+      "page": "w6"
+    },
+    "W6-F-failures.dc.html": {
+      "x": 0,
+      "y": 2900,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong in Tender setup",
+      "page": "w6"
+    },
+    "W7-1-activity.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Activity: today across Corelith",
+      "page": "w7"
+    },
+    "W7-2-activity-phone.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "Activity on a phone",
+      "page": "w7"
+    },
+    "W7-3-notification-settings.dc.html": {
+      "x": 1990,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Tatenda's notification settings and quiet hours",
+      "page": "w7"
+    },
+    "W7-4-switcher.dc.html": {
+      "x": 3510,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Tariro switches between Corelith and Mhlanga Events",
+      "page": "w7"
+    },
+    "W7-5-switcher-phone.dc.html": {
+      "x": 5030,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "The switcher on a phone",
+      "page": "w7"
+    },
+    "W7-6-invite-link.dc.html": {
+      "x": 5500,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "Invite link and joining by email address",
+      "page": "w7"
+    },
+    "W7-F-failures.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong across the workspace",
+      "page": "w7"
+    },
+    "W8-1-follow.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Munashe follows the deal, 11:20",
+      "page": "w8"
+    },
+    "W8-2-share.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · Sean copies the link, 12:20",
+      "page": "w8"
+    },
+    "W8-3-ask.dc.html": {
+      "x": 3040,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Tariro opens a deal she can't see",
+      "page": "w8"
+    },
+    "W8-4-let-in-phone.dc.html": {
+      "x": 4560,
+      "y": 300,
+      "w": 390,
+      "h": 844,
+      "title": "4 · Sean lets Tariro in, 12:25",
+      "page": "w8"
+    },
+    "W8-5-hand-over.dc.html": {
+      "x": 5030,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · Sean hands the deal to Tatenda, 16:10",
+      "page": "w8"
+    },
+    "W8-6-assign.dc.html": {
+      "x": 6550,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "6 · Tatenda gives Gerald a follow-up, 16:14",
+      "page": "w8"
+    },
+    "W8-FA-failures.dc.html": {
+      "x": 8070,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong with hand over, follow and links",
+      "page": "w8"
+    },
+    "W8-7-first-quote.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Q-0071 priced from the kept prices",
+      "page": "w8"
+    },
+    "W8-8-client-phone.dc.html": {
+      "x": 1520,
+      "y": 1600,
+      "w": 390,
+      "h": 844,
+      "title": "2 · Mrs Marimo opens the quote",
+      "page": "w8"
+    },
+    "W8-9-set-up.dc.html": {
+      "x": 1990,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Kuda Interiors is set up, 6 of 6",
+      "page": "w8"
+    },
+    "W8-FB-failures.dc.html": {
+      "x": 3510,
+      "y": 1600,
+      "w": 1440,
+      "h": 900,
+      "title": "What goes wrong with the first quote",
+      "page": "w8"
+    },
+    "K8-motion.dc.html": {
+      "x": 7600,
+      "y": 3400,
+      "w": 1440,
+      "h": 1700,
+      "title": "Motion: frames, reduced motion and tokens",
+      "page": "kit"
+    },
+    "K9-states.dc.html": {
+      "x": 6104,
+      "y": 300,
+      "w": 1440,
+      "h": 1840,
+      "title": "States with no board yet: ownership, invite, import, fiscal receipts, setup",
+      "page": "kit"
+    },
+    "W6-2-what-you-sell.dc.html": {
+      "x": 1520,
+      "y": 300,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · What you sell: 214 products, 12 rows skipped",
+      "page": "w6"
+    },
+    "T1-1-sell.dc.html": {
+      "x": 0,
+      "y": 300,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · Sell",
+      "page": "till"
+    },
+    "T1-2-pay-ecocash.dc.html": {
+      "x": 1460,
+      "y": 300,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · Pay: EcoCash",
+      "page": "till"
+    },
+    "T1-3-pay-cash.dc.html": {
+      "x": 2920,
+      "y": 300,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Pay: cash and change",
+      "page": "till"
+    },
+    "T1-4-paid.dc.html": {
+      "x": 4380,
+      "y": 300,
+      "w": 1380,
+      "h": 900,
+      "title": "4 · Paid",
+      "page": "till"
+    },
+    "T1-5a-customer-scale.dc.html": {
+      "x": 0,
+      "y": 1600,
+      "w": 1380,
+      "h": 900,
+      "title": "Till and customer screen",
+      "page": "till"
+    },
+    "T1-5b-customer-states.dc.html": {
+      "x": 1460,
+      "y": 1600,
+      "w": 1380,
+      "h": 900,
+      "title": "Customer screen: selling, paying, paid",
+      "page": "till"
+    },
+    "T1-6a-hold.dc.html": {
+      "x": 2920,
+      "y": 1600,
+      "w": 1380,
+      "h": 900,
+      "title": "Hold with a note",
+      "page": "till"
+    },
+    "T1-6b-held-list.dc.html": {
+      "x": 4380,
+      "y": 1600,
+      "w": 1380,
+      "h": 900,
+      "title": "Held",
+      "page": "till"
+    },
+    "T1-6c-recall-ask.dc.html": {
+      "x": 5840,
+      "y": 1600,
+      "w": 1380,
+      "h": 900,
+      "title": "Recall over a sale",
+      "page": "till"
+    },
+    "T2-1-customer.dc.html": {
+      "x": 0,
+      "y": 2900,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · Add the customer",
+      "page": "till"
+    },
+    "T2-2-account-sale.dc.html": {
+      "x": 1460,
+      "y": 2900,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · Sale on the account",
+      "page": "till"
+    },
+    "T2-3-charge-account.dc.html": {
+      "x": 2920,
+      "y": 2900,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Charge to account",
+      "page": "till"
+    },
+    "T2-4-charged.dc.html": {
+      "x": 4380,
+      "y": 2900,
+      "w": 1380,
+      "h": 900,
+      "title": "4 · Charged to the account",
+      "page": "till"
+    },
+    "T2-5-customer-screen.dc.html": {
+      "x": 5840,
+      "y": 2900,
+      "w": 1380,
+      "h": 900,
+      "title": "5 · Customer screen",
+      "page": "till"
+    },
+    "T3-1-history-record.dc.html": {
+      "x": 0,
+      "y": 4200,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · History · S-10466",
+      "page": "till"
+    },
+    "T3-2-refund-lines.dc.html": {
+      "x": 1460,
+      "y": 4200,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · Refund lines and reason",
+      "page": "till"
+    },
+    "T3-3-approval-asked.dc.html": {
+      "x": 2920,
+      "y": 4200,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Manager approval · asked",
+      "page": "till"
+    },
+    "T3-4-tendai-phone.dc.html": {
+      "x": 4380,
+      "y": 4200,
+      "w": 390,
+      "h": 844,
+      "title": "4 · Tendai approves on his phone",
+      "page": "till"
+    },
+    "T3-5-approved.dc.html": {
+      "x": 4850,
+      "y": 4200,
+      "w": 1380,
+      "h": 900,
+      "title": "5 · Approval arrives",
+      "page": "till"
+    },
+    "T3-6-refunded.dc.html": {
+      "x": 6310,
+      "y": 4200,
+      "w": 1380,
+      "h": 900,
+      "title": "6 · Refunded",
+      "page": "till"
+    },
+    "T4-1-layby.dc.html": {
+      "x": 0,
+      "y": 5500,
+      "w": 1440,
+      "h": 900,
+      "title": "1 · Till 2 · layby LB-0012",
+      "page": "till"
+    },
+    "T4-2-layby-pay.dc.html": {
+      "x": 1520,
+      "y": 5500,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · Layby payment by EcoCash",
+      "page": "till"
+    },
+    "T4-3-layby-paid.dc.html": {
+      "x": 3040,
+      "y": 5500,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Layby paid",
+      "page": "till"
+    },
+    "T5-1-history.dc.html": {
+      "x": 0,
+      "y": 6800,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · History",
+      "page": "till"
+    },
+    "T5-2-history-account.dc.html": {
+      "x": 1460,
+      "y": 6800,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · History · on account",
+      "page": "till"
+    },
+    "T5-3-reprint.dc.html": {
+      "x": 2920,
+      "y": 6800,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Reprint a receipt",
+      "page": "till"
+    },
+    "T6-1-open-float.dc.html": {
+      "x": 0,
+      "y": 8100,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · Open the shift · float",
+      "page": "till"
+    },
+    "T6-2-drop-prompt-pc.dc.html": {
+      "x": 1460,
+      "y": 8100,
+      "w": 1440,
+      "h": 900,
+      "title": "2 · Till 2 · move cash to the safe",
+      "page": "till"
+    },
+    "T6-3-drop-pc.dc.html": {
+      "x": 2980,
+      "y": 8100,
+      "w": 1440,
+      "h": 900,
+      "title": "3 · Till 2 · drop to the safe",
+      "page": "till"
+    },
+    "T6-4-count-pc.dc.html": {
+      "x": 4500,
+      "y": 8100,
+      "w": 1440,
+      "h": 900,
+      "title": "4 · Till 2 · count the drawer",
+      "page": "till"
+    },
+    "T6-5-out-by-pc.dc.html": {
+      "x": 6020,
+      "y": 8100,
+      "w": 1440,
+      "h": 900,
+      "title": "5 · Till 2 · out by US$4.00",
+      "page": "till"
+    },
+    "T6-6-closed-pc.dc.html": {
+      "x": 7540,
+      "y": 8100,
+      "w": 1440,
+      "h": 900,
+      "title": "6 · Till 2 · shift closed",
+      "page": "till"
+    },
+    "T7-1-locked.dc.html": {
+      "x": 0,
+      "y": 9400,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · Till 1 locked",
+      "page": "till"
+    },
+    "T7-2-pin-locked.dc.html": {
+      "x": 1460,
+      "y": 9400,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · PIN locked",
+      "page": "till"
+    },
+    "T7-3-password.dc.html": {
+      "x": 2920,
+      "y": 9400,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Sign in with a password",
+      "page": "till"
+    },
+    "T7-4-send-pin.dc.html": {
+      "x": 4380,
+      "y": 9400,
+      "w": 1380,
+      "h": 900,
+      "title": "4 · Nyasha sends a new PIN",
+      "page": "till"
+    },
+    "T7-5-own-pin.dc.html": {
+      "x": 5840,
+      "y": 9400,
+      "w": 1380,
+      "h": 900,
+      "title": "5 · Choose your own PIN",
+      "page": "till"
+    },
+    "T8-1-offline-sell.dc.html": {
+      "x": 0,
+      "y": 10700,
+      "w": 1380,
+      "h": 900,
+      "title": "1 · Selling with no connection",
+      "page": "till"
+    },
+    "T8-2-saved-slip.dc.html": {
+      "x": 1460,
+      "y": 10700,
+      "w": 1380,
+      "h": 900,
+      "title": "2 · Saved on this till · slip",
+      "page": "till"
+    },
+    "T8-3-waiting.dc.html": {
+      "x": 2920,
+      "y": 10700,
+      "w": 1380,
+      "h": 900,
+      "title": "3 · Waiting to send",
+      "page": "till"
+    },
+    "T8-4-stop.dc.html": {
+      "x": 4380,
+      "y": 10700,
+      "w": 1380,
+      "h": 900,
+      "title": "4 · Selling has stopped",
+      "page": "till"
+    },
+    "T8-5-sent.dc.html": {
+      "x": 5840,
+      "y": 10700,
+      "w": 1380,
+      "h": 900,
+      "title": "5 · Sent when the line came back",
+      "page": "till"
+    },
+    "T9-1-kora-scan.dc.html": {
+      "x": 0,
+      "y": 12000,
+      "w": 480,
+      "h": 960,
+      "title": "1 · Kora · scan",
+      "page": "till"
+    },
+    "T9-2-kora-search.dc.html": {
+      "x": 560,
+      "y": 12000,
+      "w": 480,
+      "h": 960,
+      "title": "2 · Kora · search",
+      "page": "till"
+    },
+    "T9-3-kora-ecocash.dc.html": {
+      "x": 1120,
+      "y": 12000,
+      "w": 480,
+      "h": 960,
+      "title": "3 · Kora · EcoCash",
+      "page": "till"
+    },
+    "T9-4-kora-receipt.dc.html": {
+      "x": 1680,
+      "y": 12000,
+      "w": 480,
+      "h": 960,
+      "title": "4 · Kora · receipt on WhatsApp",
+      "page": "till"
+    },
+    "T-F-failures.dc.html": {
+      "x": 0,
+      "y": 13360,
+      "w": 1380,
+      "h": 900,
+      "title": "Failures",
+      "page": "till"
+    }
+  },
+  "order": [
+    "W1-1-notifications.dc.html",
+    "DealNyatsime.dc.html",
+    "W1-3-call.dc.html",
+    "W1-4-email.dc.html",
+    "W1-5-after.dc.html",
+    "W1-6-approve-phone.dc.html",
+    "W1-F-failures.dc.html",
+    "Main.dc.html",
+    "A2-record-b.dc.html",
+    "A7-record-c.dc.html",
+    "RecordD.dc.html",
+    "RecordDComments.dc.html",
+    "A3-home-tender.dc.html",
+    "A4-members.dc.html",
+    "A5-member.dc.html",
+    "A6-notifications.dc.html",
+    "P1-record-phone.dc.html",
+    "P2-notifications-phone.dc.html",
+    "P3-members-phone.dc.html",
+    "P4-home-phone.dc.html",
+    "K1-collaboration.dc.html",
+    "K2-people.dc.html",
+    "K6-panel.dc.html",
+    "K7-bar-and-panel.dc.html",
+    "O1-start.dc.html",
+    "O2-reading.dc.html",
+    "O3-review.dc.html",
+    "O4-for-you.dc.html",
+    "O6-knowledge.dc.html",
+    "O5-photo-phone.dc.html",
+    "O7-tender-price-list.dc.html",
+    "O-F-failures.dc.html",
+    "K3-timeline-anatomy.dc.html",
+    "K3b-timeline-states.dc.html",
+    "K4-timeline-modules.dc.html",
+    "K4b-timeline-industries.dc.html",
+    "K5-timeline-contexts.dc.html",
+    "W2-1-ask.dc.html",
+    "W2-2-sean-phone.dc.html",
+    "W2-3-pay-phone.dc.html",
+    "W2-4-sent.dc.html",
+    "W2-5-join-phone.dc.html",
+    "W2-6-deals-phone.dc.html",
+    "W2-7-in.dc.html",
+    "W2-F-failures.dc.html",
+    "W3-1-start.dc.html",
+    "W3-2-code.dc.html",
+    "W3-3-workspace.dc.html",
+    "W3-4-business.dc.html",
+    "W3-5-clients.dc.html",
+    "W3-6-stages.dc.html",
+    "W3-7-team.dc.html",
+    "W3-8-for-you.dc.html",
+    "W3-9-first-deal.dc.html",
+    "W3-10-join-desktop.dc.html",
+    "W3-F-failures.dc.html",
+    "W4-1-members.dc.html",
+    "W4-2-simbarashe.dc.html",
+    "W4-3-gerald.dc.html",
+    "W4-4-suspend.dc.html",
+    "W4-5-seat-free.dc.html",
+    "W4-6-offer.dc.html",
+    "W4-7-tatenda-offer.dc.html",
+    "W4-8-owner.dc.html",
+    "W4-9-simbarashe-phone.dc.html",
+    "W4-F-failures.dc.html",
+    "W6-1-shop.dc.html",
+    "W6-3-tills.dc.html",
+    "W6-3b-till-pairing.dc.html",
+    "W6-4-getting-paid.dc.html",
+    "W6-5-fiscal.dc.html",
+    "W6-6-staff.dc.html",
+    "W6-7-practice.dc.html",
+    "W6-8-home.dc.html",
+    "W6-9-till-pin.dc.html",
+    "W6-10-phone-join.dc.html",
+    "W6-F-failures.dc.html",
+    "W7-1-activity.dc.html",
+    "W7-2-activity-phone.dc.html",
+    "W7-3-notification-settings.dc.html",
+    "W7-4-switcher.dc.html",
+    "W7-5-switcher-phone.dc.html",
+    "W7-6-invite-link.dc.html",
+    "W7-F-failures.dc.html",
+    "W8-1-follow.dc.html",
+    "W8-2-share.dc.html",
+    "W8-3-ask.dc.html",
+    "W8-4-let-in-phone.dc.html",
+    "W8-5-hand-over.dc.html",
+    "W8-6-assign.dc.html",
+    "W8-FA-failures.dc.html",
+    "W8-7-first-quote.dc.html",
+    "W8-8-client-phone.dc.html",
+    "W8-9-set-up.dc.html",
+    "W8-FB-failures.dc.html",
+    "K8-motion.dc.html",
+    "K9-states.dc.html",
+    "W6-2-what-you-sell.dc.html",
+    "T1-1-sell.dc.html",
+    "T1-2-pay-ecocash.dc.html",
+    "T1-3-pay-cash.dc.html",
+    "T1-4-paid.dc.html",
+    "T1-5a-customer-scale.dc.html",
+    "T1-5b-customer-states.dc.html",
+    "T1-6a-hold.dc.html",
+    "T1-6b-held-list.dc.html",
+    "T1-6c-recall-ask.dc.html",
+    "T2-1-customer.dc.html",
+    "T2-2-account-sale.dc.html",
+    "T2-3-charge-account.dc.html",
+    "T2-4-charged.dc.html",
+    "T2-5-customer-screen.dc.html",
+    "T3-1-history-record.dc.html",
+    "T3-2-refund-lines.dc.html",
+    "T3-3-approval-asked.dc.html",
+    "T3-4-tendai-phone.dc.html",
+    "T3-5-approved.dc.html",
+    "T3-6-refunded.dc.html",
+    "T4-1-layby.dc.html",
+    "T4-2-layby-pay.dc.html",
+    "T4-3-layby-paid.dc.html",
+    "T5-1-history.dc.html",
+    "T5-2-history-account.dc.html",
+    "T5-3-reprint.dc.html",
+    "T6-1-open-float.dc.html",
+    "T6-2-drop-prompt-pc.dc.html",
+    "T6-3-drop-pc.dc.html",
+    "T6-4-count-pc.dc.html",
+    "T6-5-out-by-pc.dc.html",
+    "T6-6-closed-pc.dc.html",
+    "T7-1-locked.dc.html",
+    "T7-2-pin-locked.dc.html",
+    "T7-3-password.dc.html",
+    "T7-4-send-pin.dc.html",
+    "T7-5-own-pin.dc.html",
+    "T8-1-offline-sell.dc.html",
+    "T8-2-saved-slip.dc.html",
+    "T8-3-waiting.dc.html",
+    "T8-4-stop.dc.html",
+    "T8-5-sent.dc.html",
+    "T9-1-kora-scan.dc.html",
+    "T9-2-kora-search.dc.html",
+    "T9-3-kora-ecocash.dc.html",
+    "T9-4-kora-receipt.dc.html",
+    "T-F-failures.dc.html"
+  ],
+  "notes": {
+    "t_w1": {
+      "kind": "title1",
+      "text": "Sean, Gerald and Tatenda get the Nyatsime documents back out",
+      "x": 0,
+      "y": 40,
+      "maxW": 7520,
+      "page": "w1"
+    },
+    "t_w1b": {
+      "kind": "title1",
+      "text": "Gerald's phone, and what goes wrong",
+      "x": 0,
+      "y": 1300,
+      "maxW": 1910,
+      "page": "w1"
+    },
+    "t_record": {
+      "kind": "title1",
+      "text": "The record: A, B, C the combination, D toward Attio",
+      "x": 0,
+      "y": 40,
+      "maxW": 7520,
+      "page": "archive"
+    },
+    "t_people": {
+      "kind": "title1",
+      "text": "Home, members and one member",
+      "x": 0,
+      "y": 40,
+      "maxW": 4480,
+      "page": "shell"
+    },
+    "t_inbox": {
+      "kind": "title1",
+      "text": "Notifications as a queue",
+      "x": 0,
+      "y": 1300,
+      "maxW": 1440,
+      "page": "shell"
+    },
+    "t_phone": {
+      "kind": "title1",
+      "text": "The same at phone width",
+      "x": 0,
+      "y": 2560,
+      "maxW": 1800,
+      "page": "shell"
+    },
+    "t_kit": {
+      "kind": "title1",
+      "text": "New components",
+      "x": 0,
+      "y": 40,
+      "maxW": 2960,
+      "page": "kit"
+    },
+    "t_panel": {
+      "kind": "title1",
+      "text": "The top bar and the standard right panel",
+      "x": 3040,
+      "y": 40,
+      "maxW": 4504,
+      "page": "kit"
+    },
+    "t_tl": {
+      "kind": "title1",
+      "text": "The timeline's components",
+      "x": 0,
+      "y": 3140,
+      "maxW": 7520,
+      "page": "kit"
+    },
+    "t_w5": {
+      "kind": "title1",
+      "text": "Kuda Interiors signs up for Pabasa and Vane reads its company profile",
+      "x": 0,
+      "y": 40,
+      "maxW": 7520,
+      "page": "w5"
+    },
+    "t_w5b": {
+      "kind": "title1",
+      "text": "On the phone, the same step in Tender, and what goes wrong",
+      "x": 0,
+      "y": 1300,
+      "maxW": 3430,
+      "page": "w5"
+    },
+    "t_w2_0": {
+      "kind": "title1",
+      "text": "Tatenda asks Sean for a sixth seat; Tariro joins from her phone",
+      "x": 0,
+      "y": 40,
+      "maxW": 6360,
+      "page": "w2"
+    },
+    "t_w2_1": {
+      "kind": "title1",
+      "text": "What goes wrong",
+      "x": 0,
+      "y": 1340,
+      "maxW": 1440,
+      "page": "w2"
+    },
+    "t_w3_0": {
+      "kind": "title1",
+      "text": "Sean sets Corelith up on his phone",
+      "x": 0,
+      "y": 40,
+      "maxW": 4150,
+      "page": "w3"
+    },
+    "t_w3_1": {
+      "kind": "title1",
+      "text": "Tatenda joins on his computer, and what goes wrong",
+      "x": 0,
+      "y": 1284,
+      "maxW": 2960,
+      "page": "w3"
+    },
+    "t_w4_0": {
+      "kind": "title1",
+      "text": "Tatenda changes what Simbarashe can do, suspends Munashe; Sean hands over ownership",
+      "x": 0,
+      "y": 40,
+      "maxW": 7520,
+      "page": "w4"
+    },
+    "t_w4_1": {
+      "kind": "title1",
+      "text": "Ownership, Simbarashe's phone, and what goes wrong",
+      "x": 0,
+      "y": 1340,
+      "maxW": 6470,
+      "page": "w4"
+    },
+    "t_w6_0": {
+      "kind": "title1",
+      "text": "Nyasha sets up the shop, Wednesday 14 October",
+      "x": 0,
+      "y": 40,
+      "maxW": 8720,
+      "page": "w6"
+    },
+    "t_w6_1": {
+      "kind": "title1",
+      "text": "Staff, the practice sale, home and the till",
+      "x": 0,
+      "y": 1340,
+      "maxW": 6150,
+      "page": "w6"
+    },
+    "t_w6_2": {
+      "kind": "title1",
+      "text": "What goes wrong",
+      "x": 0,
+      "y": 2640,
+      "maxW": 1440,
+      "page": "w6"
+    },
+    "t_w7_0": {
+      "kind": "title1",
+      "text": "Activity, notification settings, switching workspaces, inviting by link",
+      "x": 0,
+      "y": 40,
+      "maxW": 6940,
+      "page": "w7"
+    },
+    "t_w7_1": {
+      "kind": "title1",
+      "text": "What goes wrong",
+      "x": 0,
+      "y": 1340,
+      "maxW": 1440,
+      "page": "w7"
+    },
+    "t_w8_0": {
+      "kind": "title1",
+      "text": "Follow, share by link, hand over and assign on D-0014",
+      "x": 0,
+      "y": 40,
+      "maxW": 9510,
+      "page": "w8"
+    },
+    "t_w8_1": {
+      "kind": "title1",
+      "text": "Kuda Interiors sends its first quote, Tuesday 1 September",
+      "x": 0,
+      "y": 1340,
+      "maxW": 4950,
+      "page": "w8"
+    },
+    "t_till_0": {
+      "kind": "title1",
+      "text": "A sale: Rumbidzai rings up paint and brushes, EcoCash and cash",
+      "x": 0,
+      "y": 40,
+      "maxW": 5760,
+      "page": "till"
+    },
+    "t_till_1": {
+      "kind": "title1",
+      "text": "The customer screen, and a held sale",
+      "x": 0,
+      "y": 1340,
+      "maxW": 7220,
+      "page": "till"
+    },
+    "t_till_2": {
+      "kind": "title1",
+      "text": "On account: Mavhima Construction, S-10482",
+      "x": 0,
+      "y": 2640,
+      "maxW": 7220,
+      "page": "till"
+    },
+    "t_till_3": {
+      "kind": "title1",
+      "text": "A refund over the limit: Tendai approves from his phone",
+      "x": 0,
+      "y": 3940,
+      "maxW": 7690,
+      "page": "till"
+    },
+    "t_till_4": {
+      "kind": "title1",
+      "text": "A layby payment on Till 2",
+      "x": 0,
+      "y": 5240,
+      "maxW": 4480,
+      "page": "till"
+    },
+    "t_till_5": {
+      "kind": "title1",
+      "text": "History and a reprint",
+      "x": 0,
+      "y": 6540,
+      "maxW": 4300,
+      "page": "till"
+    },
+    "t_till_6": {
+      "kind": "title1",
+      "text": "The shift: float, cash to the safe, cash-up",
+      "x": 0,
+      "y": 7840,
+      "maxW": 8980,
+      "page": "till"
+    },
+    "t_till_7": {
+      "kind": "title1",
+      "text": "Locked out: PIN, password, a new PIN",
+      "x": 0,
+      "y": 9140,
+      "maxW": 7220,
+      "page": "till"
+    },
+    "t_till_8": {
+      "kind": "title1",
+      "text": "No connection: Thursday 15 October",
+      "x": 0,
+      "y": 10440,
+      "maxW": 7220,
+      "page": "till"
+    },
+    "t_till_9": {
+      "kind": "title1",
+      "text": "The Kora in the yard",
+      "x": 0,
+      "y": 11740,
+      "maxW": 2160,
+      "page": "till"
+    },
+    "t_till_10": {
+      "kind": "title1",
+      "text": "When it goes wrong",
+      "x": 0,
+      "y": 13100,
+      "maxW": 1440,
+      "page": "till"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "Corelith Workspace",
+      "namespace": "corelith-workspace",
+      "artifact": "https://claude.ai/artifact/VT9hVhVu81dufP12AZagbE",
+      "version": "1791137319-cf3b",
+      "copiedAt": "2026-10-19T19:40:00Z"
+    }
+  ]
+}

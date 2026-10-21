@@ -4,6 +4,8 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { PhoneBar } from "@/components/layout/sidebar/phone-bar";
+import { useNavPrefs } from "@/components/layout/sidebar/use-nav-prefs";
 import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
@@ -23,7 +25,7 @@ import { isPublicPath } from "@/lib/public-routes";
 import { SignInAsBanner } from "@/components/sign-in-as/sign-in-as-banner";
 import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
 import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
-import { RecordPeekProvider } from "@/components/records/record-peek";
+import { RecordPeekHost, RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
 import { LiveStream } from "@/components/layout/live-stream";
@@ -109,8 +111,11 @@ export function AppShell({
 }
 
 function ShellFrame({ children, builder }: { children: React.ReactNode; builder: BuilderSurface | null }) {
-  const { width } = useShell();
-  const { pending, refused } = useShellNav();
+  const { width, setDrawerOpen } = useShell();
+  const { pending, refused, groups, active, companyName } = useShellNav();
+  const { prefs } = useNavPrefs(companyName);
+  const phoneBar =
+    width === "phone" ? <PhoneBar groups={groups} active={active} prefs={prefs} onMore={() => setDrawerOpen(true)} /> : null;
   if (builder === "rail") {
     // The builder's outline and bar stand where the module panel and the top bar are.
     return (
@@ -140,6 +145,7 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
         </div>
       ) : null}
       <MobileNav />
+      {phoneBar}
       <GlobalCommandBar />
       {/* `?sheet=<kind>` over whatever page is open (00-foundations 5.7.1). */}
       <SheetHost />
@@ -147,14 +153,13 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
         {/* Corelith support signed in as this member: who, how far, until when. */}
         <SignInAsBanner />
         <PageHeader />
-        {/* Vane sits beside the page, under the top bar, as the boards draw it. */}
-        <div className="flex min-h-0 min-w-0 flex-1">
-          <main data-region="main" className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)]">
-            {/* Both live above the page: the trail has to survive the navigation
-                it is recording, and the peek renders over the page it was
-                opened from. */}
-            <RecordTrailProvider>
-              <RecordPeekProvider>
+        {/* Both live above the page and its panels: the trail has to survive the
+            navigation it is recording, and the peek is drawn beside the page it
+            was opened from (the details panel) or over it. */}
+        <RecordTrailProvider>
+          <RecordPeekProvider>
+            <div className="flex min-h-0 min-w-0 flex-1">
+              <main data-region="main" className="content-shell min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pb-[env(safe-area-inset-bottom)] max-[719px]:pb-[calc(56px+env(safe-area-inset-bottom))]">
                 <OnboardingProvider>
                   {/* The air under the header for pages not yet on a frame.
                       Padding on `main` would move the scrollport edge every
@@ -164,12 +169,14 @@ function ShellFrame({ children, builder }: { children: React.ReactNode; builder:
                     {pending ? null : refused ? <RoleRefusal /> : children}
                   </div>
                 </OnboardingProvider>
-              </RecordPeekProvider>
-            </RecordTrailProvider>
-          </main>
-          <VanePanel />
-          <LiveStream />
-        </div>
+              </main>
+              <RecordPeekHost />
+              {/* Vane sits beside the page, under the top bar, as the boards draw it. */}
+              <VanePanel />
+              <LiveStream />
+            </div>
+          </RecordPeekProvider>
+        </RecordTrailProvider>
       </div>
     </div>
   );

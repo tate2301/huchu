@@ -480,7 +480,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
                         <ColumnName
                           name={followUp.title}
                           meta={followUp.status === "PENDING" ? undefined : followUp.status === "COMPLETED" ? "Done" : "Cancelled"}
-                          href={`/crm/follow-ups/${followUp.id}`}
+                          href={`/crm/tasks/follow-ups/${followUp.id}`}
                         />
                       ),
                       due: <ColumnFigure tone="muted">{formatDate(followUp.dueAt)}</ColumnFigure>,

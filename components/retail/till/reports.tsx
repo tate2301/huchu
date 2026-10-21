@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Reports: my sales today, the finding first and one chart; for whoever keeps
- * the cash, the till's end-of-day report, frozen when taken. One report a till
- * a day, in the shop's base currency: ZiG cash is counted at each sale's rate,
+ * Reports: my sales today or over seven days, the chart and what sold most on
+ * the left, the figures in the sale column's place; for whoever keeps the
+ * cash, the till's end-of-day report, frozen when taken. One report a till a
+ * day, in the shop's base currency: ZiG cash is counted at each sale's rate,
  * and bottle deposits are held apart from the takings.
  */
 
@@ -11,13 +12,13 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChartBar, Printer, Receipt } from "@/lib/icons";
+import { fetchJson } from "@/lib/api-client";
+import { ChartBar, Clock, Coins, Package, Printer, Receipt, Recycle, Tag, Tray, UserCheck, Vault } from "@/lib/icons";
 import { canRetailRoleDo } from "@/lib/retail/permission-matrix";
 import { SHOP_TIME_ZONE } from "@/lib/retail/shop-profile-rules";
 import type { RetailZReportPayload } from "@/lib/retail/z-report";
-import { count, hhmm, TENDER_LABEL, usd, weekdayDayMonth, whole } from "./format";
-import { Empty, ErrorLine, LoadFailed, Segmented } from "./parts";
+import { count, hhmm, qty, TENDER_LABEL, usd, weekdayDayMonth, whole } from "./format";
+import { Empty, LoadFailed } from "./parts";
 import { useTill } from "./state";
 import { TenderMark } from "./pay-tray";
 
@@ -37,6 +38,9 @@ type ZDay = {
   recent: Array<{ id: string; registerCode: string; businessDate: string }>;
 };
 
+type Tab = "mine" | "day";
+type Period = "today" | "week";
+
 /** The finding counts shifts in words: "Two shifts". */
 const SHIFT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
 
@@ -48,39 +52,43 @@ export function ReportsScreen() {
   const { data: session } = useSession();
   // The end-of-day report is cash control's: the same right the report itself asks for.
   const keepsCash = canRetailRoleDo(session?.user?.role, "retail.cash-control", "view");
-  const [tab, setTab] = React.useState<"mine" | "day">("mine");
-  return (
-    <div className="main is-scroll">
+  const [tab, setTab] = React.useState<Tab>("mine");
+  const [period, setPeriod] = React.useState<Period>("today");
+  const day = tab === "day" && keepsCash;
+
+  const pills = (
+    <>
       {keepsCash ? (
-        <div className="tools is-tabs-row">
-          <div
-            className="tabs is-flat"
-            role="tablist"
-            aria-label="Reports"
-            onKeyDown={(event) => {
-              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-              event.preventDefault();
-              const next = tab === "mine" ? "day" : "mine";
-              setTab(next);
-              (event.currentTarget.querySelector(`[data-tab="${next}"]`) as HTMLButtonElement | null)?.focus();
-            }}
-          >
-            <button type="button" className="tab" role="tab" data-tab="mine" aria-selected={tab === "mine"} tabIndex={tab === "mine" ? 0 : -1} onClick={() => setTab("mine")}>
-              My sales
+        <div className="hx-pills" role="radiogroup" aria-label="Report">
+          {[
+            { value: "mine" as const, label: "My sales" },
+            { value: "day" as const, label: "End of day" },
+          ].map((option) => (
+            <button key={option.value} type="button" role="radio" className="hx-pill" aria-checked={tab === option.value} onClick={() => setTab(option.value)}>
+              {option.label}
             </button>
-            <button type="button" className="tab" role="tab" data-tab="day" aria-selected={tab === "day"} tabIndex={tab === "day" ? 0 : -1} onClick={() => setTab("day")}>
-              End of day
-            </button>
-          </div>
+          ))}
         </div>
       ) : null}
-      {tab === "day" && keepsCash ? <EndOfDay /> : <MySales />}
-    </div>
+      {day ? null : (
+        <div className={`hx-pills is-quiet${keepsCash ? "" : " is-first"}`} role="radiogroup" aria-label="Period">
+          {[
+            { value: "today" as const, label: "Today" },
+            { value: "week" as const, label: "Last 7 days" },
+          ].map((option) => (
+            <button key={option.value} type="button" role="radio" className="hx-pill is-quiet" aria-checked={period === option.value} onClick={() => setPeriod(option.value)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
+
+  return day ? <EndOfDay pills={pills} /> : <MySales period={period} pills={pills} />;
 }
 
-function MySales() {
-  const [period, setPeriod] = React.useState<"today" | "week">("today");
+function MySales({ period, pills }: { period: Period; pills: React.ReactNode }) {
   const from = React.useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -121,6 +129,7 @@ function MySales() {
   }, [sales, period]);
   const peak = buckets.reduce((best, bucket) => (bucket.value > best.value ? bucket : best), buckets[0] ?? { key: "", label: "", value: 0 });
   const max = Math.max(peak?.value ?? 0, 1);
+  const busiest = peak && peak.value > 0 ? (period === "today" ? `${peak.label} to ${String(Number(peak.key) + 1).padStart(2, "0")}:00` : peak.label) : null;
 
   const sold = React.useMemo(() => {
     const map = new Map<string, { quantity: number; amount: number }>();
@@ -134,90 +143,107 @@ function MySales() {
     }
     return [...map.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 5);
   }, [sales]);
+  const items = sales.reduce((sum, sale) => sum + (sale.lines ?? []).reduce((lines, line) => lines + Number(line.quantity), 0), 0);
 
   return (
-    <>
-      <div className="bar">
-        <h1>{period === "today" ? "My sales today" : "My sales this week"}</h1>
-        <div className="end">
-          <Segmented
-            label="Period"
-            value={period}
-            options={[
-              { value: "today", label: "Today" },
-              { value: "week", label: "Last 7 days" },
-            ]}
-            onChange={setPeriod}
-          />
+    <div className="bench hx cu cu-rep">
+      <main className="main hx-main" aria-label="My sales">
+        <div className="hx-head">
+          <h1>My sales</h1>
+          {query.isPending ? null : <span className="hx-sub">{period === "today" ? "Today" : "Last 7 days"} · {count(sales.length, "sale")}</span>}
         </div>
-      </div>
-      {query.isLoading ? (
-        <div className="finding" aria-busy="true">
-          <span className="skeleton is-lede" />
-        </div>
-      ) : query.isError ? (
-        <LoadFailed icon={ChartBar} title="Your sales did not load" error={query.error} onRetry={() => void query.refetch()} />
-      ) : !sales.length ? (
-        <Empty icon={ChartBar} title={period === "today" ? "No sales yet today" : "No sales this week"}>
-          What you sell shows here, by the hour.
-        </Empty>
-      ) : (
-        <section className="report-body">
-          <p className="lede-figure">
-            <span className="num">{usd(total)}</span> from your {count(sales.length, "sale")} {period === "today" ? "today" : "this week"}.{" "}
-            {peak && peak.value > 0 ? (
-              <span className="q">
-                {period === "today" ? `Busiest between ${peak.label} and ${String(Number(peak.key) + 1).padStart(2, "0")}:00.` : `Busiest on ${peak.label}.`}
-              </span>
-            ) : null}
-          </p>
-          <div>
-            <h2 className="sec-title">{period === "today" ? "By the hour" : "By the day"}</h2>
-            <div role="img" aria-label={`Sales ${period === "today" ? "by hour" : "by day"}. ${peak.label} was busiest at ${usd(peak.value)}.`}>
-              <div className="cols">
-                {buckets.map((bucket) => (
-                  <div key={bucket.key} className={`col${bucket.key === peak.key ? " is-now" : ""}`}>
-                    {bucket.key === peak.key ? (
-                      <span className="v">
-                        {usd(bucket.value)}
-                      </span>
-                    ) : null}
-                    <i style={{ height: `${(bucket.value / max) * 90}%` }} />
-                  </div>
-                ))}
-              </div>
-              <div className="cols-x">
-                {buckets.map((bucket) => (
-                  <span key={bucket.key} className={bucket.key === peak.key ? "is-now" : undefined}>
-                    {bucket.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+        {pills}
+        {query.isPending ? (
+          <div className="hx-list" aria-busy="true">
+            <span className="skeleton cu-chart-skeleton" />
           </div>
-          {sold.length ? (
-            <div>
-              <h2 className="sec-title">Sold most</h2>
-              <div className="list">
-                {sold.map(([name, entry]) => (
-                  <div key={name} className="row is-split">
-                    <span className="grow">{name}</span>
-                    <span className="muted num">{Number(entry.quantity.toFixed(3))} sold</span>
-                    <span className="num ink width-96">
-                      {usd(entry.amount)}
+        ) : query.isError ? (
+          <LoadFailed icon={ChartBar} title="Your sales did not load" error={query.error} onRetry={() => void query.refetch()} />
+        ) : !sales.length ? (
+          <Empty icon={ChartBar} title={period === "today" ? "No sales yet today" : "No sales this week"} />
+        ) : (
+          <div className="hx-list cu-list">
+            <section className="cu-chart" aria-label={period === "today" ? "By the hour" : "By the day"}>
+              <h2 className="cu-label">{period === "today" ? "By the hour" : "By the day"}</h2>
+              <div role="img" aria-label={`Sales ${period === "today" ? "by hour" : "by day"}. ${peak.label} was busiest at ${usd(peak.value)}.`}>
+                <div className="cols">
+                  {buckets.map((bucket) => (
+                    <div key={bucket.key} className={`col${bucket.key === peak.key ? " is-now" : ""}`}>
+                      {bucket.key === peak.key ? <span className="v num">{usd(bucket.value)}</span> : null}
+                      <i style={{ height: `${(bucket.value / max) * 90}%` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="cols-x num">
+                  {buckets.map((bucket) => (
+                    <span key={bucket.key} className={bucket.key === peak.key ? "is-now" : undefined}>
+                      {bucket.label}
                     </span>
+                  ))}
+                </div>
+              </div>
+            </section>
+            {sold.length ? (
+              <section aria-label="Sold most">
+                <h2 className="cu-label">Sold most</h2>
+                {sold.map(([name, entry]) => (
+                  <div key={name} className="hx-item">
+                    <div className="hx-row is-static">
+                      <span className="hx-glyph">
+                        <Package className="ic" />
+                      </span>
+                      <span className="hx-text">
+                        <span className="hx-t">
+                          <span className="truncate">{name}</span>
+                        </span>
+                        <span className="hx-s">
+                          <span className="num">{qty(Number(entry.quantity.toFixed(3)))}</span> sold
+                        </span>
+                      </span>
+                      <span className="hx-v num">{usd(entry.amount)}</span>
+                    </div>
                   </div>
                 ))}
-              </div>
+              </section>
+            ) : null}
+          </div>
+        )}
+      </main>
+      <aside className="bench-side hx-side" aria-label="The figures">
+        <div className="bar sale-head">
+          <h1>{period === "today" ? "Today" : "Last 7 days"}</h1>
+        </div>
+        <div className="hx-scroll">
+          <div className="cu-total">
+            <span className="paid-k">Sold</span>
+            <span className="paid-v">{usd(total)}</span>
+          </div>
+          <dl className="facts hx-facts">
+            <div className="fact">
+              <Receipt className="ic" />
+              <dt>Sales</dt>
+              <dd>{whole(sales.length)}</dd>
             </div>
-          ) : null}
-        </section>
-      )}
-    </>
+            <div className="fact">
+              <Package className="ic" />
+              <dt>Items</dt>
+              <dd>{qty(Number(items.toFixed(3)))}</dd>
+            </div>
+            {busiest ? (
+              <div className="fact">
+                <Clock className="ic" />
+                <dt>Busiest</dt>
+                <dd>{busiest}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      </aside>
+    </div>
   );
 }
 
-function EndOfDay() {
+function EndOfDay({ pills }: { pills: React.ReactNode }) {
   const { context } = useTill();
   // The reports already taken, with today's trading day as the server keys it, so the till and the report agree
   // on what "today" is. A till's report is taken when a manager closes the day (End of day, FLR-07).
@@ -233,22 +259,33 @@ function EndOfDay() {
     queryFn: async () => (await fetchJson<{ data: RetailZReportPayload }>(`/api/v2/retail/z-reports/${taken?.id}`)).data,
   });
   const report = reportQuery.data;
+  const loading = dayQuery.isLoading || reportQuery.isLoading;
 
-  if (dayQuery.isLoading || reportQuery.isLoading) {
-    return (
-      <div className="finding" aria-busy="true">
-        <span className="skeleton is-lede" />
+  let left: React.ReactNode;
+  if (loading) {
+    left = (
+      <div className="hx-list" aria-busy="true">
+        <span className="skeleton cu-chart-skeleton" />
       </div>
     );
+  } else if (dayQuery.isError) {
+    left = <LoadFailed icon={Receipt} title="The end-of-day report did not load" error={dayQuery.error} onRetry={() => void dayQuery.refetch()} />;
+  } else if (!report) {
+    left = <Empty icon={Receipt} title={`${context?.till.name ?? "This till"}’s end-of-day report is not taken yet`} />;
   }
-  if (dayQuery.isError) {
-    return <ErrorLine>{getApiErrorMessage(dayQuery.error)}</ErrorLine>;
-  }
-  if (!report) {
+
+  if (!report || left) {
     return (
-      <Empty icon={Receipt} title={`${context?.till.name ?? "This till"}’s end-of-day report is not taken yet`}>
-        It is taken when a manager closes the day in End of day, once every drawer is counted and closed.
-      </Empty>
+      <div className="bench hx cu cu-rep">
+        <main className="main hx-main" aria-label="End of day">
+          <div className="hx-head">
+            <h1>End of day</h1>
+          </div>
+          {pills}
+          {left}
+        </main>
+        <aside className="bench-side hx-side" aria-label="The figures" />
+      </div>
     );
   }
 
@@ -265,133 +302,149 @@ function EndOfDay() {
   const maxShare = Math.max(...report.tenderBreakdown.map((line) => Number(line.amount)), 1);
 
   return (
-    <>
-      <div className="bar">
-        <h1>End of day</h1>
-        <span className="note muted">
-          {report.registerName} · {weekdayDayMonth(`${report.businessDate.slice(0, 10)}T12:00:00Z`)} · <span className="num">{report.reportNo}</span>
-        </span>
-        <div className="end">
-          <span className="note muted">
-            Taken at {hhmm(report.generatedAt)}
-            {report.generatedByName ? ` by ${report.generatedByName}` : ""}
+    <div className="bench hx cu cu-rep">
+      <main className="main hx-main" aria-label="End of day">
+        <div className="hx-head">
+          <h1>End of day</h1>
+          <span className="hx-sub">
+            {report.registerName} · {weekdayDayMonth(`${report.businessDate.slice(0, 10)}T12:00:00Z`)}
           </span>
-          <a className="btn" href={`/api/v2/retail/z-reports/${report.id}?format=csv`}>
-            <Receipt className="ic" />
-            Save as a spreadsheet
-          </a>
-          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-            <Printer className="ic" />
-            Print the report
-          </button>
         </div>
-      </div>
-      <div className="with-rail">
-        <section className="report-body">
-          <p className="lede-figure">
-            <span className="num">{usd(report.grossTakings + report.depositTotal)}</span> taken on {report.registerName}. <span className="q">{finding}</span>
-          </p>
-          <div>
-            <h2 className="sec-title">How people paid</h2>
+        {pills}
+        <div className="hx-list cu-list">
+          <p className="cu-finding">{finding}</p>
+          <section className="cu-chart" aria-label="How people paid">
+            <h2 className="cu-label">How people paid</h2>
             {report.tenderBreakdown.map((line) => (
               <div key={line.tenderType} className="share">
                 <TenderMark tender={line.tenderType} single />
-                <span className="who-head">
-                  <span className="width-112">{TENDER_LABEL[line.tenderType] ?? line.tenderType}</span>
-                  <span className="grow">
-                    <span className="bar" aria-hidden="true" style={{ width: `${(Number(line.amount) / maxShare) * 100}%` }} />
+                <span className="cu-share">
+                  <span>{TENDER_LABEL[line.tenderType] ?? line.tenderType}</span>
+                  <span className="cu-share-bar">
+                    <i aria-hidden="true" style={{ width: `${(Number(line.amount) / maxShare) * 100}%` }} />
                   </span>
                 </span>
                 <span className="num pct">{Math.round(Number(line.share))}%</span>
                 <span className="num">{usd(Number(line.amount))}</span>
               </div>
             ))}
-            {context?.zig ? <p className="help">Cash includes ZiG notes, at the rate on each sale.</p> : null}
-          </div>
-          <div>
-            <h2 className="sec-title">The drawers</h2>
-            <div className="list">
-              {report.shifts.map((shift) => {
-                const variance = Number(shift.variance ?? 0);
-                return (
-                  <div key={shift.shiftId} className="row is-shift-line">
-                    <span className="code num text-left">
-                      {shift.shiftNo}
+          </section>
+          <section aria-label="The drawers">
+            <h2 className="cu-label">The drawers</h2>
+            {report.shifts.map((shift) => {
+              const variance = Number(shift.variance ?? 0);
+              const off = variance < -0.004 ? "Short" : variance > 0.004 ? "Over" : null;
+              return (
+                <div key={shift.shiftId} className="hx-item">
+                  <div className="hx-row is-static">
+                    <span className="hx-glyph">
+                      <Tray className="ic" />
                     </span>
-                    <span className="truncate ink">
-                      {shift.cashierName}, {hhmm(shift.openedAt)} to {shift.closedAt ? hhmm(shift.closedAt) : "now"}
+                    <span className="hx-text">
+                      <span className="hx-t">
+                        <span className="truncate">{shift.cashierName}</span>
+                        <span className={`hx-tag${variance < -0.004 ? " is-bad" : ""}`}>{off ?? "Balanced"}</span>
+                      </span>
+                      <span className="hx-s">
+                        <span className="num">{shift.shiftNo}</span> · <span className="num">{hhmm(shift.openedAt)}</span> to{" "}
+                        <span className="num">{shift.closedAt ? hhmm(shift.closedAt) : "now"}</span>
+                      </span>
                     </span>
-                    <span className={`status${variance < -0.004 ? " status-danger" : variance > 0.004 ? " status-warning" : ""}`}>
-                      {variance < -0.004 ? "Short" : variance > 0.004 ? "Over" : "Balanced"}
-                    </span>
-                    <span className="num ink">
-                      {usd(variance)}
-                    </span>
+                    <span className="hx-v num">{usd(variance)}</span>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
+          </section>
+        </div>
+      </main>
+      <aside className="bench-side hx-side" aria-label="The figures">
+        <div className="bar sale-head">
+          <h1>{report.registerName}</h1>
+          <span className="hx-code num">
+            {report.reportNo} · {hhmm(report.generatedAt)}
+          </span>
+        </div>
+        <div className="hx-scroll">
+          <div className="cu-total">
+            <span className="paid-k">Takings</span>
+            <span className="paid-v">{usd(report.grossTakings + report.depositTotal)}</span>
           </div>
-        </section>
-        <aside className="rail" aria-label="The figures">
-          <section>
-            <div className="sec-title">Takings</div>
-            <dl className="attrs">
+          <dl className="facts hx-facts">
+            {report.generatedByName ? (
+              <div className="fact">
+                <UserCheck className="ic" />
+                <dt>Taken by {report.generatedByName}</dt>
+                <dd>{hhmm(report.generatedAt)}</dd>
+              </div>
+            ) : null}
+            <div className="fact">
+              <Tag className="ic" />
               <dt>Before discounts</dt>
-              <dd className="num text-left">
-                {usd(report.grossSales)}
-              </dd>
-              <dt>Discounts</dt>
-              <dd className="num text-left">
-                {usd(report.discountTotal)}
-                {report.approvedDiscountCount ? `, ${report.approvedDiscountCount} approved` : ""}
-              </dd>
+              <dd>{usd(report.grossSales)}</dd>
+            </div>
+            <div className="fact">
+              <Tag className="ic" />
+              <dt>Discounts{report.approvedDiscountCount ? `, ${report.approvedDiscountCount} approved` : ""}</dt>
+              <dd>{usd(report.discountTotal)}</dd>
+            </div>
+            <div className="fact">
+              <Receipt className="ic" />
               <dt>VAT at {report.taxRatePercent}%</dt>
-              <dd className="num text-left">
-                {usd(report.taxTotal)}
-              </dd>
-              {report.depositTotal ? (
-                <>
-                  <dt>Deposits held</dt>
-                  <dd className="num text-left">
-                    {usd(report.depositTotal)}
-                  </dd>
-                </>
-              ) : null}
-              <dt>Refunds</dt>
-              <dd className="num text-left">
-                {usd(report.refundTotal)}, {report.refundCount}
-              </dd>
-              <dt>Voids</dt>
-              <dd className="num text-left">
-                {usd(report.voidTotal)}, {report.voidCount}
-              </dd>
-            </dl>
-          </section>
-          <section>
-            <div className="sec-title">Cash</div>
-            <dl className="attrs">
+              <dd>{usd(report.taxTotal)}</dd>
+            </div>
+            {report.depositTotal ? (
+              <div className="fact">
+                <Recycle className="ic" />
+                <dt>Deposits held</dt>
+                <dd>{usd(report.depositTotal)}</dd>
+              </div>
+            ) : null}
+            <div className="fact">
+              <Receipt className="ic" />
+              <dt>Refunds, {report.refundCount}</dt>
+              <dd>{usd(report.refundTotal)}</dd>
+            </div>
+            <div className="fact">
+              <Receipt className="ic" />
+              <dt>Voids, {report.voidCount}</dt>
+              <dd>{usd(report.voidTotal)}</dd>
+            </div>
+          </dl>
+          <dl className="facts hx-facts">
+            <div className="fact">
+              <Coins className="ic" />
               <dt>Floats</dt>
-              <dd className="num text-left">
-                {usd(report.openingFloat)}
-              </dd>
+              <dd>{usd(report.openingFloat)}</dd>
+            </div>
+            <div className="fact">
+              <Vault className="ic" />
               <dt>To the safe</dt>
-              <dd className="num text-left">
-                {usd(report.cashDropTotal)}
-              </dd>
+              <dd>{usd(report.cashDropTotal)}</dd>
+            </div>
+            <div className="fact">
+              <Coins className="ic" />
               <dt>Paid out</dt>
-              <dd className="num text-left">
-                {usd(report.cashPayoutTotal)}
-              </dd>
+              <dd>{usd(report.cashPayoutTotal)}</dd>
+            </div>
+            <div className="fact">
+              <Tray className="ic" />
               <dt>Counted</dt>
-              <dd className="num text-left">
-                {usd(report.countedCash)}
-              </dd>
-            </dl>
-            <p className="help">One report a till a day, taken when the day closes.</p>
-          </section>
-        </aside>
-      </div>
-    </>
+              <dd>{usd(report.countedCash)}</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="hx-keys">
+          <a className="hx-key" href={`/api/v2/retail/z-reports/${report.id}?format=csv`}>
+            <Receipt className="ic" />
+            Spreadsheet
+          </a>
+          <button type="button" className="take-key" onClick={() => window.print()}>
+            <Printer className="ic" />
+            Print the report
+          </button>
+        </div>
+      </aside>
+    </div>
   );
 }

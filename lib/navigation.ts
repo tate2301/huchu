@@ -608,13 +608,13 @@ export const navSections: NavSection[] = [
       // library.
       { href: "/schools/students", icon: Users, label: "Students", group: "students" },
       {
-        href: "/schools/admissions",
+        href: "/schools/students/applications",
         icon: NoteAdd,
         label: "Applications",
         group: "students",
         grant: { resource: "schools.admissions" },
       },
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "students" },
+      { href: "/schools/students/guardians", icon: UserRound, label: "Guardians", group: "students" },
       // An allergy does not care whether a child sleeps at school. Gated as
       // boarding it was denied to the bursar, the head of department and the
       // class teacher, all of whom hold `schools.welfare` and all of whom may
@@ -652,7 +652,7 @@ export const navSections: NavSection[] = [
       // S-13.4 and S-13.5, at the end of the group in the order of the year: a
       // pupil is admitted, taught, rolled up, and then leaves.
       {
-        href: "/schools/leavers",
+        href: "/schools/students/leavers",
         icon: SignOut,
         label: "Leavers",
         group: "students",
@@ -683,14 +683,14 @@ export const navSections: NavSection[] = [
       // who can see the roll is responsible for a child on a day the school
       // may be closed.
       {
-        href: "/schools/calendar",
+        href: "/schools/attendance/calendar",
         icon: Calendar,
         label: "Calendar",
         group: "school-day",
         grant: { resource: "schools.students" },
       },
       {
-        href: "/schools/timetable",
+        href: "/schools/attendance/timetable",
         icon: Grid3x3,
         label: "Timetable",
         group: "school-day",
@@ -754,13 +754,13 @@ export const navSections: NavSection[] = [
       // and the POST that creates one had no caller, so the whole of public
       // exams was unreachable from an empty tenant.
       {
-        href: "/schools/exams/reference",
+        href: "/schools/results/exams/reference",
         icon: Scale,
         label: "Exam boards",
         group: "results",
       },
       {
-        href: "/schools/exams",
+        href: "/schools/results/exams",
         icon: Certificate,
         label: "Exam series",
         group: "results",
@@ -808,7 +808,7 @@ export const navSections: NavSection[] = [
       // assignment, so payroll and leave stay in one place; this is the
       // school's window onto its own.
       { href: "/schools/staff", icon: MedusaIdBadgeIcon, label: "Support staff", group: "staff" },
-      { href: "/schools/teachers", icon: MedusaAcademicCapIcon, label: "Teaching staff", group: "staff" },
+      { href: "/schools/staff/teachers", icon: MedusaAcademicCapIcon, label: "Teaching staff", group: "staff" },
 
       // Everything that passes between the school and a home. A notice goes out
       // to many and cannot be replied to; a message is one family and one
@@ -816,9 +816,9 @@ export const navSections: NavSection[] = [
       // is the thing you print and hand over. Keeping the four adjacent is how
       // somebody learns which one they wanted.
       { href: "/schools/documents", icon: FileText, label: "Documents", group: "families" },
-      { href: "/schools/messages", icon: Mail, label: "Messages", group: "families" },
-      { href: "/schools/notices", icon: Megaphone, label: "Notices", group: "families" },
-      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "families" },
+      { href: "/schools/families/messages", icon: Mail, label: "Messages", group: "families" },
+      { href: "/schools/families/notices", icon: Megaphone, label: "Notices", group: "families" },
+      { href: "/schools/families/meetings", icon: CalendarCheck, label: "Parent meetings", group: "families" },
 
       // What the school is, as opposed to what it does — and because a school
       // arriving from another system brings its history with it, the import
@@ -982,7 +982,7 @@ export const navSections: NavSection[] = [
       // raised; a job is still labelled "Jobs" because that is what the page,
       // the button and everybody in the building already call it.
       { href: "/crm/projects", icon: Work, label: "Projects", group: "projects", rank: "flow" },
-      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
+      { href: "/crm/projects/jobs", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
 
       // The index first, then in the order the money moves: billed, paid,
       // chased; then asked for, spent, reported.
@@ -1010,7 +1010,7 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
-      { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
+      { href: "/crm/tasks/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
       // Insights and Sales reports moved to Reports (Insights → Sales, and All
       // reports); `/crm/insights` and `/crm/reports` forward there.

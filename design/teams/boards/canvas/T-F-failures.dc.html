@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>T failures</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="icons-w6.css">
+<link rel="stylesheet" href="icons-pos.css">
+<link rel="stylesheet" href="icons-posc.css">
+<link rel="stylesheet" href="teams.css">
+<link rel="stylesheet" href="w6.css">
+<link rel="stylesheet" href="pos.css">
+<link rel="stylesheet" href="pos-c.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx posc-fboard" data-theme="tender"><div class="posc-fcell"><div class="posc-fname">No match</div><div class="posc-fframe"><div class="pos-find posc-find--bad"><span class="i i-pos-magnifying-glass"></span><span>sement</span><span class="pos-caret" style="margin-left: -8px"></span><span class="pos-find__scan" role="button" aria-label="Scan"><span class="i i-pos-barcode"></span></span></div>
+<div class="posc-empty"><span class="i i-pos-magnifying-glass"></span><span>No product called “sement”</span><span class="pos-btn" role="button" style="align-self: center"><span class="i i-pos-x"></span>Clear <span class="kbd">Esc</span></span></div></div></div><div class="posc-fcell"><div class="posc-fname">EcoCash reference in the wrong format</div><div class="posc-fframe"><div class="pos-part pos-part--now" style="row-gap: 12px">
+<span class="pos-part__g"><span class="i i-pos-device-mobile"></span></span><div class="pos-part__t">EcoCash</div><span class="pos-part__v">US$160.00</span>
+<div style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px">
+<div class="pos-field posc-field--bad" style="font-size: 16px"><small>Reference</small><span>MP2610191106K30772</span><span class="pos-caret"></span></div>
+<div class="posc-badline"><span class="i i-posc-warning-circle"></span>Not an EcoCash reference</div>
+</div></div>
+<span class="pos-take pos-take--off" role="button" aria-disabled="true" style="margin-top: auto">Received <b>US$160.00</b></span></div></div><div class="posc-fcell"><div class="posc-fname">Card declined on the terminal</div><div class="posc-fframe posc-fframe--ground"><div class="posc-term" aria-hidden="true"><div class="posc-term__s"><span>Declined</span><span>US$39.20</span></div><div class="posc-term__k"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div></div>
+<div class="pos-part pos-part--now"><span class="pos-part__g"><span class="i i-pos-credit-card"></span></span><div style="min-width: 0"><div class="pos-part__t">Card</div><div class="pos-part__s" style="color: var(--bad)">Declined</div></div><span class="pos-part__v">US$39.20</span></div>
+<span class="pos-take" role="button" style="margin-top: auto"><span class="i i-pos-arrows-left-right"></span>Pay another way<span class="kbd">↵</span></span></div></div><div class="posc-fcell"><div class="posc-fname">No ZiG rate this morning</div><div class="posc-fframe"><div><div class="pos-tray__k">Take</div><div class="pos-tray__amt" style="font-size: 32px">US$34.80</div></div>
+<div class="posc-cur"><span role="button" aria-pressed="true"><span class="i i-pos-money"></span>US$</span><span role="button" aria-disabled="true">ZiG<small>No rate today</small></span></div>
+<span class="pos-btn" role="button" style="margin-top: auto"><span class="i i-pos-arrows-left-right"></span>Set today's rate</span></div></div><div class="posc-fcell"><div class="posc-fname">Printer out of paper</div><div class="posc-fframe"><div class="pos-facts" style="margin: 0">
+<div class="pos-fact"><span class="i i-pos-receipt"></span><span>Sale</span><span>S-10485</span></div>
+<div class="pos-fact"><span class="i i-pos-money"></span><span>Cash, US$5.00 handed</span><span>US$4.80</span></div>
+<div class="pos-fact"><span class="i i-pos-printer"></span><span>Receipt</span><span style="color: var(--bad); font-family: var(--font-sans); font-weight: 500; font-size: 15px">Out of paper</span></div>
+</div>
+<span class="pos-take" role="button" style="margin-top: auto"><span class="i i-pos-printer"></span>Print again<span class="kbd">P</span></span></div></div><div class="posc-fcell"><div class="posc-fname">Out of stock</div><div class="posc-fframe posc-fframe--ground"><div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; width: 100%">
+<div class="pos-tile pos-tile--off" role="button"><div class="pos-tile__pic"><span class="i i-pos-trolley"></span></div><div class="pos-tile__t">Wheelbarrow 65 L</div><div class="pos-tile__p">US$46.00</div><div class="posc-tile__s posc-tile__s--bad">None left</div></div>
+<div class="pos-tile" role="button"><div class="pos-tile__pic"><span class="i i-pos-hammer"></span></div><div class="pos-tile__t">Claw hammer 16 oz</div><div class="pos-tile__p">US$7.90</div><div class="posc-tile__s">12 left</div></div>
+</div>
+<div class="posc-menu" style="left: 96px; top: 238px"><span aria-current="true"><span class="i i-pos-package"></span>Adjust stock</span></div></div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1380,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

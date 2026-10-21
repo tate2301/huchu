@@ -417,7 +417,7 @@ export function OfficeInboxContent() {
                     displayName={thread.subject}
                     supportingProse
                     reference={
-                      <EntityLink href={`/schools/guardians/${thread.guardian.id}`} muted>
+                      <EntityLink href={`/schools/students/guardians/${thread.guardian.id}`} muted>
                         {fullName(thread.guardian)}
                       </EntityLink>
                     }
@@ -441,7 +441,7 @@ export function OfficeInboxContent() {
                       so their name goes there. Nobody having it is an absence
                       named in words, and an absence is not a link. */}
                   {thread.staff ? (
-                    <EntityLink href={`/schools/teachers/${thread.staff.id}`}>
+                    <EntityLink href={`/schools/staff/teachers/${thread.staff.id}`}>
                       {thread.staff.name}
                     </EntityLink>
                   ) : (

@@ -95,8 +95,8 @@ describe("records outside the CRM module", () => {
   });
 
   it("round-trips a school record through recordHref", () => {
-    const ref = parseRecordHref("/schools/guardians/g1?section=children")!;
-    expect(recordHref(ref)).toBe("/schools/guardians/g1");
+    const ref = parseRecordHref("/schools/students/guardians/g1?section=children")!;
+    expect(recordHref(ref)).toBe("/schools/students/guardians/g1");
   });
 });
 

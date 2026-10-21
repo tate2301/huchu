@@ -639,7 +639,7 @@ export function SchoolsDashboardContent() {
         count: sheetsQuery.data?.pagination.total ?? 0,
       },
       {
-        href: "/schools/admissions",
+        href: "/schools/students/applications",
         lead: "warn" as const,
         title: "Admissions to decide",
         detail: "Applied, no decision recorded",
@@ -1097,7 +1097,7 @@ export function SchoolsDashboardContent() {
               <>
                 {nextMeeting ? (
                   <PanelRow
-                    href="/schools/meetings"
+                    href="/schools/families/meetings"
                     title={
                       nextMeeting.first.student?.currentClass
                         ? `Parents' evening, ${nextMeeting.first.student.currentClass.name}`
@@ -1110,7 +1110,7 @@ export function SchoolsDashboardContent() {
                 {(noticesQuery.data?.data ?? []).slice(0, 3).map((notice) => (
                   <PanelRow
                     key={notice.id}
-                    href="/schools/notices"
+                    href="/schools/families/notices"
                     title={notice.title}
                     detail={`Sent ${SHORT_DAY.format(new Date(notice.createdAt))} · read by ${notice.read.toLocaleString()} of ${notice.recipients.toLocaleString()}`}
                     trailing={severityBadge(notice.severity)}

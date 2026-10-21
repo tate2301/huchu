@@ -417,7 +417,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         icon={Wrench}
         // Which groups it is in, from the record itself.
         toolbar={<RecordGroupsControl entity="WORK_ORDER" recordId={job.id} />}
-        backHref="/crm/work-orders"
+        backHref="/crm/projects/jobs"
         backLabel="All jobs"
         title={job.title}
         // The title is what the crew reads on a phone before they set off, so

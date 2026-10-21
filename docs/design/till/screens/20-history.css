@@ -1,0 +1,136 @@
+/* History, a sale's record, refund and the manager's approval (boards T5-1–T5-3, T3-1–T3-6).
+   The list on the left, in the shelf's place; the record in the sale column's place. */
+
+/* The left column: the title, the pills, then the rows, which scroll. */
+.bench.hx > .main.hx-main { min-height: 0; overflow: hidden; padding: 20px var(--space-24) 0; gap: var(--space-16); }
+.hx-head { flex: none; display: flex; align-items: baseline; gap: 14px; min-height: 48px; padding-top: var(--space-8); }
+.hx-head h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); white-space: nowrap; }
+.hx-head > .btn { align-self: center; }
+.hx-head.is-back { align-items: center; gap: 10px; padding-top: var(--space-4); }
+.hx-head.is-back > .btn { margin-left: -12px; }
+.hx-h1-code { font-size: 24px; font-weight: 400; color: var(--color-muted); }
+.hx-sub { font-size: 15px; color: var(--color-muted); white-space: nowrap; }
+.hx-search { align-self: center; width: 300px; max-width: 50%; height: 48px; border-radius: 14px; background: var(--color-fill); box-shadow: none; font-size: 16px; }
+.hx-search:focus-within { box-shadow: inset 0 0 0 2px var(--color-rule); }
+
+/* Pills: how it was paid, 44px; the period and what happened, quieter, under them. */
+.hx-pills { flex: none; display: flex; align-items: center; gap: var(--space-8); overflow-x: auto; scrollbar-width: none; }
+.hx-pills.is-wrap { flex-wrap: wrap; overflow: visible; }
+.hx-pill { flex: none; height: 44px; padding: 0 18px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; font-size: 15px; font-weight: 500; color: var(--color-ink-2); box-shadow: inset 0 0 0 1px var(--color-rule); white-space: nowrap; transition: background-color var(--motion-fast) var(--motion-ease); }
+.hx-pill[aria-checked="true"], .hx-pill[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.hx-pill:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.hx-pills.is-quiet { gap: var(--space-4); margin-top: -6px; }
+.hx-pills.is-quiet .hx-pills { gap: 2px; }
+.hx-pill.is-quiet { height: 36px; padding: 0 14px; font-size: var(--text-14); color: var(--color-muted); box-shadow: none; }
+.hx-pill.is-quiet[aria-checked="true"], .hx-pill.is-quiet[aria-pressed="true"] { background: var(--color-fill); color: var(--color-ink); }
+@media (hover: hover) { .hx-pill.is-quiet:hover { color: var(--color-ink); } }
+.hx-sep { flex: none; width: 1px; height: 20px; margin: 0 var(--space-8); background: var(--color-line); }
+
+/* The rows: a glyph for how it was paid, what was sold, the code, time and tender, the amount. */
+.hx-list { flex: 1; min-height: 0; overflow: auto; margin: -4px -6px 0; padding: 4px 6px var(--space-24); }
+.hx-item { padding-bottom: 6px; }
+.hx-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; min-height: 62px; padding: var(--space-8) 18px var(--space-8) 10px; border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); color: inherit; text-decoration: none; transition: background-color var(--motion-fast) var(--motion-ease); }
+@media (hover: hover) { .hx-row:hover { background: var(--color-hover); } }
+.hx-row[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.hx-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.hx-glyph { width: 44px; height: 44px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.hx-glyph .ic { width: 22px; height: 22px; }
+.hx-text { display: flex; flex-direction: column; min-width: 0; }
+.hx-t { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.hx-s { margin-top: 2px; font-size: var(--text-13); color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hx-v { font-size: 17px; color: var(--color-ink); white-space: nowrap; }
+.hx-tag { flex: none; height: 24px; padding: 0 9px; border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink-2); font-size: var(--text-12); font-weight: 500; display: inline-flex; align-items: center; }
+.hx-day { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-4) var(--space-8); }
+.hx-day h2 { font-size: var(--text-14); font-weight: 600; color: var(--color-ink); }
+.hx-day .num { font-size: var(--text-13); color: var(--color-muted); }
+.skeleton.hx-skeleton { display: block; height: 62px; margin-bottom: 6px; border-radius: 16px; }
+.bench.hx .empty { margin: auto; }
+
+/* The record, in the sale column's place: the head, the lines read-only, the facts, the sum and two keys. */
+.bench.hx > .bench-side { min-height: 0; }
+.hx-side .sale-head { border: 0; }
+.hx-code { font-size: var(--text-13); color: var(--color-muted); white-space: nowrap; }
+.hx-customer { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 44px; padding: 0 14px; }
+.hx-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.hx-lines { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-8) var(--space-12); }
+.hx-line { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; }
+.hx-q { padding-left: var(--space-4); font-size: 17px; color: var(--color-ink-2); white-space: nowrap; }
+.hx-n { font-size: var(--text-16); font-weight: 500; line-height: 1.3; color: var(--color-ink); }
+.hx-each { margin-top: 3px; font-size: var(--text-13); color: var(--color-muted); }
+.facts.hx-facts { flex: none; margin: 0 var(--space-12) var(--space-12); background: var(--color-surface); }
+.fact.is-link { color: inherit; text-decoration: none; }
+@media (hover: hover) { .fact.is-link:hover { background: var(--color-hover); } }
+.fact.is-link:first-child { border-radius: 16px 16px 0 0; }
+.fact.is-link:last-child { border-radius: 0 0 16px 16px; }
+.fact.is-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.hx-facts .fact dt { padding: 14px 0; line-height: 1.35; text-wrap: pretty; }
+.hx-facts .fact dd { white-space: nowrap; }
+.hx-sum { flex: none; display: flex; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-24) 0; box-shadow: inset 0 1px 0 var(--color-line); font-size: var(--text-14); color: var(--color-muted); }
+.hx-keys { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 10px; padding: var(--space-16) 20px 20px; }
+.hx-keys.is-one { grid-template-columns: minmax(0, 1fr); }
+.hx-keys .take-key .ic { width: 24px; height: 24px; }
+.hx-keys .error { text-align: center; }
+.hx-key { height: 72px; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--color-ink); transition: transform var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.hx-key .ic { width: 22px; height: 22px; color: var(--color-ink-2); }
+@media (hover: hover) { .hx-key:hover { background: var(--color-hover); } }
+.hx-key:active { transform: scale(var(--motion-press)); background: var(--color-pressed); }
+.hx-key:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Refund: the lines with how many come back, the reason, how it goes back, the shelf. */
+.hx-form { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--space-12); margin: 0 -4px; padding: 2px 4px var(--space-24); }
+.hx-rlines { display: flex; flex-direction: column; gap: 6px; }
+.hx-rline { display: grid; grid-template-columns: 108px minmax(0, 1fr) auto; gap: var(--space-12); align-items: center; min-height: 76px; padding: var(--space-8) var(--space-12); border-radius: 16px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.hx-rline.is-on { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.hx-rline:not(.is-on) .hx-n, .hx-rline:not(.is-on) .hx-v { color: var(--color-muted); }
+.hx-step { display: flex; align-items: center; gap: 2px; }
+.hx-step button { width: 36px; height: 44px; border-radius: 10px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.hx-step button .ic { width: 18px; height: 18px; }
+.hx-step button:disabled { opacity: 0.35; cursor: default; }
+.hx-step button:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.hx-step button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent); }
+.hx-step .num { width: 32px; text-align: center; font-size: 17px; color: var(--color-ink); }
+.hx-label { margin-top: 6px; font-size: var(--text-14); font-weight: 500; color: var(--color-muted); }
+.hx-shelf { margin-top: var(--space-8); min-height: 44px; font-size: 15px; color: var(--color-ink); }
+
+/* Refunded: like Paid. */
+.hx-side.is-done { background: var(--color-surface); }
+.hx-done { display: flex; flex-direction: column; padding: var(--space-8) 20px 0; }
+.hx-done .paid { padding-top: 36px; }
+.hx-done .paid-mark .ic { width: 40px; height: 40px; }
+.hx-done .facts.hx-facts { margin: 26px 0 0; }
+.sale-keys.hx-done-keys { margin: 0; padding: var(--space-16) 20px 20px; }
+
+/* The manager's approval (T3-3): the reason as the title and the amount beside it, who approves with
+   their photos, their PIN's dots, a 3 × 4 keypad of 56px keys, and Cancel. */
+.dialog:has(.approve-pin) { width: min(560px, calc(100vw - var(--space-32))); }
+.dialog:has(.approve-pin) .dialog-body { position: relative; gap: var(--space-16); }
+.dialog:has(.approve-amount) .dialog-body h2 { padding-right: 120px; }
+.approve-amount { position: absolute; top: 31px; right: 28px; font-size: 20px; color: var(--color-ink); }
+.approvers { display: grid; grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); gap: var(--space-8); }
+.approver { min-width: 0; height: 60px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: var(--space-12); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); font-weight: 600; color: var(--color-ink); text-align: left; }
+.approver .avatar { width: 36px; height: 36px; flex: none; }
+.approver > :last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.approver[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.approver:disabled { opacity: 0.5; cursor: default; }
+.approver:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.approve-pin { align-items: stretch; gap: var(--space-12); padding-top: var(--space-4); }
+.approve-pin-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); padding: 0 2px; }
+.approve-pin-head .label { font-size: var(--text-14); font-weight: 500; color: var(--color-ink-2); }
+.approve-pin .pin { gap: 14px; }
+.approve-pin .pin i { box-shadow: inset 0 0 0 2px var(--color-rule); }
+.approve-pin .pin i.on { box-shadow: none; }
+.approve-pin .keypad { max-width: none; }
+.approve-pin[aria-busy="true"] .keypad, .approve-pin[aria-busy="true"] .approve-pin-head { opacity: 0.4; }
+
+/* A phone: the list, or the record as its own screen; a refund stacks its two columns. */
+@media (max-width: 760px) {
+  .bench.hx > .main.hx-main { padding: var(--space-12) var(--space-16) 0; }
+  .bench.hx.is-refund { grid-template-rows: auto auto; overflow: auto; }
+  .bench.hx.is-refund > .main.hx-main { overflow: visible; }
+  .bench.hx.is-refund > .bench-side > .sale-head { display: flex; }
+  .bench.hx.is-refund > .bench-side > .hx-scroll, .bench.hx.is-refund > .bench-side > .hx-sum { display: flex; }
+  .bench.hx.is-refund > .bench-side > .hx-keys { display: grid; }
+  .bench.hx.is-refund > .bench-side::before { display: none; }
+  .hx-search { width: auto; flex: 1; max-width: none; }
+}
+.hx-text .num, .hx-s, .hx-each { text-align: left; }

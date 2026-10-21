@@ -161,7 +161,7 @@ export function BottlesBackButton({ emptyCart }: { emptyCart: boolean }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <button type="button" className="btn btn-ink btn-touch" onClick={() => setOpen(true)}>
+      <button type="button" className="btn btn-touch bottles-key" onClick={() => setOpen(true)}>
         <ArrowsCounterClockwise className="ic" />
         {emptyCart ? "Bottles back · Pay" : "Bottles back"}
       </button>

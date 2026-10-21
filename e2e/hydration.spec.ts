@@ -40,7 +40,7 @@ const PAGES = [
   "/schools/students",
   "/schools/classes",
   "/schools/subjects",
-  "/schools/teachers",
+  "/schools/staff/teachers",
   "/schools/finance",
   "/schools/attendance",
   "/schools/boarding",

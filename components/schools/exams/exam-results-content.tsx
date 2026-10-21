@@ -106,7 +106,7 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
 
   return (
     <SchoolsPage>
-      <PageChrome title="Public results" backHref="/schools/exams" backLabel="Exam series">
+      <PageChrome title="Public results" backHref="/schools/results/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"
           resource="schools.exams"

@@ -44,8 +44,6 @@ describe("the offline window", () => {
         now,
       }),
     ).toBe(true);
-    expect(offlineStopSentence(12)).toBe(
-      "This till has been offline for more than 12 hours, longer than the till rules allow. Connect it to send what it holds, then sell again.",
-    );
+    expect(offlineStopSentence(12)).toBe("Offline over 12 hours");
   });
 });

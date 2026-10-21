@@ -6,29 +6,38 @@
  * own would need the server to carry it.
  */
 
-import type { TillContext } from "./types";
+import type { TenderType, TillContext } from "./types";
 
 export type DisplayLine = { name: string; quantity: number; amount: number };
 
+/** The shop as the customer sees it at the top of the screen: its name and its logo, when it has one. */
+type DisplayShop = { shop: string; logo: string | null };
+
+/** The part being paid while the tray is open: its tender and its amount in US dollars. */
+export type DisplayPaying = { tender: TenderType; amount: number };
+
 export type DisplayFeed =
-  | { phase: "idle"; shop: string }
-  | {
+  | ({ phase: "idle" } & DisplayShop)
+  | ({
       phase: "selling";
-      shop: string;
       lines: DisplayLine[];
       total: number;
       /** The total in ZiG at the day's rate, where the shop takes ZiG. */
       zig: { total: number; rate: number } | null;
       ecocash: TillContext["ecocash"];
-    }
-  | {
+      /** Null until the tray is open on a tender. */
+      paying: DisplayPaying | null;
+    } & DisplayShop)
+  | ({
       phase: "paid";
-      shop: string;
       total: number;
       change: { usd: number; zig: number } | null;
       points: { earned: number; balance: number } | null;
       customer: string | null;
-    };
+      /** The sale's number, or a sale saved on the till: its tag. */
+      saleNo: string;
+      at: string;
+    } & DisplayShop);
 
 type Message = { kind: "feed"; feed: DisplayFeed } | { kind: "hello" };
 

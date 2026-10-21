@@ -1,0 +1,185 @@
+from common import *
+css = '''
+.sheet{display:grid;grid-template-columns:repeat(4,368px);gap:32px;padding:40px 40px 48px;justify-content:space-between}
+.kp{display:flex;flex-direction:column;gap:12px;min-width:0}
+.kp__t{color:var(--ink);font-weight:600;font-size:15px}
+.kp__s{color:var(--ink-3);margin-top:-8px}
+.kp .pn{border:1px solid var(--line);border-radius:12px;height:1340px}
+.kp .pn__body{overflow:hidden}
+.sw{width:30px;height:18px;border-radius:99px;background:var(--line-strong);position:relative;flex:none}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:99px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on{background:var(--ink)} .sw.on::after{left:14px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld__l{color:var(--ink-3);font-size:var(--t-cap)}
+.inp{height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);background:var(--surface)}
+.inp .muted{margin-left:auto}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cond{padding:10px 12px;border-radius:10px;background:var(--ground);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-2);line-height:1.6}
+.cond b{color:var(--ink);font-weight:600}
+.tick{display:flex;align-items:center;gap:8px;min-height:30px;color:var(--ink-2)} .tick .i{color:var(--ok)} .tick.off{color:var(--faint)} .tick.off .i{color:var(--faint)}
+'''
+def head(a, b, b_n='', act='Hide the panel, ]'):
+    n = f'<span class="chip__n">{b_n}</span>' if b_n else ''
+    return f'''<div class="pn__head"><div class="seg" role="tablist"><button class="seg__item" aria-pressed="true"><span class="i i-tag"></span>{a}</button><button class="seg__item" aria-pressed="false"><span class="i i-chat"></span>{b}{n}</button></div><button class="ibtn" type="button" aria-label="{act}"><span class="i i-caret-right i-sm"></span></button></div>'''
+
+invoice = f'''<div class="kp"><div class="kp__t">An invoice</div><div class="kp__s">INV-0064 in Books, Kuda Interiors</div>
+<aside class="pn">{head('Details','Comments','1')}
+<div class="pn__body">
+ <section class="pn__sec" style="gap: var(--s4)">
+  <div class="pos"><span class="pn__label">Owed</span>
+   <div class="pos__row"><span class="figure">US$1,280.00</span><span class="pos__of">of US$3,200.00</span></div>
+   <div class="track" style="margin-top: 6px" aria-label="60% paid"><i style="width: 60%"></i></div>
+   <div class="legend"><span><i></i>Paid US$1,920.00</span><span><i style="background: var(--tray); box-shadow: inset 0 0 0 1px var(--line-strong)"></i>Owed US$1,280.00</span></div>
+  </div>
+  <div class="next"><div class="next__m">Monday 26 October · on fitting</div><div class="next__t">The balance falls due when the wardrobes are fitted</div><div class="group" style="align-self: flex-start; background: var(--surface)"><button class="btn" type="button"><span class="i i-card"></span>Record a payment<span class="kbd">P</span></button><button class="btn" type="button"><span class="i i-cal"></span>Move it</button></div></div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Vane<span class="pn__n">1</span></div>
+  <article class="vc"><div class="vc__k"><span class="i i-note"></span>Suggestion · from Books</div><div class="vc__h">A WhatsApp reminder for the balance is ready for the fitting day</div><div class="vc__b">Mrs Marufu viewed the invoice the morning after it went. The reminder goes when you send it.</div><div class="vc__acts"><button class="btn" type="button"><span class="i i-eye"></span>Read the reminder</button><button class="btn btn--quiet" type="button">Not now</button></div></article>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Invoice details<button class="pn__act" type="button"><span class="i i-history"></span>Who changed what</button></div>
+  <dl class="kv">
+   <dt><span class="i i-building"></span>Client</dt><dd><a class="u" href="#">Highlands Guest Lodge</a></dd>
+   <dt><span class="i i-jobs"></span>Job</dt><dd><a class="u" href="#">J-0129</a>&nbsp;Fitted wardrobes</dd>
+   <dt><span class="i i-cal"></span>Issued</dt><dd>Friday 2 October</dd>
+   <dt><span class="i i-wait"></span>Due</dt><dd>On fitting, Monday 26 October</dd>
+   <dt><span class="i i-tag"></span>Terms</dt><dd>60% deposit, balance on fitting</dd>
+   <dt><span class="i i-receipt"></span>Their order</dt><dd class="is-empty">Add</dd>
+   <dt><span class="i i-shield"></span>Fiscal receipt</dt><dd><span class="dot" style="background: var(--ok-dot)"></span>Fiscalised, 0412/1842</dd>
+  </dl>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Payments<span class="pn__n">1</span><button class="pn__act" type="button"><span class="i i-plus"></span>Record</button></div>
+  <div class="lk"><span class="lk__mark" style="background: var(--ok-soft); color: var(--ok)"><span class="i i-check"></span></span><span style="min-width: 0"><div class="lk__t">Deposit by CBZ transfer</div><div class="lk__s">5 Oct · matched by Rudo</div></span><span class="lk__end"><b>US$1,920.00</b></span></div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Linked<span class="pn__n">2</span></div>
+  <div>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-doc"></span></span><span style="min-width: 0"><div class="lk__t">Quote Q-0081</div><div class="lk__s">Signed in the portal, 1 Oct</div></span><span class="lk__end"><b>US$3,200.00</b></span></a>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-jobs"></span></span><span style="min-width: 0"><div class="lk__t">Fitted wardrobes, 6 rooms</div><div class="lk__s">Job J-0129 · in the workshop</div></span><span class="lk__end">5 Oct</span></a>
+  </div>
+ </section>
+ <section class="pn__sec pn__sec--closed"><div class="pn__sh"><span class="i i-caret-down"></span>Documents<span class="pn__n">2</span></div><div></div></section>
+ <div class="pn__foot"><span>Made by Rudo, 2 Oct</span><span class="spacer"></span><span class="code">INV-0064</span><button class="ibtn" style="width: 28px; height: 28px" aria-label="Copy link"><span class="i i-copy i-sm"></span></button></div>
+</div></aside></div>'''
+
+quote = f'''<div class="kp"><div class="kp__t">A quote</div><div class="kp__s">Q-0088 in Pabasa, Kuda Interiors</div>
+<aside class="pn">{head('Details','Comments')}
+<div class="pn__body">
+ <section class="pn__sec" style="gap: var(--s4)">
+  <div class="pos"><span class="pn__label">Quote total</span>
+   <div class="pos__row"><span class="figure">US$4,850.00</span></div>
+   <div class="figure-note" style="margin-top: 0">The job is now US$5,450.00 after the change to oak.</div>
+  </div>
+  <div class="stagepath">
+   <div class="steps" aria-label="Opened by the client, 3 of 4"><i class="on"></i><i class="on"></i><i class="now"></i><i></i></div>
+   <div class="stagepath__l"><b>Opened by the client</b><span>17 Oct 11:30 on a phone</span></div>
+  </div>
+  <div class="next"><div class="next__m">Today 14:00 · Rudo</div><div class="next__t">Call Dr Mutasa about the revised quote</div><div class="group" style="align-self: flex-start; background: var(--surface)"><button class="btn" type="button"><span class="i i-phone"></span>Call</button><button class="btn" type="button"><span class="i i-cal"></span>Move it</button></div></div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Vane<span class="pn__n">1</span></div>
+  <article class="vc vc--issue"><div class="vc__k"><span class="i i-alert"></span>Issue · from Quotes</div><div class="vc__h">This quote is US$600.00 under the job</div><div class="vc__b">Tinashe's comment at 10:12 moves the counter to oak. I've drafted Q-0089 at US$5,450.00 from your oak prices.</div><div class="vc__acts"><button class="btn" type="button"><span class="i i-doc"></span>Open Q-0089</button><button class="btn btn--quiet" type="button">Not now</button></div></article>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Quote details</div>
+  <dl class="kv">
+   <dt><span class="i i-building"></span>Client</dt><dd><a class="u" href="#">Msasa Dental Studio</a></dd>
+   <dt><span class="i i-person"></span>Contact</dt><dd>{face('precious')}Dr Precious Mutasa</dd>
+   <dt><span class="i i-jobs"></span>Job</dt><dd><a class="u" href="#">J-0142</a>&nbsp;Reception counter</dd>
+   <dt><span class="i i-share"></span>Sent</dt><dd><span class="mark-wa" style="width: 14px; height: 14px"></span>By WhatsApp, 16 Oct</dd>
+   <dt><span class="i i-wait"></span>Good until</dt><dd>Sunday 15 November</dd>
+   <dt><span class="i i-card"></span>Deposit</dt><dd>60% to start, US$2,910.00</dd>
+   <dt><span class="i i-crown"></span>Made by</dt><dd>{face('rudo')}Rudo Mapfumo</dd>
+  </dl>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>What the client did<span class="pn__n">3</span></div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+   <div class="tick"><span class="i i-check i-sm"></span>Delivered on WhatsApp<span class="spacer"></span><span class="muted">16 Oct 08:06</span></div>
+   <div class="tick"><span class="i i-check i-sm"></span>Opened, read to the end<span class="spacer"></span><span class="muted">17 Oct 11:30</span></div>
+   <div class="tick off"><span class="i i-wait i-sm"></span>Not accepted yet</div>
+  </div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Linked<span class="pn__n">2</span></div>
+  <div>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-pin"></span></span><span style="min-width: 0"><div class="lk__t">Site visit V-0057</div><div class="lk__s">Tinashe · 6 photos and a floor plan</div></span><span class="lk__end">14 Oct</span></a>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-inbox"></span></span><span style="min-width: 0"><div class="lk__t">Enquiry E-0311</div><div class="lk__s">By WhatsApp, became this job</div></span><span class="lk__end">13 Oct</span></a>
+  </div>
+ </section>
+ <div class="pn__foot"><span>Made by Rudo, 15 Oct</span><span class="spacer"></span><span class="code">Q-0088</span><button class="ibtn" style="width: 28px; height: 28px" aria-label="Copy link"><span class="i i-copy i-sm"></span></button></div>
+</div></aside></div>'''
+
+builder = f'''<div class="kp"><div class="kp__t">A builder</div><div class="kp__s">The site visit form in Build, Kuda Interiors</div>
+<aside class="pn"><div class="pn__head"><div class="seg" role="tablist"><button class="seg__item" aria-pressed="true"><span class="i i-pencil"></span>This field</button><button class="seg__item" aria-pressed="false"><span class="i i-doc"></span>The form</button></div><button class="ibtn" type="button" aria-label="Hide the panel, ]"><span class="i i-caret-right i-sm"></span></button></div>
+<div class="pn__body">
+ <section class="pn__sec" style="gap: var(--s3)">
+  <div class="pos"><span class="pn__label">Field 6 of 14</span><div style="color: var(--ink); font-size: var(--t-h3); font-weight: 600">Wall length</div><div class="muted">Answered on 14 visits since 1 September</div></div>
+  <div class="fld"><span class="fld__l">Label</span><span class="inp">Wall length</span></div>
+  <div class="row2"><div class="fld"><span class="fld__l">Kind of answer</span><span class="inp">Number<span class="i i-caret-down i-sm muted"></span></span></div><div class="fld"><span class="fld__l">Unit</span><span class="inp">metres<span class="i i-caret-down i-sm muted"></span></span></div></div>
+  <div class="fld"><span class="fld__l">Help under the box</span><span class="inp" style="color: var(--ink-2)">Along the floor, wall to wall</span></div>
+  <div class="tick" style="color: var(--ink)"><span class="sw on"></span>Must be answered</div>
+  <div class="tick" style="color: var(--ink)"><span class="sw"></span>Allow a photo with it</div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Vane<span class="pn__n">1</span></div>
+  <article class="vc"><div class="vc__k"><span class="i i-note"></span>Suggestion · from Build</div><div class="vc__h">Tinashe typed centimetres on 3 of his last 8 visits</div><div class="vc__b">4200 for 4.2 m on V-0057. Showing the unit inside the box would stop it.</div><div class="vc__acts"><button class="btn" type="button"><span class="i i-check"></span>Show the unit</button><button class="btn btn--quiet" type="button">Not now</button></div></article>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Show it when</div>
+  <div class="cond"><b>Room</b> is <b>Kitchen</b> or <b>Reception</b></div>
+  <button class="pn__act" type="button" style="margin: -4px 0 0 -8px; align-self: flex-start"><span class="i i-plus"></span>Add a rule</button>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Where the answer goes</div>
+  <a class="lk" href="#"><span class="lk__mark"><span class="i i-receipt"></span></span><span style="min-width: 0"><div class="lk__t">Quote line: worktop</div><div class="lk__s">Charged per metre from your prices</div></span><span class="lk__end">Quotes</span></a>
+  <a class="lk" href="#"><span class="lk__mark"><span class="i i-chart"></span></span><span style="min-width: 0"><div class="lk__t">Monday board</div><div class="lk__s">Metres measured by fitter</div></span><span class="lk__end">Reports</span></a>
+ </section>
+ <div class="pn__foot"><span>Changed by Rudo, 12 Oct · version 4</span><span class="spacer"></span><button class="btn" type="button" style="height: 28px">Publish<span class="kbd">Ctrl S</span></button></div>
+</div></aside></div>'''
+
+client = f'''<div class="kp"><div class="kp__t">A client</div><div class="kp__s">Msasa Dental Studio in Pabasa, Kuda Interiors</div>
+<aside class="pn">{head('Details','Comments')}
+<div class="pn__body">
+ <section class="pn__sec" style="gap: var(--s4)">
+  <div class="pos"><span class="pn__label">Open with them</span>
+   <div class="pos__row"><span class="figure">US$5,450.00</span><span class="pos__of">1 job</span></div>
+   <div class="figure-note" style="margin-top: 0">Nothing owed. A client since October.</div>
+  </div>
+  <div class="next"><div class="next__m">Today 14:00 · Rudo</div><div class="next__t">Call Dr Mutasa about the revised quote</div></div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Contacts<span class="pn__n">1</span><button class="pn__act" type="button"><span class="i i-user-plus"></span>Add</button></div>
+  <div class="lk"><img class="face face-32" src="/_blob/{FACE['precious']}" alt="" style="width: 28px; height: 28px"><span style="min-width: 0"><div class="lk__t">Dr Precious Mutasa</div><div class="lk__s">Owner · WhatsApp first</div></span><span class="lk__end"><span style="display: flex; gap: 2px"><button class="ibtn" style="width: 28px; height: 28px" aria-label="Call"><span class="i i-phone i-sm"></span></button><button class="ibtn" style="width: 28px; height: 28px" aria-label="WhatsApp"><span class="mark-wa" style="width: 14px; height: 14px"></span></button></span></span></div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Client details<button class="pn__act" type="button"><span class="i i-history"></span>Who changed what</button></div>
+  <dl class="kv">
+   <dt><span class="i i-tag"></span>Kind</dt><dd>Dental practice</dd>
+   <dt><span class="i i-pin"></span>Address</dt><dd class="is-hover">Msasa, Harare<span class="i i-pencil kv__edit"></span></dd>
+   <dt><span class="i i-inbox"></span>Came in by</dt><dd><span class="mark-wa" style="width: 14px; height: 14px"></span>WhatsApp, 13 Oct</dd>
+   <dt><span class="i i-crown"></span>Owner</dt><dd>{face('rudo')}Rudo Mapfumo</dd>
+   <dt><span class="i i-receipt"></span>VAT number</dt><dd class="is-empty">Add</dd>
+  </dl>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Jobs and money<span class="pn__n">2</span></div>
+  <div>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-jobs"></span></span><span style="min-width: 0"><div class="lk__t">Reception counter and cabinets</div><div class="lk__s">J-0142 · Quote out</div></span><span class="lk__end"><b>US$5,450.00</b></span></a>
+   <a class="lk" href="#"><span class="lk__mark"><span class="i i-doc"></span></span><span style="min-width: 0"><div class="lk__t">Quote Q-0088</div><div class="lk__s">Opened 17 Oct</div></span><span class="lk__end"><b>US$4,850.00</b></span></a>
+  </div>
+ </section>
+ <section class="pn__sec">
+  <div class="pn__sh"><span class="i i-caret-down"></span>Documents<span class="pn__n">2</span></div>
+  <div class="fl"><span class="fl__mark fl__mark--pdf">PDF</span><span style="min-width: 0"><div class="lk__t">Reception floor plan.pdf</div><div class="lk__s">1.2 MB · Tinashe, 14 Oct</div></span><span class="lk__end">J-0142</span></div>
+  <div class="fl"><span class="fl__mark fl__mark--img">JPG</span><span style="min-width: 0"><div class="lk__t">6 site photos</div><div class="lk__s">Tinashe, 14 Oct</div></span><span class="lk__end">V-0057</span></div>
+  <button class="btn" type="button" style="align-self: flex-start"><span class="i i-upload"></span>Add documents</button>
+ </section>
+ <div class="pn__foot"><span>Added by Rudo, 13 Oct</span><span class="spacer"></span><span class="code">C-0031</span><button class="ibtn" style="width: 28px; height: 28px" aria-label="Copy link"><span class="i i-copy i-sm"></span></button></div>
+</div></aside></div>'''
+
+body = f'<div class="sheet">{invoice}{quote}{builder}{client}</div>'
+open('../canvas/project/K6-panel.dc.html','w').write(page('The right panel', body, 1632, 1540, css))
+print('ok')

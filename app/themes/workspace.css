@@ -52,7 +52,12 @@
 .cx-group > .cx-btn:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
 .cx-group > .cx-btn:last-child { border-radius: 0 8px 8px 0; }
 .cx-group > .cx-btn:only-child { border-radius: 8px; }
-.cx-group > .cx-btn:focus-visible { position: relative; z-index: 1; }
+.cx-group > .cx-btn:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--action); outline-offset: 2px; }
+.cx-group > .cx-btn:disabled { opacity: 0.5; background: var(--surface); }
+.cx-step { display: inline-flex; align-items: center; gap: 8px; }
+.cx-step__pos { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cx-step[data-size="panel"] .cx-btn { height: 28px; }
+.cx-step[data-size="panel"] .cx-btn--icon { width: 28px; }
 
 /* ── Selected: solid ink (G1) ─────────────────────────────── */
 /* Segmented: an inset track; the chosen segment sits 3px inside it, in ink. */

@@ -88,7 +88,7 @@ function taskHref(task: { dealId: string | null; leadId: string | null; clientId
   if (task.dealId) return `/crm/deals/${task.dealId}`;
   if (task.leadId) return `/crm/leads/${task.leadId}`;
   if (task.clientId) return `/crm/companies/${task.clientId}`;
-  return "/crm/follow-ups";
+  return "/crm/tasks/follow-ups";
 }
 
 /** The currency most rows are in, so a total is added up in one. */

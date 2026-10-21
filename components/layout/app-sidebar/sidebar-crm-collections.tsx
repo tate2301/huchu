@@ -10,7 +10,7 @@ import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client"
 import { groupHref } from "@/lib/crm/groups";
 import { registerHref } from "@/lib/crm/registers/href";
 import { isEngineRegisterKey } from "@/lib/crm/registers/registry";
-import { orderRows } from "@/lib/rail/order";
+import { orderRows } from "@/lib/nav/order";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
 

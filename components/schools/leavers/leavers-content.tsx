@@ -341,7 +341,7 @@ export function LeaversContent() {
           ) : (
             <div className="flex justify-end">
               <Button asChild variant="secondary" size="sm">
-                <Link href={`/schools/leavers/documents?leaver=${row.original.id}`}>
+                <Link href={`/schools/students/leavers/documents?leaver=${row.original.id}`}>
                   Raise the documents
                 </Link>
               </Button>

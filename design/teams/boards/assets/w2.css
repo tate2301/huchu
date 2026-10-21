@@ -1,0 +1,68 @@
+/* W2 · Adding someone when every seat is taken. Only w2- classes. */
+.w2-scrim { position: absolute; inset: 0; background: var(--scrim); animation: arrive 200ms var(--ease-out) both; z-index: 8; }
+.w2-sheet { position: absolute; top: 0; right: 0; bottom: 0; z-index: 9; animation: sheet 280ms var(--ease-out) both; }
+.w2-sheet .cx-sheet__head .wsmark { width: 28px; height: 28px; }
+.w2-input { display: flex; align-items: center; gap: 8px; }
+.w2-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.w2-pmark { width: 16px; height: 16px; display: inline-flex; flex: none; }
+.w2-pmark svg { width: 100%; height: 100%; }
+.w2-full { padding: var(--s4); border-radius: 12px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: var(--s3); }
+.w2-full__top { display: flex; align-items: center; gap: var(--s3); }
+.w2-full__who { display: flex; align-items: center; gap: var(--s3); }
+.w2-arrive { animation: arrive 320ms var(--ease-out) both; }
+.w2-grow { transform-origin: left; animation: fill 700ms var(--ease-out) 200ms both; background: var(--action) !important; }
+
+/* Sean's request card */
+.w2-ask { margin-top: var(--s2); padding: var(--s3); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--surface); display: flex; flex-direction: column; gap: var(--s3); }
+.w2-ask__who { display: flex; align-items: center; gap: var(--s3); }
+.w2-price { display: flex; align-items: center; gap: 5px; padding: 10px 10px; font-size: 13px; border-radius: 10px; background: var(--ground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.w2-price s { color: var(--ink-3); text-decoration-color: var(--faint); }
+.w2-price ins { text-decoration: none; color: var(--ink); font-weight: 600; }
+.w2-price .muted { font-size: var(--t-cap); }
+
+/* phone bottom sheet */
+.w2-psheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px -12px rgba(22, 21, 15, 0.3); padding: 8px var(--s4) var(--s5); animation: w2up 320ms var(--ease-out) both; display: flex; flex-direction: column; gap: var(--s3); }
+@keyframes w2up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.w2-grab { width: 36px; height: 4px; border-radius: 99px; background: var(--line-strong); align-self: center; margin-bottom: 4px; }
+.w2-psheet__head { display: flex; align-items: center; gap: var(--s2); }
+.w2-kv { grid-template-columns: 104px minmax(0, 1fr); }
+.w2-kv dd { gap: 6px; font-variant-numeric: tabular-nums; }
+.w2-psheet__foot { padding-top: var(--s2); }
+
+/* toast on Members */
+.w2-toast { position: absolute; bottom: 28px; left: calc(50% + 124px); transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 99px; background: var(--ink); color: #fff; box-shadow: var(--shadow-float); animation: w2toast 360ms var(--ease-out) both; white-space: nowrap; }
+.w2-toast .face { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.w2-toast b { font-weight: 600; }
+.w2-toast__t { color: rgba(255, 255, 255, 0.6); font-size: var(--t-cap); font-variant-numeric: tabular-nums; }
+@keyframes w2toast { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* join page */
+.w2-url { height: 40px; flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--ink-3); font-size: var(--t-cap); background: var(--ground); border-bottom: 1px solid var(--line); }
+.w2-join { flex: 1; padding: var(--s6) var(--s5) var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+.w2-join__mark { margin-bottom: var(--s2); }
+.w2-from { display: flex; align-items: center; gap: 8px; color: var(--ink-3); }
+.w2-from b { color: var(--ink); font-weight: 600; }
+.w2-code { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.w2-code span { height: 52px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line-strong); display: flex; align-items: center; justify-content: center; color: var(--ink); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.w2-code span.is-now { box-shadow: inset 0 0 0 2px var(--action), 0 0 0 4px var(--sel-bg); }
+.w2-code span.is-now::after { content: ""; width: 2px; height: 24px; background: var(--action); animation: talk 1s steps(1) infinite; }
+.w2-by { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; padding: var(--s3) 0 var(--s4); font-size: var(--t-cap); }
+
+/* deals list on the phone */
+.w2-stage { display: flex; align-items: center; gap: 6px; padding: var(--s3) var(--s4) 6px; color: var(--ink); font-weight: 600; }
+.w2-stage .muted { font-weight: 500; }
+.w2-deal { display: flex; align-items: center; gap: var(--s3); min-height: 60px; padding: 0 var(--s4); border-bottom: 1px solid var(--line-soft); }
+.w2-deal__t { color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w2-deal__s { margin-top: 3px; display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: var(--t-cap); }
+.w2-deal__s .code { font-size: 11.5px; }
+.w2-deal__age { margin-left: auto; color: var(--ink-3); font-size: var(--t-cap); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.w2-more { margin: var(--s2) var(--s4); height: 40px; width: calc(100% - 2 * var(--s4)); border: 0; border-radius: 10px; background: var(--tray); color: var(--ink-2); font: inherit; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* panel pieces */
+.w2-steps { display: flex; flex-direction: column; }
+.w2-ws { display: flex; align-items: center; gap: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .w2-scrim, .w2-sheet, .w2-arrive, .w2-grow, .w2-psheet, .w2-toast { animation: none; }
+}
+.mrow > .state { justify-self: start; }

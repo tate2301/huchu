@@ -11,7 +11,7 @@ import { shooter } from "./_support/shots";
  * they are not part of `visual-pass.spec.ts`: that measures layout at three
  * viewports and cannot afford to drive either.
  *
- * `schools-suite.spec.ts` sweeps `/schools/calendar` and the bare
+ * `schools-suite.spec.ts` sweeps `/schools/attendance/calendar` and the bare
  * `/schools/attendance`. Neither is this. The rail switch on
  * `/schools/academics` and `/schools/attendance?date=<holiday>` are different
  * render paths — the second is the whole point of the story, because a closed
@@ -98,13 +98,13 @@ for (const viewport of [
       // view on it, so the click had nothing to hit and the shot was of a year
       // record rather than of a calendar.
       //
-      // `/schools/calendar` renders the same `SchoolDaysContent` the tab did,
+      // `/schools/attendance/calendar` renders the same `SchoolDaysContent` the tab did,
       // with an app bar of its own. Its own docstring gives the reason there
       // are two ways in: setting next year's terms up wants the calendar
       // alongside, and asking whether the school is open on Monday should not
       // go through Master Data to find out. That second reading is this test's,
       // so it asks for the page.
-      await page.goto("/schools/calendar");
+      await page.goto("/schools/attendance/calendar");
       await expect(
         page.getByRole("heading", { name: "Calendar" }).first(),
       ).toBeVisible({ timeout: 30_000 });
