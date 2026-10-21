@@ -9,7 +9,6 @@ import { BkInvoicesView, type InvoiceBulk } from "@/components/books/bk-invoices
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
-import { ButtonLink, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -130,19 +129,14 @@ function BooksInvoices() {
   const data = invoices.data;
   return (
     <>
-      <PageChrome title="Invoices" primary={NEW_INVOICE}>
-        <Kit contents>
-          <ButtonLink href={`/books/statements${data?.query.customer ? `?customers=${data.query.customer}` : ""}`} icon="print">
-            Statements
-          </ButtonLink>
-        </Kit>
-      </PageChrome>
+      <PageChrome title="Invoices" primary={NEW_INVOICE} />
       <BooksPage screen="bk-a">
         {data ? (
           <BkInvoicesView
             data={data}
             onQuery={onQuery}
             exportHref={`/api/books/invoices?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
+            statementsHref={`/books/statements${data?.query.customer ? `?customers=${data.query.customer}` : ""}`}
             bulk={bulk}
             busy={remind.isPending || run.isPending}
             canIssue={data.can.issue}

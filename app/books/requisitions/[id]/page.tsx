@@ -23,7 +23,8 @@ import type { RequisitionRecordPage } from "@/lib/books/requisition-record";
  * primary and Reject sits beside it, for whoever may decide (never your own;
  * over its limit only the owner); the phone has both at its foot. Paying out,
  * the slips and closing it are done where it was asked, which ⋯ opens; Print
- * is quiet.
+ * is quiet. Paid out and not accounted for, Account for it is the primary
+ * (Ctrl Enter) and Add a receipt (R) sits beside it.
  */
 export default function BooksRequisitionPage() {
   const params = useParams<{ id: string }>();
@@ -89,7 +90,7 @@ export default function BooksRequisitionPage() {
 
   return (
     <>
-      <PageChrome title={record?.number ?? "Requisition"} backHref="/books/requisitions" backLabel="Requisitions" phoneMenu={phoneMenu}>
+      <PageChrome title={record?.number ?? "Requisition"} backHref="/books/requisitions" backLabel="Requisitions" phoneMenu={phoneMenu} primary={record?.status === "DISBURSED" ? { label: "Account for it", icon: "check", href: record.sourceHref, shortcut: "Ctrl Enter" } : undefined}>
         {record ? (
           <Kit contents>
             {waiting && can?.decide ? (
@@ -102,6 +103,11 @@ export default function BooksRequisitionPage() {
             ) : (
               <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
             )}
+            {record.status === "DISBURSED" ? (
+              <Button shortcut="R" onClick={() => window.location.assign(record.sourceHref)}>
+                Add a receipt
+              </Button>
+            ) : null}
             <Button variant="quiet" icon="print" onClick={() => window.print()}>
               Print
             </Button>

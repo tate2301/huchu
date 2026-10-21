@@ -181,7 +181,7 @@ export type FinanceScope = {
   /**
    * Who is looking. Their own requests are waiting on somebody else — nobody
    * approves their own — so they are not counted as waiting on them, which is
-   * what keeps the count equal to the "Waiting on me" queue it links to.
+   * what keeps the count equal to the "To approve" queue it links to.
    */
   viewerId?: string | null;
 };

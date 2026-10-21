@@ -38,7 +38,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           orderBy: [{ noteDate: order }, { createdAt: order }],
           skip,
           take: CREDITS_PAGE_SIZE,
-          select: { id: true, noteNumber: true, noteDate: true, status: true, total: true, currency: true, reason: true, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true, ...customerFace } } } } },
+          select: { id: true, noteNumber: true, noteDate: true, status: true, total: true, taxTotal: true, currency: true, reason: true, fiscalReceipt: { select: { status: true } }, invoice: { select: { id: true, invoiceNumber: true, customer: { select: { name: true, ...customerFace } } } } },
         })
       : Promise.resolve([]),
     query.view === "write-offs"
@@ -60,6 +60,12 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
   const currency = monthNotes[0]?.currency ?? monthWriteOffs[0]?.invoice.currency ?? "USD";
   const credited = monthNotes.filter((note) => note.currency === currency).reduce((sum, note) => sum + note.total, 0);
   const writtenOff = monthWriteOffs.filter((row) => row.invoice.currency === currency).reduce((sum, row) => sum + row.amount, 0);
+  // The totals row sums everything the filters match, not only this page, leaving out the void and other currencies.
+  const [noteSum, writeOffSum] = await Promise.all([
+    query.view === "notes" ? db.creditNote.aggregate({ where: { AND: [noteWhere, { status: { not: "VOIDED" }, currency }] }, _sum: { total: true, taxTotal: true } }) : null,
+    query.view === "write-offs" ? db.salesWriteOff.aggregate({ where: { AND: [writeOffWhere, { status: { not: "VOIDED" }, invoice: { currency } }] }, _sum: { amount: true } }) : null,
+  ]);
+  const totals = { vat: noteSum ? Math.round((noteSum._sum.taxTotal ?? 0) * 100) / 100 : null, amount: Math.round(((noteSum?._sum.total ?? writeOffSum?._sum.amount) ?? 0) * 100) / 100 };
   const rows: CreditRow[] =
     query.view === "notes"
       ? notes.map((note) => ({
@@ -73,6 +79,8 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           amount: note.total,
           currency: note.currency,
           date: shortDay(storedDay(note.noteDate)),
+          vat: note.taxTotal,
+          fiscal: note.status === "DRAFT" || !note.fiscalReceipt ? null : note.fiscalReceipt.status === "SUCCESS" ? "Valid" : note.fiscalReceipt.status === "FAILED" ? "Failed" : note.fiscalReceipt.status === "PENDING" ? "Pending" : null,
         }))
       : writeOffs.map((row) => ({
           id: row.id,
@@ -85,6 +93,8 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
           amount: row.amount,
           currency: row.invoice.currency,
           date: shortDay(dayOf(row.createdAt)),
+          vat: null,
+          fiscal: null,
         }));
   const matching = query.view === "notes" ? noteCount : writeOffCount;
   const first = matching === 0 ? 0 : skip + 1;
@@ -102,6 +112,7 @@ export async function readCreditNotes(db: Db, companyId: string, query: CreditQu
     counts: { notes: noteCount, "write-offs": writeOffCount },
     month: { name: monthName(today), amount: Math.round((query.view === "notes" ? credited : writtenOff) * 100) / 100, drafts: Math.round(draftSum * 100) / 100 },
     currency,
+    totals,
     customers: customers.map((customer) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })),
     query,
   };

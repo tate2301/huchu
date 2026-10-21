@@ -3,31 +3,25 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, useSelection } from "@/components/core";
+import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
-import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
+import { BILL_DUE_LABEL, BILL_DUES, BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
+import { count, money } from "@/lib/books/format";
 
-import { Amt, BkFilter, BkNote, BkPager, BkScroll, BkSelectionBar, BkTabs, BkTools, None, St, Worksheet, type BkTone, type WsColumn } from "./ui";
+import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";
+import { Callout } from "./bk-record";
+import { Cents } from "./figures";
 
-const FDMS_TONE: Record<NonNullable<BillRow["fdms"]>, BkTone> = { VALID: "done", NOT_CHECKED: "warn", NOT_VALID: "bad" };
-
-/** A bill's state as bk-bills writes it: recorded and owing is "Recorded"; late is "Overdue". */
-const STATE: Record<BillRow["state"], { label: string; tone: BkTone }> = {
-  "to-pay": { label: "Recorded", tone: "info" },
-  "part-paid": { label: "Part paid", tone: "info" },
-  overdue: { label: "Overdue", tone: "warn" },
-  paid: { label: "Paid", tone: "done" },
-  draft: { label: "Draft", tone: "draft" },
-  void: { label: "Void", tone: "void" },
-};
+const FDMS_TONE = { VALID: "success", NOT_CHECKED: "warning", NOT_VALID: "danger" } as const;
+const STATE_TONE: Record<BillRow["state"], Parameters<typeof BkState>[0]["tone"]> = { draft: "plain", "to-pay": "info", "part-paid": "info", paid: "success", overdue: "warning", void: "void" };
 
 /**
- * Books → Bills & spending → Bills (bk-bills): the tabs on their own row, the
- * filters on the row below, then one worksheet: the bill, the supplier, their
- * FTI and its FDMS check, dated, due, its state, the total and what is still
- * owed, with the page's totals. A selection pays one supplier's bills or does
- * More. A bill not checked on FDMS is the one warning, with Check on FDMS.
+ * Books → Bills & spending → Bills (design/core-modules/boards/view/BkBills.html):
+ * the tabs, the search with Supplier, FDMS and Due, and ten columns: the bill,
+ * the supplier, their fiscal invoice and its FDMS check, when it was dated and
+ * falls due, its state, its total and what is left. One line says when a bill
+ * is not checked on FDMS. Selecting bills offers Pay (one supplier's open
+ * bills) and More.
  */
 export function BkBillsView({
   data,
@@ -43,122 +37,208 @@ export function BkBillsView({
   more: (rows: BillRow[]) => MenuEntry[];
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
+  const source = React.useMemo(() => data.rows, [data.rows]);
+  const layout = useBkLayout(
+    "bills",
+    [{ key: "fti", label: "Their FTI", nth: 4 }, { key: "fdms", label: "FDMS", nth: 5 }, { key: "dated", label: "Dated", nth: 6 }, { key: "due", label: "Due", nth: 7 }, { key: "state", label: "State", nth: 8 }, { key: "balance", label: "Balance", nth: 10 }],
+    [{ key: "supplier", label: "Supplier", by: (row) => row.supplier.name }, { key: "state", label: "State", by: (row) => row.stateLabel }, { key: "fdms", label: "FDMS", by: (row) => (row.fdms ? FDMS_LABEL[row.fdms] : "Not applicable") }],
+    source,
+  );
   const selection = useSelection(ids);
   const query = data.query;
   const selected = data.rows.filter((row) => selection.isSelected(row.id));
   const payable = selected.filter((row) => (row.state === "to-pay" || row.state === "overdue" || row.state === "part-paid") && row.balance > 0.005);
   const oneSupplier = new Set(payable.map((row) => row.supplier.id)).size === 1;
   const supplier = data.suppliers.find((option) => option.id === query.supplier);
-  const notes = query.view === "debit-notes";
-  const filtered = Boolean(query.q || query.supplier || query.fdms || query.period !== "any");
-  const unchecked = data.rows.find((row) => row.fdms === "NOT_CHECKED" && row.state !== "void" && row.state !== "draft");
-  const currency = data.currency;
-
-  const columns: Array<WsColumn<BillRow>> = [
-    {
-      key: "number",
-      head: notes ? "Debit note" : "Number",
-      cell: (row) => (
-        <Link className="bkw-ref" href={row.href}>
-          {row.number}
-        </Link>
-      ),
-    },
-    { key: "supplier", head: "Supplier", cell: (row) => <span className="who">{row.supplier.name}</span> },
-    notes
-      ? { key: "bill", head: "Bill", cell: (row) => (row.matches.bill ? <span className="bkw-ref">{row.matches.bill}</span> : <None />) }
-      : { key: "fti", head: "Their FTI", className: "mono k-fti", cell: (row) => row.fti ?? <None /> },
-    ...(notes ? [] : [{ key: "fdms", head: "FDMS", cell: (row: BillRow) => (row.fdms ? <St tone={FDMS_TONE[row.fdms]}>{row.fdms === "VALID" ? "Valid" : FDMS_LABEL[row.fdms]}</St> : <None />) }]),
-    { key: "dated", head: "Dated", className: "muted", cell: (row) => row.dated },
-    { key: "due", head: "Due", className: "muted", cell: (row) => row.due ?? <None /> },
-    { key: "state", head: "State", cell: (row) => <St tone={STATE[row.state].tone}>{notes ? row.stateLabel : STATE[row.state].label}</St> },
-    { key: "total", head: `Total, ${currency}`, right: true, cell: (row) => <Amt value={row.total} currency={row.currency === currency ? null : row.currency} /> },
-    { key: "balance", head: "Balance", right: true, cell: (row) => (row.balance > 0.005 && row.state !== "void" ? <Amt value={row.balance} currency={row.currency === currency ? null : row.currency} /> : <None />) },
-  ];
-  const sum = (pick: (row: BillRow) => number) => data.rows.filter((row) => row.currency === currency && row.state !== "void").reduce((total, row) => total + pick(row), 0);
-  const totals = columns.map((column, index) =>
-    index === 0 ? `${data.rows.length} ${notes ? "debit notes" : data.rows.length === 1 ? "bill" : "bills"}` : column.key === "total" ? <Amt value={sum((row) => row.total)} currency={null} /> : column.key === "balance" ? <Amt value={sum((row) => row.balance)} currency={null} /> : null,
-  );
+  const { from, to, of } = data.range;
+  const filtered = Boolean(query.q || query.supplier || query.fdms || query.due !== "any");
+  const here = data.rows.filter((row) => row.currency === data.currency);
+  const totalHere = here.reduce((sum, row) => sum + row.total, 0);
+  const balanceHere = here.reduce((sum, row) => sum + (row.state === "void" ? 0 : row.balance), 0);
+  const unchecked = data.rows.filter((row) => row.fdms === "NOT_CHECKED" && row.vat > 0.005 && row.state !== "void" && row.state !== "paid");
+  const uncheckedVat = unchecked.filter((row) => row.currency === data.currency).reduce((sum, row) => sum + row.vat, 0);
+  const paged = of > BILLS_PAGE_SIZE;
 
   return (
-    <>
-      <BkTabs label="Bills" value={query.view} onChange={(view) => onQuery({ view, page: 1 })} items={BILL_VIEWS.map((view) => ({ value: view, label: BILL_TAB_LABEL[view], count: data.counts[view] }))} />
+    <div className="bk">
+      <BkTabs
+        label="Bill views"
+        value={query.view}
+        onChange={(view) => onQuery({ view, page: 1 })}
+        items={BILL_VIEWS.map((view) => ({ value: view, label: BILL_TAB_LABEL[view], count: data.counts[view] }))}
+      />
       <BkTools
         find="Search bills"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={data.range.of}
-        filters={
+        count={of.toLocaleString("en-GB")}
+        chips={
           <>
-            <BkFilter
+            <BkChip
               label="Supplier"
               value={supplier?.name ?? "Any"}
+              set={Boolean(supplier)}
               items={[
                 { key: "any", label: "Any supplier", checked: !query.supplier, onSelect: () => onQuery({ supplier: null, page: 1 }) },
                 { separator: true },
                 ...data.suppliers.map((option) => ({ key: option.id, label: option.name, checked: query.supplier === option.id, onSelect: () => onQuery({ supplier: option.id, page: 1 }) })),
               ]}
             />
-            <BkFilter
+            <BkChip
               label="FDMS"
               value={query.fdms ? FDMS_LABEL[query.fdms] : "Any"}
+              set={Boolean(query.fdms)}
               items={[
                 { key: "any", label: "Any", checked: !query.fdms, onSelect: () => onQuery({ fdms: null, page: 1 }) },
                 { separator: true },
                 ...(["VALID", "NOT_CHECKED", "NOT_VALID"] as const).map((status) => ({ key: status, label: FDMS_LABEL[status], checked: query.fdms === status, onSelect: () => onQuery({ fdms: status, page: 1 }) })),
               ]}
             />
-            <BkFilter
+            <BkChip
               label="Due"
-              value={query.period === "any" ? "Any" : PERIOD_LABEL[query.period]}
-              items={PERIODS.map((period) => ({ key: period, label: PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
+              value={BILL_DUE_LABEL[query.due]}
+              set={query.due !== "any"}
+              items={BILL_DUES.map((due) => ({ key: due, label: BILL_DUE_LABEL[due], checked: query.due === due, onSelect: () => onQuery({ due, page: 1 }) }))}
             />
           </>
         }
-        end={
-          <>
-            <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: query.sort === "due" ? "newest" : "due", page: 1 })}>
-              {query.sort === "due" ? "Sort" : "Newest first"}
-            </Button>
-            <a className="btn" href={exportHref}>
-              Export
-            </a>
-          </>
-        }
+        filters={[{ key: "clear", label: "Clear filters", disabled: !filtered, onSelect: () => onQuery({ q: "", supplier: null, fdms: null, due: "any", page: 1 }) }]}
+        end={<BkQuietTools middle={layout.tools} onSort={() => onQuery({ sort: query.sort === "due" ? "newest" : "due", page: 1 })} sortLabel={query.sort === "due" ? "Sort" : "Newest first"} exportHref={exportHref} />}
       />
-      <BkScroll>
-        <Worksheet
-          label="bills"
-          rows={data.rows}
-          rowKey={(row) => row.id}
-          columns={columns}
-          openHref={(row) => row.href}
-          selection={{ ...selection, selected: selection.selected, labelOf: (row) => row.number }}
-          totals={totals}
-          empty={filtered ? "No bill matches. Clear the search or the filters." : notes ? "No debit notes." : query.view === "to-pay" ? "Nothing to pay." : `No ${BILL_TAB_LABEL[query.view].toLowerCase()} bills.`}
-        />
-        {unchecked ? (
-          <BkNote
-            tone="warn"
-            action={
-              <Link className="btn" href={unchecked.href}>
+      <div className={layout.wrap} style={{ display: "contents" }}>
+        {layout.style}
+        <TableShell
+          label="Bills"
+          foot={
+            selected.length > 0 || paged ? (
+              <TableFoot
+                range={paged ? `${from} to ${to} of ${of}` : undefined}
+                page={
+                  paged
+                    ? {
+                        onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
+                        onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
+                      }
+                    : undefined
+                }
+                selection={{
+                  count: selected.length,
+                  sum: { label: "Owing", value: money(selected.reduce((sum, row) => sum + row.balance, 0), data.currency) },
+                  onClear: selection.clear,
+                  actions: (
+                    <>
+                      <Button icon="payments" disabled={!payable.length || !oneSupplier} title={!payable.length ? "None of these is owing." : !oneSupplier ? "Pay one supplier's bills at a time." : undefined} onClick={() => onPay(payable)}>
+                        Pay
+                      </Button>
+                      <MenuButton label="More" items={more(selected)}>
+                        More
+                      </MenuButton>
+                    </>
+                  ),
+                }}
+              />
+            ) : undefined
+          }
+        >
+          {data.rows.length === 0 ? (
+            <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+              <b>{filtered ? "No bill matches" : query.view === "debit-notes" ? "No debit notes" : query.view === "to-pay" ? "Nothing to pay" : `No ${BILL_TAB_LABEL[query.view].toLowerCase()} bills`}</b>
+            </div>
+          ) : (
+            <table className="table" aria-label="Bills">
+              <colgroup>
+                <col style={{ width: 44 }} />
+                <col style={{ width: 112 }} />
+                <col />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 128 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every bill" />
+                  <th>Number</th>
+                  <th>Supplier</th>
+                  <th>Their FTI</th>
+                  <th>FDMS</th>
+                  <th>Dated</th>
+                  <th>Due</th>
+                  <th>State</th>
+                  <th className="num">Total, {data.currency}</th>
+                  <th className="num">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {layout.rows((row) => (
+                  <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
+                    <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
+                    <td>
+                      <Link className="ref" href={row.href}>
+                        {row.number}
+                      </Link>
+                    </td>
+                    <td className="truncate">
+                      <span style={{ color: "var(--color-ink)" }}>{row.supplier.name}</span>
+                      {row.what ? <span className="muted"> · {row.what}</span> : null}
+                    </td>
+                    <td className="mono muted">{row.fti ?? "—"}</td>
+                    <td>{row.fdms ? <BkState tone={FDMS_TONE[row.fdms]}>{FDMS_LABEL[row.fdms]}</BkState> : <span className="muted">—</span>}</td>
+                    <td className="muted">{row.dated}</td>
+                    <td className="muted">{row.due ?? "—"}</td>
+                    <td>
+                      <BkState tone={row.toApprove ? "warning" : STATE_TONE[row.state]}>{row.stateLabel}</BkState>
+                    </td>
+                    <td className="num" style={row.state === "void" ? { textDecoration: "line-through", color: "var(--color-muted)" } : undefined}>
+                      <Cents value={row.total} currency={row.currency} />
+                    </td>
+                    <td className="num">{row.balance > 0.005 && row.state !== "void" ? <Cents value={row.balance} currency={row.currency} /> : <span className="muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bk-sr t">
+                  <td />
+                  <td colSpan={7}>{count(data.rows.length, query.view === "debit-notes" ? "debit note" : "bill")}</td>
+                  <td className="num">
+                    <Cents value={totalHere} currency={data.currency} />
+                  </td>
+                  <td className="num">
+                    <Cents value={balanceHere} currency={data.currency} />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </TableShell>
+      </div>
+      {unchecked.length > 0 ? (
+        <Callout
+          icon="fiscal"
+          action={
+            unchecked.length === 1 ? (
+              <Link className="btn" href={unchecked[0]!.href}>
                 Check on FDMS
               </Link>
-            }
-          >
-            <b>{unchecked.number} isn&rsquo;t checked on FDMS.</b> Its VAT is claimed only once ZIMRA shows the FTI as valid.
-          </BkNote>
-        ) : null}
-      </BkScroll>
-      <BkPager page={query.page} size={BILLS_PAGE_SIZE} total={data.range.of} onPage={(page) => onQuery({ page })} />
-      <BkSelectionBar count={selected.length} sum={<>Owing <Amt value={selected.reduce((total, row) => total + row.balance, 0)} currency={currency} /></>} onClear={selection.clear}>
-        <Button icon="payments" disabled={!payable.length || !oneSupplier} title={!payable.length ? "None of these is owing." : !oneSupplier ? "Pay one supplier's bills at a time." : undefined} onClick={() => onPay(payable)}>
-          Pay
-        </Button>
-        <MenuButton label="More" items={more(selected)}>
-          More
-        </MenuButton>
-      </BkSelectionBar>
-    </>
+            ) : (
+              <Button onClick={() => onQuery({ fdms: "NOT_CHECKED", page: 1 })}>Check on FDMS</Button>
+            )
+          }
+        >
+          {unchecked.length === 1 ? (
+            <>
+              <b>{unchecked[0]!.number} isn&apos;t checked on FDMS.</b> Its VAT, {money(uncheckedVat, data.currency)}, is claimed only once ZIMRA shows the FTI as valid.
+            </>
+          ) : (
+            <>
+              <b>{count(unchecked.length, "bill")} aren&apos;t checked on FDMS.</b> Their VAT, {money(uncheckedVat, data.currency)}, is claimed only once ZIMRA shows each FTI as valid.
+            </>
+          )}
+        </Callout>
+      ) : null}
+    </div>
   );
 }

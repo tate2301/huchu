@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BkField, BkFormPage, BkSeg, FormSec, RailFigure, RailSteps, todayHarare } from "@/components/books/bk-form";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { Button, Icon, Input, Select } from "@/components/core";
+import { Button, Input, Select } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -142,7 +142,7 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
   // Drawn once for a desk and once for a phone (only one shows): each copy's ids its own.
   const fields = (at: string) => (
     <>
-      <BkField label="Where" htmlFor={`${at}-where`} error={errors.where}>
+      <BkField label={form.paidWith === "float" ? "What for" : "Where"} htmlFor={`${at}-where`} error={errors.where}>
         <Input id={`${at}-where`} value={form.where} placeholder="Puma, Msasa" onChange={(event) => set("where", event.target.value)} />
       </BkField>
       <div className="field-row">
@@ -154,7 +154,7 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
         </BkField>
       </div>
       <div className="field-row">
-        <BkField label="What" htmlFor={`${at}-kind`}>
+        <BkField label={form.paidWith === "float" ? "Expense" : "What"} htmlFor={`${at}-kind`}>
           <Select id={`${at}-kind`} value={form.category} onChange={(event) => set("category", event.target.value)}>
             {CLAIM_KINDS.map((kind) => (
               <option key={kind.value} value={kind.value}>
@@ -190,7 +190,7 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
 
   return (
     <>
-      <PageChrome title={asVoucher ? "New voucher" : "New claim"} backHref="/books/claims" backLabel="Claims & petty cash" primary={{ label: form.paidWith === "float" ? "Send the voucher" : "Send the claim", icon: "send", shortcut: "Ctrl ↵", onClick: submit, disabled: send.isPending ? "Sending" : undefined }} />
+      <PageChrome title={asVoucher ? "New voucher" : "New claim"} backHref="/books/claims" backLabel="Claims & petty cash" primary={{ label: form.paidWith === "float" ? "Save voucher" : "Send the claim", icon: "send", shortcut: "Ctrl ↵", onClick: submit, disabled: send.isPending ? "Sending" : undefined }} />
       <div className="bk-desk-only">
         <BkFormPage
           rail={
@@ -223,13 +223,13 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
             </>
           }
         >
-          <FormSec title="Slip" text="A photo of it, kept with the claim.">
+          <FormSec title="Slip">
             <SlipPhoto file={photo} onFile={setPhoto} />
           </FormSec>
-          <FormSec title="What was spent" text="As the slip says.">
+          <FormSec title="What was spent">
             {fields("desk")}
           </FormSec>
-          <FormSec title="Paid" text="From your pocket, or a float.">
+          <FormSec title="Paid">
             {paidWith}
           </FormSec>
         </BkFormPage>
@@ -239,17 +239,13 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
       <div className="bk-ph-only">
         <div className="bk-ph-b" style={{ gap: 16 }}>
           <SlipPhoto file={photo} onFile={setPhoto} />
-          <span style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 14, color: "var(--color-muted)" }}>
-            <Icon name="check" />
-            Check what the slip says, then send it.
-          </span>
           {fields("phone")}
           {paidWith}
         </div>
       </div>
       <div className="bk-ph-acts">
         <Button variant="primary" icon="send" shortcut="Ctrl ↵" busy={send.isPending} disabled={send.isPending} onClick={submit}>
-          {form.paidWith === "float" ? "Send the voucher" : "Send the claim"}
+          {form.paidWith === "float" ? "Save voucher" : "Send the claim"}
         </Button>
       </div>
     </>

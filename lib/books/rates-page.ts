@@ -36,7 +36,7 @@ export type RatesPage = {
 const PAGE = 30;
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-export async function readRates(db: Db, companyId: string, { tab = "rates", currency = "ZWG", page = 1, month = null }: { tab?: RatesTab; currency?: string; page?: number; month?: string | null } = {}, now = new Date()): Promise<RatesPage> {
+export async function readRates(db: Db, companyId: string, { tab = "revaluation", currency = "ZWG", page = 1, month = null }: { tab?: RatesTab; currency?: string; page?: number; month?: string | null } = {}, now = new Date()): Promise<RatesPage> {
   const base = (await resolveBaseCurrency(companyId)).toUpperCase();
   const today = dayOf(now);
   const where = { companyId, baseCurrency: base, quoteCurrency: currency };

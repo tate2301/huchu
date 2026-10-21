@@ -2,9 +2,9 @@ import type { FdmsCheckStatus, Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { docLabel } from "./doc-number";
-import { billState, EXPENSE_STATE_LABEL, type ExpenseState } from "./expenses";
+import { billState, type ExpenseState } from "./expenses";
 import { addDays, count, dayOf, money, shortDay, storedDay } from "./format";
-import { periodRange, PERIODS } from "./period";
+import { moneyLimits } from "./core/approvals";
 
 /**
  * Books → Bills & spending → Bills (BkBills): every supplier's bill, what is
@@ -30,12 +30,29 @@ export const FDMS_LABEL: Record<FdmsCheckStatus, string> = { NOT_CHECKED: "Not c
 
 export const BILLS_PAGE_SIZE = 50;
 
+/** The Due chip: bills falling due in a window. */
+export const BILL_DUES = ["any", "this-week", "this-month", "next-30"] as const;
+export type BillDue = (typeof BILL_DUES)[number];
+export const BILL_DUE_LABEL: Record<BillDue, string> = { any: "Any", "this-week": "This week", "this-month": "This month", "next-30": "Next 30 days" };
+
+/** The State column's words: a bill that is recorded and not yet paid reads "Recorded"; a draft over the limit "To approve". */
+export const BILL_STATE_WORD: Record<ExpenseState, string> = { overdue: "Overdue", "part-paid": "Part paid", "to-pay": "Recorded", paid: "Paid", draft: "Draft", void: "Void" };
+
+/** The days a Due choice covers, both ends included; null for any. */
+export function dueWindow(due: BillDue, today: string): { gte: string; lte: string } | null {
+  if (due === "any") return null;
+  if (due === "this-week") return { gte: today, lte: comingSunday(today) };
+  if (due === "next-30") return { gte: today, lte: addDays(today, 30) };
+  const next = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 1)).toISOString().slice(0, 10);
+  return { gte: `${today.slice(0, 7)}-01`, lte: addDays(next, -1) };
+}
+
 export const billQuerySchema = z.object({
   view: z.enum(BILL_VIEWS).catch("to-pay"),
   q: z.string().trim().max(100).catch(""),
   supplier: z.string().uuid().nullable().catch(null),
   fdms: z.enum(["NOT_CHECKED", "VALID", "NOT_VALID"]).nullable().catch(null),
-  period: z.enum(PERIODS).catch("any"),
+  due: z.enum(BILL_DUES).catch("any"),
   sort: z.enum(["due", "newest"]).catch("due"),
   page: z.coerce.number().int().min(1).catch(1),
 });
@@ -47,7 +64,7 @@ export function readBillQuery(params: URLSearchParams): BillQuery {
     q: params.get("q") ?? undefined,
     supplier: params.get("supplier") || null,
     fdms: params.get("fdms") || null,
-    period: params.get("period") ?? undefined,
+    due: params.get("due") ?? undefined,
     sort: params.get("sort") ?? undefined,
     page: params.get("page") ?? undefined,
   });
@@ -63,11 +80,15 @@ export type BillRow = {
   what: string | null;
   /** The FDMS check; null for a debit note. */
   fdms: FdmsCheckStatus | null;
-  /** The supplier's fiscal tax invoice number (D16), as the bill shows it. */
+  /** Their fiscal invoice number, as they printed it. */
   fti: string | null;
-  /** "1 Oct": when it was dated, and when it falls due. */
+  /** "1 Oct", and when it falls due ("7 Oct"); null for a debit note's due date. */
   dated: string;
   due: string | null;
+  /** The VAT on it, which is claimed only once FDMS shows the invoice valid. */
+  vat: number;
+  /** A draft over the owner's limit, waiting for the owner. */
+  toApprove: boolean;
   /** The order and goods receipt it matches: "PO-0032 · GRN-0046", or null. */
   matches: { order: string | null; receipt: string | null; bill: string | null };
   state: ExpenseState;
@@ -113,8 +134,8 @@ export function billWhere(companyId: string, query: BillQuery, today: string): P
   if (query.view === "void") where.status = "VOIDED";
   if (query.supplier) where.vendorId = query.supplier;
   if (query.fdms) where.fdmsStatus = query.fdms;
-  const range = periodRange(query.period, today);
-  if (range) where.billDate = range;
+  const window = dueWindow(query.due, today);
+  if (window) where.dueDate = { gte: midnight(window.gte), lt: midnight(addDays(window.lte, 1)) };
   if (query.q) {
     where.OR = [
       { billNumber: { contains: query.q, mode: "insensitive" } },
@@ -139,6 +160,8 @@ const billSelect = {
   notes: true,
   fdmsStatus: true,
   supplierFtiNumber: true,
+  taxTotal: true,
+  approvedById: true,
   vendor: { select: { id: true, name: true } },
   purchaseOrder: { select: { poNo: true } },
   goodsReceipt: { select: { receiptNo: true } },
@@ -147,8 +170,9 @@ const billSelect = {
 
 type BillRecord = Prisma.PurchaseBillGetPayload<{ select: typeof billSelect }>;
 
-export function toBillRow(record: BillRecord, today: string): BillRow {
+export function toBillRow(record: BillRecord, today: string, limit = Infinity): BillRow {
   const read = billState(record, today);
+  const toApprove = record.status === "DRAFT" && record.total > limit + 0.004 && !record.approvedById;
   return {
     id: record.id,
     href: `/books/bills/${record.id}`,
@@ -159,9 +183,11 @@ export function toBillRow(record: BillRecord, today: string): BillRow {
     fti: record.supplierFtiNumber,
     dated: shortDay(storedDay(record.billDate)),
     due: record.dueDate ? shortDay(storedDay(record.dueDate)) : null,
+    vat: round(record.taxTotal),
+    toApprove,
     matches: { order: record.purchaseOrder?.poNo ?? null, receipt: record.goodsReceipt?.receiptNo ?? null, bill: null },
     state: read.state,
-    stateLabel: EXPENSE_STATE_LABEL[read.state],
+    stateLabel: toApprove ? "To approve" : BILL_STATE_WORD[read.state],
     when: read.when,
     balance: read.balance,
     total: record.total,
@@ -169,7 +195,7 @@ export function toBillRow(record: BillRecord, today: string): BillRow {
   };
 }
 
-/** "You owe $8,077.15 on 5 bills, $4,897.15 by Sunday." / "Mutare Timber Works' bill is 2 days late." */
+/** "You owe US$8,077.15 on 5 bills, US$4,897.15 by Sunday." / "Mutare Timber Works' bill is 2 days late." */
 export function billsFinding(
   toPay: { amount: number; bills: number; bySunday: number },
   overdue: Array<{ supplier: string; days: number; balance: number }>,
@@ -263,6 +289,8 @@ async function debitNoteRows(db: Db, companyId: string, query: BillQuery): Promi
         fti: null,
         dated: shortDay(storedDay(note.noteDate)),
         due: null,
+        vat: 0,
+        toApprove: false,
         matches: { order: null, receipt: null, bill: docLabel(note.bill.billNumber, "bill") },
         state: state.state,
         stateLabel: state.label,
@@ -278,6 +306,7 @@ async function debitNoteRows(db: Db, companyId: string, query: BillQuery): Promi
 export async function readBills(db: Db, companyId: string, query: BillQuery, now = new Date()): Promise<BillsView> {
   const today = dayOf(now);
   const where = billWhere(companyId, query, today);
+  const limit = (await moneyLimits(companyId)).paymentOwnerOver;
   const [listed, totals, counts, supplierRows, receiptDrafts] = await Promise.all([
     query.view === "debit-notes"
       ? debitNoteRows(db, companyId, query)
@@ -290,7 +319,7 @@ export async function readBills(db: Db, companyId: string, query: BillQuery, now
             take: BILLS_PAGE_SIZE,
           }),
           db.purchaseBill.count({ where }),
-        ]).then(([records, of]) => ({ rows: records.map((record) => toBillRow(record, today)), of })),
+        ]).then(([records, of]) => ({ rows: records.map((record) => toBillRow(record, today, limit)), of })),
     owed(db, companyId, today),
     tabCounts(db, companyId, today),
     db.purchaseBill.findMany({ where: { companyId }, select: { vendor: { select: { id: true, name: true } } }, distinct: ["vendorId"] }),
@@ -319,10 +348,11 @@ export async function readBills(db: Db, companyId: string, query: BillQuery, now
 /** The list as filtered, every page, for Export. */
 export async function billsCsv(db: Db, companyId: string, query: BillQuery, now = new Date()): Promise<string> {
   const today = dayOf(now);
+  const limit = (await moneyLimits(companyId)).paymentOwnerOver;
   const rows =
     query.view === "debit-notes"
       ? (await debitNoteRows(db, companyId, { ...query, page: 1 })).rows
-      : (await db.purchaseBill.findMany({ where: billWhere(companyId, query, today), select: billSelect, orderBy: [{ billDate: "desc" }], take: 10_000 })).map((record) => toBillRow(record, today));
+      : (await db.purchaseBill.findMany({ where: billWhere(companyId, query, today), select: billSelect, orderBy: [{ billDate: "desc" }], take: 10_000 })).map((record) => toBillRow(record, today, limit));
   const cell = (value: string | number) => {
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 
 import { useListQuery } from "@/components/books/bk-list";
 import { BkRatesView } from "@/components/books/bk-rates-view";
 import { ReasonDrawer } from "@/components/books/bk-reason-drawer";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
-import { Button, Drawer, Field, Input } from "@/components/core";
+import { Button, Drawer, Field, Input, Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -17,29 +16,19 @@ import type { RatesTab } from "@/lib/books/rates-labels";
 import type { RatesPage } from "@/lib/books/rates-page";
 
 const AGAIN = "Check the connection and try again.";
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** The three months before this one: a revaluation is posted after its month ends. */
-function lastMonths() {
-  const now = new Date();
-  return [1, 2, 3].map((back) => {
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
-    return { key: date.toISOString().slice(0, 7), label: `${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}` };
-  });
-}
 type Query = { tab: RatesTab; currency: string; page: number; q: string; month: string | null };
 
 /**
- * Books → Close the month → Rates & revaluation (BkRates). Enter a rate (N)
- * types one in when RBZ's feed is down; Post the revaluation (Ctrl ↵) values
+ * Books → Close the month → Rates & revaluation (BkRates). Revalue (V) values
  * balances in other currencies at the month-end rate on the last day and
- * reverses it on the 1st; its menu reverses one run at a wrong rate.
+ * reverses it on the 1st; Reverse undoes a run at a wrong rate; Enter a rate
+ * types one in when RBZ's feed is down.
  */
 function BooksRates() {
-  const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
-  const { search, params, onQuery, exportHref } = useListQuery<Query>({ tab: "rates", currency: "ZWG", page: 1, q: "" });
+  const { search, params, onQuery, exportHref } = useListQuery<Query>({ tab: "revaluation", currency: "ZWG", page: 1, q: "" });
   const [entering, setEntering] = React.useState(false);
   const [form, setForm] = React.useState({ date: new Date().toISOString().slice(0, 10), rate: "" });
   const [error, setError] = React.useState<string | null>(null);
@@ -53,8 +42,8 @@ function BooksRates() {
     onSuccess: (_result, body) => {
       if (body.action === "rate") {
         setEntering(false);
-        toast({ title: "The rate is in", description: "Documents made from now on that day freeze it.", variant: "success" });
-      } else if (body.action === "revalue") toast({ title: "Revaluation posted", description: "It reverses on the 1st.", variant: "success" });
+        toast({ title: "The rate is in", variant: "success" });
+      } else if (body.action === "revalue") toast({ title: "Revaluation posted", variant: "success" });
       else if (body.action === "remove") toast({ title: "The rate is removed", variant: "success" });
       refresh();
     },
@@ -66,23 +55,40 @@ function BooksRates() {
   const plan = data?.plan ?? null;
   return (
     <>
-      <PageChrome title="Rates & revaluation" primary={{ label: "Enter a rate", icon: "plus", shortcut: "N", onClick: () => { setForm({ date: new Date().toISOString().slice(0, 10), rate: "" }); setError(null); setEntering(true); } }} />
+      <PageChrome
+        title="Rates & revaluation"
+        primary={
+          plan
+            ? {
+                label: `Revalue ${plan.date.slice(8).replace(/^0/, "")} ${plan.label.slice(0, 3)}`,
+                icon: "check",
+                shortcut: "V",
+                disabled: plan.posted ? `Posted as ${plan.posted.entry}` : plan.missingRates.length ? `Enter a ${plan.missingRates.join(", ")} rate first` : plan.items.length === 0 ? "Nothing is held in another currency" : act.isPending ? "Posting" : undefined,
+                onClick: () => act.mutate({ action: "revalue", month: plan.month }),
+              }
+            : null
+        }
+      >
+        <Kit contents>
+          <Button
+            onClick={() => {
+              setForm({ date: new Date().toISOString().slice(0, 10), rate: "" });
+              setError(null);
+              setEntering(true);
+            }}
+          >
+            Enter a rate
+          </Button>
+        </Kit>
+      </PageChrome>
       <BooksPage screen="bk-b">
         {data ? (
           <BkRatesView
             data={data}
             q={params.get("q") ?? ""}
             onQuery={(next) => onQuery(next as Partial<Query>)}
-            onPost={() => plan && act.mutate({ action: "revalue", month: plan.month })}
-            posting={act.isPending && act.variables?.action === "revalue"}
-            planMenu={[
-              { key: "lines", icon: "list", label: "See the lines", disabled: !plan?.posted, title: plan?.posted ? undefined : "It is not posted yet.", onSelect: () => router.push(`/books/journals?q=${encodeURIComponent(plan?.posted?.entry ?? "")}`) },
-              ...lastMonths().map((month) => ({ key: month.key, icon: "calendar" as const, label: `Revalue ${month.label}`, checked: plan?.month === month.key, onSelect: () => onQuery({ month: month.key }) })),
-              { key: "reverse", icon: "x", label: "Reverse the revaluation", danger: true, disabled: !plan?.posted, title: plan?.posted ? undefined : "Nothing is posted to reverse.", onSelect: () => setReversing(true) },
-            ]}
-            rateMenu={(row) => [
-              { key: "remove", icon: "x", label: "Remove this rate", danger: true, disabled: row.source !== "MANUAL", title: row.source !== "MANUAL" ? "RBZ’s rates stay." : undefined, onSelect: () => act.mutate({ action: "remove", id: row.id }) },
-            ]}
+            onRemove={(row) => act.mutate({ action: "remove", id: row.id })}
+            onReverse={() => setReversing(true)}
             exportHref={exportHref("/api/books/rates")}
           />
         ) : query.isError ? (
@@ -110,7 +116,7 @@ function BooksRates() {
           <Field label="Day" htmlFor="rate-day">
             <Input id="rate-day" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
           </Field>
-          <Field label={`${currency} for one ${data?.baseCurrency ?? "USD"}`} htmlFor="rate-value" error={error} help="RBZ’s interbank rate for the day. Documents keep the rate of their own day.">
+          <Field label={`${currency} for one ${data?.baseCurrency ?? "USD"}`} htmlFor="rate-value" error={error}>
             <Input id="rate-value" inputMode="decimal" value={form.rate} onChange={(event) => setForm({ ...form, rate: event.target.value.replace(/[^\d.]/g, "") })} />
           </Field>
         </div>
@@ -120,7 +126,6 @@ function BooksRates() {
         onOpenChange={setReversing}
         title="Reverse the revaluation"
         sub={plan ? `${plan.label}, ${plan.posted?.entry ?? ""}` : undefined}
-        what="Both its entries are voided on their own dates, so the month can be revalued again at the right rate."
         label="Reverse it"
         onConfirm={async (reason) => {
           if (!plan) return;
@@ -134,7 +139,7 @@ function BooksRates() {
   );
 }
 
-/** Books → Close the month → Rates & revaluation (design/core-modules/boards/view/BkRates.html). */
+/** Books → Close the month → Rates & revaluation (design/books/html/bk-rates.html). */
 export default function BooksRatesPage() {
   return (
     <React.Suspense

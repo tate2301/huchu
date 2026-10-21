@@ -36,7 +36,7 @@ export type ChartQuery = z.infer<typeof chartQuery>;
 
 export type ChartRow =
   | { kind: "head"; key: string; code: string; label: string; level: 1 | 2 }
-  | { kind: "account"; id: string; code: string; name: string; word: string; type: string; category: string | null; parentId: string | null; description: string | null; taxCode: string | null; balance: number; active: boolean; added: boolean; hasLines: boolean };
+  | { kind: "account"; id: string; code: string; name: string; word: string; type: string; category: string | null; parentId: string | null; description: string | null; taxCode: string | null; balance: number; active: boolean; added: boolean; hasLines: boolean; /** A money account: a bank, cash or mobile-money account sits behind it. */ moneyAccount: boolean; /** The documents whose posting rules use it: "Invoices, receipts". */ usedBy: string | null };
 
 export type ChartPage = {
   finding: { fact: string; rest: string | null };
@@ -47,9 +47,58 @@ export type ChartPage = {
   added: number;
   shown: number;
   baseCurrency: string;
+  /** The day the balances are to: today. */
+  asOf: string;
   groups: Array<{ id: string; label: string; type: string }>;
   can: { change: boolean };
 };
+
+/** What each kind of document is called in "Used by". */
+const USED_WORD: Record<string, string> = {
+  SALES_INVOICE: "Invoices",
+  SALES_RECEIPT: "Receipts",
+  SALES_CREDIT_NOTE: "Credit notes",
+  SALES_WRITE_OFF: "Write-offs",
+  PURCHASE_BILL: "Bills",
+  PURCHASE_PAYMENT: "Supplier payments",
+  PURCHASE_DEBIT_NOTE: "Debit notes",
+  PURCHASE_WRITE_OFF: "Write-offs",
+  BANK_TRANSACTION: "Bank lines",
+  PAYROLL_RUN: "Pay runs",
+  PAYROLL_DISBURSEMENT: "Pay runs",
+  RETAIL_SALE: "Tills",
+  RETAIL_DAY_BANKED: "Tills",
+  RETAIL_SHIFT_CLOSE: "Tills",
+  RETAIL_GOODS_RECEIPT: "Goods receipts",
+  RETAIL_SUPPLIER_PAYMENT: "Supplier payments",
+  RETAIL_REQUISITION_PAYOUT: "Requisitions",
+  RETAIL_REQUISITION_CHANGE: "Requisitions",
+  CRM_REQUISITION_DISBURSEMENT: "Requisitions",
+  CRM_REQUISITION_REFUND: "Requisitions",
+  REQUISITION_ACQUITTAL: "Requisitions",
+  EXPENSE_CLAIM_PAYMENT: "Claims",
+  PETTY_CASH_VOUCHER: "Petty cash",
+};
+
+/** The words for what posts to an account, in a row of the chart: "Invoices, receipts". Pure. */
+export function usedByWords(sourceTypes: string[]): string | null {
+  const words = [...new Set(sourceTypes.map((source) => USED_WORD[source] ?? sourceLabel(source)))];
+  if (words.length === 0) return null;
+  return words.map((word, index) => (index === 0 ? word : word.charAt(0).toLowerCase() + word.slice(1))).join(", ");
+}
+
+/** The modules a kind of document comes from, as the Posting rules table's From column says them. Pure. */
+export function sourceFrom(sourceType: string): string {
+  if (sourceType === "RETAIL_SALE" || sourceType === "RETAIL_REFUND" || sourceType === "RETAIL_VOID") return "Tender";
+  if (sourceType.includes("REQUISITION")) return "CRM, Retail";
+  if (sourceType.startsWith("SALES_")) return "Books, CRM";
+  if (sourceType.startsWith("PURCHASE_") || sourceType === "RETAIL_SUPPLIER_PAYMENT") return "Books, Retail";
+  if (sourceType.startsWith("PAYROLL_")) return "Payroll";
+  if (sourceType.startsWith("EXPENSE_CLAIM")) return "Cost tracker";
+  if (sourceType.startsWith("RETAIL_") || sourceType.startsWith("STOCK_")) return "Retail";
+  if (sourceType.startsWith("GOLD_")) return "Huchu";
+  return "Books";
+}
 
 /** The Type column's word: what the account is to a person (Bank, Cash, Receivable…), else its type. Pure. */
 export function accountWord(account: { type: string; category: string | null; bankKind?: string | null }): string {
@@ -67,14 +116,19 @@ export async function readChart(db: Db, companyId: string, query: ChartQuery, ca
     ledgerAccounts(db, companyId),
     movements(db, companyId, { to: dayOf(now) }),
     db.bankAccount.findMany({ where: { companyId, ledgerAccountId: { not: null } }, select: { ledgerAccountId: true, kind: true } }),
-    db.postingRuleLine.findMany({ where: { rule: { companyId }, taxCodeId: { not: null }, accountId: { not: null } }, select: { accountId: true, taxCode: { select: { code: true } } } }),
+    db.postingRuleLine.findMany({ where: { rule: { companyId }, accountId: { not: null } }, select: { accountId: true, taxCode: { select: { code: true } }, rule: { select: { sourceType: true, isActive: true } } } }),
     db.journalLine.groupBy({ by: ["accountId"], where: { entry: { companyId } }, _count: { _all: true } }),
     db.accountingSettings.findUnique({ where: { companyId }, select: { baseCurrency: true } }),
   ]);
   const descriptions = new Map((await db.chartOfAccount.findMany({ where: { companyId }, select: { id: true, description: true } })).map((row) => [row.id, row.description]));
   const bankKind = new Map(banks.map((bank) => [bank.ledgerAccountId!, String(bank.kind)]));
   const taxOf = new Map<string, string>();
-  for (const line of ruleTaxes) if (line.accountId && line.taxCode && !taxOf.has(line.accountId)) taxOf.set(line.accountId, line.taxCode.code);
+  const usedOf = new Map<string, string[]>();
+  for (const line of ruleTaxes) {
+    if (!line.accountId) continue;
+    if (line.taxCode && !taxOf.has(line.accountId)) taxOf.set(line.accountId, line.taxCode.code);
+    if (line.rule.isActive) usedOf.set(line.accountId, [...(usedOf.get(line.accountId) ?? []), String(line.rule.sourceType)]);
+  }
   const hasLines = new Set(used.map((row) => row.accountId));
   const needle = query.q.toLowerCase();
   const visible = accounts.filter(
@@ -102,6 +156,8 @@ export async function readChart(db: Db, companyId: string, query: ChartQuery, ca
       active: account.isActive,
       added: BOOKS_ADDED_CODES.has(account.code),
       hasLines: hasLines.has(account.id),
+      moneyAccount: bankKind.has(account.id),
+      usedBy: usedByWords(usedOf.get(account.id) ?? []),
     };
   };
   const rows: ChartRow[] = [];
@@ -149,6 +205,7 @@ export async function readChart(db: Db, companyId: string, query: ChartQuery, ca
     added,
     shown: visible.filter((account) => account.nodeType === "LEDGER").length,
     baseCurrency: settings?.baseCurrency ?? "USD",
+    asOf: dayOf(now),
     groups: groups.map((group) => ({ id: group.id, label: `${group.code} ${group.name}`, type: group.type })),
     can,
   };
@@ -230,9 +287,13 @@ export type PostingRuleRow = {
   /** "Every invoice", "When 2 conditions hold". */
   when: string;
   sourceType: string;
+  /** The modules it comes from: "Books, CRM". */
+  from: string;
   debit: string;
   credit: string;
   thisMonth: number;
+  /** What a rule that needs an account lacks: "debit account". */
+  missing: string | null;
   state: "Ready" | "Needs an account" | "Inactive";
 };
 
@@ -268,6 +329,12 @@ export function sideWords(lines: RuleLine[]): string {
   return unique.join(" · ") || "—";
 }
 
+/** The side of a rule that lacks its account: "debit account", or null when none does. Pure. */
+export function missingSide(lines: RuleLine[]): string | null {
+  const line = lines.find((one) => one.accountSource === "FIXED_ACCOUNT" && !one.account && !one.accountRole && !one.eventAccountKey);
+  return line ? `${line.direction === "DEBIT" ? "debit" : "credit"} account` : null;
+}
+
 /** A rule needs an account when a fixed-account line has none. Pure. */
 export const ruleNeedsAccount = (lines: Array<Pick<RuleLine, "accountSource" | "accountRole" | "eventAccountKey" | "account">>) =>
   lines.some((line) => line.accountSource === "FIXED_ACCOUNT" && !line.account && !line.accountRole && !line.eventAccountKey);
@@ -299,9 +366,11 @@ export async function readPostingRules(db: Db, companyId: string, query: Posting
     name: rule.name,
     when: rule.conditions.length ? `When ${rule.conditions.length} ${rule.conditions.length === 1 ? "condition holds" : "conditions hold"}` : `Every ${sourceLabel(rule.sourceType).toLowerCase()}`,
     sourceType: rule.sourceType,
+    from: sourceFrom(rule.sourceType),
     debit: sideWords(rule.lines.filter((line) => line.direction === "DEBIT") as RuleLine[]),
     credit: sideWords(rule.lines.filter((line) => line.direction === "CREDIT") as RuleLine[]),
     thisMonth: counts.get(rule.sourceType) ?? 0,
+    missing: missingSide(rule.lines as RuleLine[]),
     state: !rule.isActive ? "Inactive" : ruleNeedsAccount(rule.lines as RuleLine[]) ? "Needs an account" : "Ready",
   }));
   const needle = query.q.toLowerCase();

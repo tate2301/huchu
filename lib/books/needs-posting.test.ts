@@ -51,8 +51,9 @@ describe("why it didn't post, in plain words", () => {
   });
 
   it("writes the finding and the source in a person's words", () => {
-    expect(needsPostingFinding(1, 0, "October")).toEqual({ fact: "1 money event didn’t reach the ledger.", rest: "It holds up October’s close." });
-    expect(needsPostingFinding(2, 1, null)).toEqual({ fact: "3 money events didn’t reach the ledger.", rest: null });
+    expect(needsPostingFinding(1, 0, "October")).toEqual({ fact: "1 money event failed to post.", rest: "It blocks October’s close." });
+    expect(needsPostingFinding(2, 1, null)).toEqual({ fact: "2 money events failed to post.", rest: null });
+    expect(needsPostingFinding(0, 2, "October")).toEqual({ fact: "2 money events waiting to post.", rest: "They block October’s close." });
     expect(needsPostingFinding(0, 0, null)).toEqual({ fact: "Every money event reached the ledger.", rest: null });
     expect(sourceWords("SALES_INVOICE")).toBe("Sales invoice");
     expect(sourceWords("CRM_REQUISITION_TOPUP")).toBe("Requisition overspend");
@@ -101,7 +102,7 @@ describe("the page, against the database", () => {
     expect(view.rows).toHaveLength(1);
     expect(view.rows[0]).toMatchObject({ id: event.id, ref: req.requisitionNo, title: "Airtime for the site team", href: `/crm/requisitions/${req.id}`, amount: 30, why: "No money account to post it to", held: false });
     expect(view.rows[0]!.tries.count).toBe(3);
-    expect(view.finding.fact).toBe("2 money events didn’t reach the ledger.");
+    expect(view.finding.fact).toBe("1 money event failed to post.");
 
     const waiting = await readNeedsPosting(prisma, fixture.companyId, { tab: "waiting", q: "", source: "" });
     expect(waiting.rows.map((row) => row.id)).toEqual([old.event.id]);

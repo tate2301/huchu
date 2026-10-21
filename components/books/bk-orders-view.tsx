@@ -3,56 +3,62 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { money } from "@/lib/books/format";
-import { ORDER_TAB_LABEL, ORDER_VIEWS, type OrderQuery, type OrderRow, type OrdersPage } from "@/lib/books/orders";
+import { TableFoot, TableShell } from "@/components/core";
+import { ORDER_STATE_LABEL, ORDER_TAB_LABEL, ORDER_VIEWS, ORDERS_PAGE_SIZE, type OrderQuery, type OrderRow, type OrdersPage } from "@/lib/books/orders";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
 
-import { BkChip, BkQuietTools, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";
+import { Cents } from "./figures";
 
-const SOURCE_WORD = { retail: "The shop", books: "Books' own" } as const;
+const TONE: Record<OrderRow["status"], Parameters<typeof BkState>[0]["tone"]> = {
+  DRAFT: "plain",
+  TO_APPROVE: "warning",
+  SENT: "info",
+  PARTIAL: "info",
+  RECEIVED: "success",
+  CLOSED: "plain",
+  CANCELLED: "void",
+};
 
 /**
- * Books → Bills & spending → Purchase orders (design/core-modules/boards/view/BkOrders.html):
- * what is on order and not yet received, the tabs by state, the search with
- * Supplier and For, and six columns with how much has come in. A selection is
- * sent, approved (not by its maker) or cancelled; the server refuses on its own.
+ * Books → Bills & spending → Purchase orders (design/books/html/bk-orders.html):
+ * the tabs by state with their counts, the search with Supplier and Site, and
+ * eight columns on one line each: what was ordered, what has come in (the
+ * latest goods receipt and how many lines it filled) and what has been billed.
  */
-export function BkOrdersView({
-  data,
-  onQuery,
-  exportHref,
-  onMove,
-  more,
-}: {
-  data: OrdersPage;
-  exportHref: string;
-  onQuery: (next: Partial<OrderQuery>) => void;
-  onMove: (move: "submit" | "approve", rows: OrderRow[]) => void;
-  more: (rows: OrderRow[]) => MenuEntry[];
-}) {
-  const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
-  const selection = useSelection(ids);
+export function BkOrdersView({ data, onQuery, exportHref }: { data: OrdersPage; exportHref: string; onQuery: (next: Partial<OrderQuery>) => void }) {
   const query = data.query;
-  const selected = data.rows.filter((row) => selection.isSelected(row.id));
-  const drafts = selected.filter((row) => row.status === "DRAFT" && !row.retail);
-  const waiting = selected.filter((row) => row.status === "TO_APPROVE" && row.createdById !== data.me);
-  const own = selected.filter((row) => row.status === "TO_APPROVE" && row.createdById === data.me);
+  const source = React.useMemo(() => data.rows, [data.rows]);
+  const layout = useBkLayout(
+    "orders",
+    [
+      { key: "supplier", label: "Supplier", nth: 2 },
+      { key: "site", label: "Site", nth: 3 },
+      { key: "ordered", label: "Ordered", nth: 4 },
+      { key: "received", label: "Received", nth: 5 },
+      { key: "billed", label: "Billed", nth: 6 },
+      { key: "state", label: "State", nth: 7 },
+    ],
+    [
+      { key: "supplier", label: "Supplier", by: (row: OrderRow) => row.supplier.name },
+      { key: "site", label: "Site", by: (row: OrderRow) => row.site ?? "No site" },
+      { key: "state", label: "State", by: (row: OrderRow) => ORDER_STATE_LABEL[row.status] },
+    ],
+    source,
+  );
   const supplier = data.suppliers.find((option) => option.id === query.supplier);
+  const site = data.sites.find((option) => option.id === query.site);
   const { from, to, of } = data.range;
-  const filtered = Boolean(query.q || query.supplier || query.source || query.period !== "any");
+  const filtered = Boolean(query.q || query.supplier || query.site || query.period !== "any");
 
   return (
     <div className="bk">
-      <BooksFinding finding={data.finding} />
       <BkTabs label="Order views" value={query.view} onChange={(view) => onQuery({ view, page: 1 })} items={ORDER_VIEWS.map((view) => ({ value: view, label: ORDER_TAB_LABEL[view], count: data.counts[view] }))} />
       <BkTools
         find="Search orders"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={`${of.toLocaleString("en-GB")} ${ORDER_TAB_LABEL[query.view].toLowerCase()}`}
+        count={of.toLocaleString("en-GB")}
         chips={
           <>
             <BkChip
@@ -66,119 +72,122 @@ export function BkOrdersView({
               ]}
             />
             <BkChip
-              label="For"
-              value={query.source ? SOURCE_WORD[query.source] : "Any job"}
-              set={Boolean(query.source)}
+              label="Site"
+              value={site?.name ?? "Any"}
+              set={Boolean(site)}
               items={[
-                { key: "any", label: "Any job", checked: !query.source, onSelect: () => onQuery({ source: null, page: 1 }) },
+                { key: "any", label: "Any site", checked: !query.site, onSelect: () => onQuery({ site: null, page: 1 }) },
                 { separator: true },
-                { key: "books", label: "Books' own", checked: query.source === "books", onSelect: () => onQuery({ source: "books", page: 1 }) },
-                { key: "retail", label: "The shop", checked: query.source === "retail", onSelect: () => onQuery({ source: "retail", page: 1 }) },
+                ...data.sites.map((option) => ({ key: option.id, label: option.name, checked: query.site === option.id, onSelect: () => onQuery({ site: option.id, page: 1 }) })),
               ]}
             />
           </>
         }
         filters={PERIODS.map((period) => ({ key: period, label: PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
-        end={<BkQuietTools onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} />}
+        end={<BkQuietTools middle={layout.tools} onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} />}
       />
-      <TableShell
-        label="Purchase orders"
-        foot={
-          <TableFoot
-            range={of === 0 ? "None" : `${from} to ${to} of ${of}`}
-            sums={[{ label: "On order", value: money(data.onOrder, data.currency) }]}
-            page={{
-              onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
-              onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
-            }}
-            selection={{
-              count: selected.length,
-              sum: { label: "Total", value: money(selected.reduce((sum, row) => sum + row.amount, 0), data.currency) },
-              onClear: selection.clear,
-              note: own.length ? `${own.map((row) => row.number).join(", ")} ${own.length === 1 ? "is" : "are"} yours, so skipped` : undefined,
-              actions: (
-                <>
-                  {drafts.length && data.can.create ? (
-                    <Button icon="send" onClick={() => onMove("submit", drafts)}>
-                      Send {drafts.length}
-                    </Button>
-                  ) : null}
-                  {waiting.length && data.can.approve ? (
-                    <Button icon="check" onClick={() => onMove("approve", waiting)}>
-                      Approve {waiting.length}
-                    </Button>
-                  ) : null}
-                  <MenuButton label="More" items={more(selected)}>
-                    More
-                  </MenuButton>
-                </>
-              ),
-            }}
-          />
-        }
-      >
-        {data.rows.length === 0 ? (
-          <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-            <b>{filtered ? "No order matches" : `No ${ORDER_TAB_LABEL[query.view].toLowerCase()} orders`}</b>
-            <p className="muted">{filtered ? "Clear the search or the filters to see the rest." : "Make one with New order. Orders made in the shop show here too."}</p>
-          </div>
-        ) : (
-          <table className="table" aria-label="Purchase orders">
-            <colgroup>
-              <col style={{ width: 44 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 240 }} />
-              <col />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 160 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>Order</th>
-                <th>Supplier</th>
-                <th>For</th>
-                <th>Expected</th>
-                <th>Received</th>
-                <th className="num">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
-                  <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
-                  <td>
-                    {row.retail ? (
-                      <Link className="ref" href={`/retail/buying/orders/${row.id}`}>
-                        {row.number}
-                      </Link>
-                    ) : (
-                      <span className="ref">{row.number}</span>
-                    )}
-                  </td>
-                  <td className="truncate">
-                    <span className="cell-lead">{row.supplier.name}</span>
-                  </td>
-                  <td className="fill truncate">{row.forWhat ? <span className="cell-lead">{row.forWhat}</span> : <span className="muted">—</span>}</td>
-                  <td>
-                    <span className="muted">{row.expected ?? "—"}</span>
-                  </td>
-                  <td>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span className="meter" style={{ width: 56 }} role="meter" aria-valuenow={row.received} aria-valuemin={0} aria-valuemax={100} aria-label={`${row.received}% received`}>
-                        <i style={{ width: `${row.received}%` }} />
-                      </span>
-                      <span className="muted">{row.received}%</span>
-                    </span>
-                  </td>
-                  <td className="num">{money(row.amount, data.currency)}</td>
+      <div className={layout.wrap} style={{ display: "contents" }}>
+        {layout.style}
+        <TableShell
+          label="Purchase orders"
+          foot={
+            of > ORDERS_PAGE_SIZE ? (
+              <TableFoot
+                range={`${from} to ${to} of ${of}`}
+                page={{
+                  onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
+                  onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
+                }}
+              />
+            ) : undefined
+          }
+        >
+          {data.rows.length === 0 ? (
+            <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+              <b>{filtered ? "No order matches" : `No ${ORDER_TAB_LABEL[query.view].toLowerCase()} orders`}</b>
+              {filtered ? <p className="muted">Clear the search or the filters to see the rest.</p> : null}
+            </div>
+          ) : (
+            <table className="table" aria-label="Purchase orders">
+              <colgroup>
+                <col style={{ width: 112 }} />
+                <col />
+                <col style={{ width: 168 }} />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 232 }} />
+                <col style={{ width: 168 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 128 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Supplier</th>
+                  <th>Site</th>
+                  <th>Ordered</th>
+                  <th>Received</th>
+                  <th>Billed</th>
+                  <th>State</th>
+                  <th className="num">Ordered, {data.currency}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableShell>
+              </thead>
+              <tbody>
+                {layout.rows((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      {row.retail ? (
+                        <Link className="ref" href={`/retail/buying/orders/${row.id}`}>
+                          {row.number}
+                        </Link>
+                      ) : (
+                        <span className="ref">{row.number}</span>
+                      )}
+                    </td>
+                    <td className="truncate">
+                      <span className="cell-lead">{row.supplier.name}</span>
+                    </td>
+                    <td className="truncate">{row.site ?? <span className="muted">—</span>}</td>
+                    <td className="muted">{row.ordered}</td>
+                    <td className="truncate">
+                      {row.receipt ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="meter" style={{ width: 56, flex: "none" }} role="meter" aria-valuenow={row.received} aria-valuemin={0} aria-valuemax={100} aria-label={`${row.received}% received`}>
+                            <i style={{ width: `${row.received}%` }} />
+                          </span>
+                          <span className="truncate">
+                            {row.receipt.number}
+                            <span className="muted">
+                              , {row.receipt.lines} of {row.receipt.of} lines
+                            </span>
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="truncate">
+                      {row.bill || row.draftBills ? (
+                        <>
+                          {row.bill ? <span className="ref">{row.bill}</span> : null}
+                          {row.draftBills ? <span className="muted">{row.bill ? " + " : ""}{row.draftBills} draft{row.draftBills === 1 ? "" : "s"}</span> : null}
+                        </>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <BkState tone={TONE[row.status]}>{ORDER_STATE_LABEL[row.status]}</BkState>
+                    </td>
+                    <td className="num">
+                      <Cents value={row.amount} currency={data.currency} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </TableShell>
+      </div>
     </div>
   );
 }

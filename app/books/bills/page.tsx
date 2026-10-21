@@ -6,9 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BkBillsView } from "@/components/books/bk-bills-view";
 import { downloadCsv } from "@/components/books/bk-list";
-import { BkError, BkLoading, BkPage } from "@/components/books/ui";
+import { BooksError, BooksLoading } from "@/components/books/books-state";
+import { BooksPage } from "@/components/books/figures";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
-import { useBooksPlan } from "@/components/books/use-books-plan";
 import { Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -20,7 +20,7 @@ import { money } from "@/lib/books/format";
 const NEW_BILL = { label: "New bill", icon: "plus" as const, href: "/books/bills/new", shortcut: "N" };
 
 /**
- * Books → Bills & spending → Bills (bk-bills). The filters live in the address.
+ * Books → Bills & spending → Bills (BkBills). The filters live in the address.
  * From a goods receipt lists the draft bills goods receipts made (D12), each
  * finished in the bill form. A selection pays one supplier's bills, records
  * drafts (each through the core; those it cannot are skipped with why) or
@@ -33,7 +33,6 @@ function BooksBills() {
   const search = params.toString();
   const { toast } = useToast();
   const client = useQueryClient();
-  const { bulk } = useBooksPlan();
 
   const bills = useQuery({
     queryKey: ["books", "bills", search],
@@ -45,7 +44,7 @@ function BooksBills() {
     (next: Partial<BillQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        const empty = value === null || value === "" || (key === "view" && value === "to-pay") || (key === "period" && value === "any") || (key === "sort" && value === "due") || (key === "page" && value === 1);
+        const empty = value === null || value === "" || (key === "view" && value === "to-pay") || (key === "due" && value === "any") || (key === "sort" && value === "due") || (key === "page" && value === 1);
         if (empty) merged.delete(key);
         else merged.set(key, String(value));
       }
@@ -59,7 +58,7 @@ function BooksBills() {
   const action = params.get("action");
   React.useEffect(() => {
     if (action !== "new-debit-note" && action !== "new-write-off") return;
-    toast({ title: action === "new-debit-note" ? "Open the bill it is for" : "Open the bill to write off", description: `Then ${action === "new-debit-note" ? "Debit note" : "Write off"} in its menu.` });
+    toast({ title: action === "new-debit-note" ? "Open the bill it is for" : "Open the bill to write off" });
     onQuery({ action: null } as Partial<BillQuery> & { action: null });
   }, [action, onQuery, toast]);
 
@@ -76,7 +75,7 @@ function BooksBills() {
     }
     toast({
       title: done.length ? `${done.length === 1 ? done[0] : `${done.length} bills`} recorded` : "Nothing was recorded",
-      description: skipped.length ? `Skipped: ${skipped.join(" ")}` : "Each is posted to the books.",
+      description: skipped.length ? `Skipped: ${skipped.join(" ")}` : undefined,
       variant: done.length ? "success" : "destructive",
     });
     await client.invalidateQueries({ queryKey: ["books"] });
@@ -105,13 +104,12 @@ function BooksBills() {
         title: drafts.length === 0 ? "None of these is a draft." : undefined,
         onSelect: () => void recordDrafts(drafts),
       },
-      // Void and Delete permanently over the selected bills (P4): as this person's role allows, on the
-      // Books screens (bulk is theirs, lib/books/tiers.ts); a debit note on the list is its bill's to undo.
-      ...(bulk ? undo.entries(
+      // Void and Delete permanently over the selected bills (P4): as this person's role allows; a debit note on the list is its bill's to undo.
+      ...undo.entries(
         rows
           .filter((row) => row.href === `/books/bills/${row.id}`)
           .map((row) => ({ id: row.id, label: row.number, posted: row.state !== "draft", party: row.supplier.name, amount: money(row.total, row.currency) })),
-      ) : []),
+      ),
     ];
   };
 
@@ -135,7 +133,7 @@ function BooksBills() {
           </MenuButton>
         </Kit>
       </PageChrome>
-      <BkPage screen="bills" scroll={false}>
+      <BooksPage screen="bk-a">
         {bills.data ? (
           <BkBillsView
             data={bills.data}
@@ -145,20 +143,20 @@ function BooksBills() {
             more={more}
           />
         ) : bills.isError ? (
-          <BkError what="Bills" onRetry={() => bills.refetch()} />
+          <BooksError what="Bills" onRetry={() => bills.refetch()} />
         ) : (
-          <BkLoading />
+          <BooksLoading />
         )}
-      </BkPage>
+      </BooksPage>
       {undo.node}
     </>
   );
 }
 
-/** Books → Bills & spending → Bills (design/books/html/bk-bills.html). */
+/** Books → Bills & spending → Bills (design/core-modules/boards/view/BkBills.html). */
 export default function BooksBillsPage() {
   return (
-    <React.Suspense fallback={<BkPage screen="bills" scroll={false}><BkLoading /></BkPage>}>
+    <React.Suspense fallback={<BooksPage screen="bk-a"><BooksLoading /></BooksPage>}>
       <BooksBills />
     </React.Suspense>
   );

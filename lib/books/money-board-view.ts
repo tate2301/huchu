@@ -12,6 +12,8 @@ export type MoneyNeed = {
   key: string;
   icon: string;
   lead: string;
+  /** How many of it wait; 0 for a date. */
+  count: number;
   detail: string;
   /** Who it is about (the people asking, the customer), their avatars before the detail. */
   people?: Array<{ name: string; image: string | null }>;
@@ -21,7 +23,13 @@ export type MoneyNeed = {
 
 export type MoneyShare = { key: string; icon: string; label: string; amount: number; share: number; bar: number };
 
-export type MoneyAccountRow = { id: string; name: string; kind: string; currency: string; amount: number; reconciled: string | null };
+export type MoneyAccountRow = { id: string; name: string; kind: string; currency: string; amount: number; /** In the base currency at today's rate; null when a rate is missing. */ inBase: number | null; reconciled: string | null };
+
+/** One bucket of what is owed to you, by how late it is. */
+export type MoneyAge = { key: string; label: string; amount: number; share: number };
+
+/** One dated thing coming in or going out: positive is money in. */
+export type MoneyUpcoming = { day: string; label: string; amount: number };
 
 export type MoneyTaxTile = { label: string; value: string; note: string };
 
@@ -45,6 +53,9 @@ export type MoneyBoard = {
     rateNote: string | null;
   };
   owed: { total: number; notDue: number; overdue: number; onAccount: number };
+  age: MoneyAge[];
+  /** The next fortnight, in date order, and the day it runs to. */
+  upcoming: { until: string; rows: MoneyUpcoming[] };
   owe: { total: number; suppliers: number; claims: number; vat: number; vatLabel: string };
 };
 
@@ -103,3 +114,33 @@ export function nextTaxDate(today: string): { day: string; what: string } {
   return { day: next, what: "PAYE and withholding returns" };
 }
 
+
+/** The age buckets of what is owed, with each one's share of the whole. */
+export function ageBuckets(amounts: number[]): MoneyAge[] {
+  const labels = ["Not due", "1 to 7 days", "8 to 30 days", "Over 30"];
+  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  return labels.map((label, index) => ({ key: `age-${index}`, label, amount: round(amounts[index] ?? 0), share: total > 0 ? Math.round(((amounts[index] ?? 0) / total) * 100) : 0 }));
+}
+
+/**
+ * The finding: how the month stands, and the lowest the money accounts reach
+ * across what is coming up. "Up $8,139.90 this month. Cash stays above
+ * $7,985.93 to 3 Nov, lowest on 20 Oct."
+ */
+export function moneyFinding(net: number, low: { amount: number; day: string } | null, until: string, currency: string): { fact: string; rest: string | null } {
+  const fact = net >= 0 ? `Up ${money(net, currency)} this month.` : `Down ${money(Math.abs(net), currency)} this month.`;
+  if (!low) return { fact, rest: null };
+  return { fact, rest: low.amount >= 0 ? `Cash stays above ${money(low.amount, currency)} to ${until}, lowest on ${low.day}.` : `Cash runs out by ${low.day}: ${money(low.amount, currency)}.` };
+}
+
+/** The running balance through the upcoming rows from `start`, and where it is lowest. */
+export function lowestPoint(start: number, rows: MoneyUpcoming[]): { amount: number; day: string } | null {
+  if (rows.length === 0) return null;
+  let run = start;
+  let low = { amount: start, day: shortDay(rows[0].day) };
+  for (const row of rows) {
+    run += row.amount;
+    if (run < low.amount) low = { amount: round(run), day: shortDay(row.day) };
+  }
+  return { amount: round(low.amount), day: low.day };
+}

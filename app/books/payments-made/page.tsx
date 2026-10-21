@@ -18,7 +18,7 @@ import { bulkWords, eachOf } from "@/lib/books/bulk";
 import { money } from "@/lib/books/format";
 import type { PaymentOutQuery, PaymentOutRow, PaymentsOutPage } from "@/lib/books/payments-out";
 
-const PAY_SUPPLIERS = { label: "Pay suppliers", icon: "plus" as const, href: "/books/payments-made/new", shortcut: "N" };
+const PAY_BILLS = { label: "Pay bills", icon: "plus" as const, href: "/books/payments-made/new", shortcut: "P" };
 
 const MOVE_WORDS = { approve: ["approved", "Approve"], pay: ["paid", "Pay"], submit: ["sent for approval", "Send"] } as const;
 
@@ -79,23 +79,17 @@ function BooksPaymentsMade() {
     await client.invalidateQueries({ queryKey: ["books"] });
   };
 
+  const exportRows = (rows: PaymentOutRow[]) =>
+    downloadCsv(
+      "payments-made.csv",
+      ["Number", "To", "State", "Date", "From", "Currency", "Gross", "Withheld", "Paid", "Note"],
+      rows.map((row) => [row.number === "Draft" || row.number === "—" ? "" : row.number, row.supplier?.name ?? "", row.state, row.date, row.from ?? "", row.currency, row.amount.toFixed(2), row.withheld.toFixed(2), row.paid.toFixed(2), row.note?.text ?? ""]),
+    );
   const undo = useBulkUndo("payment", () => client.invalidateQueries({ queryKey: ["books"] }));
   const more = (rows: PaymentOutRow[]): MenuEntry[] => {
     const unpaid = rows.filter((row) => row.status === "DRAFT" || row.status === "TO_APPROVE" || row.status === "APPROVED");
     const paid = rows.filter((row) => row.status === "PAID");
-    const entries: MenuEntry[] = [
-      {
-        key: "export",
-        icon: "export",
-        label: `Export ${rows.length === 1 ? "1 row" : `${rows.length} rows`}`,
-        onSelect: () =>
-          downloadCsv(
-            "payments-made.csv",
-            ["Payment", "Date", "Paid to", "For", "From", "State", "Currency", "Amount"],
-            rows.map((row) => [row.number, row.date, row.supplier?.name ?? "", row.forWhat, row.from ?? "", row.state, row.currency, row.amount.toFixed(2)]),
-          ),
-      },
-    ];
+    const entries: MenuEntry[] = [];
     if (unpaid.length) entries.push({ key: "delete", icon: "x", danger: true, label: `Delete ${unpaid.length === 1 ? "1 unpaid" : `${unpaid.length} unpaid`}`, onSelect: () => void remove(unpaid) });
     // Void and Delete permanently over the selection (P4): as this person's role allows; the result row by row.
     const bulk = undo.entries(rows.map((row) => ({ id: row.id, label: label(row), posted: row.status === "PAID" || row.status === "VOIDED", party: row.supplier?.name, amount: money(row.amount, row.currency) })));
@@ -116,7 +110,7 @@ function BooksPaymentsMade() {
 
   return (
     <>
-      <PageChrome title="Payments made" primary={PAY_SUPPLIERS} />
+      <PageChrome title="Payments made" primary={PAY_BILLS} />
       <BooksPage screen="bk-a">
         {payments.data ? (
           <BkPaymentsOutView
@@ -124,6 +118,7 @@ function BooksPaymentsMade() {
             onQuery={onQuery}
             exportHref={`/api/books/payments-made?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
             onMove={(action, rows) => void move(action, rows)}
+            onExport={exportRows}
             more={more}
           />
         ) : payments.isError ? (

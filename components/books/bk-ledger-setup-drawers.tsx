@@ -49,7 +49,6 @@ export function AccountDrawer({ open, account, groups, onOpenChange, onSaved }: 
       open={open}
       onOpenChange={onOpenChange}
       title={account ? `${account.code} ${account.name}` : "New account"}
-      sub={account ? (account.hasLines ? "It has ledger lines, so it can be deactivated but never deleted." : "No lines yet.") : undefined}
       footer={
         <>
           {account ? (
@@ -65,8 +64,8 @@ export function AccountDrawer({ open, account, groups, onOpenChange, onSaved }: 
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "140px minmax(0,1fr)", gap: 12 }}>
-          <Field label="Code" htmlFor="acc-code" help={account ? "Fixed once made." : "Left empty, Books gives the next free one."}>
-            <Input id="acc-code" value={form.code} disabled={Boolean(account)} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+          <Field label="Code" htmlFor="acc-code">
+            <Input id="acc-code" value={form.code} placeholder={account ? undefined : "Next free"} disabled={Boolean(account)} onChange={(event) => setForm({ ...form, code: event.target.value })} />
           </Field>
           <Field label="Name" htmlFor="acc-name">
             <Input id="acc-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
@@ -93,7 +92,7 @@ export function AccountDrawer({ open, account, groups, onOpenChange, onSaved }: 
             </Select>
           </Field>
         ) : null}
-        <Field label="Category" htmlFor="acc-category" optional help="Cash, Receivables, Payables, Tax, COGS… Reports group by it.">
+        <Field label="Category" htmlFor="acc-category" optional>
           <Input id="acc-category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} />
         </Field>
         <Field label="Note" htmlFor="acc-note" optional>
@@ -142,13 +141,13 @@ export function CostCentreDrawer({ open, centre, onOpenChange, onSaved }: { open
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 24px" }}>
-        <Field label="Code" htmlFor="cc-code" help={centre ? "Fixed once made." : "Left empty, Books gives the next one."}>
-          <Input id="cc-code" value={form.code} disabled={Boolean(centre)} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <Field label="Code" htmlFor="cc-code">
+          <Input id="cc-code" value={form.code} placeholder={centre ? undefined : "Next free"} disabled={Boolean(centre)} onChange={(event) => setForm({ ...form, code: event.target.value })} />
         </Field>
         <Field label="Name" htmlFor="cc-name">
           <Input id="cc-name" value={form.name} placeholder="Pomona Offices" onChange={(event) => setForm({ ...form, name: event.target.value })} />
         </Field>
-        {centre ? <Switch checked={form.active} onCheckedChange={(active) => setForm({ ...form, active })} label="In use: journals and documents can choose it" /> : null}
+        {centre ? <Switch checked={form.active} onCheckedChange={(active) => setForm({ ...form, active })} label="In use" /> : null}
         {error ? (
           <p className="error" role="alert">
             {error}
@@ -282,7 +281,7 @@ export function RuleDrawer({ open, ruleId, sources, onOpenChange, onSaved }: { o
             </Field>
           </div>
           <div style={{ display: "flex", gap: 24, alignItems: "center", padding: "0 24px", flexWrap: "wrap" }}>
-            <Field label="Order" htmlFor="rule-priority" help="Lower goes first.">
+            <Field label="Order" htmlFor="rule-priority">
               <Input id="rule-priority" inputMode="numeric" style={{ width: 96 }} value={String(rule.priority)} onChange={(event) => set({ priority: Number(event.target.value.replace(/\D/g, "")) || 0 })} />
             </Field>
             <Switch checked={rule.isActive} onCheckedChange={(isActive) => set({ isActive })} label="In use" />
@@ -294,12 +293,7 @@ export function RuleDrawer({ open, ruleId, sources, onOpenChange, onSaved }: { o
               Add a condition
             </Button>
           </div>
-          {(rule.conditions ?? []).length === 0 ? (
-            <span className="muted" style={{ padding: "0 24px" }}>
-              Every one of these documents.
-            </span>
-          ) : (
-            (rule.conditions ?? []).map((condition, index) => (
+          {(rule.conditions ?? []).map((condition, index) => (
               <div key={index} style={{ display: "grid", gridTemplateColumns: "200px 140px minmax(0,1fr) 40px", gap: 8, padding: "0 24px" }}>
                 <Select aria-label="Field" value={condition.field} onChange={(event) => setCondition(index, { field: event.target.value })}>
                   {FIELDS.map((field) => (
@@ -328,8 +322,7 @@ export function RuleDrawer({ open, ruleId, sources, onOpenChange, onSaved }: { o
                 />
                 <Button variant="quiet" iconOnly icon="x" label="Remove the condition" onClick={() => set({ conditions: (rule.conditions ?? []).filter((_, at) => at !== index) })} />
               </div>
-            ))
-          )}
+          ))}
           <div className="group-head bk-gh" style={{ padding: "0 24px" }}>
             <h2>Lines</h2>
             <Button variant="quiet" size="sm" icon="plus" onClick={() => set({ lines: [...rule.lines, blankLine("CREDIT")] })}>

@@ -40,7 +40,7 @@ const FDMS_WORD: Record<FdmsResult, string> = { NOT_CHECKED: "Not checked", VALI
 /** The FDMS check: the code from their invoice, and what FDMS said when the person looked it up (D16; no lookup API yet). */
 function FdmsCheck({ code, status, onCode, onStatus }: { code: string; status: FdmsResult; onCode: (code: string) => void; onStatus: (status: FdmsResult) => void }) {
   return (
-    <BkField label="FDMS check" htmlFor="bill-fdms" hint={status === "NOT_CHECKED" ? "Look the code up on FDMS, then say what it shows." : undefined}>
+    <BkField label="FDMS check" htmlFor="bill-fdms">
       <div style={{ display: "flex", gap: 8 }}>
         <label className="input-wrap" style={{ flex: 1 }}>
           <Icon name="fiscal" />
@@ -124,7 +124,6 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
   const supplier = parties.find((party) => party.id === form.vendorId);
   const box = fdmsSentence(form.fdmsStatus, monthName(form.billDate));
   const over = options.approval && totals.total > options.approval.limit + 0.004 && !draft?.details.approvedBy;
-  const vatRegistered = Boolean(draft ? draft.supplier.vatNumber : supplier?.vatNumber);
 
   const keepPhoto = async (billId: string) => {
     if (!photo) return null;
@@ -158,7 +157,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
     onSuccess: async (saved) => {
       toast({
         title: saved.status === "DRAFT" ? `The draft bill from ${saved.supplier} is saved` : `${saved.number} from ${saved.supplier} is recorded`,
-        description: saved.photo ?? (saved.status === "DRAFT" ? "It takes its number when you record it." : "It is posted to the books."),
+        description: saved.photo ?? undefined,
         variant: saved.photo ? "destructive" : "success",
       });
       await client.invalidateQueries({ queryKey: ["books"] });
@@ -227,7 +226,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
           </>
         }
       >
-        <FormSec title="Supplier" text="Who sent it, and their fiscal invoice.">
+        <FormSec title="Supplier">
           <BkField label="Supplier" htmlFor="bill-supplier" error={errors.vendorId}>
             {draft ? (
               <Select id="bill-supplier" value={draft.supplier.id} disabled>
@@ -250,7 +249,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
             )}
           </BkField>
           <div className="field-row">
-            <BkField label="Their invoice number" htmlFor="bill-theirs" hint={vatRegistered ? "Needed: they are registered for VAT." : undefined}>
+            <BkField label="Their invoice number" htmlFor="bill-theirs">
               <Input id="bill-theirs" aria-label="Their invoice number" value={form.theirNumber} onChange={(event) => set("theirNumber", event.target.value)} />
             </BkField>
             <BkField label="Their invoice date" htmlFor="bill-date" error={errors.billDate}>
@@ -271,7 +270,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
         </FormSec>
 
         {fromReceipt ? (
-          <FormSec title="From" text="Made from the goods receipt.">
+          <FormSec title="From">
             <BkBox icon="list">
               <b>{fromReceipt.number}</b>
               {fromReceipt.counted ? `, counted in on ${fromReceipt.counted}` : ""}
@@ -280,7 +279,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
           </FormSec>
         ) : null}
 
-        <WideSec title="Lines" text={fromReceipt ? `From ${fromReceipt.number}.` : "What it was for."}>
+        <WideSec title="Lines">
             <>
               <table className="table bk-le" aria-label="Lines">
                 <thead>
@@ -354,7 +353,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
             </>
         </WideSec>
 
-        <FormSec title="Terms" text="When you have to pay.">
+        <FormSec title="Terms">
           <div className="field-row">
             <BkField label="Currency">
               {draft ? (

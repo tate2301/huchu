@@ -2,7 +2,6 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { MONEY_OUT_WHERE, type When } from "./core/money-out-where";
-import { docLabel } from "./doc-number";
 import { count, dayOf, money, monthName, monthStart, shortDay } from "./format";
 
 /**
@@ -29,10 +28,21 @@ export const SPENDING_TAB_LABEL: Record<SpendingView, string> = {
 export const SPENDING_MODULES = ["Books", "CRM", "Retail", "Payroll"] as const;
 export type SpendingModule = (typeof SPENDING_MODULES)[number];
 
+/** Where a document was written, as the design names it in the Source column. */
+export const SPENDING_SOURCES = ["Bills", "CRM", "Tender", "Floats", "Claims", "Payroll"] as const;
+export type SpendingSource = (typeof SPENDING_SOURCES)[number];
+
+/** What each kind of document is called in the Kind column. */
+export const SPENDING_KIND_LABEL = { payment: "Supplier payment", requisition: "Requisition", claim: "Claim", voucher: "Petty cash", commission: "Commission", payout: "Till payout", payroll: "Pay run" } as const;
+export type SpendingKindLabel = (typeof SPENDING_KIND_LABEL)[keyof typeof SPENDING_KIND_LABEL];
+
+/** The Date chip: the month the list covers. */
+export const SPENDING_MONTH_LABEL = { this: "This month", last: "Last month" } as const;
+
 export const spendingQuerySchema = z.object({
   view: z.enum(SPENDING_VIEWS).catch("all"),
   q: z.string().trim().max(100).catch(""),
-  from: z.enum(SPENDING_MODULES).nullable().catch(null),
+  from: z.enum(SPENDING_SOURCES).nullable().catch(null),
   account: z.string().trim().max(100).nullable().catch(null),
   month: z.enum(["this", "last"]).catch("this"),
   sort: z.enum(["newest", "largest"]).catch("newest"),
@@ -54,8 +64,14 @@ export type SpendingRow = {
   key: string;
   day: string;
   date: string;
+  /** The "For" column: who or what the money went to. */
   what: string;
   module: SpendingModule;
+  source: SpendingSource;
+  kindLabel: SpendingKindLabel;
+  /** "Paid", "Disbursed", "Posted": the document's own word once the money has left. */
+  state: string;
+  stateTone: "success" | "info";
   kind: SpendingKind;
   paidFrom: string | null;
   document: string | null;
@@ -70,6 +86,8 @@ export type SpendingPage = {
   total: number;
   byKind: Record<SpendingKind, number>;
   monthName: string;
+  /** The Date chip's value: "Since 1 Oct" this month, "1 Sep to 30 Sep" last month. */
+  since: string;
   modules: number;
   currency: string;
   accounts: string[];
@@ -124,7 +142,11 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
     push({
       key: `pay:${payment.id}`,
       at: payment.paidAt,
-      what: payment.bill ? `${supplier}, ${docLabel(payment.bill.billNumber, "bill")}` : `${supplier}${payment.reference ? `, ${payment.reference}` : ""}`,
+      what: supplier,
+      source: payment.groupNo ? "Tender" : "Bills",
+      kindLabel: SPENDING_KIND_LABEL.payment,
+      state: "Paid",
+      stateTone: "success",
       // The shop writes its supplier money as a group of rows (`groupNo`); Books' payments are one row each.
       module: payment.groupNo ? "Retail" : "Books",
       kind: payment.bill ? "bills" : "other",
@@ -139,6 +161,10 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
       key: `req:${requisition.id}`,
       at: requisition.disbursedAt ?? new Date(),
       what: requisition.purpose,
+      source: requisition.siteId ? "Tender" : "CRM",
+      kindLabel: SPENDING_KIND_LABEL.requisition,
+      state: "Disbursed",
+      stateTone: "info",
       module: requisition.siteId ? "Retail" : "CRM",
       kind: "requisitions",
       paidFrom: account(requisition.bankAccount),
@@ -148,19 +174,23 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
     });
   }
   for (const claim of claims) {
-    push({ key: `clm:${claim.id}`, at: claim.paidAt ?? new Date(), what: `${claim.notes ?? "Claim"}, ${claim.claimant.name}`, module: "Books", kind: "claims", paidFrom: account(claim.bankAccount), document: claim.claimNo, href: "/books/claims", amount: round(Number(claim.total)) });
+    push({ key: `clm:${claim.id}`, at: claim.paidAt ?? new Date(), what: `${claim.claimant.name}, ${claim.notes ?? "claim"}`, source: "Claims", kindLabel: SPENDING_KIND_LABEL.claim, state: "Paid", stateTone: "success", module: "Books", kind: "claims", paidFrom: account(claim.bankAccount), document: claim.claimNo, href: "/books/claims", amount: round(Number(claim.total)) });
   }
   for (const voucher of vouchers) {
-    push({ key: `pcv:${voucher.id}`, at: voucher.spentAt, what: voucher.description, module: "Books", kind: "claims", paidFrom: voucher.float.name, document: voucher.voucherNo, href: "/books/claims?view=vouchers", amount: round(Number(voucher.amount)) });
+    push({ key: `pcv:${voucher.id}`, at: voucher.spentAt, what: voucher.description, source: "Floats", kindLabel: SPENDING_KIND_LABEL.voucher, state: "Posted", stateTone: "success", module: "Books", kind: "claims", paidFrom: voucher.float.name, document: voucher.voucherNo, href: "/books/claims?view=vouchers", amount: round(Number(voucher.amount)) });
   }
   for (const entry of commission) {
-    push({ key: `com:${entry.id}`, at: entry.paidAt ?? new Date(), what: `Commission, ${entry.rep.name}`, module: "CRM", kind: "other", paidFrom: null, document: null, href: null, amount: round(entry.amount) });
+    push({ key: `com:${entry.id}`, at: entry.paidAt ?? new Date(), what: entry.rep.name, source: "CRM", kindLabel: SPENDING_KIND_LABEL.commission, state: "Paid", stateTone: "success", module: "CRM", kind: "other", paidFrom: null, document: null, href: null, amount: round(entry.amount) });
   }
   for (const payout of payouts) {
     push({
       key: `till:${payout.id}`,
       at: payout.createdAt,
-      what: `${payout.shift.registerName} payout: ${payout.reason ?? payout.reasonCode.toLowerCase().replace(/_/g, " ")}`,
+      what: `${payout.shift.registerName}, ${payout.reason ?? payout.reasonCode.toLowerCase().replace(/_/g, " ")}`,
+      source: "Tender",
+      kindLabel: SPENDING_KIND_LABEL.payout,
+      state: "Posted",
+      stateTone: "success",
       module: "Retail",
       kind: "till-payouts",
       paidFrom: payout.shift.registerName,
@@ -170,7 +200,7 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
     });
   }
   for (const batch of payroll) {
-    push({ key: `pr:${batch.id}`, at: batch.paidAt ?? new Date(), what: `Pay run ${batch.payrollRun?.period?.periodKey ?? ""}`.trim(), module: "Payroll", kind: "payroll", paidFrom: batch.method === "CASH" ? "Cash" : batch.method.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), document: batch.code, href: null, amount: round(Number(batch.totalAmount)) });
+    push({ key: `pr:${batch.id}`, at: batch.paidAt ?? new Date(), what: batch.payrollRun?.period?.periodKey ?? "Pay run", source: "Payroll", kindLabel: SPENDING_KIND_LABEL.payroll, state: "Paid", stateTone: "success", module: "Payroll", kind: "payroll", paidFrom: batch.method === "CASH" ? "Cash" : batch.method.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), document: batch.code, href: null, amount: round(Number(batch.totalAmount)) });
   }
   return rows.sort((a, b) => b.day.localeCompare(a.day) || b.amount - a.amount);
 }
@@ -193,7 +223,7 @@ export async function readSpending(db: Db, companyId: string, query: SpendingQue
   const needle = query.q.toLowerCase();
   const rows = all
     .filter((row) => query.view === "all" || row.kind === query.view)
-    .filter((row) => !query.from || row.module === query.from)
+    .filter((row) => !query.from || row.source === query.from)
     .filter((row) => !query.account || row.paidFrom === query.account)
     .filter((row) => !needle || `${row.what} ${row.document ?? ""} ${row.paidFrom ?? ""}`.toLowerCase().includes(needle))
     .sort((a, b) => (query.sort === "largest" ? b.amount - a.amount : 0));
@@ -204,6 +234,7 @@ export async function readSpending(db: Db, companyId: string, query: SpendingQue
     total,
     byKind,
     monthName: monthName(query.month === "last" ? lastStart : today),
+    since: query.month === "last" ? `${shortDay(lastStart)} to ${shortDay(new Date(Date.parse(`${start}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10))}` : `Since ${shortDay(start)}`,
     modules,
     currency: base,
     accounts: [...new Set(all.map((row) => row.paidFrom).filter((value): value is string => Boolean(value)))].sort(),
@@ -218,7 +249,7 @@ export function spendingCsv(rows: SpendingRow[]): string {
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const lines = [["Date", "What", "From", "Kind", "Paid from", "Document", "Amount"].join(",")];
-  for (const row of rows) lines.push([row.day, row.what, row.module, SPENDING_TAB_LABEL[row.kind], row.paidFrom ?? "", row.document ?? "", row.amount.toFixed(2)].map(cell).join(","));
+  const lines = [["Document", "Kind", "For", "Date", "Paid from", "Source", "State", "Amount"].join(",")];
+  for (const row of rows) lines.push([row.document ?? "", row.kindLabel, row.what, row.day, row.paidFrom ?? "", row.source, row.state, row.amount.toFixed(2)].map(cell).join(","));
   return `${lines.join("\n")}\n`;
 }

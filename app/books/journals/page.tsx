@@ -17,7 +17,7 @@ const AGAIN = "Check the connection and try again.";
 const WORD = { draft: "is saved as a draft", "to-approve": "waits for a second person", posted: "is posted" } as const;
 
 /**
- * Books → Ledger → Journals (BkJournals, BkJournalNew). New journal (N) opens
+ * Books → Ledger → Journals (BkJournals, BkJournalNew). New journal (J) opens
  * the drawer; a row opens its lines, with Post, Approve and post, Send back,
  * Delete the draft or Reverse by its state. `?action=new-journal` (the old
  * overview's link) opens New journal; `?journal=<id>` opens one.
@@ -25,7 +25,7 @@ const WORD = { draft: "is saved as a draft", "to-approve": "waits for a second p
 function Journals() {
   const client = useQueryClient();
   const { toast } = useToast();
-  const { search, params, onQuery, exportHref } = useListQuery<JournalQuery & { journal: string }>({ tab: "all", q: "", sort: "needs", source: "" });
+  const { search, params, onQuery, exportHref } = useListQuery<JournalQuery & { journal: string }>({ tab: "all", q: "", sort: "needs", source: "", period: "any", by: "" });
   const [creating, setCreating] = React.useState(() => params.get("action") === "new-journal");
   const selected = params.get("journal");
   const listParams = new URLSearchParams(search);
@@ -69,7 +69,7 @@ function Journals() {
 
   return (
     <>
-      <PageChrome title="Journals" primary={{ label: "New journal", icon: "plus", shortcut: "N", onClick: () => setCreating(true) }} />
+      <PageChrome title="Journals" primary={{ label: "New journal", icon: "plus", shortcut: "J", onClick: () => setCreating(true), disabled: journals.data && !journals.data.can.create ? "Your role cannot make journals" : undefined }} />
       <BooksPage screen="bk-b">
         {journals.data ? (
           <JournalsPageView data={journals.data} onQuery={onQuery} onOpen={(id) => onQuery({ journal: id })} onPost={(rows) => void postMany(rows)} exportHref={exportHref("/api/books/journals")} />
@@ -84,6 +84,7 @@ function Journals() {
         onOpenChange={(open) => !open && onQuery({ journal: "" })}
         journal={journal.data ?? null}
         busy={act.isPending}
+        can={journals.data?.can ?? null}
         onAct={(action, input) => act.mutate({ action, input })}
       />
       <NewJournalDrawer

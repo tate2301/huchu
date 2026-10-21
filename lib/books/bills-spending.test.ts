@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { dueLine, matchRows, termsWord } from "./bill-record";
-import { billQuerySchema, billsFinding, comingSunday, readBillQuery } from "./bills";
+import { BILL_STATE_WORD, billQuerySchema, billsFinding, comingSunday, dueWindow, readBillQuery } from "./bills";
 import { claimFormErrors, claimPayload, voucherPayload, type ClaimForm } from "./claim-form";
 import { claimsFinding, readClaimQuery } from "./claims-list";
 import { orderFormErrors, orderPayload, orderTotals } from "./order-form";
@@ -12,10 +12,23 @@ import { readRequisitionQuery, requisitionsFinding } from "./requisitions-list";
 import { readSpendingQuery, spendingFinding } from "./spending";
 import { ageLines, statementLines, suppliersFinding, suppliesOf } from "./suppliers";
 
+describe("Bills list columns (BkBills)", () => {
+  it("windows the Due chip on the day it falls due, both ends included", () => {
+    expect(dueWindow("any", "2026-10-21")).toBeNull();
+    expect(dueWindow("this-week", "2026-10-21")).toEqual({ gte: "2026-10-21", lte: "2026-10-25" });
+    expect(dueWindow("this-month", "2026-10-21")).toEqual({ gte: "2026-10-01", lte: "2026-10-31" });
+    expect(dueWindow("next-30", "2026-10-21")).toEqual({ gte: "2026-10-21", lte: "2026-11-20" });
+  });
+  it("calls a recorded, unpaid bill Recorded", () => {
+    expect(BILL_STATE_WORD["to-pay"]).toBe("Recorded");
+    expect(BILL_STATE_WORD.overdue).toBe("Overdue");
+  });
+});
+
 describe("Bills (BkBills)", () => {
   it("opens on To pay, and reads its filters from the address", () => {
-    expect(readBillQuery(new URLSearchParams())).toEqual({ view: "to-pay", q: "", supplier: null, fdms: null, period: "any", sort: "due", page: 1 });
-    expect(readBillQuery(new URLSearchParams("view=debit-notes&fdms=VALID&period=this-month&page=2"))).toMatchObject({ view: "debit-notes", fdms: "VALID", period: "this-month", page: 2 });
+    expect(readBillQuery(new URLSearchParams())).toEqual({ view: "to-pay", q: "", supplier: null, fdms: null, due: "any", sort: "due", page: 1 });
+    expect(readBillQuery(new URLSearchParams("view=debit-notes&fdms=VALID&due=this-month&page=2"))).toMatchObject({ view: "debit-notes", fdms: "VALID", due: "this-month", page: 2 });
     expect(billQuerySchema.parse({ view: "nonsense", fdms: "MAYBE" })).toMatchObject({ view: "to-pay", fdms: null });
   });
 
@@ -86,7 +99,7 @@ describe("Purchase orders (BkOrders) and New order", () => {
   });
 
   it("opens on Sent, and says what is on order and what waits", () => {
-    expect(readOrderQuery(new URLSearchParams())).toMatchObject({ view: "sent", source: null, period: "any" });
+    expect(readOrderQuery(new URLSearchParams())).toMatchObject({ view: "sent", site: null, period: "any" });
     expect(ordersFinding(4962, [{ number: "PO-0035", amount: 2960, what: "Vinyl" }])).toEqual({ fact: "$4,962.00 is on order and not yet received.", rest: "PO-0035, $2,960.00 of vinyl, waits for approval." });
     expect(ordersFinding(0, []).fact).toBe("Nothing is on order.");
   });
@@ -188,7 +201,7 @@ describe("All spending (BkSpending)", () => {
     });
     expect(spendingFinding(0, 0, { bills: 0, requisitions: 0, claims: 0, "till-payouts": 0, payroll: 0, other: 0 }).fact).toBe("Nothing has gone out this month.");
     expect(spendingFinding(10, 1, { bills: 0, requisitions: 0, claims: 0, "till-payouts": 0, payroll: 10, other: 0 }).rest).toBe("Payroll is the most, $10.00.");
-    expect(readSpendingQuery(new URLSearchParams("view=till-payouts&from=Retail"))).toMatchObject({ view: "till-payouts", from: "Retail", month: "this" });
+    expect(readSpendingQuery(new URLSearchParams("view=till-payouts&from=Tender"))).toMatchObject({ view: "till-payouts", from: "Tender", month: "this" });
   });
 
   it("filters every list by the same periods", () => {

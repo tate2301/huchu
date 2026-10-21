@@ -4,10 +4,13 @@ import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button, Icon, Input, Kit, Person, TextArea, type IconName } from "@/components/core";
+import { Button, Icon, Input, Kit, Person, type IconName } from "@/components/core";
 import type { MenuEntry } from "@/components/core/menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { bulkDeleteWord, REASON_MAX, REASON_MIN, REVISABLE, UNDO_NOUN, type BulkResult, type UndoChoices, type UndoKind, type UndoRights } from "@/lib/books/core/undo-rules";
+import { deleteRuleRows, leadOf, outcomes, sharedWhy, voidWill, type Outcome, type Will } from "@/lib/books/core/undo-ui";
+
+import { BkState, downloadCsv } from "./bk-list";
 
 /**
  * Undo on Books' screens (books-final §4.1, §2.5, §5.13; P4): the record
@@ -97,43 +100,58 @@ export function What({ items }: { items: Array<{ icon: IconName; text: React.Rea
   );
 }
 
-/** The icon for one of the core's effect lines. */
-function iconFor(text: string): IconName {
-  if (/credit note/i.test(text)) return /VAT return/.test(text) ? "vat" : "file";
-  if (/account|credit with/i.test(text)) return "payments";
-  if (/commission/i.test(text)) return "money";
-  if (/bank line/i.test(text)) return "bank";
-  if (/snapshot|audit/i.test(text)) return "history";
-  if (/number/i.test(text)) return "lock";
-  if (/VAT/.test(text)) return "vat";
-  return "posting";
+/** What happens, each line under its label: Credit note, Posting, Payments (the design's `k-will`). */
+function WillList({ items }: { items: Will[] }) {
+  if (!items.length) return null;
+  return (
+    <ol className="bk-will">
+      {items.map((item) => (
+        <li key={item.label}>
+          <b>{item.label}</b>
+          <span>{item.text}</span>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
-function ReasonField({ id, label, hint, value, onChange, error, disabled }: { id: string; label: string; hint: string; value: string; onChange: (value: string) => void; error: string | null; disabled: boolean }) {
+/** A refusal: its fact in bold, the rest after it, one band (the design's `k-note is-bad`). */
+function Refusal({ text }: { text: string }) {
+  const { lead, rest } = leadOf(text);
+  return (
+    <div className="bk-warn bad" role="alert">
+      <Icon name="block" />
+      <span>
+        <b>{lead}</b>
+        {rest ? ` ${rest}` : ""}
+      </span>
+    </div>
+  );
+}
+
+function ReasonField({ id, value, onChange, error, disabled }: { id: string; value: string; onChange: (value: string) => void; error: string | null; disabled: boolean }) {
   return (
     <div className="bk-fld">
       <label className="bk-lab" htmlFor={id}>
-        {label}
+        Reason
       </label>
-      <TextArea id={id} rows={3} maxLength={REASON_MAX} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} aria-invalid={error ? true : undefined} />
+      <Input id={id} maxLength={REASON_MAX} value={value} disabled={disabled} autoComplete="off" aria-invalid={error ? true : undefined} onChange={(event) => onChange(event.target.value)} />
       {error ? (
         <span role="alert" style={{ fontSize: 12, color: "var(--color-danger)" }}>
           {error}
         </span>
-      ) : (
-        <span className="muted" style={{ fontSize: 12 }}>
-          {hint}
-        </span>
-      )}
+      ) : null}
     </div>
   );
 }
+
+const SHORT = `${REASON_MIN} to ${REASON_MAX} characters.`;
 
 function TypedField({ id, word, value, onChange, disabled }: { id: string; word: string; value: string; onChange: (value: string) => void; disabled: boolean }) {
   return (
     <div className="bk-fld">
       <label className="bk-lab" htmlFor={id}>
-        Type {word} to confirm
+        To confirm, type <span className="mono">{word}</span>
       </label>
       <Input id={id} value={value} disabled={disabled} autoComplete="off" spellCheck={false} onChange={(event) => onChange(event.target.value)} />
     </div>
@@ -185,17 +203,16 @@ const PAST: Record<UndoKind, string> = {
   "school-fee-receipt": "recorded",
 };
 
-/** The credit note's reason, as ZIMRA's credit note states it (§4.4). */
-const NOTE_REASONS = ["Return", "Price correction", "Cancellation", "Discount", "Bad debt"] as const;
+/** The credit note's reason as ZIMRA's credit note states it (§4.4). The design draws one Reason, so a void states Cancellation. */
+const NOTE_REASON = "Cancellation";
 
 /* ── One document ─────────────────────────────────────────────────────── */
 
 export type UndoDone = { label: string; detail?: string; draft?: { kind: string; id: string; label: string } };
 
-/** BkVoidDialog: what the void does, the fiscal note, what stands on it, and why (kept in the audit trail). */
-export function VoidDialog({ choices, open, onOpenChange, onDone }: { choices: UndoChoices; open: boolean; onOpenChange: (open: boolean) => void; onDone: (done: UndoDone) => void | Promise<void> }) {
+/** BkVoidDialog (design: bk-void): the reason, then what the void does line by line. */
+export function VoidDialog({ choices, open, onOpenChange, onDone, amount }: { choices: UndoChoices; open: boolean; onOpenChange: (open: boolean) => void; onDone: (done: UndoDone) => void | Promise<void>; /** The document's total, as the page writes it ("$1,750.00"), for the credit note's sentence. */ amount?: string }) {
   const [reason, setReason] = React.useState("");
-  const [noteReason, setNoteReason] = React.useState<(typeof NOTE_REASONS)[number]>("Cancellation");
   const [missing, setMissing] = React.useState<string | null>(null);
   const { busy, error, setError, run } = useRun();
   const invoice = choices.kind === "invoice";
@@ -207,18 +224,20 @@ export function VoidDialog({ choices, open, onOpenChange, onDone }: { choices: U
   }, [open, setError]);
 
   const go = () => {
-    if (reason.trim().length < REASON_MIN) return setMissing("Say why, in a few words.");
+    if (reason.trim().length < REASON_MIN) return setMissing(SHORT);
     setMissing(null);
     void run(async () => {
-      const text = invoice ? `${noteReason}: ${reason.trim()}` : reason.trim();
+      const text = invoice ? `${NOTE_REASON}: ${reason.trim()}` : reason.trim();
       const done = await fetchJson<UndoDone>(`/api/books/core/${choices.kind}/${choices.id}`, { method: "POST", body: JSON.stringify({ action: "void", reason: text.slice(0, REASON_MAX) }) });
       onOpenChange(false);
       await onDone(done);
     }, "It was not voided. Nothing was changed; try again.");
   };
 
-  const lead = choices.fiscalNote ?? (invoice ? `${choices.label} is voided with a full credit note. It stays in Invoices, marked void.` : `${choices.label} is voided and stays, marked void.`);
-  const go_label = invoice ? `Void and issue ${choices.nextNote ?? "a credit note"}` : `Void ${choices.label}`;
+  const refused = !choices.void.allowed ? choices.void.why : null;
+  const lead = invoice
+    ? `Voiding issues a full credit note${amount ? ` for ${amount}` : ""}${choices.fiscalised ? ", signed on the fiscal device against the original" : ""}. ${choices.label} stays, marked void.`
+    : `${choices.label} stays, marked void.`;
   return (
     <BkDialog
       open={open}
@@ -227,48 +246,25 @@ export function VoidDialog({ choices, open, onOpenChange, onDone }: { choices: U
       title={`Void ${choices.label}`}
       foot={
         <>
-          <Button variant="quiet" disabled={busy} onClick={() => onOpenChange(false)}>
-            Cancel
+          <Button disabled={busy} shortcut="Esc" onClick={() => onOpenChange(false)}>
+            Keep it
           </Button>
-          <Button variant="primary" icon="x" shortcut="Ctrl ↵" busy={busy} disabled={busy || !choices.void.allowed} onClick={go}>
-            {go_label}
+          <Button variant="danger" icon="x" shortcut="Ctrl ↵" busy={busy} disabled={busy || !choices.void.allowed} onClick={go}>
+            {invoice ? "Void with a credit note" : `Void ${choices.label}`}
           </Button>
         </>
       }
     >
+      {refused ? <Refusal text={refused} /> : null}
       <p>{lead}</p>
-      <What items={choices.effects.map((text) => ({ icon: iconFor(text), text }))} />
-      {choices.dependents.length ? <p className="muted">Standing on it: {choices.dependents.join(", ")}. Void them first.</p> : null}
-      {invoice ? (
-        <div className="bk-fld">
-          <span className="bk-lab" id={`note-reason-${choices.id}`}>
-            Reason on the credit note
-          </span>
-          <div className="bk-chips" role="radiogroup" aria-labelledby={`note-reason-${choices.id}`}>
-            {NOTE_REASONS.map((option) => (
-              <span
-                key={option}
-                role="radio"
-                tabIndex={0}
-                aria-checked={noteReason === option}
-                className={noteReason === option ? "on" : undefined}
-                style={{ cursor: "pointer" }}
-                onClick={() => setNoteReason(option)}
-                onKeyDown={(event) => (event.key === " " || event.key === "Enter" ? (event.preventDefault(), setNoteReason(option)) : undefined)}
-              >
-                {option}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <ReasonField id={`void-why-${choices.id}`} label="Why are you voiding it?" hint="Kept in the audit trail" value={reason} onChange={setReason} error={missing} disabled={busy} />
+      <ReasonField id={`void-why-${choices.id}`} value={reason} onChange={setReason} error={missing} disabled={busy} />
+      <WillList items={voidWill(choices)} />
       <Failed error={error} />
     </BkDialog>
   );
 }
 
-/** BkReviseDialog: a posted document is never edited in place; Revise voids it and opens a new draft linked to it (D7). */
+/** BkReviseDialog (design: bk-revise): a posted document is never edited in place; Revise voids it and opens a new draft linked to it (D7). */
 export function ReviseDialog({ choices, open, onOpenChange, onRevised }: { choices: UndoChoices; open: boolean; onOpenChange: (open: boolean) => void; onRevised: (done: Required<Pick<UndoDone, "draft">> & UndoDone) => void | Promise<void> }) {
   const [reason, setReason] = React.useState("");
   const [missing, setMissing] = React.useState<string | null>(null);
@@ -283,7 +279,7 @@ export function ReviseDialog({ choices, open, onOpenChange, onRevised }: { choic
   }, [open, setError]);
 
   const go = () => {
-    if (reason.trim().length < REASON_MIN) return setMissing("Say why, in a few words.");
+    if (reason.trim().length < REASON_MIN) return setMissing(SHORT);
     setMissing(null);
     void run(async () => {
       const done = await fetchJson<Required<Pick<UndoDone, "draft">> & UndoDone>(`/api/books/core/${choices.kind}/${choices.id}`, { method: "POST", body: JSON.stringify({ action: "revise", reason: reason.trim() }) });
@@ -292,10 +288,12 @@ export function ReviseDialog({ choices, open, onOpenChange, onRevised }: { choic
     }, "It was not revised. Nothing was changed; try again.");
   };
 
-  const items: Array<{ icon: IconName; text: React.ReactNode }> = [{ icon: "x", text: `${choices.label} is voided and shows “Replaced by” the new ${noun}` }];
-  if (choices.kind === "invoice") items.push({ icon: "file", text: choices.fiscalised ? `A credit note, signed on FDMS, takes ${choices.label} off` : `A credit note takes ${choices.label} off` });
-  if (choices.onAccount.length) items.push({ icon: "payments", text: `${choices.onAccount.join(", ")} ${choices.onAccount.length === 1 ? "moves" : "move"} to the new ${noun} when it is ${verb}` });
-  if (choices.kind === "bill") items.push({ icon: "vat", text: "Input VAT is claimed once its FTI is Valid" });
+  const refused = !choices.revise.allowed ? choices.revise.why : null;
+  const items: Will[] = [{ label: choices.label, text: `Void, reads “Replaced by” its new ${noun}` }];
+  if (choices.kind === "invoice") items.push({ label: "Credit note", text: `${choices.nextNote ?? "A credit note"}${choices.fiscalised ? ", signed on FDMS" : ""}` });
+  items.push({ label: `New ${noun}`, text: `A draft with the same lines. It takes its number when it is ${verb}` });
+  if (choices.onAccount.length) items.push({ label: "Payments", text: `${choices.onAccount.join(", ")} ${choices.onAccount.length === 1 ? "moves" : "move"} to the new ${noun} when it is ${verb}` });
+  if (choices.kind === "bill") items.push({ label: "Input VAT", text: "Claimed once its FTI is Valid" });
   return (
     <BkDialog
       open={open}
@@ -304,7 +302,7 @@ export function ReviseDialog({ choices, open, onOpenChange, onRevised }: { choic
       title={`Revise ${choices.label}`}
       foot={
         <>
-          <Button variant="quiet" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button disabled={busy} shortcut="Esc" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button variant="primary" icon="edit" shortcut="Ctrl ↵" busy={busy} disabled={busy || !choices.revise.allowed} onClick={go}>
@@ -313,18 +311,27 @@ export function ReviseDialog({ choices, open, onOpenChange, onRevised }: { choic
         </>
       }
     >
-      <p>
-        A posted {noun} isn’t edited in place. Revising voids {choices.label} and opens a new draft with its lines, for your changes. It takes the next number when it is {verb}.
-      </p>
-      <What items={items} />
-      <ReasonField id={`revise-why-${choices.id}`} label="Why are you revising it?" hint={`Kept with both ${UNDO_NOUN[choices.kind].plural} and in the audit trail`} value={reason} onChange={setReason} error={missing} disabled={busy} />
+      {refused ? <Refusal text={refused} /> : null}
+      <ReasonField id={`revise-why-${choices.id}`} value={reason} onChange={setReason} error={missing} disabled={busy} />
+      <WillList items={items} />
       <Failed error={error} />
     </BkDialog>
   );
 }
 
-/** BkDeleteDialog: a draft goes at once; anything posted is the owner's, with a reason and its number typed, as if it was never written. */
-export function DeleteDialog({ choices, open, onOpenChange, onDeleted }: { choices: UndoChoices; open: boolean; onOpenChange: (open: boolean) => void; onDeleted: (done: UndoDone & { draft?: unknown }) => void | Promise<void> }) {
+/** What a permanent delete keeps, under its label. */
+function keepsWill(text: string): Will {
+  if (/snapshot/i.test(text)) return { label: "Snapshot", text };
+  if (/number/i.test(text)) return { label: "Number", text };
+  return { label: "Payments", text };
+}
+
+/**
+ * BkDeleteDialog (design: bk-delete-permanent, bk-delete-refused): a draft goes
+ * at once; anything posted is the owner's, with a reason and its number typed;
+ * a refusal says why and how to go on, with the four rules checked against it.
+ */
+export function DeleteDialog({ choices, open, onOpenChange, onDeleted, onVoid }: { choices: UndoChoices; open: boolean; onOpenChange: (open: boolean) => void; onDeleted: (done: UndoDone & { draft?: unknown }) => void | Promise<void>; /** Opens Void, the way forward from a refused delete. */ onVoid?: () => void }) {
   const [reason, setReason] = React.useState("");
   const [typed, setTyped] = React.useState("");
   const [missing, setMissing] = React.useState<string | null>(null);
@@ -340,7 +347,7 @@ export function DeleteDialog({ choices, open, onOpenChange, onDeleted }: { choic
   }, [open, setError]);
 
   const go = () => {
-    if (permanent && reason.trim().length < REASON_MIN) return setMissing("Say why, in a few words.");
+    if (permanent && reason.trim().length < REASON_MIN) return setMissing(SHORT);
     if (!typedOk) return;
     setMissing(null);
     void run(async () => {
@@ -350,12 +357,63 @@ export function DeleteDialog({ choices, open, onOpenChange, onDeleted }: { choic
     }, "It was not deleted. Nothing was changed; try again.");
   };
 
+  if (!choices.delete.allowed) {
+    const rules = deleteRuleRows(choices);
+    const way = choices.void.allowed && onVoid;
+    return (
+      <BkDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={`${choices.label} can’t be deleted`}
+        foot={
+          <>
+            <Button shortcut="Esc" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            {way ? (
+              <Button
+                variant="primary"
+                icon="x"
+                onClick={() => {
+                  onOpenChange(false);
+                  onVoid();
+                }}
+              >
+                {choices.kind === "invoice" ? "Void with a credit note" : `Void ${choices.label}`}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <Refusal text={choices.delete.why ?? `${choices.label} can’t be deleted.`} />
+        {rules ? (
+          <table className="table bk-dense" aria-label="When delete is refused" style={{ boxShadow: "var(--shadow-ring)", borderRadius: 8, overflow: "hidden" }}>
+            <thead>
+              <tr>
+                <th>Delete is refused when</th>
+                <th style={{ width: 80 }}>Here</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((row) => (
+                <tr key={row.rule}>
+                  <td>{row.rule}</td>
+                  <td>{row.here === "yes" ? <BkState tone="danger">Yes</BkState> : <span className="muted">{row.here === "no" ? "No" : "—"}</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </BkDialog>
+    );
+  }
+
   const foot = (
     <>
-      <Button variant="quiet" disabled={busy} onClick={() => onOpenChange(false)}>
-        Cancel
+      <Button disabled={busy} shortcut="Esc" onClick={() => onOpenChange(false)}>
+        {permanent ? "Keep it" : "Cancel"}
       </Button>
-      <Button variant="danger" icon="x" shortcut="Ctrl ↵" busy={busy} disabled={busy || !typedOk || !choices.delete.allowed} onClick={go}>
+      <Button variant="danger" icon="x" busy={busy} disabled={busy || !typedOk} onClick={go}>
         {permanent ? "Delete permanently" : "Delete the draft"}
       </Button>
     </>
@@ -363,18 +421,14 @@ export function DeleteDialog({ choices, open, onOpenChange, onDeleted }: { choic
   if (!permanent) {
     return (
       <BkDialog open={open} onOpenChange={onOpenChange} busy={busy} title={`Delete ${choices.label}`} foot={foot} width={460}>
-        <p>A draft has no number and nothing was posted, so it simply goes.</p>
         <Failed error={error} />
       </BkDialog>
     );
   }
   return (
     <BkDialog open={open} onOpenChange={onOpenChange} busy={busy} title={`Delete ${choices.label} permanently`} foot={foot} width={500}>
-      <p>
-        This removes {choices.label} as if it was never {PAST[choices.kind]}. Delete is for duplicates and test data.
-      </p>
-      <What items={[{ icon: "x" as IconName, text: `${choices.label}, its lines and every entry it posted go` }, ...choices.keeps.map((text) => ({ icon: iconFor(text), text }))]} />
-      <ReasonField id={`delete-why-${choices.id}`} label="Reason" hint="Kept in the audit trail with the snapshot" value={reason} onChange={setReason} error={missing} disabled={busy} />
+      <WillList items={[{ label: "Removed", text: `${choices.label}, its lines and every entry it posted` }, ...choices.keeps.map(keepsWill)]} />
+      <ReasonField id={`delete-why-${choices.id}`} value={reason} onChange={setReason} error={missing} disabled={busy} />
       <TypedField id={`delete-typed-${choices.id}`} word={choices.label} value={typed} onChange={setTyped} disabled={busy} />
       <Failed error={error} />
     </BkDialog>
@@ -388,10 +442,10 @@ type Move = "void" | "revise" | "delete";
 /**
  * Void, Revise and Delete permanently for one document's ▾ menu, as the
  * core's `undoChoices` says: offered and pressable when allowed, faint with
- * the reason on hover when not (rule 12). `?do=void|revise|delete` in the
- * address opens that dialog once the choices are read.
+ * the reason on hover when not (rule 12). `?action=void|revise|delete` (or the
+ * older `?do=`) in the address opens that dialog once the choices are read.
  */
-export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handlers: { onVoided?: (done: UndoDone) => void | Promise<void>; onRevised?: (done: Required<Pick<UndoDone, "draft">> & UndoDone) => void | Promise<void>; onDeleted?: (done: UndoDone) => void | Promise<void>; initial?: string | null }) {
+export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handlers: { onVoided?: (done: UndoDone) => void | Promise<void>; onRevised?: (done: Required<Pick<UndoDone, "draft">> & UndoDone) => void | Promise<void>; onDeleted?: (done: UndoDone) => void | Promise<void>; initial?: string | null; /** The document's total as the page writes it, for a void's credit note. */ amount?: string }) {
   const choices = useQuery({
     queryKey: ["books", "undo", kind, id],
     queryFn: () => fetchJson<UndoChoices>(`/api/books/core/${kind}/${id}`),
@@ -401,9 +455,11 @@ export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handl
   const opened = React.useRef(false);
   const data = choices.data;
   React.useEffect(() => {
-    if (opened.current || !data || !handlers.initial) return;
+    if (opened.current || !data) return;
+    const wanted = handlers.initial ?? new URLSearchParams(window.location.search).get("action");
+    if (!wanted) return;
     opened.current = true;
-    if (handlers.initial === "void" || handlers.initial === "revise" || handlers.initial === "delete") setOpen(handlers.initial);
+    if (wanted === "void" || wanted === "revise" || wanted === "delete") setOpen(wanted);
   }, [data, handlers.initial]);
 
   const entries: MenuEntry[] = [];
@@ -425,6 +481,7 @@ export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handl
     <>
       <VoidDialog
         choices={data}
+        amount={handlers.amount}
         open={open === "void"}
         onOpenChange={(next) => setOpen(next ? "void" : null)}
         onDone={async (done) => {
@@ -443,7 +500,7 @@ export function useUndoMenu(kind: UndoKind, id: string | null | undefined, handl
           }}
         />
       ) : null}
-      <DeleteDialog choices={data} open={open === "delete"} onOpenChange={(next) => setOpen(next ? "delete" : null)} onDeleted={async (done) => handlers.onDeleted?.(done)} />
+      <DeleteDialog choices={data} open={open === "delete"} onOpenChange={(next) => setOpen(next ? "delete" : null)} onDeleted={async (done) => handlers.onDeleted?.(done)} onVoid={() => setOpen("void")} />
     </>
   ) : null;
   return { entries, node, choices: data, open: setOpen, refresh };
@@ -459,15 +516,60 @@ type BulkAnswer = BulkResult & { summary: string };
 
 const VERB: Record<BulkMode, { now: string; past: string }> = { void: { now: "Void", past: "voided" }, delete: { now: "Delete", past: "deleted" } };
 
-/** Void or Delete permanently over a selection: one reason for all, and "delete N" typed. */
-function BulkUndoDialog({ kind, mode, rows, open, onOpenChange, onDone }: { kind: UndoKind; mode: BulkMode; rows: BulkRow[]; open: boolean; onOpenChange: (open: boolean) => void; onDone: (answer: BulkAnswer) => void }) {
+/** How many rows are checked ahead before a permanent delete: beyond it the core checks each row as it goes. */
+const PREFLIGHT_MAX = 100;
+
+/** What delete would do with each row, read from the core's own answer for it (`undoChoices`): who goes, and who is refused and why. */
+function usePreflight(kind: UndoKind, rows: BulkRow[], active: boolean) {
+  const [state, setState] = React.useState<{ ok: BulkRow[]; refused: Array<BulkRow & { why: string }> } | null>(null);
+  React.useEffect(() => {
+    if (!active) return;
+    setState(null);
+    if (rows.length > PREFLIGHT_MAX) {
+      setState({ ok: rows, refused: [] });
+      return;
+    }
+    let stop = false;
+    const found = new Map<string, { allowed: boolean; why: string | null }>();
+    const queue = [...rows];
+    const worker = async () => {
+      for (let row = queue.shift(); row && !stop; row = queue.shift()) {
+        try {
+          const choices = await fetchJson<UndoChoices>(`/api/books/core/${kind}/${row.id}`);
+          found.set(row.id, { allowed: choices.delete.allowed, why: choices.delete.why });
+        } catch {
+          // The core decides again when it runs; a row that could not be read goes forward.
+          found.set(row.id, { allowed: true, why: null });
+        }
+      }
+    };
+    void Promise.all([worker(), worker(), worker(), worker()]).then(() => {
+      if (stop) return;
+      setState({
+        ok: rows.filter((row) => found.get(row.id)?.allowed !== false),
+        refused: rows.filter((row) => found.get(row.id)?.allowed === false).map((row) => ({ ...row, why: found.get(row.id)?.why ?? "It cannot be deleted." })),
+      });
+    });
+    return () => {
+      stop = true;
+    };
+  }, [kind, rows, active]);
+  return state;
+}
+
+/** Void or Delete permanently over a selection: one reason for all, and "delete N" typed for the N that will go. */
+function BulkUndoDialog({ kind, mode, rows, open, onOpenChange, onDone }: { kind: UndoKind; mode: BulkMode; rows: BulkRow[]; open: boolean; onOpenChange: (open: boolean) => void; onDone: (answer: BulkAnswer, reason: string) => void }) {
   const [reason, setReason] = React.useState("");
   const [typed, setTyped] = React.useState("");
   const [missing, setMissing] = React.useState<string | null>(null);
   const { busy, error, setError, run } = useRun();
   const noun = UNDO_NOUN[kind];
-  const n = rows.length;
+  const pre = usePreflight(kind, rows, mode === "delete" && open);
+  const going = mode === "delete" ? (pre?.ok ?? []) : rows;
+  const refused = mode === "delete" ? (pre?.refused ?? []) : [];
+  const n = going.length;
   const word = bulkDeleteWord(n);
+  const checking = mode === "delete" && pre === null;
   const typedOk = mode !== "delete" || typed.trim().toLowerCase() === word;
   React.useEffect(() => {
     if (open) return;
@@ -478,153 +580,225 @@ function BulkUndoDialog({ kind, mode, rows, open, onOpenChange, onDone }: { kind
   }, [open, setError]);
 
   const go = () => {
-    if (reason.trim().length < REASON_MIN) return setMissing("Say why, in a few words.");
-    if (!typedOk) return;
+    if (reason.trim().length < REASON_MIN) return setMissing(SHORT);
+    if (!typedOk || n === 0) return;
     setMissing(null);
     void run(async () => {
       const answer = await fetchJson<BulkAnswer>(`/api/books/core/${kind}/bulk/${mode}`, {
         method: "POST",
-        body: JSON.stringify({ ids: rows.map((row) => row.id), reason: reason.trim(), ...(mode === "delete" ? { confirm: typed.trim() } : {}) }),
+        body: JSON.stringify({ ids: going.map((row) => row.id), reason: reason.trim(), ...(mode === "delete" ? { confirm: typed.trim() } : {}) }),
       });
+      const turned = refused.map((row) => ({ id: row.id, label: row.label, why: row.why }));
       onOpenChange(false);
-      onDone(answer);
+      onDone({ ...answer, skipped: [...answer.skipped, ...turned] }, reason.trim());
     }, "Nothing was changed; try again.");
   };
 
-  const many = `${n} ${n === 1 ? noun.noun : noun.plural}`;
-  const items: Array<{ icon: IconName; text: string }> =
-    mode === "void"
+  const many = `${rows.length} ${rows.length === 1 ? noun.noun : noun.plural}`;
+  const will: Will[] =
+    kind === "invoice"
       ? [
-          ...(kind === "invoice" ? [{ icon: "file" as IconName, text: "Each issued one gets a full credit note, signed where it was" }] : [{ icon: "posting" as IconName, text: "Each posting is reversed, dated today" }]),
-          ...(kind === "invoice" || kind === "bill" ? [{ icon: "payments" as IconName, text: "Payments on them stay on account" }] : []),
-          { icon: "history", text: "Drafts, and rows the rules refuse, are skipped with why" },
+          { label: "Credit note", text: "One for each issued invoice, signed where it was" },
+          { label: "Posting", text: "Each reversed, dated today" },
+          { label: "Payments", text: "Stay on account" },
         ]
       : [
-          { icon: "x", text: "Drafts, and posted ones in open months, go with their postings" },
-          { icon: "lock", text: "Fiscalised ones are skipped: void them instead" },
-          { icon: "payments", text: "Payments on them stay on account" },
-          { icon: "history", text: "A snapshot of each is kept in the audit trail" },
+          { label: "Posting", text: "Each reversed, dated today" },
+          ...(kind === "bill" ? [{ label: "Payments", text: "Stay on account" }] : []),
         ];
   return (
     <BkDialog
       open={open}
       onOpenChange={onOpenChange}
       busy={busy}
+      width={mode === "delete" ? 680 : 520}
       title={mode === "void" ? `Void ${many}` : `Delete ${many} permanently`}
       foot={
         <>
-          <Button variant="quiet" disabled={busy} onClick={() => onOpenChange(false)}>
-            Cancel
+          <Button disabled={busy} shortcut="Esc" onClick={() => onOpenChange(false)}>
+            {mode === "void" ? "Cancel" : "Keep them"}
           </Button>
-          <Button variant={mode === "void" ? "primary" : "danger"} icon="x" shortcut="Ctrl ↵" busy={busy} disabled={busy || !typedOk} onClick={go}>
+          <Button variant={mode === "void" ? "primary" : "danger"} icon="x" shortcut={mode === "void" ? "Ctrl ↵" : undefined} busy={busy || checking} disabled={busy || checking || !typedOk || n === 0} onClick={go}>
             {mode === "void" ? `Void ${n}` : `Delete ${n} permanently`}
           </Button>
         </>
       }
     >
-      <p>{mode === "void" ? "Each is voided on its own, with this one reason." : "Each is deleted on its own, as if it was never written. Only the owner can."}</p>
-      <What items={items} />
-      <ReasonField id={`bulk-why-${kind}`} label={mode === "void" ? "Why are you voiding them?" : "Reason"} hint="One reason goes with every row, kept in the audit trail" value={reason} onChange={setReason} error={missing} disabled={busy} />
-      {mode === "delete" ? <TypedField id={`bulk-typed-${kind}`} word={`“${word}”`} value={typed} onChange={setTyped} disabled={busy} /> : null}
+      {mode === "delete" ? (
+        <p>
+          Deleting removes each {noun.noun}, its lines, every entry it posted and its sub-ledger lines, as if it had never been posted. A full copy of each is kept in the audit trail. The numbers are never used again.
+        </p>
+      ) : null}
+      {mode === "delete" && pre ? (
+        <div className="bk-tray">
+          <div className="bk-brr">
+            <BkState tone="success">Deleted</BkState>
+            <span className="mono">{n}</span>
+            <span className="why">Open month, not fiscalised, nothing reconciled</span>
+          </div>
+          {refused.length ? (
+            <div className="bk-brr">
+              <BkState tone="danger">Refused</BkState>
+              <span className="mono">{refused.length}</span>
+              <span className="why">{sharedWhy(refused)}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "delete" ? <TypedField id={`bulk-typed-${kind}`} word={word} value={typed} onChange={setTyped} disabled={busy || checking} /> : null}
+      <ReasonField id={`bulk-why-${kind}`} value={reason} onChange={setReason} error={missing} disabled={busy} />
+      {mode === "void" ? <WillList items={will} /> : null}
       <Failed error={error} />
     </BkDialog>
   );
 }
 
-/** BkBulkResult: per row, done, skipped with why, or failed; the failed ones can be tried again. */
-export function BulkResultDialog({ answer, rows, open, onOpenChange, onRetry }: { answer: BulkAnswer; rows: BulkRow[]; open: boolean; onOpenChange: (open: boolean) => void; onRetry?: (ids: string[]) => void }) {
+const OUTCOME: Record<Exclude<Outcome, "done">, { word: string; tone: Parameters<typeof BkState>[0]["tone"] }> = {
+  unchanged: { word: "Unchanged", tone: "plain" },
+  skipped: { word: "Skipped", tone: "warning" },
+  refused: { word: "Refused", tone: "danger" },
+};
+
+type ResultFocus = "all" | "skipped" | "refused";
+
+/** BkBulkResult (design: bk-bulk-result): the four words with their counts, then each refused or skipped row with why; refusals can be tried again. */
+export function BulkResultDialog({ answer, rows, reason, open, onOpenChange, onRetry, retrying = false }: { answer: BulkAnswer; rows: BulkRow[]; reason?: string; open: boolean; onOpenChange: (open: boolean) => void; onRetry?: (ids: string[]) => void; retrying?: boolean }) {
   const noun = UNDO_NOUN[answer.kind];
   const byId = new Map(rows.map((row) => [row.id, row]));
-  const total = answer.done.length + answer.skipped.length + answer.failed.length;
+  const all = outcomes(answer);
+  const total = all.length;
   const past = answer.action === "void" ? "voided" : answer.action === "delete" ? "deleted" : "done";
-  const verb = answer.action === "void" ? "Void" : answer.action === "delete" ? "Delete" : "Bulk";
+  const [focus, setFocus] = React.useState<ResultFocus>("all");
+  const group = (outcome: Outcome) => all.filter((row) => row.outcome === outcome);
+  const done = group("done");
+  const unchanged = group("unchanged");
+  const skipped = group("skipped");
+  const refused = group("refused");
+  const shown = all.filter((row) => (focus === "all" ? row.outcome === "skipped" || row.outcome === "refused" : row.outcome === focus));
   const party = rows.some((row) => row.party);
-  const lines = [
-    ...answer.done.map((row) => ({ ...row, result: "Done" as const, why: row.detail ?? "" })),
-    ...answer.skipped.map((row) => ({ ...row, result: "Skipped" as const })),
-    ...answer.failed.map((row) => ({ ...row, result: "Failed" as const })),
-  ];
-  const tone = { Done: "status-success", Skipped: "status-warning", Failed: "status-danger" } as const;
   const head = noun.noun.charAt(0).toUpperCase() + noun.noun.slice(1);
+  const wordDone = past.charAt(0).toUpperCase() + past.slice(1);
+  const doneWhy = answer.action === "void" ? (answer.kind === "invoice" ? "Each through a credit note." : "Each posting is reversed, dated today.") : "A full copy of each is kept in the audit trail.";
+  const skippedWhy = answer.action === "void" && skipped.every((row) => /draft/i.test(row.why)) ? "Drafts are deleted, not voided. Select them under Drafts." : sharedWhy(skipped);
+  const draftWord = (label: string) => /^draft /i.test(label);
   return (
     <BkDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={`${verb} ${total} ${total === 1 ? noun.noun : noun.plural}`}
+      title={`${total} selected, ${done.length} ${past}`}
       width={760}
       foot={
-        <>
-          {answer.failed.length && onRetry ? (
-            <Button icon="run" onClick={() => onRetry(answer.failed.map((row) => row.id))}>
-              {`Retry ${answer.failed.length} failed`}
-            </Button>
-          ) : null}
-          <Button variant="primary" icon="check" shortcut="↵" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </>
+        <Button variant="primary" icon="check" shortcut="↵" onClick={() => onOpenChange(false)}>
+          Done
+        </Button>
       }
     >
-      <div style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 28, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "var(--tracking-display)" }}>
-          {answer.done.length} {past}
-        </span>
-        <span className="muted" style={{ fontSize: 14 }}>
-          {[answer.skipped.length ? `${answer.skipped.length} skipped` : null, answer.failed.length ? `${answer.failed.length} failed` : null].filter(Boolean).join(" · ") || "Nothing skipped"}
-        </span>
+      {reason ? (
+        <p>
+          One reason for all: <span className="muted">“{reason}”</span>
+        </p>
+      ) : null}
+      <div className="bk-tray">
+        <div className="bk-brr">
+          <BkState tone="success">{wordDone}</BkState>
+          <span className="mono">{done.length}</span>
+          <span className="why">{doneWhy}</span>
+        </div>
+        {unchanged.length ? (
+          <div className="bk-brr">
+            <BkState tone="plain">Unchanged</BkState>
+            <span className="mono">{unchanged.length}</span>
+            <span className="why">{sharedWhy(unchanged).replace(/^[^.]*is void already\./i, "Already void.")}</span>
+          </div>
+        ) : null}
+        {skipped.length ? (
+          <div className="bk-brr">
+            <BkState tone="warning">Skipped</BkState>
+            <span className="mono">{skipped.length}</span>
+            <span className="why">{skippedWhy}</span>
+            <Button icon="eye" onClick={() => setFocus("skipped")}>{`Show the ${skipped.length}`}</Button>
+          </div>
+        ) : null}
+        {refused.length ? (
+          <div className="bk-brr">
+            <BkState tone="danger">Refused</BkState>
+            <span className="mono">{refused.length}</span>
+            <span className="why">{sharedWhy(refused)}</span>
+            {onRetry ? (
+              <Button icon="run" busy={retrying} disabled={retrying} onClick={() => onRetry(refused.map((row) => row.id))}>{`Retry ${refused.length}`}</Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      <div className="bk-tw">
-        <table className="table" aria-label="What happened to each" style={{ tableLayout: "fixed", width: "100%" }}>
-          <colgroup>
-            <col style={{ width: 150 }} />
-            {party ? <col style={{ width: 190 }} /> : null}
-            <col style={{ width: 110 }} />
-            <col />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>{head}</th>
-              {party ? <th>{answer.kind === "bill" || answer.kind === "payment" ? "Supplier" : "Customer"}</th> : null}
-              <th>Result</th>
-              <th>Why</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line) => {
-              const row = byId.get(line.id);
-              return (
-                <tr key={line.id}>
-                  <td>
-                    <span className="ref truncate" style={{ display: "block" }} title={line.label}>
-                      {line.label}
-                    </span>
-                  </td>
-                  {party ? (
-                    <td>
-                      {/* People and customers show their face (rule 16); a supplier is a business without one. */}
-                      {row?.party ? (
-                        answer.kind === "bill" || answer.kind === "payment" ? (
-                          <span className="truncate" style={{ display: "block" }}>
-                            {row.party}
-                          </span>
-                        ) : (
-                          <Person name={row.party} className="truncate" />
-                        )
-                      ) : null}
-                    </td>
-                  ) : null}
-                  <td>
-                    <span className={`status ${tone[line.result]}`}>{line.result === "Done" ? past.charAt(0).toUpperCase() + past.slice(1) : line.result}</span>
-                  </td>
-                  <td style={{ whiteSpace: "normal", lineHeight: 1.45, paddingTop: 10, paddingBottom: 10 }}>
-                    <span className="muted">{line.why}</span>
-                  </td>
+      {skipped.length + refused.length > 0 ? (
+        <>
+          <div className="bk-sh">
+            <h2>Refused and skipped</h2>
+            <span className="n">{skipped.length + refused.length}</span>
+            <Button
+              variant="quiet"
+              icon="export"
+              onClick={() =>
+                downloadCsv(
+                  `${answer.kind}-${answer.action}-not-done.csv`,
+                  [head, "Result", "Why"],
+                  [...refused, ...skipped].map((row) => [row.label, OUTCOME[row.outcome as Exclude<Outcome, "done">].word, row.why]),
+                )
+              }
+            >
+              Export the list
+            </Button>
+          </div>
+          <div className="bk-tw">
+            <table className="table bk-dense" aria-label="Refused and skipped" style={{ tableLayout: "fixed", width: "100%" }}>
+              <colgroup>
+                <col style={{ width: 130 }} />
+                {party ? <col style={{ width: 190 }} /> : null}
+                <col style={{ width: 110 }} />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>{head}</th>
+                  {party ? <th>{answer.kind === "bill" || answer.kind === "payment" || answer.kind === "debit-note" ? "Supplier" : "Customer"}</th> : null}
+                  <th>Result</th>
+                  <th>Why</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {shown.map((line) => {
+                  const row = byId.get(line.id);
+                  const outcome = OUTCOME[line.outcome as Exclude<Outcome, "done">];
+                  return (
+                    <tr key={line.id}>
+                      <td>
+                        {draftWord(line.label) ? (
+                          <span className="muted">No number</span>
+                        ) : (
+                          <span className="ref truncate" style={{ display: "block" }} title={line.label}>
+                            {line.label}
+                          </span>
+                        )}
+                      </td>
+                      {party ? (
+                        <td className="truncate">
+                          {row?.party ? answer.kind === "bill" || answer.kind === "payment" || answer.kind === "debit-note" ? <span className="truncate">{row.party}</span> : <Person name={row.party} className="truncate" /> : null}
+                        </td>
+                      ) : null}
+                      <td>
+                        <BkState tone={outcome.tone}>{outcome.word}</BkState>
+                      </td>
+                      <td className="muted truncate" title={line.why}>
+                        {line.why}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
     </BkDialog>
   );
 }
@@ -637,7 +811,8 @@ export function BulkResultDialog({ answer, rows, open, onOpenChange, onRetry }: 
 export function useBulkUndo(kind: UndoKind, onChanged?: () => void | Promise<void>) {
   const rights = useQuery({ queryKey: ["books", "rights", kind], queryFn: () => fetchJson<UndoRights>(`/api/books/core/rights?kind=${kind}`), staleTime: 60_000 });
   const [asking, setAsking] = React.useState<{ mode: BulkMode; rows: BulkRow[] } | null>(null);
-  const [shown, setShown] = React.useState<{ answer: BulkAnswer; rows: BulkRow[] } | null>(null);
+  const [shown, setShown] = React.useState<{ answer: BulkAnswer; rows: BulkRow[]; reason: string } | null>(null);
+  const [retrying, setRetrying] = React.useState(false);
   const noun = UNDO_NOUN[kind];
 
   const entries = (rows: BulkRow[]): MenuEntry[] => {
@@ -657,6 +832,32 @@ export function useBulkUndo(kind: UndoKind, onChanged?: () => void | Promise<voi
     return out;
   };
 
+  // A void's refusals are tried again as they are, with the reason already given; a delete asks again, as it wants its word typed.
+  const retry = async (ids: string[]) => {
+    if (!shown) return;
+    if (shown.answer.action !== "void") {
+      const again = shown.rows.filter((row) => ids.includes(row.id));
+      setShown(null);
+      setAsking({ mode: "delete", rows: again });
+      return;
+    }
+    setRetrying(true);
+    try {
+      const next = await fetchJson<BulkAnswer>(`/api/books/core/${kind}/bulk/void`, { method: "POST", body: JSON.stringify({ ids, reason: shown.reason }) });
+      const again = new Set(ids);
+      const keep = <T extends { id: string }>(list: T[]) => list.filter((row) => !again.has(row.id));
+      setShown({
+        ...shown,
+        answer: { ...shown.answer, done: [...shown.answer.done, ...next.done], skipped: [...keep(shown.answer.skipped), ...next.skipped], failed: [...keep(shown.answer.failed), ...next.failed] },
+      });
+      await onChanged?.();
+    } catch {
+      // The rows stay as they were; the button is there to try again.
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const node = (
     <>
       {asking ? (
@@ -666,25 +867,13 @@ export function useBulkUndo(kind: UndoKind, onChanged?: () => void | Promise<voi
           rows={asking.rows}
           open
           onOpenChange={(next) => (next ? undefined : setAsking(null))}
-          onDone={(answer) => {
-            setShown({ answer, rows: asking.rows });
+          onDone={(answer, reason) => {
+            setShown({ answer, rows: asking.rows, reason });
             void onChanged?.();
           }}
         />
       ) : null}
-      {shown ? (
-        <BulkResultDialog
-          answer={shown.answer}
-          rows={shown.rows}
-          open
-          onOpenChange={(next) => (next ? undefined : setShown(null))}
-          onRetry={(ids) => {
-            const again = shown.rows.filter((row) => ids.includes(row.id));
-            setShown(null);
-            setAsking({ mode: shown.answer.action === "delete" ? "delete" : "void", rows: again });
-          }}
-        />
-      ) : null}
+      {shown ? <BulkResultDialog answer={shown.answer} rows={shown.rows} reason={shown.reason} open retrying={retrying} onOpenChange={(next) => (next ? undefined : setShown(null))} onRetry={(ids) => void retry(ids)} /> : null}
     </>
   );
   return { entries, node, rights: rights.data ?? null, verb: VERB };
