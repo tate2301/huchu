@@ -18,7 +18,7 @@ import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
  * sign in with a code sent to their email, and choose one if they want.
  *
  * The operator chooses what it runs — its verticals — and that is what it
- * pays for. A Flare workspace is a CRM.
+ * pays for. A Flare or Pabasa workspace is a CRM, a Tender one is retail.
  */
 
 export type SetUpInput = {
@@ -32,9 +32,10 @@ export type SetUpInput = {
   start: "TRIAL" | "PAID";
 };
 
-/** The verticals a set-up runs, in the catalogue's order. Flare is one thing. */
+/** The verticals a set-up runs, in the catalogue's order. Every product but Corelith is one thing. */
 export function setUpVerticals(product: WorkspaceProduct, chosen: readonly Vertical[]): Vertical[] {
-  if (product === "FLARE") return ["CRM"];
+  const fixed = getProduct(product).vertical;
+  if (fixed) return [fixed];
   return VERTICAL_ORDER.filter((vertical) => chosen.includes(vertical));
 }
 
@@ -50,7 +51,7 @@ export async function setUpWorkspace(operator: SignedInOperator, input: SetUpInp
   if (verticals.length === 0) throw new AdminRefusal("Choose at least one thing the business runs.");
   // The first vertical lays the workspace out; the rest are switched on after.
   const [first, ...rest] = verticals;
-  const templateCode = input.product === "FLARE" ? getProduct("FLARE").templateCode! : VERTICALS[first].templateCode;
+  const templateCode = getProduct(input.product).templateCode ?? VERTICALS[first].templateCode;
   const tierCode = getClientTemplateDefinition(templateCode)?.recommendedTierCode;
 
   try {

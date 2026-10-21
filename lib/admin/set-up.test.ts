@@ -26,6 +26,8 @@ describe("the verticals a set-up runs", () => {
   it("keeps the catalogue's order and makes Flare a CRM", () => {
     expect(setUpVerticals("CORELITH", ["CRM", "RETAIL"])).toEqual(["RETAIL", "CRM"]);
     expect(setUpVerticals("FLARE", ["GOLD"])).toEqual(["CRM"]);
+    expect(setUpVerticals("PABASA", ["GOLD"])).toEqual(["CRM"]);
+    expect(setUpVerticals("TENDER", ["GOLD"])).toEqual(["RETAIL"]);
     expect(setUpVerticals("CORELITH", [])).toEqual([]);
   });
 });

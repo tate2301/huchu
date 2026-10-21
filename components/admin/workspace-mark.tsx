@@ -1,11 +1,11 @@
 import type { WorkspaceProduct } from "@prisma/client";
 
-import { Buildings, Gem, Payments, Recycle, Storefront, Zap, type LucideIcon } from "@/lib/icons";
+import { Briefcase, Buildings, Gem, Payments, Recycle, Storefront, Zap, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * A workspace's mark: what it runs, on a quiet tile. Flare is a CRM whatever
- * its profile says; a Corelith workspace shows the business it was set up as.
+ * A workspace's mark: what it runs, on a quiet tile. Flare, Pabasa and Tender are one thing
+ * whatever their profile says; a Corelith workspace shows the business it was set up as.
  * The book icon set has no school, so a school takes the generic building.
  */
 const PROFILE_ICON: Record<string, LucideIcon> = {
@@ -14,6 +14,9 @@ const PROFILE_ICON: Record<string, LucideIcon> = {
   Retail: Storefront,
   Payroll: Payments,
 };
+
+/** A product that is one thing has its own mark whatever its profile says. */
+const PRODUCT_ICON: Partial<Record<WorkspaceProduct, LucideIcon>> = { FLARE: Zap, PABASA: Briefcase, TENDER: Storefront };
 
 export function WorkspaceMark({
   product,
@@ -26,7 +29,7 @@ export function WorkspaceMark({
   size?: "sm" | "md";
   className?: string;
 }) {
-  const Icon = product === "FLARE" ? Zap : ((profile ? PROFILE_ICON[profile] : undefined) ?? Buildings);
+  const Icon = PRODUCT_ICON[product] ?? (profile ? PROFILE_ICON[profile] : undefined) ?? Buildings;
   return (
     <span
       aria-hidden="true"

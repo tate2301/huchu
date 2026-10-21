@@ -1,4 +1,5 @@
 import { readMembers, roleLabel, type MemberRow, type MemberWorkspace } from "@/lib/admin/members";
+import { getProduct } from "@/lib/platform/products";
 import { prisma } from "@/lib/prisma";
 import type { Condition, ListAction, ListColumn, ListGrant, ListSpec, ReportRow } from "@/lib/reports/types";
 import { dayKey } from "@/lib/workspace/format";
@@ -201,7 +202,7 @@ export function memberRow(member: MemberRow & { workspace: MemberWorkspace }): R
     added: dayKey(member.addedAt),
     workspaceSlug: member.workspace.slug,
     workspaceName: member.workspace.name,
-    product: member.workspace.product === "FLARE" ? "Flare" : "Corelith",
+    product: getProduct(member.workspace.product).name,
   };
 }
 

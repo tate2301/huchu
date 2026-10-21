@@ -66,6 +66,8 @@ describe("bundlesToGrant", () => {
 describe("defaultVerticals", () => {
   it("makes a Flare workspace a CRM, and a Corelith one its template's line of business", () => {
     expect(defaultVerticals("FLARE", null)).toEqual(["CRM"]);
+    expect(defaultVerticals("PABASA", null)).toEqual(["CRM"]);
+    expect(defaultVerticals("TENDER", null)).toEqual(["RETAIL"]);
     expect(defaultVerticals("CORELITH", "TEMPLATE_GOLD_MINE")).toEqual(["GOLD"]);
     expect(defaultVerticals("CORELITH", "TEMPLATE_SCHOOLS")).toEqual(["SCHOOLS"]);
     expect(defaultVerticals(undefined, null)).toEqual(["GENERAL"]);

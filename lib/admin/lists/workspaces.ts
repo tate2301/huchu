@@ -247,7 +247,7 @@ export const WORKSPACES_LIST: ListSpec = {
   },
 };
 
-const PRODUCT_WORD: Record<WorkspaceProduct, string> = { CORELITH: "Corelith", FLARE: "Flare" };
+const PRODUCT_WORD: Record<WorkspaceProduct, string> = { CORELITH: "Corelith", FLARE: "Flare", TENDER: "Tender", PABASA: "Pabasa" };
 
 function untilWords(standing: string, until: Date | null, days: number | null): string | null {
   if (!until || days === null) return null;

@@ -1,4 +1,4 @@
-import type { WorkspaceProduct } from "@prisma/client";
+import type { Vertical, WorkspaceProduct } from "@prisma/client";
 
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { getClientTemplateDefinition } from "@/lib/platform/client-templates";
@@ -12,7 +12,8 @@ import { getClientTemplateDefinition } from "@/lib/platform/client-templates";
  * never inferred afterwards.
  *
  * CORELITH is every workspace an operator provisioned before self-serve
- * existed. It is not self-serve, so it has no signup page.
+ * existed. It is not self-serve, so it has no signup page. TENDER and PABASA
+ * are set up by an operator until their signup pages are built.
  */
 export type ProductDefinition = {
   id: WorkspaceProduct;
@@ -23,6 +24,11 @@ export type ProductDefinition = {
   selfServe: boolean;
   /** The client template a new workspace is provisioned from. */
   templateCode: string | null;
+  /**
+   * The one line of business the product is, and so what it switches on and
+   * what it is charged for. Null when an operator chooses: only Corelith.
+   */
+  vertical: Vertical | null;
   trialDays: number;
   /** Where a new workspace opens. */
   homePath: string;
@@ -37,6 +43,7 @@ const PRODUCTS: Record<WorkspaceProduct, ProductDefinition> = {
     name: PLATFORM_BRAND_NAME,
     selfServe: false,
     templateCode: null,
+    vertical: null,
     trialDays: 0,
     homePath: "/",
     signup: null,
@@ -47,12 +54,35 @@ const PRODUCTS: Record<WorkspaceProduct, ProductDefinition> = {
     name: "Flare",
     selfServe: true,
     templateCode: "TEMPLATE_CRM",
+    vertical: "CRM",
     trialDays: 14,
     homePath: "/crm",
     signup: {
       headline: "Never lose a follow-up again",
       lede: "Free for 14 days. No card.",
     },
+  },
+  TENDER: {
+    id: "TENDER",
+    slug: "tender",
+    name: "Tender",
+    selfServe: false,
+    templateCode: "TEMPLATE_RETAIL",
+    vertical: "RETAIL",
+    trialDays: 14,
+    homePath: "/retail",
+    signup: null,
+  },
+  PABASA: {
+    id: "PABASA",
+    slug: "pabasa",
+    name: "Pabasa",
+    selfServe: false,
+    templateCode: "TEMPLATE_CRM",
+    vertical: "CRM",
+    trialDays: 14,
+    homePath: "/crm",
+    signup: null,
   },
 };
 

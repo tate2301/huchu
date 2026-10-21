@@ -434,6 +434,8 @@ enum TenantStatus {
 enum WorkspaceProduct {
   CORELITH
   FLARE
+  TENDER
+  PABASA
 }
 
 /// A line of business a workspace pays for, one monthly charge each

@@ -13,6 +13,7 @@ import {
   getClientTemplateWorkspaceProfile,
   resolveClientTemplateCode,
 } from "@/lib/platform/client-templates";
+import { getProduct } from "@/lib/platform/products";
 import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
 
 /**
@@ -188,9 +189,10 @@ export async function ensureTierPlan(tierCode: string) {
   });
 }
 
-/** The vertical a workspace is when nobody chose: a Flare workspace is a CRM; otherwise its template's. */
+/** The vertical a workspace is when nobody chose: a product that is one line of business is that; otherwise its template's. */
 export function defaultVerticals(product: WorkspaceProduct | undefined, templateCode: string | null): Vertical[] {
-  if (product === "FLARE") return ["CRM"];
+  const fixed = product ? getProduct(product).vertical : null;
+  if (fixed) return [fixed];
   const match = VERTICAL_ORDER.find((vertical) => VERTICALS[vertical].templateCode === templateCode);
   return [match ?? "GENERAL"];
 }

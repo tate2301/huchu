@@ -109,6 +109,8 @@ export function SetUpForm({
         <div className="grid gap-2 sm:grid-cols-2">
           <Choice name="product" checked={product === "CORELITH"} onChange={() => setProduct("CORELITH")} title="Corelith" help="Operations, set up for the kind of business." />
           <Choice name="product" checked={product === "FLARE"} onChange={() => setProduct("FLARE")} title="Flare" help="Sales and follow-ups." />
+          <Choice name="product" checked={product === "TENDER"} onChange={() => setProduct("TENDER")} title="Tender" help="The shop and its tills." />
+          <Choice name="product" checked={product === "PABASA"} onChange={() => setProduct("PABASA")} title="Pabasa" help="Clients, quotes and jobs." />
         </div>
         {product === "CORELITH" ? (
           <fieldset className="space-y-2">
@@ -125,7 +127,7 @@ export function SetUpForm({
             </div>
           </fieldset>
         ) : null}
-        <PriceLine verticals={product === "FLARE" ? 1 : verticals.length} />
+        <PriceLine verticals={product === "CORELITH" ? verticals.length : 1} />
       </section>
 
       <section className="space-y-3">
