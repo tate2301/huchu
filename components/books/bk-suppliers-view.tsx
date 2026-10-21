@@ -110,7 +110,7 @@ export function BkSuppliersView({
           { key: "itf-missing", label: "ITF263 missing or expired", checked: query.itf === "missing", onSelect: () => onQuery({ itf: "missing", page: 1 }) },
           { separator: true },
           { key: "cur-any", label: "Any currency", checked: !query.currency, onSelect: () => onQuery({ currency: null, page: 1 }) },
-          ...currencies.map((code) => ({ key: `cur-${code}`, label: code === "ZWG" ? "ZiG" : code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
+          ...currencies.map((code) => ({ key: `cur-${code}`, label: code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
         ]}
         end={<BkQuietTools middle={listing ? layout.tools : undefined} onSort={() => onQuery({ sort: query.sort === "owed" ? "name" : "owed", page: 1 })} sortLabel={query.sort === "owed" ? "Sort" : "By name"} exportHref={exportHref} />}
       />

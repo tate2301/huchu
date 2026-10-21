@@ -24,7 +24,7 @@ function Held({ value, currency }: { value: number; currency: string }) {
   );
 }
 
-const perBase = (base: string) => (base === "USD" ? "US$" : base);
+const perBase = (base: string) => (base === "USD" ? "$" : base);
 
 /** The rates, as the design's table draws them: date, source, when it came in, the rate. */
 function RateTable({ rows, currency, base, removable, onRemove }: { rows: RateRow[]; currency: string; base: string; removable: boolean; onRemove: (row: RateRow) => void }) {
