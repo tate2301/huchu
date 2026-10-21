@@ -126,6 +126,7 @@
     "framer-motion": "^12.38.0",
     "idb-keyval": "6.3.0",
     "ink": "^6.7.0",
+    "livekit-server-sdk": "^2.19.1",
     "mammoth": "1.12.2",
     "next": "16.1.1",
     "next-auth": "^4.24.13",
