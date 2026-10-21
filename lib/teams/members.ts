@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { recordTeamsChange } from "./audit";
 import type { Db } from "./db";
 import { TeamsRefusal } from "./errors";
+import { lockSeats, requireSeat } from "./seats";
 
 /**
  * Members: a person's place in a workspace.
@@ -178,6 +179,39 @@ export async function removeMember(actor: Actor, membershipId: string, now = new
       companyId: actor.companyId,
       actorId: actor.userId,
       change: "member.removed",
+      entityType: "membership",
+      entityId: target.id,
+      before: shown(target),
+      after: shown({ ...target, ...after }),
+    });
+  });
+  await repriceCompany(actor.companyId);
+}
+
+/**
+ * Bring a suspended or removed person back. It takes a seat, so it is refused
+ * while the workspace is full.
+ */
+export async function restoreMember(actor: Actor, membershipId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const by = await actorIn(tx, actor);
+    const target = await targetIn(tx, actor.companyId, membershipId);
+    if (target.status === "ACTIVE") return;
+    if (target.status === "INVITED") throw new TeamsRefusal("NOT_OPEN", `${target.user.name} has not joined yet.`);
+    if (!mayManage(by, target)) {
+      throw new TeamsRefusal(target.isAdmin ? "OWNER_ONLY" : "NOT_ALLOWED", target.isAdmin ? "Only the owner can do that to an admin." : "You cannot do that.");
+    }
+    await lockSeats(tx, actor.companyId);
+    await requireSeat(tx, actor.companyId, target.role);
+    await tx.user.update({ where: { id: target.userId }, data: { isActive: true, accessRemovedAt: null, accessRemovedById: null } });
+    const after = await tx.workspaceMembership.update({
+      where: { id: target.id },
+      data: { status: "ACTIVE", suspendedAt: null, removedAt: null, removedById: null },
+    });
+    await recordTeamsChange(tx, {
+      companyId: actor.companyId,
+      actorId: actor.userId,
+      change: "member.restored",
       entityType: "membership",
       entityId: target.id,
       before: shown(target),

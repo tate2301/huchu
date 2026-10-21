@@ -38,6 +38,8 @@ model Company {
   cashDisbursementOnly          Boolean            @default(true)
   autoGeneratePayrollPeriods    Boolean            @default(true)
   periodGenerationHorizon       Int                @default(3)
+  /// Seats the plan allows: active members plus open invites (`lib/teams/seats.ts`).
+  seatLimit                     Int                @default(5)
   createdAt                     DateTime           @default(now())
   updatedAt                     DateTime           @updatedAt
 
@@ -71,6 +73,9 @@ model Company {
   featureFlags                  CompanyFeatureFlag[]
   userPermissionOverrides       UserPermissionOverride[]
   memberships                   WorkspaceMembership[]
+  workspaceInvites              WorkspaceInvite[]
+  inviteLinks                   InviteLink[]
+  ownershipOffers               OwnershipOffer[]
   crmTemplates                  CrmTemplate[]
   crmTemplateEvents             CrmTemplateEvent[]
   crmFieldChanges               CrmFieldChange[]
@@ -704,6 +709,8 @@ model WorkspaceMembership {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   permissionOverrides UserPermissionOverride[]
+  offersMade          OwnershipOffer[]         @relation("OwnershipOfferFrom")
+  offersReceived      OwnershipOffer[]         @relation("OwnershipOfferTo")
 
   @@unique([companyId, userId])
   @@index([companyId, status])
@@ -17424,4 +17431,101 @@ model PettyCashVoucher {
 
   @@unique([companyId, voucherNo])
   @@index([companyId, bankAccountId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Teams: invites, ownership, a team on a record, and where an event came from.
+// `lib/teams` is the only code that writes these.
+// ---------------------------------------------------------------------------
+
+enum InviteChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum InviteStatus {
+  SENT
+  NOT_DELIVERED
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+/// One person asked to join, by email or phone. SENT and NOT_DELIVERED hold a
+/// seat until `expiresAt` (seven days after it was sent); accepting turns the
+/// invite into a membership. The token is only ever stored hashed.
+model WorkspaceInvite {
+  id                   String        @id @default(uuid())
+  companyId            String
+  name                 String?
+  email                String?
+  /// E.164, for WhatsApp.
+  phone                String?
+  role                 UserRole
+  channel              InviteChannel
+  status               InviteStatus  @default(SENT)
+  /// SHA-256 of the token in the link. A resend issues a new token.
+  tokenHash            String        @unique
+  invitedById          String
+  /// The record or page they land on once they are in: a path in the app.
+  landsOn              String?
+  sentAt               DateTime      @default(now())
+  expiresAt            DateTime
+  acceptedAt           DateTime?
+  acceptedMembershipId String?
+  revokedAt            DateTime?
+  revokedById          String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([companyId, email])
+  @@index([companyId, phone])
+}
+
+/// The link shared on WhatsApp: one per workspace and role. Turning it off or
+/// rotating it ends the old link for good, because only the current token's
+/// hash is kept.
+model InviteLink {
+  id          String   @id @default(uuid())
+  companyId   String
+  role        UserRole
+  tokenHash   String   @unique
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  rotatedAt   DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, role])
+}
+
+enum OwnershipOfferStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+  LAPSED
+}
+
+/// The owner offers; the other person accepts, because billing moves with it.
+/// One open offer per workspace (partial unique index in the migration).
+model OwnershipOffer {
+  id               String               @id @default(uuid())
+  companyId        String
+  fromMembershipId String
+  toMembershipId   String
+  status           OwnershipOfferStatus @default(OPEN)
+  expiresAt        DateTime
+  decidedAt        DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromMembership WorkspaceMembership @relation("OwnershipOfferFrom", fields: [fromMembershipId], references: [id], onDelete: Cascade)
+  toMembership   WorkspaceMembership @relation("OwnershipOfferTo", fields: [toMembershipId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
 }

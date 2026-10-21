@@ -14,6 +14,7 @@ export type TeamsRefusalCode =
   | "EXPIRED"
   | "NOT_OPEN"
   | "ALREADY_MEMBER"
+  | "ALREADY_INVITED"
   | "INVALID"
   | "ALREADY_ON_TEAM"
   | "NOT_ON_TEAM"
