@@ -185,7 +185,7 @@ export async function paySupplierPayment(actor: BooksActor, id: string, at = new
   return paid;
 }
 
-/** Void a paid payment (the owner, or someone the owner let): its mirror, its line VOIDED, the bank side off, the bill owing again. */
+/** Void a paid payment (the owner or the outside accountant): its mirror, its line VOIDED, the bank side off, the bill owing again. */
 export async function voidSupplierPayment(actor: BooksActor, id: string, reason: string, at = new Date()) {
   const payment = await read(actor.companyId, id);
   if (payment.status !== "PAID") throw new SupplierPaymentRefused(payment.status === "VOIDED" ? `${name(payment)} is void already.` : `${name(payment)} has not been paid: withdraw or delete it instead.`);

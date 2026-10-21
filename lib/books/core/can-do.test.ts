@@ -1,10 +1,10 @@
 /**
  * The permission matrix (books-final §2.2), cell by cell: Y may, L within the
- * limit, O own records only, G only with the owner's grant, – may not.
+ * limit, O own records only, – may not. The outside accountant is the owner's tier.
  */
 import { describe, expect, it } from "vitest";
 
-import { auditActor, canDo, tierOf, VOID_GRANT, type BooksAction, type BooksActor, type BooksDoc } from "./can-do";
+import { auditActor, canDo, tierOf, type BooksAction, type BooksActor, type BooksDoc } from "./can-do";
 
 const me = "user-me";
 const someoneElse = "user-other";
@@ -36,6 +36,7 @@ describe("who is who", () => {
   it("records the operator and the session for a superuser", () => {
     expect(auditActor(superuser)).toEqual({ userId: me, role: "CLERK", superuser: { operator: "Rudo", session: "SA-214" } });
     expect(auditActor(owner)).toEqual({ userId: me, role: "SUPERADMIN" });
+    expect(auditActor({ ...accountant, outsideAccountant: { firmName: "Mutasa & Co" } })).toEqual({ userId: me, role: "FINANCE_OFFICER", outsideAccountant: { firm: "Mutasa & Co" } });
   });
 });
 
@@ -113,30 +114,31 @@ describe("the matrix", () => {
     for (const actor of [bursar, shop, clerk]) expect(ok(actor, "write-off")).toBe(false);
   });
 
-  it("void and revise: the owner and a superuser; a manager or accountant only with the grant", () => {
+  const outside = as("FINANCE_OFFICER", { outsideAccountant: { firmName: "Mutasa & Co" } });
+
+  it("void and revise: the owner, a superuser and the outside accountant; no one else", () => {
     for (const action of ["void", "revise"] as const) {
-      expect(ok(owner, action)).toBe(true);
-      expect(ok(superuser, action)).toBe(true);
-      expect(ok(manager, action)).toBe(false);
-      expect(ok(accountant, action)).toBe(false);
-      expect(ok(as("MANAGER", { grants: new Set([VOID_GRANT]) }), action)).toBe(true);
-      expect(ok(as("FINANCE_OFFICER", { grants: [VOID_GRANT] }), action)).toBe(true);
-      // The grant is for managers and accountants only.
-      expect(ok(as("CLERK", { grants: [VOID_GRANT] }), action)).toBe(false);
-      expect(ok(as("BURSAR", { grants: [VOID_GRANT] }), action)).toBe(false);
+      for (const actor of [owner, superuser, outside]) expect(ok(actor, action)).toBe(true);
+      for (const actor of [manager, accountant, bursar, shop, clerk]) expect(ok(actor, action)).toBe(false);
     }
-    expect(canDo(manager, "void")).toEqual({ allowed: false, reason: "Only the owner can void or revise a posted document, unless they let you." });
+    expect(canDo(manager, "void")).toEqual({ allowed: false, reason: "Only the owner or the outside accountant can void or revise a posted document." });
   });
 
-  it("the grant never covers permanent delete, reopening a month or the freeze date", () => {
-    const granted = as("MANAGER", { grants: [VOID_GRANT] });
+  it("the outside accountant has the owner's rights: permanent delete, reopening a month, the freeze date", () => {
+    expect(tierOf(outside)).toBe("owner");
     for (const action of ["delete.posted", "period.reopen", "period.freeze"] as const) {
       expect(ok(owner, action)).toBe(true);
       expect(ok(superuser, action)).toBe(true);
-      expect(ok(granted, action)).toBe(false);
+      expect(ok(outside, action)).toBe(true);
+      expect(ok(manager, action)).toBe(false);
       expect(ok(accountant, action)).toBe(false);
     }
-    expect(canDo(manager, "period.reopen")).toEqual({ allowed: false, reason: "Only the owner can reopen a month." });
+    expect(canDo(manager, "period.reopen")).toEqual({ allowed: false, reason: "Only the owner or the outside accountant can reopen a month." });
+  });
+
+  it("an outside accountant whose access has ended is a finance officer with no role in Books", () => {
+    expect(tierOf({ ...accountant, role: null })).toBe("none");
+    expect(ok({ ...accountant, role: null }, "view", { area: "bills" })).toBe(false);
   });
 
   it("closing a month, posting into a closed one, VAT and setup", () => {

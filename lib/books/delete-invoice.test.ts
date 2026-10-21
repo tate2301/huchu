@@ -194,11 +194,12 @@ describe("who may delete an invoice", () => {
     expect(credited.fiscalised).toBe(true);
   });
 
-  it("lets a manager the owner granted void and revise reverse, but never delete posted", async () => {
+  it("refuses a manager both void and delete posted; the outside accountant may do either", async () => {
     const invoice = await issueTestInvoice(fixture);
-    const granted = { ...manager(), grants: new Set(["books.void"]) };
-    await expect(deleteInvoice(granted, invoice.id, { reason: "Not mine", confirm: invoice.invoiceNumber })).rejects.toMatchObject({ status: 403 });
-    const voided = await voidInvoice(granted, invoice.id, { reason: "Raised twice" });
+    await expect(deleteInvoice(manager(), invoice.id, { reason: "Not mine", confirm: invoice.invoiceNumber })).rejects.toMatchObject({ status: 403 });
+    await expect(voidInvoice(manager(), invoice.id, { reason: "Raised twice" })).rejects.toMatchObject({ status: 403 });
+    const outside = { ...manager(), role: "FINANCE_OFFICER", outsideAccountant: { firmName: "Mutasa & Co" } };
+    const voided = await voidInvoice(outside, invoice.id, { reason: "Raised twice" });
     expect(voided.number).toBe(invoice.invoiceNumber);
   });
 });

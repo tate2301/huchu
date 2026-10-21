@@ -13,7 +13,7 @@
  *   - A fiscalised invoice is never deleted.
  *   - A bulk void of five invoices, two of them refused, reports three done
  *     and two skipped with why; the audit trail holds one event per voided row.
- *   - An accountant without the grant is refused void and revise; with it, may.
+ *   - A staff accountant is refused void and revise; an outside accountant may.
  *   - A test device's documents are purged.
  *   - A till sale on account, a lay-by and a school fee each write a
  *     customer-level sub-ledger line, in the one statement and aging.
@@ -53,7 +53,6 @@ import { nextNumber } from "./numbering";
 import { fiscalDevicesFor, markTestDevice, planPurge, purgeTestDevice } from "./purge";
 import { partyAging, partyStatement } from "./statement-aging";
 import { deleteDocument, reviseDocument, undoChoices, UndoRefused, voidDocument } from "./undo";
-import { setVoidGrant } from "./void-grant";
 
 vi.setConfig({ testTimeout: 90_000, hookTimeout: 180_000 });
 
@@ -398,16 +397,15 @@ describe("P4 exit: undo everywhere", () => {
     await balanced();
   });
 
-  it("refuses an accountant without the grant to void or revise; the owner's grant lets them", async () => {
+  it("refuses a staff accountant to void or revise; an outside accountant may", async () => {
     const invoice = await issue(60);
-    expect(await refusal(voidDocument(accountant(), "invoice", invoice.id, { reason: "Wrong customer" }))).toMatchObject({ status: 403, message: "Only the owner can void or revise a posted document, unless they let you." });
+    expect(await refusal(voidDocument(accountant(), "invoice", invoice.id, { reason: "Wrong customer" }))).toMatchObject({ status: 403, message: "Only the owner or the outside accountant can void or revise a posted document." });
     expect((await refusal(reviseDocument(accountant(), "invoice", invoice.id, { reason: "Wrong customer" }))).status).toBe(403);
     const bulk = await bulkAction(accountant(), "invoice", "void", [invoice.id], { reason: "Wrong customer" });
-    expect(bulk.skipped[0]?.why).toBe("Only the owner can void or revise a posted document, unless they let you.");
+    expect(bulk.skipped[0]?.why).toBe("Only the owner or the outside accountant can void or revise a posted document.");
 
-    // The accountant cannot give it to themselves; the owner can.
-    expect((await refusal(setVoidGrant(accountant(), accountantId, true))).status).toBe(403);
-    await setVoidGrant(owner(), accountantId, true);
+    // An outside accountant, whose access is open, may.
+    await prisma.user.update({ where: { id: accountantId }, data: { memberKind: "OUTSIDE_ACCOUNTANT", firmName: "Mutasa & Co", accessEndsOn: new Date("2099-12-31T00:00:00.000Z") } });
     const granted = await booksActor({ user: { id: accountantId, companyId: shop.companyId, role: "FINANCE_OFFICER" } } as never);
     const revised = await reviseDocument(granted, "invoice", invoice.id, { reason: "Wrong customer" });
     expect(revised.draft.id).toBeTruthy();
@@ -524,7 +522,7 @@ describe("P4 exit (books-final §8): a selection of invoices, mixed drafts, issu
     }
     expect([issued.length, drafts.length, fiscalised.length]).toEqual([48, 6, 6]);
     const all = [...issued, ...drafts, ...fiscalised];
-    await setVoidGrant(owner(), accountantId, true);
+    await prisma.user.update({ where: { id: accountantId }, data: { memberKind: "OUTSIDE_ACCOUNTANT", firmName: "Mutasa & Co", accessEndsOn: new Date("2099-12-31T00:00:00.000Z") } });
     const granted = await booksActor({ user: { id: accountantId, companyId: shop.companyId, role: "FINANCE_OFFICER" } } as never);
 
     const voided = await bulkAction(granted, "invoice", "void", all, { reason: "Imported from the wrong file" });
