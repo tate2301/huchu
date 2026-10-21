@@ -43,3 +43,20 @@ Branch `claude/till-counter-mini`. The shell, sell, the tray, Paid and the Kora 
 - The app shell caps content at 1344 px, so K6 wraps 3+1 and K7 is narrower than the board.
 - Global classes `.select`, `.mention`, `.diff`, `.check` collide with docs/components.css: renamed `tm-sel`, `tm-mention`, `tm-diff`, `tm-check`.
 - Raw hexes in boards replaced with role tokens.
+
+## Agent B: W4, W2, W7 (people)
+
+Built and checked in the browser: Members (`/preferences/organization/users`), a member's page, suspend (until a date, keep or hand over deals, seat freed, Undo with Ctrl Z), remove with hand-over, ownership offer dialog, invite drawer (Ctrl Enter) with the full-seats owner and admin paths, seat requests with Not now and Add the seat, `/join/[token]` for a workspace invite (six digits, then signed in and landed on the product home), `/join/[token]` for the shared link, and `/preferences/organization/invite-link`.
+
+Not matched, and why:
+- Members and the member page sit in the Settings surface (rail on the left), not the work shell the boards draw. The Settings surface has no command bar or Vane panel, so Search and Vane in the top bar are wired best-effort (Ctrl K event; Vane opens its management page).
+- "Signed in on" (device and place) has no data. The member page shows "Last here" from the sign-in audit line.
+- No gender on a person, so the Who changed what sentences use first names, not pronouns.
+- "Give a discount" has no capability key, so the permission list has six rows, not seven.
+- Admins can set permissions they do not hold: not enforced.
+- Suspend until a date: the date is kept on the audit line and shown, but nothing restores the person when it passes.
+- Accept-ownership "Needs you" row, the W4-F failure cells (only the owner can, last admin, offer lapsed, offline), W4-9 (Simbarashe's phone, Deals Mine/Everyone's: lives under `app/crm`, not mine) and the W2-F cells (declined card, already in another workspace) have no fixture routes yet.
+- The seat price on the owner's button is the live `verticalRate`; Continue to billing and the card row are not built (billing is out of scope).
+- Invite link: the address is stored as a hash, so it is shown once when made. "Expires", "Used" and Join by email domain have no model.
+- W7-1/W7-2 Activity grouped by record, W7-3 personal quiet hours (quiet hours are a workspace policy today, `NotificationPolicy`), the workspace switcher component (blocked on M8) and the gate boards A4, A5, A6, P2, P3 are not built.
+- A joined person lands on the product home (`/crm`), not on the deals list: the invite takes `landsOn` but the add-the-seat path does not set it.
