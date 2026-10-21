@@ -10,7 +10,7 @@ import type { NavItem } from "@/lib/navigation";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { GearSix } from "@/lib/icons";
 import { logoInitials } from "@/lib/nav/initials";
-import { canOpenFor, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
+import { canOpenFor, lockedAddresses, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
 import { composeNav, type ComposedGroup } from "@/lib/nav/compose";
 import { activeNav, type ActiveNav } from "@/lib/nav/match";
 import {
@@ -193,12 +193,15 @@ export function ShellNavProvider({
   const [notFound, setNotFound] = React.useState(false);
   const { groups, active } = React.useMemo(() => {
     const allowed = canOpenFor(modelArgs);
+    const locks = lockedAddresses(modelArgs);
+    const lockOf = (href: string) => locks.get(href.split("?")[0] ?? href);
     const unmet = hiddenRetailNavHrefs(conditions, badges);
     const products = productGroupsFor(open, workspaceProfile);
     const here = activeNav(composeNav({ canOpen: allowed, products }), pathname, searchParams);
     const composed = composeNav({
       canOpen: (href) => allowed(href) && (!unmet.has(href) || href === here?.href),
       products,
+      lockOf,
     });
     return { groups: composed, active: notFound ? null : activeNav(composed, pathname, searchParams) };
   }, [badges, conditions, modelArgs, notFound, open, pathname, searchParams, workspaceProfile]);

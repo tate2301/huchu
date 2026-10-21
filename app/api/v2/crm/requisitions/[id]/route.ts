@@ -257,7 +257,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           summary: `${requisition.currency} ${payableAmount(requisition).toFixed(2)}. Report what you spend on it, with the receipts.`,
           entityType: "CRM_REQUISITION",
           entityId: id,
-          viewPath: `/crm/requisitions/${id}`,
+          viewPath: `/books/requisitions/${id}`,
         });
         return successResponse({ requisition });
       }

@@ -22,7 +22,9 @@ vi.mock("next/link", () => ({
 vi.mock("@/components/core/vane-mark", () => ({ VaneMark: () => <span /> }));
 
 const groups = composeNav({ canOpen: () => true });
-const first = groups.flatMap((group) => group.items).find((node) => node.kids.length > 0)!;
+const nodes = groups.flatMap((group) => group.items);
+// A node whose name no other node shares (Retail and Books both have a Sales).
+const first = nodes.find((node) => node.kids.length > 0 && nodes.filter((other) => other.label === node.label).length === 1)!;
 
 let root: Root | null = null;
 let host: HTMLElement | null = null;

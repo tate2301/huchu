@@ -21,7 +21,7 @@ describe("Bank & cash", () => {
   it("says what is held today, and which account has the most lines to match", () => {
     const row = (name: string, kind: "bank" | "mobile" | "cash", currency: string, balance: number, inBase: number | null, toMatch = 0) => ({ id: name, name, sub: "", kind, currency, balance, inBase, lastReconciled: null, toMatch });
     expect(accountsFinding([row("CBZ current, USD", "bank", "USD", 18412.75, null, 4), row("CBZ current, ZWG", "bank", "ZWG", 61280.4, 2269.64), row("EcoCash merchant", "mobile", "USD", 1086.5, null), row("Showroom cash box", "cash", "USD", 833.2, null)], "USD")).toEqual({
-      fact: "US$22,602.09 is in your bank, EcoCash and cash today.",
+      fact: "$22,602.09 is in your bank, EcoCash and cash today.",
       rest: "CBZ current, USD has 4 lines to match.",
     });
     expect(accountsFinding([], "USD").fact).toBe("No money account yet.");
@@ -29,7 +29,7 @@ describe("Bank & cash", () => {
 
   it("says which reconciliation is out and which is ready to close", () => {
     const rec = (account: string, state: "open" | "ready" | "closed", difference: number | null, currency = "USD") => ({ id: account, accountId: account, account, currency, period: "", statementEnd: "16 Oct", closingBalance: 0, unmatched: 0, difference, state, closed: null });
-    expect(reconciliationsFinding([rec("CBZ current, USD", "open", 758.31), rec("CBZ current, ZWG", "ready", 0, "ZWG")])).toEqual({ fact: "CBZ current, USD is US$758.31 out.", rest: "CBZ current, ZWG is ready to close." });
+    expect(reconciliationsFinding([rec("CBZ current, USD", "open", 758.31), rec("CBZ current, ZWG", "ready", 0, "ZWG")])).toEqual({ fact: "CBZ current, USD is $758.31 out.", rest: "CBZ current, ZWG is ready to close." });
     expect(reconciliationsFinding([rec("CBZ current, USD", "closed", 0)]).fact).toBe("Every account is reconciled.");
     expect(rangeWords("2026-10-01", "2026-10-16")).toBe("1 to 16 Oct");
     expect(rangeWords("2026-09-28", "2026-10-16")).toBe("28 Sep to 16 Oct");
@@ -53,7 +53,7 @@ describe("Tax", () => {
       due("2026-11-10", "Pay the 30% withheld", 557.87),
       due("2026-11-15", "Pay VAT", 1968.46),
     ];
-    expect(dueFinding(rows, "2026-10-18", "USD")).toEqual({ fact: "Next: the PAYE return and 30% withholding return on 5 November.", rest: "US$2,526.33 is due in November." });
+    expect(dueFinding(rows, "2026-10-18", "USD")).toEqual({ fact: "Next: the PAYE return and 30% withholding return on 5 November.", rest: "$2,526.33 is due in November." });
     expect(dueFinding([due("2026-10-10", "File the VAT 7 return", 10)], "2026-10-18", "USD").fact).toBe("File the VAT 7 return was due on 10 Oct.");
   });
 
@@ -81,7 +81,7 @@ describe("Tax", () => {
   it("asks for the explanation while a return differs from the ledger, and the filing once it is finalised", () => {
     const view = (state: VatReturnView["state"], ties: boolean) =>
       ({ state, period: { start: "2026-10-01", end: "2026-10-31", words: "October 2026" }, returnDue: "2026-11-10", paymentDue: "2026-11-15", totals: { net: 1968.46 }, tieOut: { ties }, reference: null }) as unknown as VatReturnView;
-    expect(vatPageFinding(view("draft", true), "2026-10-18", "USD")).toEqual({ fact: "October’s VAT stands at US$1,968.46 so far.", rest: "Return by 10 November, payment by 15 November." });
+    expect(vatPageFinding(view("draft", true), "2026-10-18", "USD")).toEqual({ fact: "October’s VAT stands at $1,968.46 so far.", rest: "Return by 10 November, payment by 15 November." });
     expect(vatPageFinding(view("reviewed", false), "2026-11-02", "USD").rest).toBe("It differs from the ledger: explain the difference before finalising.");
     expect(vatPageFinding(view("finalised", false), "2026-11-02", "USD").rest).toBe("File it in TaRMS by 10 November.");
   });
@@ -93,8 +93,8 @@ describe("Tax", () => {
     expect(itf263State({ itf263Number: null, itf263ExpiresAt: null }, on).state).toBe("None");
     expect(itf263Words({ itf263Number: "0041-77213", itf263ExpiresAt: new Date("2026-06-30T00:00:00Z") }, on)).toBe("ITF263 expired 30 Jun");
     const waiting = [{ id: "p", number: null, date: "18 Oct", supplier: { id: "v", name: "Mutare Timber Works" }, itf263: "ITF263 expired 30 Jun", gross: 1859.55, withheld: 557.87, currency: "USD", state: "To approve" as const, certificateNo: null }];
-    expect(withholdingFinding(waiting, 0, 2, "USD")).toEqual({ fact: "US$557.87 will be withheld from Mutare Timber Works.", rest: "Its ITF263 expired on 30 Jun." });
-    expect(withholdingFinding([], 624, 2, "USD")).toEqual({ fact: "US$624.00 was withheld this year.", rest: "2 suppliers have no valid ITF263." });
+    expect(withholdingFinding(waiting, 0, 2, "USD")).toEqual({ fact: "$557.87 will be withheld from Mutare Timber Works.", rest: "Its ITF263 expired on 30 Jun." });
+    expect(withholdingFinding([], 624, 2, "USD")).toEqual({ fact: "$624.00 was withheld this year.", rest: "2 suppliers have no valid ITF263." });
   });
 
   it("says which fiscal day is open and what is not signed", () => {

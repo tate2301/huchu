@@ -295,7 +295,7 @@ export async function readYearEnd(db: Db, companyId: string, now = new Date()): 
   const itf = `${Number(end.slice(0, 4)) + 1}-04-30`;
   const steps: YearEndStep[] = [
     { key: "close", step: `Close ${lastMonthName}`, what: "The month-end checklist", when: `After ${shortDay(end)}`, state: closedLast ? "Done" : "Not yet" },
-    { key: "revalue", step: "Revalue ZiG balances", what: `At the ${shortDay(end)} rate`, when: shortDay(end), state: reval ? "Done" : "Not yet" },
+    { key: "revalue", step: "Revalue ZWG balances", what: `At the ${shortDay(end)} rate`, when: shortDay(end), state: reval ? "Done" : "Not yet" },
     { key: "qpd", step: "Pay the 4th provisional tax", what: fourth?.amount ? `${money(fourth.amount, c)}, ${fourth.share}% of the estimate` : "No estimate for the year yet", when: fourth ? shortDay(fourth.paymentDue) : "—", state: fourthState },
     { key: "closing", step: "Post the closing entry", what: `The year’s profit to ${retained?.code ?? "retained earnings"}`, when: `After ${lastMonthName}`, state: closingEntry ? "Done" : "Not yet" },
     { key: "export", step: "Send the year to your accountant", what: "The accountant export", when: MONTH_LONG[(Number(end.slice(5, 7))) % 12], state: exported ? "Done" : "Not yet" },

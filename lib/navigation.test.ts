@@ -75,10 +75,9 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
     const books = composeNav({ canOpen: canOpenFor(who), products: productGroupsFor(visibleAddresses(who), "GENERAL") }).find((group) => group.id === "books");
     const labels = books?.items.flatMap((item) => [item.label, ...item.kids.map((kid) => kid.label)]) ?? [];
     expect(books?.items.map((item) => item.id)).toEqual(expect.arrayContaining(["money", "bsales", "bbank", "btax", "bledger"]));
-    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "To match", "VAT", "Journals"]));
-    // Takings needs the tills; Expenses need Payables.
+    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "To match", "VAT returns", "Journals"]));
+    // Takings needs the tills.
     expect(labels).not.toContain("Takings");
-    expect(labels).not.toContain("Expenses");
   });
 
   it("keeps Ledger for the owner, a manager and the accountant (§3.2)", () => {

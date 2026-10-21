@@ -50,7 +50,7 @@ export async function readFormOptions(db: Db, companyId: string, parties: "custo
   for (const rate of rates) {
     if (!latest.has(rate.quoteCurrency)) latest.set(rate.quoteCurrency, { rate: rate.rate, source: rate.source === "RBZ" ? "RBZ interbank" : "Typed in", day: rate.effectiveDate.toISOString().slice(0, 10) });
   }
-  // Zimbabwe's two: US dollars and ZiG are always offered (books-final §9.6), with any other the workspace holds.
+  // Zimbabwe's two: US dollars and ZWG are always offered (books-final §9.6), with any other the workspace holds.
   const currencies = [base, ...new Set(["USD", "ZWG", ...accounts.map((account) => account.currency.toUpperCase()), ...latest.keys()].filter((code) => code !== base))];
   return {
     base,

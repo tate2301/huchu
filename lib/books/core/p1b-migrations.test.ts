@@ -80,7 +80,7 @@ describe("P1b migrations", () => {
   it("D2: gives each receipt its customer, currency, rate and base amount", async () => {
     const { companyId, customerId } = fixture;
     const other = await prisma.customer.create({ data: { companyId, name: "Avondale Dental" } });
-    const zig = await prisma.bankAccount.create({ data: { companyId, name: "CBZ ZiG", currency: "ZWG" } });
+    const zig = await prisma.bankAccount.create({ data: { companyId, name: "CBZ ZWG", currency: "ZWG" } });
     await prisma.currencyRate.create({ data: { companyId, baseCurrency: "USD", quoteCurrency: "ZWG", rate: 26.8, effectiveDate: new Date("2026-10-01T00:00:00Z") } });
 
     const usdInvoice = await invoice();

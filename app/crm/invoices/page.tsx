@@ -1,23 +1,8 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { DocumentsListContent } from "@/components/crm/documents/documents-list-content";
-import { authOptions } from "@/lib/auth";
+import { movedTo } from "@/lib/books/moved";
 
-export default async function CrmInvoicesPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  return (
-    <CrmPage
-    >
-      <DocumentsListContent
-        kind="INVOICE"
-        title="Invoices"
-        searchPlaceholder="Search by invoice number, customer or deal"
-        emptyBody="Invoices come from an accepted quote. Convert one on the deal it belongs to."
-      />
-    </CrmPage>
-  );
+/** Invoices are Books' records, at one address (design/books/NOTES.md §2). */
+export default async function CrmInvoicesMoved({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(movedTo("/books/invoices", await searchParams));
 }

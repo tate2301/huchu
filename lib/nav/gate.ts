@@ -31,6 +31,18 @@ export function visibleAddresses(who: Who): Set<string> {
   return seen;
 }
 
+/** The price each locked page shows, by address: Books' pages the workspace's plan does not include. */
+export function lockedAddresses(who: Who): Map<string, string> {
+  const locks = new Map<string, string>();
+  for (const workspace of getWorkspaceOptions(who)) {
+    const model = getWorkspaceSidebarModel({ ...who, activeWorkspaceId: workspace.id });
+    for (const section of model.sections) {
+      for (const item of section.items) if (item.lock) locks.set(pathOf(item.href), item.lock);
+    }
+  }
+  return locks;
+}
+
 /** `canOpen` for `composeNav`: a page with a query is open when its path is. */
 export function canOpenFor(who: Who): (href: string) => boolean {
   const open = visibleAddresses(who);

@@ -1,19 +1,13 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { DocumentRecordContent } from "@/components/crm/documents/document-record-content";
 import { authOptions } from "@/lib/auth";
+import { booksAddressOf } from "@/lib/crm/moved-documents";
 
-/** One receipt. The invoice it paid links here. */
-export default async function CrmReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+/** One receipt, at its Books address (design/books/NOTES.md §2). */
+export default async function CrmReceiptMoved({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
+  if (!session?.user?.companyId) redirect("/login");
   const { id } = await params;
-
-  return (
-    <CrmPage width="detail">
-      <DocumentRecordContent documentId={id} kind="RECEIPT" />
-    </CrmPage>
-  );
+  redirect(await booksAddressOf(session.user.companyId, id, "RECEIPT"));
 }

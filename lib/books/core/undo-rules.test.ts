@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { canDo, VOID_GRANT, type BooksActor } from "./can-do";
+import { canDo, type BooksActor } from "./can-do";
 import { bulkDeleteWord, bulkSummary, deleteKeeps, deleteRefusal, dependentsSentence, isBulkAction, isUndoKind, reasonOf, reviseRefusal, voidEffects, voidFiscalNote, voidRefusal, type UndoFacts } from "./undo-rules";
 
 const invoice = (over: Partial<UndoFacts> = {}): UndoFacts => ({
@@ -113,20 +113,21 @@ describe("delete permanently", () => {
   });
 });
 
-describe("the grant (§2.3; brief default 2)", () => {
-  const as = (role: string, extra: Partial<BooksActor> = {}): BooksActor => ({ companyId: "c", userId: "me", role, ...extra });
-  it("nobody voids or revises without it but the owner and a superuser", () => {
+describe("who may undo (the owner, a superuser, the outside accountant)", () => {
+  const as = (role: string | null, extra: Partial<BooksActor> = {}): BooksActor => ({ companyId: "c", userId: "me", role, ...extra });
+  it("nobody voids or revises but them", () => {
     for (const action of ["void", "revise"] as const) {
       expect(canDo(as("SUPERADMIN"), action).allowed).toBe(true);
       expect(canDo(as("CLERK", { signInAs: { id: "s", number: 9, operatorName: "Rudo", mode: "CHANGE", until: "2099-01-01T00:00:00Z" } }), action).allowed).toBe(true);
+      expect(canDo(as("FINANCE_OFFICER", { outsideAccountant: { firmName: "Mutasa & Co" } }), action).allowed).toBe(true);
       expect(canDo(as("FINANCE_OFFICER"), action).allowed).toBe(false);
       expect(canDo(as("MANAGER"), action).allowed).toBe(false);
-      expect(canDo(as("FINANCE_OFFICER", { grants: [VOID_GRANT] }), action).allowed).toBe(true);
-      expect(canDo(as("MANAGER", { grants: new Set([VOID_GRANT]) }), action).allowed).toBe(true);
-      // The grant never reaches a clerk, nor permanent delete.
-      expect(canDo(as("CLERK", { grants: [VOID_GRANT] }), action).allowed).toBe(false);
+      expect(canDo(as("CLERK"), action).allowed).toBe(false);
     }
-    expect(canDo(as("FINANCE_OFFICER", { grants: [VOID_GRANT] }), "delete.posted").allowed).toBe(false);
+  });
+  it("a staff accountant never deletes permanently; the outside accountant does", () => {
+    expect(canDo(as("FINANCE_OFFICER"), "delete.posted").allowed).toBe(false);
+    expect(canDo(as("FINANCE_OFFICER", { outsideAccountant: { firmName: "Mutasa & Co" } }), "delete.posted").allowed).toBe(true);
   });
 });
 

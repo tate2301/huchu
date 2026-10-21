@@ -430,8 +430,8 @@ export function isImttLine(text: string): boolean {
 
 /**
  * The IMTT on a transfer, for the proposed line on a payment (§5.8.3), pure:
- * 2% on US dollars, 1.5% on ZiG (settings), and a flat amount on one transfer
- * over the threshold (in US dollars; a ZiG transfer is compared at `rate`).
+ * 2% on US dollars, 1.5% on ZWG (settings), and a flat amount on one transfer
+ * over the threshold (in US dollars; a ZWG transfer is compared at `rate`).
  * The app records what the bank charged; this only proposes.
  */
 export function imttOn(amount: number, currency: string, settings: Pick<TaxSettings, "imtt">, base = "USD", rate?: number | null): number {

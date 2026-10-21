@@ -36,7 +36,7 @@ describe("a bill in Books → Bills", () => {
 
 describe("Books → Payments' finding", () => {
   it("says what came in this month", () => {
-    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "US$1,240.00 came in this month.", rest: "4 payments so far." });
+    expect(paymentsFinding({ amount: 1240, payments: 4 })).toEqual({ fact: "$1,240.00 came in this month.", rest: "4 payments so far." });
     expect(paymentsFinding({ amount: 0, payments: 0 }).fact).toBe("Nothing has come in this month yet.");
   });
 });

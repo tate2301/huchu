@@ -48,6 +48,8 @@ describe("registry", () => {
 
   it("keeps a child under its parent's address", () => {
     for (const node of NAV_NODES) {
+      // Books' levels hold pages from several addresses (Sales: invoices, quotes, customers).
+      if (node.group === "books") continue;
       for (const kid of node.kids ?? []) {
         expect(kid.href.startsWith(node.href), `${kid.id} ${kid.href} is not under ${node.href}`).toBe(true);
       }
@@ -124,6 +126,8 @@ describe("composeNav", () => {
     const home = new Map(NAV_NODES.map((n) => [n.id, n.href.split("?")[0]!]));
     for (const canOpen of rights) {
       for (const group of composeNav({ canOpen, nodes: homed })) {
+        // Books' levels hold pages from several addresses (Sales: invoices, quotes, customers).
+        if (group.id === "books") continue;
         for (const item of group.items) {
           for (const kid of item.kids) {
             expect(kid.href.startsWith(home.get(item.id)!), `${kid.id} ${kid.href}`).toBe(true);

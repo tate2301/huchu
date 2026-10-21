@@ -41,7 +41,7 @@ describe("proposeMatch", () => {
     expect(result).toMatchObject({
       match: { kind: "invoice", invoiceId: "inv-142", amount: 500 },
       title: "INV-0142, Pomona Offices, part payment",
-      reason: "The reference names the invoice. It leaves US$1,494.22 owing.",
+      reason: "The reference names the invoice. It leaves $1,494.22 owing.",
     });
   });
 
@@ -93,7 +93,7 @@ describe("invoiceReferences", () => {
     expect(proposeMatch(line({ date: "2026-10-14", description: "IMTT 2% tax", amount: 23.69, direction: "DEBIT" }), withPayment)).toMatchObject({
       match: { kind: "bank-charges", amount: 23.69, imtt: true },
       title: "Bank entry: IMTT, to 5465",
-      reason: "2% of the US$1,184.60 paid on 14 Oct",
+      reason: "2% of the $1,184.60 paid on 14 Oct",
     });
   });
 

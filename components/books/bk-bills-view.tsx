@@ -3,23 +3,31 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
+import { Button, useSelection } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { BILL_TAB_LABEL, BILL_VIEWS, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
-import { money } from "@/lib/books/format";
+import { BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
 
-import { BkChip, BkQuietTools, BkState, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { Amt, BkFilter, BkNote, BkPager, BkScroll, BkSelectionBar, BkTabs, BkTools, None, St, Worksheet, type BkTone, type WsColumn } from "./ui";
 
-const FDMS_TONE = { VALID: "success", NOT_CHECKED: "warning", NOT_VALID: "danger" } as const;
+const FDMS_TONE: Record<NonNullable<BillRow["fdms"]>, BkTone> = { VALID: "done", NOT_CHECKED: "warn", NOT_VALID: "bad" };
+
+/** A bill's state as bk-bills writes it: recorded and owing is "Recorded"; late is "Overdue". */
+const STATE: Record<BillRow["state"], { label: string; tone: BkTone }> = {
+  "to-pay": { label: "Recorded", tone: "info" },
+  "part-paid": { label: "Part paid", tone: "info" },
+  overdue: { label: "Overdue", tone: "warn" },
+  paid: { label: "Paid", tone: "done" },
+  draft: { label: "Draft", tone: "draft" },
+  void: { label: "Void", tone: "void" },
+};
 
 /**
- * Books → Bills & spending → Bills (design/core-modules/boards/view/BkBills.html):
- * what is owed and by when, the tabs, the search with Supplier and FDMS, and
- * six columns: the bill, the supplier and what it was for, its FDMS check, the
- * order and goods receipt it matches, when it is due and its balance. Selecting
- * bills offers Pay (one supplier's open bills) and More.
+ * Books → Bills & spending → Bills (bk-bills): the tabs on their own row, the
+ * filters on the row below, then one worksheet: the bill, the supplier, their
+ * FTI and its FDMS check, dated, due, its state, the total and what is still
+ * owed, with the page's totals. A selection pays one supplier's bills or does
+ * More. A bill not checked on FDMS is the one warning, with Check on FDMS.
  */
 export function BkBillsView({
   data,
@@ -42,150 +50,115 @@ export function BkBillsView({
   const oneSupplier = new Set(payable.map((row) => row.supplier.id)).size === 1;
   const supplier = data.suppliers.find((option) => option.id === query.supplier);
   const notes = query.view === "debit-notes";
-  const { from, to, of } = data.range;
   const filtered = Boolean(query.q || query.supplier || query.fdms || query.period !== "any");
+  const unchecked = data.rows.find((row) => row.fdms === "NOT_CHECKED" && row.state !== "void" && row.state !== "draft");
+  const currency = data.currency;
+
+  const columns: Array<WsColumn<BillRow>> = [
+    {
+      key: "number",
+      head: notes ? "Debit note" : "Number",
+      cell: (row) => (
+        <Link className="bkw-ref" href={row.href}>
+          {row.number}
+        </Link>
+      ),
+    },
+    { key: "supplier", head: "Supplier", cell: (row) => <span className="who">{row.supplier.name}</span> },
+    notes
+      ? { key: "bill", head: "Bill", cell: (row) => (row.matches.bill ? <span className="bkw-ref">{row.matches.bill}</span> : <None />) }
+      : { key: "fti", head: "Their FTI", className: "mono k-fti", cell: (row) => row.fti ?? <None /> },
+    ...(notes ? [] : [{ key: "fdms", head: "FDMS", cell: (row: BillRow) => (row.fdms ? <St tone={FDMS_TONE[row.fdms]}>{row.fdms === "VALID" ? "Valid" : FDMS_LABEL[row.fdms]}</St> : <None />) }]),
+    { key: "dated", head: "Dated", className: "muted", cell: (row) => row.dated },
+    { key: "due", head: "Due", className: "muted", cell: (row) => row.due ?? <None /> },
+    { key: "state", head: "State", cell: (row) => <St tone={STATE[row.state].tone}>{notes ? row.stateLabel : STATE[row.state].label}</St> },
+    { key: "total", head: `Total, ${currency}`, right: true, cell: (row) => <Amt value={row.total} currency={row.currency === currency ? null : row.currency} /> },
+    { key: "balance", head: "Balance", right: true, cell: (row) => (row.balance > 0.005 && row.state !== "void" ? <Amt value={row.balance} currency={row.currency === currency ? null : row.currency} /> : <None />) },
+  ];
+  const sum = (pick: (row: BillRow) => number) => data.rows.filter((row) => row.currency === currency && row.state !== "void").reduce((total, row) => total + pick(row), 0);
+  const totals = columns.map((column, index) =>
+    index === 0 ? `${data.rows.length} ${notes ? "debit notes" : data.rows.length === 1 ? "bill" : "bills"}` : column.key === "total" ? <Amt value={sum((row) => row.total)} currency={null} /> : column.key === "balance" ? <Amt value={sum((row) => row.balance)} currency={null} /> : null,
+  );
 
   return (
-    <div className="bk">
-      <BooksFinding finding={data.finding} />
-      <BkTabs
-        label="Bill views"
-        value={query.view}
-        onChange={(view) => onQuery({ view, page: 1 })}
-        items={BILL_VIEWS.map((view) => ({ value: view, label: BILL_TAB_LABEL[view], count: data.counts[view] }))}
-      />
+    <>
+      <BkTabs label="Bills" value={query.view} onChange={(view) => onQuery({ view, page: 1 })} items={BILL_VIEWS.map((view) => ({ value: view, label: BILL_TAB_LABEL[view], count: data.counts[view] }))} />
       <BkTools
         find="Search bills"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={notes ? `${of.toLocaleString("en-GB")} ${of === 1 ? "debit note" : "debit notes"}` : `${of.toLocaleString("en-GB")} ${BILL_TAB_LABEL[query.view].toLowerCase()}`}
-        chips={
+        count={data.range.of}
+        filters={
           <>
-            <BkChip
+            <BkFilter
               label="Supplier"
               value={supplier?.name ?? "Any"}
-              set={Boolean(supplier)}
               items={[
                 { key: "any", label: "Any supplier", checked: !query.supplier, onSelect: () => onQuery({ supplier: null, page: 1 }) },
                 { separator: true },
                 ...data.suppliers.map((option) => ({ key: option.id, label: option.name, checked: query.supplier === option.id, onSelect: () => onQuery({ supplier: option.id, page: 1 }) })),
               ]}
             />
-            <BkChip
+            <BkFilter
               label="FDMS"
               value={query.fdms ? FDMS_LABEL[query.fdms] : "Any"}
-              set={Boolean(query.fdms)}
               items={[
                 { key: "any", label: "Any", checked: !query.fdms, onSelect: () => onQuery({ fdms: null, page: 1 }) },
                 { separator: true },
                 ...(["VALID", "NOT_CHECKED", "NOT_VALID"] as const).map((status) => ({ key: status, label: FDMS_LABEL[status], checked: query.fdms === status, onSelect: () => onQuery({ fdms: status, page: 1 }) })),
               ]}
             />
+            <BkFilter
+              label="Due"
+              value={query.period === "any" ? "Any" : PERIOD_LABEL[query.period]}
+              items={PERIODS.map((period) => ({ key: period, label: PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
+            />
           </>
         }
-        filters={PERIODS.map((period) => ({ key: period, label: PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
-        end={<BkQuietTools onSort={() => onQuery({ sort: query.sort === "due" ? "newest" : "due", page: 1 })} sortLabel={query.sort === "due" ? "Sort" : "Newest first"} exportHref={exportHref} />}
-      />
-      <TableShell
-        label="Bills"
-        foot={
-          <TableFoot
-            range={of === 0 ? "None" : `${from} to ${to} of ${of}`}
-            sums={[
-              { label: "To pay", value: money(data.toPay, data.currency) },
-              { label: "Due by Sunday", value: money(data.dueBySunday, data.currency) },
-            ]}
-            page={{
-              onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
-              onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
-            }}
-            selection={{
-              count: selected.length,
-              sum: { label: "Owing", value: money(selected.reduce((sum, row) => sum + row.balance, 0), data.currency) },
-              onClear: selection.clear,
-              actions: (
-                <>
-                  <Button icon="payments" disabled={!payable.length || !oneSupplier} title={!payable.length ? "None of these is owing." : !oneSupplier ? "Pay one supplier's bills at a time." : undefined} onClick={() => onPay(payable)}>
-                    Pay
-                  </Button>
-                  <MenuButton label="More" items={more(selected)}>
-                    More
-                  </MenuButton>
-                </>
-              ),
-            }}
-          />
+        end={
+          <>
+            <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: query.sort === "due" ? "newest" : "due", page: 1 })}>
+              {query.sort === "due" ? "Sort" : "Newest first"}
+            </Button>
+            <a className="btn" href={exportHref}>
+              Export
+            </a>
+          </>
         }
-      >
-        {data.rows.length === 0 ? (
-          <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-            <b>{filtered ? "No bill matches" : notes ? "No debit notes" : query.view === "to-pay" ? "Nothing to pay" : `No ${BILL_TAB_LABEL[query.view].toLowerCase()} bills`}</b>
-            <p className="muted">{filtered ? "Clear the search or the filters to see the rest." : query.view === "to-pay" ? "Record a supplier's bill with New bill, or finish one from a goods receipt." : "Bills land here as they move."}</p>
-          </div>
-        ) : (
-          <table className="table" aria-label="Bills">
-            <colgroup>
-              <col style={{ width: 44 }} />
-              <col style={{ width: 120 }} />
-              <col />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 220 }} />
-              <col style={{ width: 160 }} />
-              <col style={{ width: 140 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>{notes ? "Debit note" : "Bill"}</th>
-                <th>Supplier</th>
-                <th>FDMS</th>
-                <th>Matches</th>
-                <th>Due</th>
-                <th className="num">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
-                  <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
-                  <td>
-                    <Link className="ref" href={row.href}>
-                      {row.number}
-                    </Link>
-                  </td>
-                  <td className="truncate">
-                    <span style={{ color: "var(--color-ink)" }}>{row.supplier.name}</span>
-                    {row.what ? (
-                      <span className="muted" style={{ fontSize: 13 }}>
-                        {" "}
-                        · {row.what}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>{row.fdms ? <BkState tone={FDMS_TONE[row.fdms]}>{FDMS_LABEL[row.fdms]}</BkState> : <span className="muted">—</span>}</td>
-                  <td className="truncate">
-                    {row.matches.bill ? (
-                      <span className="ref">{row.matches.bill}</span>
-                    ) : row.matches.order || row.matches.receipt ? (
-                      <>
-                        {row.matches.order ? <span className="ref">{row.matches.order}</span> : null}
-                        {row.matches.order && row.matches.receipt ? " · " : null}
-                        {row.matches.receipt ? <span className="ref">{row.matches.receipt}</span> : null}
-                      </>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
-                  <td>{row.state === "overdue" ? <BkState tone="warning">{row.when}</BkState> : <span className="muted">{row.when}</span>}</td>
-                  <td className="num" style={row.state === "void" ? { textDecoration: "line-through", color: "var(--color-muted)" } : { color: "var(--color-ink)", fontWeight: 500 }}>
-                    {money(row.state === "void" || row.state === "paid" ? row.total : row.balance, row.currency)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableShell>
-    </div>
+      />
+      <BkScroll>
+        <Worksheet
+          label="bills"
+          rows={data.rows}
+          rowKey={(row) => row.id}
+          columns={columns}
+          openHref={(row) => row.href}
+          selection={{ ...selection, selected: selection.selected, labelOf: (row) => row.number }}
+          totals={totals}
+          empty={filtered ? "No bill matches. Clear the search or the filters." : notes ? "No debit notes." : query.view === "to-pay" ? "Nothing to pay." : `No ${BILL_TAB_LABEL[query.view].toLowerCase()} bills.`}
+        />
+        {unchecked ? (
+          <BkNote
+            tone="warn"
+            action={
+              <Link className="btn" href={unchecked.href}>
+                Check on FDMS
+              </Link>
+            }
+          >
+            <b>{unchecked.number} isn&rsquo;t checked on FDMS.</b> Its VAT is claimed only once ZIMRA shows the FTI as valid.
+          </BkNote>
+        ) : null}
+      </BkScroll>
+      <BkPager page={query.page} size={BILLS_PAGE_SIZE} total={data.range.of} onPage={(page) => onQuery({ page })} />
+      <BkSelectionBar count={selected.length} sum={<>Owing <Amt value={selected.reduce((total, row) => total + row.balance, 0)} currency={currency} /></>} onClear={selection.clear}>
+        <Button icon="payments" disabled={!payable.length || !oneSupplier} title={!payable.length ? "None of these is owing." : !oneSupplier ? "Pay one supplier's bills at a time." : undefined} onClick={() => onPay(payable)}>
+          Pay
+        </Button>
+        <MenuButton label="More" items={more(selected)}>
+          More
+        </MenuButton>
+      </BkSelectionBar>
+    </>
   );
 }

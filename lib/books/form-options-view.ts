@@ -22,9 +22,9 @@ export type BooksFormOptions = {
   nextNumber: string;
 };
 
-/** "ZiG" for ZWG, "US$" for USD, as the boards write them. */
+/** "ZWG" for ZWG, "$" for USD, as the boards write them. */
 export function currencyWord(code: string): string {
-  if (code === "ZWG") return "ZiG";
-  if (code === "USD") return "US$";
+  if (code === "ZWG") return "ZWG";
+  if (code === "USD") return "$";
   return code;
 }

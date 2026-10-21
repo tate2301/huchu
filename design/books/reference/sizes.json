@@ -1,0 +1,778 @@
+{
+ "bk-accounts-1440.png": [
+  1440,
+  900
+ ],
+ "bk-accounts-390.png": [
+  390,
+  844
+ ],
+ "bk-accounts-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-audit-1440.png": [
+  1440,
+  900
+ ],
+ "bk-audit-390.png": [
+  390,
+  844
+ ],
+ "bk-audit-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-bill-1440.png": [
+  1440,
+  900
+ ],
+ "bk-bill-390.png": [
+  390,
+  1335
+ ],
+ "bk-bill-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-bills-1440.png": [
+  1440,
+  900
+ ],
+ "bk-bills-390.png": [
+  390,
+  844
+ ],
+ "bk-bills-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-brief-1440.png": [
+  1440,
+  1418
+ ],
+ "bk-brief-390.png": [
+  390,
+  2868
+ ],
+ "bk-brief-1440-dark.png": [
+  1440,
+  1418
+ ],
+ "bk-bulk-result-1440.png": [
+  1440,
+  900
+ ],
+ "bk-bulk-result-390.png": [
+  390,
+  887
+ ],
+ "bk-bulk-result-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-chart-1440.png": [
+  1440,
+  1388
+ ],
+ "bk-chart-390.png": [
+  390,
+  1388
+ ],
+ "bk-chart-1440-dark.png": [
+  1440,
+  1388
+ ],
+ "bk-claims-1440.png": [
+  1440,
+  900
+ ],
+ "bk-claims-390.png": [
+  390,
+  844
+ ],
+ "bk-claims-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-close-1440.png": [
+  1440,
+  900
+ ],
+ "bk-close-390.png": [
+  390,
+  859
+ ],
+ "bk-close-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-credit-notes-1440.png": [
+  1440,
+  900
+ ],
+ "bk-credit-notes-390.png": [
+  390,
+  844
+ ],
+ "bk-credit-notes-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-customer-1440.png": [
+  1440,
+  900
+ ],
+ "bk-customer-390.png": [
+  390,
+  852
+ ],
+ "bk-customer-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-customers-1440.png": [
+  1440,
+  900
+ ],
+ "bk-customers-390.png": [
+  390,
+  844
+ ],
+ "bk-customers-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-delete-permanent-1440.png": [
+  1440,
+  900
+ ],
+ "bk-delete-permanent-390.png": [
+  390,
+  844
+ ],
+ "bk-delete-permanent-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-delete-refused-1440.png": [
+  1440,
+  900
+ ],
+ "bk-delete-refused-390.png": [
+  390,
+  844
+ ],
+ "bk-delete-refused-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-financials-1440.png": [
+  1440,
+  900
+ ],
+ "bk-financials-390.png": [
+  390,
+  844
+ ],
+ "bk-financials-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-fiscal-1440.png": [
+  1440,
+  900
+ ],
+ "bk-fiscal-390.png": [
+  390,
+  844
+ ],
+ "bk-fiscal-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-invoice-new-1440.png": [
+  1440,
+  900
+ ],
+ "bk-invoice-new-390.png": [
+  390,
+  1111
+ ],
+ "bk-invoice-new-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-invoice-1440.png": [
+  1440,
+  900
+ ],
+ "bk-invoice-390.png": [
+  390,
+  1489
+ ],
+ "bk-invoice-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-invoices-1440.png": [
+  1440,
+  900
+ ],
+ "bk-invoices-390.png": [
+  390,
+  844
+ ],
+ "bk-invoices-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-journals-1440.png": [
+  1440,
+  900
+ ],
+ "bk-journals-390.png": [
+  390,
+  844
+ ],
+ "bk-journals-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-kit-1440.png": [
+  1440,
+  1922
+ ],
+ "bk-kit-390.png": [
+  390,
+  3256
+ ],
+ "bk-kit-1440-dark.png": [
+  1440,
+  1922
+ ],
+ "bk-ledger-1440.png": [
+  1440,
+  900
+ ],
+ "bk-ledger-390.png": [
+  390,
+  844
+ ],
+ "bk-ledger-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-match-1440.png": [
+  1440,
+  900
+ ],
+ "bk-match-390.png": [
+  390,
+  844
+ ],
+ "bk-match-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-mg-accountant-export-1440.png": [
+  1440,
+  900
+ ],
+ "bk-mg-accountant-export-390.png": [
+  390,
+  844
+ ],
+ "bk-mg-accountant-export-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-mg-approvals-1440.png": [
+  1440,
+  900
+ ],
+ "bk-mg-approvals-390.png": [
+  390,
+  944
+ ],
+ "bk-mg-approvals-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-mg-money-accounts-1440.png": [
+  1440,
+  900
+ ],
+ "bk-mg-money-accounts-390.png": [
+  390,
+  844
+ ],
+ "bk-mg-money-accounts-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-mg-money-and-tax-1440.png": [
+  1440,
+  900
+ ],
+ "bk-mg-money-and-tax-390.png": [
+  390,
+  978
+ ],
+ "bk-mg-money-and-tax-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-mg-users-1440.png": [
+  1440,
+  900
+ ],
+ "bk-mg-users-390.png": [
+  390,
+  844
+ ],
+ "bk-mg-users-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-model-1440.png": [
+  1440,
+  1559
+ ],
+ "bk-model-390.png": [
+  390,
+  2882
+ ],
+ "bk-model-1440-dark.png": [
+  1440,
+  1559
+ ],
+ "bk-money-1440.png": [
+  1440,
+  900
+ ],
+ "bk-money-390.png": [
+  390,
+  1884
+ ],
+ "bk-money-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-nav-1440.png": [
+  1440,
+  2644
+ ],
+ "bk-nav-390.png": [
+  390,
+  4000
+ ],
+ "bk-nav-1440-dark.png": [
+  1440,
+  2644
+ ],
+ "bk-needs-posting-1440.png": [
+  1440,
+  900
+ ],
+ "bk-needs-posting-390.png": [
+  390,
+  844
+ ],
+ "bk-needs-posting-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-orders-1440.png": [
+  1440,
+  900
+ ],
+ "bk-orders-390.png": [
+  390,
+  844
+ ],
+ "bk-orders-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-p-approve-390.png": [
+  390,
+  844
+ ],
+ "bk-p-approve-390-dark.png": [
+  390,
+  844
+ ],
+ "bk-p-money-390.png": [
+  390,
+  962
+ ],
+ "bk-p-money-390-dark.png": [
+  390,
+  962
+ ],
+ "bk-p-voucher-390.png": [
+  390,
+  844
+ ],
+ "bk-p-voucher-390-dark.png": [
+  390,
+  844
+ ],
+ "bk-payment-made-1440.png": [
+  1440,
+  900
+ ],
+ "bk-payment-made-390.png": [
+  390,
+  1352
+ ],
+ "bk-payment-made-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-payments-made-1440.png": [
+  1440,
+  900
+ ],
+ "bk-payments-made-390.png": [
+  390,
+  844
+ ],
+ "bk-payments-made-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-payments-1440.png": [
+  1440,
+  900
+ ],
+ "bk-payments-390.png": [
+  390,
+  844
+ ],
+ "bk-payments-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-posting-rules-1440.png": [
+  1440,
+  900
+ ],
+ "bk-posting-rules-390.png": [
+  390,
+  844
+ ],
+ "bk-posting-rules-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-provisional-1440.png": [
+  1440,
+  900
+ ],
+ "bk-provisional-390.png": [
+  390,
+  844
+ ],
+ "bk-provisional-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-quotes-1440.png": [
+  1440,
+  900
+ ],
+ "bk-quotes-390.png": [
+  390,
+  844
+ ],
+ "bk-quotes-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-rates-1440.png": [
+  1440,
+  900
+ ],
+ "bk-rates-390.png": [
+  390,
+  844
+ ],
+ "bk-rates-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-reconciliation-1440.png": [
+  1440,
+  900
+ ],
+ "bk-reconciliation-390.png": [
+  390,
+  992
+ ],
+ "bk-reconciliation-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-requisition-1440.png": [
+  1440,
+  900
+ ],
+ "bk-requisition-390.png": [
+  390,
+  1229
+ ],
+ "bk-requisition-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-requisitions-1440.png": [
+  1440,
+  900
+ ],
+ "bk-requisitions-390.png": [
+  390,
+  844
+ ],
+ "bk-requisitions-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-revise-1440.png": [
+  1440,
+  900
+ ],
+ "bk-revise-390.png": [
+  390,
+  844
+ ],
+ "bk-revise-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-set-locks-1440.png": [
+  1440,
+  900
+ ],
+ "bk-set-locks-390.png": [
+  390,
+  844
+ ],
+ "bk-set-locks-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-set-numbering-1440.png": [
+  1440,
+  900
+ ],
+ "bk-set-numbering-390.png": [
+  390,
+  844
+ ],
+ "bk-set-numbering-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-set-tax-1440.png": [
+  1440,
+  900
+ ],
+ "bk-set-tax-390.png": [
+  390,
+  844
+ ],
+ "bk-set-tax-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-spending-1440.png": [
+  1440,
+  900
+ ],
+ "bk-spending-390.png": [
+  390,
+  844
+ ],
+ "bk-spending-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-suppliers-1440.png": [
+  1440,
+  900
+ ],
+ "bk-suppliers-390.png": [
+  390,
+  844
+ ],
+ "bk-suppliers-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-tax-1440.png": [
+  1440,
+  900
+ ],
+ "bk-tax-390.png": [
+  390,
+  844
+ ],
+ "bk-tax-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-trial-balance-1440.png": [
+  1440,
+  1420
+ ],
+ "bk-trial-balance-390.png": [
+  390,
+  1420
+ ],
+ "bk-trial-balance-1440-dark.png": [
+  1440,
+  1420
+ ],
+ "bk-vat-1440.png": [
+  1440,
+  900
+ ],
+ "bk-vat-390.png": [
+  390,
+  1191
+ ],
+ "bk-vat-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-void-1440.png": [
+  1440,
+  900
+ ],
+ "bk-void-390.png": [
+  390,
+  844
+ ],
+ "bk-void-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-withholding-1440.png": [
+  1440,
+  900
+ ],
+ "bk-withholding-390.png": [
+  390,
+  844
+ ],
+ "bk-withholding-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-advanced-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-advanced-390.png": [
+  390,
+  844
+ ],
+ "bk-x-advanced-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-crm-cost-390.png": [
+  390,
+  844
+ ],
+ "bk-x-crm-cost-390-dark.png": [
+  390,
+  844
+ ],
+ "bk-x-crm-deal-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-crm-deal-390.png": [
+  390,
+  1274
+ ],
+ "bk-x-crm-deal-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-crm-reqs-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-crm-reqs-390.png": [
+  390,
+  844
+ ],
+ "bk-x-crm-reqs-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-noscreens-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-noscreens-390.png": [
+  390,
+  844
+ ],
+ "bk-x-noscreens-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-payroll-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-payroll-390.png": [
+  390,
+  906
+ ],
+ "bk-x-payroll-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-reports-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-reports-390.png": [
+  390,
+  844
+ ],
+ "bk-x-reports-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-retail-eod-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-retail-eod-390.png": [
+  390,
+  844
+ ],
+ "bk-x-retail-eod-1440-dark.png": [
+  1440,
+  900
+ ],
+ "bk-x-retail-grn-1440.png": [
+  1440,
+  900
+ ],
+ "bk-x-retail-grn-390.png": [
+  390,
+  844
+ ],
+ "bk-x-retail-grn-1440-dark.png": [
+  1440,
+  900
+ ]
+}

@@ -3,26 +3,26 @@ import { prisma } from "@/lib/prisma";
 import type { SignInAsClaim } from "@/lib/sign-in-as/limits";
 
 import { isWorkspaceOwner } from "../owner";
+import { outsideAccessOpen, type OutsideAccountant } from "../outside-accountant";
 
 /**
  * Who may do what in Books: the one permission check (books-final §2.2).
  *
  * Pure: `canDo(actor, action, doc)` reads only what it is given, so the
  * matrix is a table a test walks cell by cell. `booksActor(session)` is the
- * one read that builds an actor, with the "May void and revise" grant
- * (§2.3), which nobody has until the owner gives it.
+ * one read that builds an actor, with the outside accountant when it is one.
  *
  * - **Owner**: `SUPERADMIN` (`lib/books/owner.ts`).
  * - **Superuser**: a Corelith operator signed in as a member in "Make
  *   changes" mode. They have the owner's powers for support, and every
  *   destructive act records them (`actor.superuser`). "Look only" may only
  *   look.
- * - **Void and revise** for a manager or an accountant only when granted
- *   (`books.void`, a `UserPermissionOverride`). Never permanent delete,
- *   reopening a month or changing a filed VAT return.
+ * - **Outside accountant**: from the firm that audits or keeps the books,
+ *   with an access end date. The owner's rights in Books until that day,
+ *   every act marked as theirs (`auditActor`). Only they and the owner void,
+ *   revise, delete permanently or reopen a month: a manager or a staff
+ *   accountant never does.
  */
-
-export const VOID_GRANT = "books.void";
 
 export type BooksTier = "owner" | "manager" | "accountant" | "bursar" | "shop" | "clerk" | "none";
 
@@ -30,8 +30,8 @@ export type BooksActor = {
   companyId: string;
   userId: string;
   role: string | null | undefined;
-  /** Capabilities granted on top of the role: only `books.void` today. */
-  grants?: ReadonlySet<string> | readonly string[];
+  /** Set when the person is an outside accountant whose access is open today. */
+  outsideAccountant?: OutsideAccountant | null;
   /** The operator's Sign in as session, when it is one. */
   signInAs?: SignInAsClaim | null;
   /** The approval limit, where one is set; none means no limit is enforced yet. */
@@ -114,8 +114,8 @@ export function isSuperuser(actor: Pick<BooksActor, "signInAs">): boolean {
   return actor.signInAs?.mode === "CHANGE";
 }
 
-export function tierOf(actor: Pick<BooksActor, "role" | "signInAs">): BooksTier {
-  if (isWorkspaceOwner(actor.role) || isSuperuser(actor)) return "owner";
+export function tierOf(actor: Pick<BooksActor, "role" | "signInAs" | "outsideAccountant">): BooksTier {
+  if (isWorkspaceOwner(actor.role) || isSuperuser(actor) || actor.outsideAccountant) return "owner";
   const role = (actor.role ?? "").trim().toUpperCase();
   if (role === "MANAGER") return "manager";
   if (role === "FINANCE_OFFICER") return "accountant";
@@ -124,9 +124,6 @@ export function tierOf(actor: Pick<BooksActor, "role" | "signInAs">): BooksTier 
   if (CLERKS.has(role)) return "clerk";
   return "none";
 }
-
-const hasGrant = (actor: BooksActor, grant: string) =>
-  actor.grants ? (actor.grants instanceof Set ? actor.grants.has(grant) : (actor.grants as readonly string[]).includes(grant)) : false;
 
 /** L: within their approval limit, where one is set. */
 function withinLimit(actor: BooksActor, doc: BooksDoc, what: string): Decision {
@@ -137,12 +134,12 @@ function withinLimit(actor: BooksActor, doc: BooksDoc, what: string): Decision {
 const OWN = (actor: BooksActor, doc: BooksDoc) => Boolean(doc.ownerId) && doc.ownerId === actor.userId;
 
 const OWNER_ONLY: Partial<Record<BooksAction, string>> = {
-  "delete.posted": "Only the owner can delete something that has been posted. Void it instead.",
-  "period.reopen": "Only the owner can reopen a month.",
-  "period.freeze": "Only the owner can set the freeze date.",
-  "posting.redate": "Only the owner can move money from a closed month into this one.",
-  "reconciliation.reopen": "Only the owner can reopen a closed reconciliation.",
-  "reconciliation.void": "Only the owner can void a reconciliation.",
+  "delete.posted": "Only the owner or the outside accountant can delete something that has been posted. Void it instead.",
+  "period.reopen": "Only the owner or the outside accountant can reopen a month.",
+  "period.freeze": "Only the owner or the outside accountant can set the freeze date.",
+  "posting.redate": "Only the owner or the outside accountant can move money from a closed month into this one.",
+  "reconciliation.reopen": "Only the owner or the outside accountant can reopen a closed reconciliation.",
+  "reconciliation.void": "Only the owner or the outside accountant can void a reconciliation.",
 };
 
 export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}): Decision {
@@ -166,6 +163,11 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
       if (tier === "manager" || tier === "accountant") return ALLOW;
       if (tier === "bursar") return doc.area === "sales" || doc.area === "bank" ? ALLOW : refuse("A bursar sees Sales and Bank & cash in Books.");
       if (tier === "shop") return doc.area === "bank" || doc.area === "takings" ? ALLOW : refuse("A shop manager sees Bank & cash and Takings in Books.");
+      // A rep or fitter sees their own requests in Bills & spending, and the
+      // CRM's quotes, invoices and receipts at their one address in Books
+      // (design/books/spec/permissions.json; NOTES §2). The readers show them
+      // only their own: what they asked for, made or own the deal of.
+      if (tier === "clerk" && (doc.area === "bills" || (doc.area === "sales" && docModule === "crm"))) return ALLOW;
       return refuse("Ask the owner for access to Books.");
     }
     case "draft.create":
@@ -212,14 +214,8 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
       return refuse("Only the owner, a manager or the accountant can write off a debt.");
     }
     case "void":
-    case "revise": {
-      if ((tier === "manager" || tier === "accountant") && hasGrant(actor, VOID_GRANT)) return ALLOW;
-      return refuse(
-        tier === "manager" || tier === "accountant"
-          ? "Only the owner can void or revise a posted document, unless they let you."
-          : "Only the owner can void or revise a posted document.",
-      );
-    }
+    case "revise":
+      return refuse("Only the owner or the outside accountant can void or revise a posted document.");
     case "period.close":
       return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can close a month.");
     case "period.override":
@@ -250,8 +246,9 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
 }
 
 /**
- * The person as Books sees them, from their session: the void grant read
- * from the override table, and only honoured for a manager or an accountant.
+ * The person as Books sees them, from their session. A finance officer who is
+ * an outside accountant is lifted to the owner's rights while their access is
+ * open; once it has ended they have none in Books at all.
  */
 export async function booksActor(session: AuthenticatedSession): Promise<BooksActor> {
   const base: BooksActor = {
@@ -259,22 +256,20 @@ export async function booksActor(session: AuthenticatedSession): Promise<BooksAc
     userId: session.user.id,
     role: session.user.role,
     signInAs: session.user.signInAs ?? null,
-    grants: new Set<string>(),
   };
-  const tier = tierOf(base);
-  if (tier !== "manager" && tier !== "accountant") return base;
-  const override = await prisma.userPermissionOverride.findUnique({
-    where: { userId_permissionKey: { userId: session.user.id, permissionKey: VOID_GRANT } },
-    select: { isAllowed: true, companyId: true },
-  });
-  return override?.isAllowed && override.companyId === session.user.companyId ? { ...base, grants: new Set([VOID_GRANT]) } : base;
+  if (tierOf(base) !== "accountant") return base;
+  const member = await prisma.user.findUnique({ where: { id: session.user.id }, select: { memberKind: true, firmName: true, accessEndsOn: true } });
+  if (member?.memberKind !== "OUTSIDE_ACCOUNTANT") return base;
+  if (!outsideAccessOpen(member.accessEndsOn)) return { ...base, role: null };
+  return { ...base, outsideAccountant: { firmName: member.firmName ?? "" } };
 }
 
-/** What the audit trail keeps about who did it: the member, and the operator when it was one. */
+/** What the audit trail keeps about who did it: the member, the firm when an outside accountant, and the operator when it was one. */
 export function auditActor(actor: BooksActor) {
   return {
     userId: actor.userId,
     role: actor.role ?? null,
+    ...(actor.outsideAccountant ? { outsideAccountant: { firm: actor.outsideAccountant.firmName } } : {}),
     ...(isSuperuser(actor) && actor.signInAs
       ? { superuser: { operator: actor.signInAs.operatorName, session: `SA-${actor.signInAs.number}` } }
       : {}),

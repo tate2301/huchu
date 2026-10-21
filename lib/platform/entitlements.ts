@@ -1,7 +1,7 @@
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { prisma } from "@/lib/prisma";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
-import { billedMemberWhere, priceVerticals, type VerticalPrice } from "@/lib/platform/verticals";
+import { billedMemberWhere, priceVerticals, VERTICAL_RATE, type VerticalPrice } from "@/lib/platform/verticals";
 
 export type FeatureMap = Record<string, boolean>;
 
@@ -370,6 +370,13 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     const normalizedFlagKey = normalizeFeatureKey(flag.feature.key);
     const aliasKey = resolveLegacyFeatureAlias(normalizedFlagKey);
     if (aliasKey && !explicitFlagKeys.has(aliasKey)) map[aliasKey] = Boolean(flag.isEnabled);
+  }
+
+  // The $99 Books tier (NOTES §5.3): a workspace with the screens that is on the
+  // larger vertical rate holds it, unless an explicit flag says otherwise.
+  if (map["books.screens"] && !explicitFlagKeys.has("books.advanced") && !map["books.advanced"]) {
+    const billed = await prisma.user.count({ where: billedMemberWhere(normalizedCompanyId) });
+    if (billed > VERTICAL_RATE.includedMembers) map["books.advanced"] = true;
   }
 
   // The books engine is on in every workspace, whatever a flag says (D1).

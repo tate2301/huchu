@@ -152,7 +152,7 @@ export function BankEntryDrawer({
           <Field label="Date" htmlFor="entry-date">
             <Input id="entry-date" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
           </Field>
-          <Field label={`Amount${from ? `, ${from.currency === "ZWG" ? "ZiG" : from.currency}` : ""}`} htmlFor="entry-amount">
+          <Field label={`Amount${from ? `, ${from.currency}` : ""}`} htmlFor="entry-amount">
             <Input id="entry-amount" inputMode="decimal" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value.replace(/[^\d.]/g, "") })} />
           </Field>
         </div>

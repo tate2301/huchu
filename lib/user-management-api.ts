@@ -148,6 +148,14 @@ export async function changeManagedUserRole(input: ChangeManagedUserRoleInput) {
   });
 }
 
+export type SetMemberKindInput =
+  | { userId: string; memberKind: "STAFF" }
+  | { userId: string; memberKind: "OUTSIDE_ACCOUNTANT"; firmName: string; accessEndsOn: string };
+
+export async function setManagedUserMemberKind(input: SetMemberKindInput) {
+  return fetchJson<{ id: string }>("/api/users/member-kind", { method: "POST", body: JSON.stringify(input) });
+}
+
 export async function fetchManagedUserFeatureAccess(userId: string) {
   const query = buildQuery({ userId });
   return fetchJson<ManagedUserFeatureAccessResponse>(`/api/users/access${query}`);
@@ -211,6 +219,10 @@ export type ManagedUserDetail = {
   passwordChangedAt: string | null;
   phone: string | null;
   image: string | null;
+  /** Books: staff, or an accountant from outside the business until `accessEndsOn` (YYYY-MM-DD). */
+  memberKind: "STAFF" | "OUTSIDE_ACCOUNTANT";
+  firmName: string | null;
+  accessEndsOn: string | null;
 };
 
 export type ManagedUserDetailResponse = {

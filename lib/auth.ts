@@ -51,6 +51,7 @@ import type {
   SessionPolicy,
 } from "@/lib/auth-core/types";
 import { acceptPendingInvite } from "@/lib/retail/people/join";
+import { outsideAccessOpen } from "@/lib/books/outside-accountant";
 
 type AuthenticatedUserLike = {
   id: string;
@@ -182,6 +183,8 @@ type SignInUserRecord = {
   companyId: string;
   isActive: boolean;
   image: string | null;
+  memberKind: "STAFF" | "OUTSIDE_ACCOUNTANT";
+  accessEndsOn: Date | null;
 };
 
 function buildSignInContext(
@@ -252,6 +255,8 @@ const SIGN_IN_USER_SELECT = {
   companyId: true,
   isActive: true,
   image: true,
+  memberKind: true,
+  accessEndsOn: true,
 } as const;
 
 async function findSignInUser(email: string, companyId: string | undefined): Promise<SignInUserRecord | null> {
@@ -272,6 +277,11 @@ async function findSignInUserById(id: string, companyId: string | undefined): Pr
 async function assertAccountUsable(user: SignInUserRecord, ctx: SignInContext): Promise<void> {
   if (!user.isActive) {
     await failSignIn(ctx, "ACCOUNT_INACTIVE", { companyId: user.companyId, message: "Account is inactive" });
+  }
+
+  // An outside accountant signs in until the last day of their access (Books, NOTES §5.1).
+  if (user.memberKind === "OUTSIDE_ACCOUNTANT" && !outsideAccessOpen(user.accessEndsOn)) {
+    await failSignIn(ctx, "ACCOUNT_INACTIVE", { companyId: user.companyId, message: "Outside accountant access has ended" });
   }
 
   const hostContext = getPlatformHostContext(ctx.hostHeader);

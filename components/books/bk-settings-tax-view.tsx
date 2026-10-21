@@ -243,7 +243,7 @@ export function BkSettingsTaxView({
             <Row label="Rate, %" settings={s}>
               {field("contractRate")}
             </Row>
-            <Row label="Threshold for the year, US$" flag="withholding.thresholdUsd" settings={s}>
+            <Row label="Threshold for the year, $" flag="withholding.thresholdUsd" settings={s}>
               {field("thresholdUsd")}
             </Row>
             <div className="field-row">
@@ -289,15 +289,15 @@ export function BkSettingsTaxView({
               <Row label="On USD, %" settings={s}>
                 {field("usdRate")}
               </Row>
-              <Row label="On ZiG, %" flag="imtt.zwgRate" settings={s}>
+              <Row label="On ZWG, %" flag="imtt.zwgRate" settings={s}>
                 {field("zwgRate")}
               </Row>
             </div>
             <div className="field-row">
-              <Row label="A transfer over, US$" settings={s}>
+              <Row label="A transfer over, $" settings={s}>
                 {field("flatOverUsd")}
               </Row>
-              <Row label="pays a flat, US$" settings={s}>
+              <Row label="pays a flat, $" settings={s}>
                 {field("flatAmountUsd")}
               </Row>
             </div>

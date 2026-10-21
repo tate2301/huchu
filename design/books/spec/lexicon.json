@@ -1,0 +1,84 @@
+{
+  "concepts": [
+    {
+      "concept": "what people fill in",
+      "use": [
+        "form"
+      ],
+      "banned": [
+        "template instance",
+        "questionnaire",
+        "survey form"
+      ]
+    },
+    {
+      "concept": "one thing asked",
+      "use": [
+        "question"
+      ],
+      "banned": [
+        "field",
+        "form element"
+      ]
+    },
+    {
+      "concept": "a priced row worked out from a measurement",
+      "use": [
+        "quote line"
+      ],
+      "banned": [
+        "line item rule",
+        "pricing rule",
+        "formula"
+      ]
+    },
+    {
+      "concept": "going to the customer's place",
+      "use": [
+        "site visit"
+      ],
+      "banned": [
+        "appointment",
+        "inspection",
+        "call-out"
+      ]
+    },
+    {
+      "concept": "asking only when another answer calls for it",
+      "use": [
+        "Ask it"
+      ],
+      "banned": [
+        "conditional logic",
+        "visibility rule",
+        "show when"
+      ]
+    },
+    {
+      "concept": "saved query and its rows",
+      "use": [
+        "report"
+      ],
+      "banned": [
+        "dashboard",
+        "query",
+        "dataset"
+      ]
+    },
+    {
+      "concept": "never",
+      "use": [],
+      "banned": [
+        "Something went wrong",
+        "Are you sure?",
+        "Click here",
+        "Submit",
+        "Oops",
+        "Seamlessly",
+        "Effortlessly",
+        "no-code",
+        "drag and drop"
+      ]
+    }
+  ]
+}

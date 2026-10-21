@@ -76,7 +76,7 @@ export function BkVatReturnView({
           items={[
             { value: "all", label: `All in ${data.baseCurrency === "USD" ? "USD" : data.baseCurrency}` },
             { value: "USD", label: "USD documents" },
-            { value: "ZWG", label: "ZiG documents" },
+            { value: "ZWG", label: "ZWG documents" },
           ]}
         />
         <span className="ws-n">{cur ? `${cur.period.words}${cur.gatheredAt ? ` · gathered ${cur.gatheredAt.replace(/^Today /, "at ").replace(/^Yesterday /, "yesterday at ")}` : " · not gathered yet"}` : `${data.list.length} ${data.tab}`}</span>

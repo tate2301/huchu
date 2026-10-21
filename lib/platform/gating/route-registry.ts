@@ -1,3 +1,4 @@
+import { BOOKS_SCREENS_KEY, booksTierKeyForPath } from "@/lib/books/tiers";
 import type { FeatureRouteEntry } from "@/lib/platform/gating/types";
 
 export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
@@ -68,39 +69,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/stores/dashboard", featureKey: "stores.dashboard" },
   { scope: "page", prefix: "/stores", featureKey: "stores.dashboard" },
 
-  { scope: "page", prefix: "/books/invoices", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/statements", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/bank", featureKey: "accounting.banking" },
-  { scope: "page", prefix: "/books/accounts", featureKey: "accounting.banking" },
-  { scope: "page", prefix: "/books/reconciliations", featureKey: "accounting.banking" },
-  { scope: "page", prefix: "/books/tax", featureKey: "accounting.tax" },
-  { scope: "page", prefix: "/books/withholding", featureKey: "accounting.tax" },
-  { scope: "page", prefix: "/books/provisional-tax", featureKey: "accounting.tax" },
-  { scope: "page", prefix: "/books/settings/tax", featureKey: "accounting.tax" },
-  { scope: "page", prefix: "/books/fiscal", featureKey: "accounting.zimra.fiscalisation" },
-  { scope: "page", prefix: "/books/rates", featureKey: "accounting.multi-currency" },
-  { scope: "page", prefix: "/books/payments", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/payments-made", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/bills", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/suppliers", featureKey: "accounting.ap" },
-  // Bills & spending's other pages (P2): one level, behind Payables as its bills are.
-  { scope: "page", prefix: "/books/orders", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/requisitions", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/claims", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/quotes", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/credit-notes", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/customers", featureKey: "accounting.ar" },
-  { scope: "page", prefix: "/books/expenses", featureKey: "accounting.ap" },
-  { scope: "page", prefix: "/books/journals", featureKey: "accounting.journals" },
-  { scope: "page", prefix: "/books/trial-balance", featureKey: "accounting.trial-balance" },
-  { scope: "page", prefix: "/books/financials", featureKey: "accounting.financial-statements" },
-  { scope: "page", prefix: "/books/ledger", featureKey: "accounting.financial-statements" },
-  { scope: "page", prefix: "/books/chart", featureKey: "accounting.chart-of-accounts" },
-  { scope: "page", prefix: "/books/cost-centres", featureKey: "accounting.cost-centers" },
-  { scope: "page", prefix: "/books/posting-rules", featureKey: "accounting.posting-rules" },
-  { scope: "page", prefix: "/books/year-end", featureKey: "accounting.periods" },
-  { scope: "page", prefix: "/books/periods", featureKey: "accounting.periods" },
-  { scope: "page", prefix: "/books/vat", featureKey: "accounting.tax" },
   // The floor's End of day, at Books' address: the tills' feature, as on the floor.
   { scope: "page", prefix: "/books/takings", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/books", featureKey: "accounting.core" },
@@ -380,36 +348,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
   { scope: "api", prefix: "/api/stock-locations", featureKey: "stores.inventory" },
 
-  { scope: "api", prefix: "/api/books/invoices", featureKey: "accounting.ar" },
-  { scope: "api", prefix: "/api/books/payments", featureKey: "accounting.ar" },
-  { scope: "api", prefix: "/api/books/quotes", featureKey: "accounting.ar" },
-  { scope: "api", prefix: "/api/books/credit-notes", featureKey: "accounting.ar" },
-  { scope: "api", prefix: "/api/books/customers", featureKey: "accounting.ar" },
-  { scope: "api", prefix: "/api/books/bills", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/payments-made", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/suppliers", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/purchase-orders", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/requisitions", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/expenses", featureKey: "accounting.ap" },
-  { scope: "api", prefix: "/api/books/bank", featureKey: "accounting.banking" },
-  { scope: "api", prefix: "/api/books/accounts", featureKey: "accounting.banking" },
-  { scope: "api", prefix: "/api/books/reconciliations", featureKey: "accounting.banking" },
-  { scope: "api", prefix: "/api/books/tax", featureKey: "accounting.tax" },
-  { scope: "api", prefix: "/api/books/withholding", featureKey: "accounting.tax" },
-  { scope: "api", prefix: "/api/books/provisional-tax", featureKey: "accounting.tax" },
-  { scope: "api", prefix: "/api/books/settings/tax", featureKey: "accounting.tax" },
-  { scope: "api", prefix: "/api/books/fiscal", featureKey: "accounting.zimra.fiscalisation" },
-  { scope: "api", prefix: "/api/books/rates", featureKey: "accounting.multi-currency" },
-  { scope: "api", prefix: "/api/books/journals", featureKey: "accounting.journals" },
-  { scope: "api", prefix: "/api/books/trial-balance", featureKey: "accounting.trial-balance" },
-  { scope: "api", prefix: "/api/books/financials", featureKey: "accounting.financial-statements" },
-  { scope: "api", prefix: "/api/books/ledger", featureKey: "accounting.financial-statements" },
-  { scope: "api", prefix: "/api/books/chart", featureKey: "accounting.chart-of-accounts" },
-  { scope: "api", prefix: "/api/books/cost-centres", featureKey: "accounting.cost-centers" },
-  { scope: "api", prefix: "/api/books/posting-rules", featureKey: "accounting.posting-rules" },
-  { scope: "api", prefix: "/api/books/year-end", featureKey: "accounting.periods" },
-  { scope: "api", prefix: "/api/books/vat", featureKey: "accounting.tax" },
-  { scope: "api", prefix: "/api/books/close", featureKey: "accounting.periods" },
   { scope: "api", prefix: "/api/books", featureKey: "accounting.core" },
   { scope: "api", prefix: "/api/accounting/coa", featureKey: "accounting.chart-of-accounts" },
   { scope: "api", prefix: "/api/accounting/journals", featureKey: "accounting.journals" },
@@ -659,39 +597,15 @@ export function resolveFeatureKeyForPath(pathname: string): string | null {
 }
 
 /**
- * The Books screens' gate (books-final §1.2, D1), checked on top of the key
- * the route itself names.
- *
- * Every page under `/books` and every API only Books' pages call needs
- * `books.screens`. Left open: Takings (the floor's End of day, on its retail
- * gate), the core's undo routes (`/api/books/core/*`, gated on the role, not
- * the plan), the accountant export and Management's setup reads, and the
- * panel's counts (which answer empty without the screens).
+ * Books' plan gate, checked on top of the key the route itself names
+ * (`accounting.core` for every Books address, always on). Which addresses are
+ * free and which need the $10 screens or the $99 plan is data, in
+ * `lib/books/tiers.ts` (design/books/NOTES.md §1).
  *
  * A page refused here is not sent to /access-blocked: the proxy lets it
- * through and the Books layout shows what the screens add (BkUpsell).
+ * through and the Books layout draws the upsell in its place.
  */
-export const BOOKS_SCREENS_KEY = "books.screens";
-
-const BOOKS_SCREENS_GATED = ["/books", "/api/books"];
-
-const BOOKS_SCREENS_OPEN = [
-  "/books/takings",
-  "/api/books/core",
-  "/api/books/accountant-export",
-  "/api/books/money-and-tax",
-  "/api/books/money-accounts",
-  "/api/books/nav",
-];
-
-const underPrefix = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
-
-export function booksScreensKeyForPath(pathname: string): string | null {
-  const path = normalizePath(pathname).toLowerCase().split("?")[0]!;
-  if (!BOOKS_SCREENS_GATED.some((prefix) => underPrefix(path, prefix))) return null;
-  if (BOOKS_SCREENS_OPEN.some((prefix) => underPrefix(path, prefix))) return null;
-  return BOOKS_SCREENS_KEY;
-}
+export { BOOKS_SCREENS_KEY, booksTierKeyForPath };
 
 export function getAllRouteFeatureKeys(): string[] {
   return Array.from(new Set([...PAGE_FEATURE_ROUTES, ...API_FEATURE_ROUTES].map((row) => row.featureKey).concat(BOOKS_SCREENS_KEY))).sort();

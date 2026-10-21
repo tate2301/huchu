@@ -63,12 +63,12 @@ export function BkSuppliersView({
           />
           <BkChip
             label="Currency"
-            value={query.currency ? (query.currency === "ZWG" ? "ZiG" : query.currency) : "Any"}
+            value={query.currency ? query.currency : "Any"}
             set={Boolean(query.currency)}
             items={[
               { key: "any", label: "Any", checked: !query.currency, onSelect: () => onQuery({ currency: null, page: 1 }) },
               { separator: true },
-              ...currencies.map((code) => ({ key: code, label: code === "ZWG" ? "ZiG" : code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
+              ...currencies.map((code) => ({ key: code, label: code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
             ]}
           />
           </>

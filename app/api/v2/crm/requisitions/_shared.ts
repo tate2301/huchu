@@ -29,6 +29,6 @@ export async function notifyApprovers(
     summary: requisition.purpose,
     entityType: "CRM_REQUISITION",
     entityId: requisition.id,
-    viewPath: `/crm/requisitions/${requisition.id}`,
+    viewPath: `/books/requisitions/${requisition.id}`,
   });
 }

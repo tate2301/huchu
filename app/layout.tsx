@@ -18,6 +18,7 @@ import "./themes/workspace.css";
 import "@/components/core/kit.css";
 import "@/components/core/parts.css";
 import "@/components/core/books.css";
+import "@/components/books/books-type.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";
@@ -66,6 +67,9 @@ import {
  * actions all derive from it. Given the prop, `SessionProvider` treats it as
  * the initial value instead of fetching `/api/auth/session`.
  */
+const BOOKS_FACE_SCRIPT = `(function(){var p=location.pathname;if(p==="/books"||p.indexOf("/books/")===0)document.documentElement.dataset.module="books";})();`;
+
+
 const resolveRequestWorkspace = cache(async () => {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
@@ -198,6 +202,8 @@ export default async function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
+        {/* Books draws in its own face (components/books/books-type.css): mark the root before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOKS_FACE_SCRIPT }} />
       </head>
       <body
         /* No `font-sans`: frappe's theme ships its own `.font-sans` utility

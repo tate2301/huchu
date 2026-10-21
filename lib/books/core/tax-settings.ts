@@ -21,7 +21,7 @@ export type TaxSettings = {
     usdRate: number;
     /** 1.5% on ZWG transfers from 1 Jan 2026. */
     zwgRate: number;
-    /** A single transfer over this (US$) pays the flat amount instead. */
+    /** A single transfer over this ($) pays the flat amount instead. */
     flatOverUsd: number;
     flatAmountUsd: number;
   };
@@ -42,7 +42,7 @@ export type TaxSettings = {
   withholding: {
     /** 30% on payments to a supplier without a valid ITF263. */
     contractRate: number;
-    /** Once a supplier's payments in the year come to this (US$). */
+    /** Once a supplier's payments in the year come to this ($). */
     thresholdUsd: number;
     returnDay: number;
     paymentDay: number;
@@ -80,7 +80,7 @@ export const DEFAULT_TAX_SETTINGS: TaxSettings = {
 export const TO_CONFIRM: Record<string, string> = {
   "vat.returnDay": "SI 81 of 2025 moved the VAT return to the 10th; some ZIMRA pages still say the 25th.",
   "vat.paymentDay": "Payment moved to the 15th in 2025; some ZIMRA pages still say the 25th.",
-  "withholding.thresholdUsd": "The US$1,000 threshold for 30% withholding dates from 2022 and was not reconfirmed for 2026.",
+  "withholding.thresholdUsd": "The $1,000 threshold for 30% withholding dates from 2022 and was not reconfirmed for 2026.",
   "provisional.paymentDates": "QPD payment dates differ between notices (25 Mar, 25 Jun, 25 Sep, 20 Dec in one; 20 Jun in another).",
   "imtt.zwgRate": "1.5% on ZWG from 1 Jan 2026, from the 2026 budget commentary.",
 };

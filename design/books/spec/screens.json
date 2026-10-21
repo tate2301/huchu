@@ -1,0 +1,969 @@
+{
+ "_about": "Every Books screen: its app route (fixtures are /design/books/<slug>), level, tier (core = free in every workspace, screens = $10 a month, advanced = $99 plan), the phase that builds it, the HTML it came from and its references. worksheet: true means its table is the worksheet component and the worksheet test checks it.",
+ "screens": [
+  {
+   "slug": "money",
+   "title": "Money",
+   "route": "/books",
+   "level": "Money",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-money.html",
+   "references": [
+    "reference/bk-money-1440-dark.png",
+    "reference/bk-money-1440.png",
+    "reference/bk-money-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "invoices",
+   "title": "Invoices",
+   "route": "/books/sales/invoices",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-invoices.html",
+   "references": [
+    "reference/bk-invoices-1440-dark.png",
+    "reference/bk-invoices-1440.png",
+    "reference/bk-invoices-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "invoice",
+   "title": "An overdue invoice",
+   "route": "/books/sales/invoices/INV-0131",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-invoice.html",
+   "references": [
+    "reference/bk-invoice-1440-dark.png",
+    "reference/bk-invoice-1440.png",
+    "reference/bk-invoice-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "invoice-new",
+   "title": "New invoice, from a quote",
+   "route": "/books/sales/invoices/new?from=Q-0218",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-invoice-new.html",
+   "references": [
+    "reference/bk-invoice-new-1440-dark.png",
+    "reference/bk-invoice-new-1440.png",
+    "reference/bk-invoice-new-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "quotes",
+   "title": "Quotes",
+   "route": "/books/sales/quotes",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-quotes.html",
+   "references": [
+    "reference/bk-quotes-1440-dark.png",
+    "reference/bk-quotes-1440.png",
+    "reference/bk-quotes-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "payments",
+   "title": "Payments received",
+   "route": "/books/sales/payments",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-payments.html",
+   "references": [
+    "reference/bk-payments-1440-dark.png",
+    "reference/bk-payments-1440.png",
+    "reference/bk-payments-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "credit-notes",
+   "title": "Credit notes",
+   "route": "/books/sales/credit-notes",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-credit-notes.html",
+   "references": [
+    "reference/bk-credit-notes-1440-dark.png",
+    "reference/bk-credit-notes-1440.png",
+    "reference/bk-credit-notes-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "customers",
+   "title": "Customers, by age",
+   "route": "/books/sales/customers",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-customers.html",
+   "references": [
+    "reference/bk-customers-1440-dark.png",
+    "reference/bk-customers-1440.png",
+    "reference/bk-customers-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "customer",
+   "title": "A customer's statement",
+   "route": "/books/sales/customers/C-0042",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-customer.html",
+   "references": [
+    "reference/bk-customer-1440-dark.png",
+    "reference/bk-customer-1440.png",
+    "reference/bk-customer-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "spending",
+   "title": "All spending",
+   "route": "/books/spending",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-spending.html",
+   "references": [
+    "reference/bk-spending-1440-dark.png",
+    "reference/bk-spending-1440.png",
+    "reference/bk-spending-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "bills",
+   "title": "Bills",
+   "route": "/books/spending/bills",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-bills.html",
+   "references": [
+    "reference/bk-bills-1440-dark.png",
+    "reference/bk-bills-1440.png",
+    "reference/bk-bills-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "bill",
+   "title": "A bill over the owner's limit",
+   "route": "/books/spending/bills/BILL-0088",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-bill.html",
+   "references": [
+    "reference/bk-bill-1440-dark.png",
+    "reference/bk-bill-1440.png",
+    "reference/bk-bill-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "payments-made",
+   "title": "Payments made",
+   "route": "/books/spending/payments",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-payments-made.html",
+   "references": [
+    "reference/bk-payments-made-1440-dark.png",
+    "reference/bk-payments-made-1440.png",
+    "reference/bk-payments-made-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "payment-made",
+   "title": "Paying a supplier with no ITF263",
+   "route": "/books/spending/payments/new?bill=BILL-0086",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-payment-made.html",
+   "references": [
+    "reference/bk-payment-made-1440-dark.png",
+    "reference/bk-payment-made-1440.png",
+    "reference/bk-payment-made-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "orders",
+   "title": "Purchase orders",
+   "route": "/books/spending/orders",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-orders.html",
+   "references": [
+    "reference/bk-orders-1440-dark.png",
+    "reference/bk-orders-1440.png",
+    "reference/bk-orders-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "requisitions",
+   "title": "Requisitions",
+   "route": "/books/spending/requisitions",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-requisitions.html",
+   "references": [
+    "reference/bk-requisitions-1440-dark.png",
+    "reference/bk-requisitions-1440.png",
+    "reference/bk-requisitions-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "requisition",
+   "title": "A requisition being accounted for",
+   "route": "/books/spending/requisitions/REQ-0041",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-requisition.html",
+   "references": [
+    "reference/bk-requisition-1440-dark.png",
+    "reference/bk-requisition-1440.png",
+    "reference/bk-requisition-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "claims",
+   "title": "Claims & petty cash",
+   "route": "/books/spending/claims",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-claims.html",
+   "references": [
+    "reference/bk-claims-1440-dark.png",
+    "reference/bk-claims-1440.png",
+    "reference/bk-claims-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "suppliers",
+   "title": "Suppliers",
+   "route": "/books/spending/suppliers",
+   "level": "Bills & spending",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-suppliers.html",
+   "references": [
+    "reference/bk-suppliers-1440-dark.png",
+    "reference/bk-suppliers-1440.png",
+    "reference/bk-suppliers-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "void",
+   "title": "Void, through a credit note",
+   "route": "/books/sales/invoices/INV-0140?action=void",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-void.html",
+   "references": [
+    "reference/bk-void-1440-dark.png",
+    "reference/bk-void-1440.png",
+    "reference/bk-void-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "revise",
+   "title": "Revise a posted invoice",
+   "route": "/books/sales/invoices/INV-0142?action=revise",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-revise.html",
+   "references": [
+    "reference/bk-revise-1440-dark.png",
+    "reference/bk-revise-1440.png",
+    "reference/bk-revise-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "delete-refused",
+   "title": "Delete refused: fiscalised",
+   "route": "/books/sales/invoices/INV-0131?action=delete",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-delete-refused.html",
+   "references": [
+    "reference/bk-delete-refused-1440-dark.png",
+    "reference/bk-delete-refused-1440.png",
+    "reference/bk-delete-refused-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "set-numbering",
+   "title": "Numbering",
+   "route": "/books/settings/numbering",
+   "level": "Settings",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-set-numbering.html",
+   "references": [
+    "reference/bk-set-numbering-1440-dark.png",
+    "reference/bk-set-numbering-1440.png",
+    "reference/bk-set-numbering-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "set-tax",
+   "title": "Tax codes & rules",
+   "route": "/books/settings/tax",
+   "level": "Settings",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-set-tax.html",
+   "references": [
+    "reference/bk-set-tax-1440-dark.png",
+    "reference/bk-set-tax-1440.png",
+    "reference/bk-set-tax-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "set-locks",
+   "title": "Locks & periods",
+   "route": "/books/settings/locks",
+   "level": "Settings",
+   "tier": "screens",
+   "phase": "P2",
+   "html": "html/bk-set-locks.html",
+   "references": [
+    "reference/bk-set-locks-1440-dark.png",
+    "reference/bk-set-locks-1440.png",
+    "reference/bk-set-locks-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-noscreens",
+   "title": "Without the Books screens, $10",
+   "route": "/books (no Books screens)",
+   "level": "Money",
+   "tier": "core",
+   "phase": "P2",
+   "html": "html/bk-x-noscreens.html",
+   "references": [
+    "reference/bk-x-noscreens-1440-dark.png",
+    "reference/bk-x-noscreens-1440.png",
+    "reference/bk-x-noscreens-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "accounts",
+   "title": "Accounts",
+   "route": "/books/bank",
+   "level": "Bank & cash",
+   "tier": "screens",
+   "phase": "P3",
+   "html": "html/bk-accounts.html",
+   "references": [
+    "reference/bk-accounts-1440-dark.png",
+    "reference/bk-accounts-1440.png",
+    "reference/bk-accounts-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "match",
+   "title": "To match",
+   "route": "/books/bank/match",
+   "level": "Bank & cash",
+   "tier": "screens",
+   "phase": "P3",
+   "html": "html/bk-match.html",
+   "references": [
+    "reference/bk-match-1440-dark.png",
+    "reference/bk-match-1440.png",
+    "reference/bk-match-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "reconciliation",
+   "title": "A reconciliation",
+   "route": "/books/bank/reconciliations/<CBZ current, Sep 2026>",
+   "level": "Bank & cash",
+   "tier": "screens",
+   "phase": "P3",
+   "html": "html/bk-reconciliation.html",
+   "references": [
+    "reference/bk-reconciliation-1440-dark.png",
+    "reference/bk-reconciliation-1440.png",
+    "reference/bk-reconciliation-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "x-crm-deal",
+   "title": "CRM: a deal's money and cost",
+   "route": "/crm/deals/<Borrowdale Brooke Clinic deal> (Money tab)",
+   "level": "CRM",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-crm-deal.html",
+   "references": [
+    "reference/bk-x-crm-deal-1440-dark.png",
+    "reference/bk-x-crm-deal-1440.png",
+    "reference/bk-x-crm-deal-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-crm-reqs",
+   "title": "CRM: requisitions to approve",
+   "route": "/crm/requisitions",
+   "level": "CRM",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-crm-reqs.html",
+   "references": [
+    "reference/bk-x-crm-reqs-1440-dark.png",
+    "reference/bk-x-crm-reqs-1440.png",
+    "reference/bk-x-crm-reqs-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "x-crm-cost",
+   "title": "CRM: a fitter's day, cost tracker",
+   "route": "/crm/cost-tracker (phone)",
+   "level": "CRM",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-crm-cost.html",
+   "references": [
+    "reference/bk-x-crm-cost-390-dark.png",
+    "reference/bk-x-crm-cost-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-retail-eod",
+   "title": "Retail: end of day posts",
+   "route": "/tender/end-of-day",
+   "level": "Retail",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-retail-eod.html",
+   "references": [
+    "reference/bk-x-retail-eod-1440-dark.png",
+    "reference/bk-x-retail-eod-1440.png",
+    "reference/bk-x-retail-eod-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-retail-grn",
+   "title": "Retail: goods in makes a draft bill",
+   "route": "/tender/goods-in/GRN-0033",
+   "level": "Retail",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-retail-grn.html",
+   "references": [
+    "reference/bk-x-retail-grn-1440-dark.png",
+    "reference/bk-x-retail-grn-1440.png",
+    "reference/bk-x-retail-grn-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-payroll",
+   "title": "Payroll: the run and what it leaves to pay",
+   "route": "/payroll/runs/2026-09",
+   "level": "Payroll",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-payroll.html",
+   "references": [
+    "reference/bk-x-payroll-1440-dark.png",
+    "reference/bk-x-payroll-1440.png",
+    "reference/bk-x-payroll-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "x-reports",
+   "title": "Reports from Books",
+   "route": "/reports?source=books",
+   "level": "Reports",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-x-reports.html",
+   "references": [
+    "reference/bk-x-reports-1440-dark.png",
+    "reference/bk-x-reports-1440.png",
+    "reference/bk-x-reports-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "p-money",
+   "title": "Owner: Money on a phone",
+   "route": "/books (phone)",
+   "level": "Money",
+   "tier": "screens",
+   "phase": "P3",
+   "html": "html/bk-p-money.html",
+   "references": [
+    "reference/bk-p-money-390-dark.png",
+    "reference/bk-p-money-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "p-approve",
+   "title": "Manager: approve a requisition",
+   "route": "/books/spending/requisitions/REQ-0043 (phone)",
+   "level": "Bills & spending",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-p-approve.html",
+   "references": [
+    "reference/bk-p-approve-390-dark.png",
+    "reference/bk-p-approve-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "p-voucher",
+   "title": "Float holder: a petty cash voucher",
+   "route": "/books/spending/claims/new (phone)",
+   "level": "Bills & spending",
+   "tier": "core",
+   "phase": "P3",
+   "html": "html/bk-p-voucher.html",
+   "references": [
+    "reference/bk-p-voucher-390-dark.png",
+    "reference/bk-p-voucher-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "tax",
+   "title": "What's due",
+   "route": "/books/tax",
+   "level": "Tax",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-tax.html",
+   "references": [
+    "reference/bk-tax-1440-dark.png",
+    "reference/bk-tax-1440.png",
+    "reference/bk-tax-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "vat",
+   "title": "VAT 7, September",
+   "route": "/books/tax/vat/2026-09",
+   "level": "Tax",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-vat.html",
+   "references": [
+    "reference/bk-vat-1440-dark.png",
+    "reference/bk-vat-1440.png",
+    "reference/bk-vat-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "withholding",
+   "title": "Withholding",
+   "route": "/books/tax/withholding",
+   "level": "Tax",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-withholding.html",
+   "references": [
+    "reference/bk-withholding-1440-dark.png",
+    "reference/bk-withholding-1440.png",
+    "reference/bk-withholding-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "provisional",
+   "title": "Provisional tax",
+   "route": "/books/tax/provisional",
+   "level": "Tax",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-provisional.html",
+   "references": [
+    "reference/bk-provisional-1440-dark.png",
+    "reference/bk-provisional-1440.png",
+    "reference/bk-provisional-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "fiscal",
+   "title": "Fiscal register",
+   "route": "/books/tax/fiscal",
+   "level": "Tax",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-fiscal.html",
+   "references": [
+    "reference/bk-fiscal-1440-dark.png",
+    "reference/bk-fiscal-1440.png",
+    "reference/bk-fiscal-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "close",
+   "title": "September's checklist",
+   "route": "/books/close/2026-09",
+   "level": "Close the month",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-close.html",
+   "references": [
+    "reference/bk-close-1440-dark.png",
+    "reference/bk-close-1440.png",
+    "reference/bk-close-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "needs-posting",
+   "title": "Needs posting",
+   "route": "/books/close/needs-posting",
+   "level": "Close the month",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-needs-posting.html",
+   "references": [
+    "reference/bk-needs-posting-1440-dark.png",
+    "reference/bk-needs-posting-1440.png",
+    "reference/bk-needs-posting-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "rates",
+   "title": "Rates & revaluation",
+   "route": "/books/close/rates",
+   "level": "Close the month",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-rates.html",
+   "references": [
+    "reference/bk-rates-1440-dark.png",
+    "reference/bk-rates-1440.png",
+    "reference/bk-rates-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "journals",
+   "title": "Journals",
+   "route": "/books/ledger/journals",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-journals.html",
+   "references": [
+    "reference/bk-journals-1440-dark.png",
+    "reference/bk-journals-1440.png",
+    "reference/bk-journals-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "trial-balance",
+   "title": "Trial balance",
+   "route": "/books/ledger/trial-balance",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-trial-balance.html",
+   "references": [
+    "reference/bk-trial-balance-1440-dark.png",
+    "reference/bk-trial-balance-1440.png",
+    "reference/bk-trial-balance-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "financials",
+   "title": "Profit and loss",
+   "route": "/books/ledger/statements",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-financials.html",
+   "references": [
+    "reference/bk-financials-1440-dark.png",
+    "reference/bk-financials-1440.png",
+    "reference/bk-financials-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "ledger",
+   "title": "General ledger",
+   "route": "/books/ledger/general?account=1010",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-ledger.html",
+   "references": [
+    "reference/bk-ledger-1440-dark.png",
+    "reference/bk-ledger-1440.png",
+    "reference/bk-ledger-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "chart",
+   "title": "Chart of accounts",
+   "route": "/books/ledger/accounts",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-chart.html",
+   "references": [
+    "reference/bk-chart-1440-dark.png",
+    "reference/bk-chart-1440.png",
+    "reference/bk-chart-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "posting-rules",
+   "title": "Posting rules",
+   "route": "/books/ledger/posting-rules",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-posting-rules.html",
+   "references": [
+    "reference/bk-posting-rules-1440-dark.png",
+    "reference/bk-posting-rules-1440.png",
+    "reference/bk-posting-rules-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "audit",
+   "title": "Audit trail",
+   "route": "/books/ledger/audit",
+   "level": "Ledger",
+   "tier": "advanced",
+   "phase": "P4",
+   "html": "html/bk-audit.html",
+   "references": [
+    "reference/bk-audit-1440-dark.png",
+    "reference/bk-audit-1440.png",
+    "reference/bk-audit-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "x-advanced",
+   "title": "An advanced level on the $10 screens",
+   "route": "/books/tax (on the $10 plan)",
+   "level": "Tax",
+   "tier": "screens",
+   "phase": "P4",
+   "html": "html/bk-x-advanced.html",
+   "references": [
+    "reference/bk-x-advanced-1440-dark.png",
+    "reference/bk-x-advanced-1440.png",
+    "reference/bk-x-advanced-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "mg-money-and-tax",
+   "title": "Money and tax",
+   "route": "/management/company/money-and-tax",
+   "level": "Management",
+   "tier": "core",
+   "phase": "P1",
+   "html": "html/bk-mg-money-and-tax.html",
+   "references": [
+    "reference/bk-mg-money-and-tax-1440-dark.png",
+    "reference/bk-mg-money-and-tax-1440.png",
+    "reference/bk-mg-money-and-tax-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "mg-money-accounts",
+   "title": "Money accounts",
+   "route": "/management/company/money-accounts",
+   "level": "Management",
+   "tier": "core",
+   "phase": "P1",
+   "html": "html/bk-mg-money-accounts.html",
+   "references": [
+    "reference/bk-mg-money-accounts-1440-dark.png",
+    "reference/bk-mg-money-accounts-1440.png",
+    "reference/bk-mg-money-accounts-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "mg-approvals",
+   "title": "Approvals",
+   "route": "/management/company/approvals",
+   "level": "Management",
+   "tier": "core",
+   "phase": "P1",
+   "html": "html/bk-mg-approvals.html",
+   "references": [
+    "reference/bk-mg-approvals-1440-dark.png",
+    "reference/bk-mg-approvals-1440.png",
+    "reference/bk-mg-approvals-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "mg-accountant-export",
+   "title": "Accountant export",
+   "route": "/management/company/accountant-export",
+   "level": "Management",
+   "tier": "core",
+   "phase": "P5",
+   "html": "html/bk-mg-accountant-export.html",
+   "references": [
+    "reference/bk-mg-accountant-export-1440-dark.png",
+    "reference/bk-mg-accountant-export-1440.png",
+    "reference/bk-mg-accountant-export-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "mg-users",
+   "title": "An outside accountant",
+   "route": "/management/people/CHIPO (outside accountant)",
+   "level": "Management",
+   "tier": "core",
+   "phase": "P5",
+   "html": "html/bk-mg-users.html",
+   "references": [
+    "reference/bk-mg-users-1440-dark.png",
+    "reference/bk-mg-users-1440.png",
+    "reference/bk-mg-users-390.png"
+   ],
+   "worksheet": false
+  },
+  {
+   "slug": "bulk-result",
+   "title": "Bulk void: the results",
+   "route": "/books/sales/invoices?bulk=<job id>",
+   "level": "Sales",
+   "tier": "screens",
+   "phase": "P5",
+   "html": "html/bk-bulk-result.html",
+   "references": [
+    "reference/bk-bulk-result-1440-dark.png",
+    "reference/bk-bulk-result-1440.png",
+    "reference/bk-bulk-result-390.png"
+   ],
+   "worksheet": true
+  },
+  {
+   "slug": "delete-permanent",
+   "title": "Owner: delete test data permanently",
+   "route": "/books/settings/delete (owner)",
+   "level": "Settings",
+   "tier": "screens",
+   "phase": "P5",
+   "html": "html/bk-delete-permanent.html",
+   "references": [
+    "reference/bk-delete-permanent-1440-dark.png",
+    "reference/bk-delete-permanent-1440.png",
+    "reference/bk-delete-permanent-390.png"
+   ],
+   "worksheet": false
+  }
+ ],
+ "sheets": [
+  {
+   "slug": "brief",
+   "html": "html/bk-brief.html",
+   "references": [
+    "reference/bk-brief-1440-dark.png",
+    "reference/bk-brief-1440.png",
+    "reference/bk-brief-390.png"
+   ]
+  },
+  {
+   "slug": "model",
+   "html": "html/bk-model.html",
+   "references": [
+    "reference/bk-model-1440-dark.png",
+    "reference/bk-model-1440.png",
+    "reference/bk-model-390.png"
+   ]
+  },
+  {
+   "slug": "nav",
+   "html": "html/bk-nav.html",
+   "references": [
+    "reference/bk-nav-1440-dark.png",
+    "reference/bk-nav-1440.png",
+    "reference/bk-nav-390.png"
+   ]
+  },
+  {
+   "slug": "kit",
+   "html": "html/bk-kit.html",
+   "references": [
+    "reference/bk-kit-1440-dark.png",
+    "reference/bk-kit-1440.png",
+    "reference/bk-kit-390.png"
+   ]
+  }
+ ]
+}

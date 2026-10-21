@@ -21,11 +21,11 @@ describe("Bills (BkBills)", () => {
 
   it("says what is owed, by Sunday, and who is late", () => {
     expect(billsFinding({ amount: 8077.15, bills: 5, bySunday: 4897.15 }, [{ supplier: "Mutare Timber Works", days: 2, balance: 1859.55 }])).toEqual({
-      fact: "You owe US$8,077.15 on 5 bills, US$4,897.15 by Sunday.",
+      fact: "You owe $8,077.15 on 5 bills, $4,897.15 by Sunday.",
       rest: "Mutare Timber Works' bill is 2 days late.",
     });
     expect(billsFinding({ amount: 0, bills: 0, bySunday: 0 }, []).fact).toBe("You owe no supplier anything.");
-    expect(billsFinding({ amount: 100, bills: 2, bySunday: 0 }, [{ supplier: "A", days: 1, balance: 40 }, { supplier: "B", days: 3, balance: 60 }]).rest).toBe("2 are late, US$100.00 in all.");
+    expect(billsFinding({ amount: 100, bills: 2, bySunday: 0 }, [{ supplier: "A", days: 1, balance: 40 }, { supplier: "B", days: 3, balance: 60 }]).rest).toBe("2 are late, $100.00 in all.");
   });
 
   it("ends the week on Sunday", () => {
@@ -65,11 +65,11 @@ describe("Payments made (BkPaymentsOut)", () => {
 
   it("says what was paid this month and what waits", () => {
     expect(paymentsOutFinding(6088.9, [{ supplier: "Mutare Timber Works", amount: 1301.68 }])).toEqual({
-      fact: "US$6,088.90 was paid out this month.",
-      rest: "US$1,301.68 to Mutare Timber Works waits for approval.",
+      fact: "$6,088.90 was paid out this month.",
+      rest: "$1,301.68 to Mutare Timber Works waits for approval.",
     });
     expect(paymentsOutFinding(0, []).fact).toBe("Nothing has been paid to suppliers this month.");
-    expect(paymentsOutFinding(10, [{ supplier: "A", amount: 1 }, { supplier: null, amount: 2 }]).rest).toBe("2 payments wait for approval, US$3.00 in all.");
+    expect(paymentsOutFinding(10, [{ supplier: "A", amount: 1 }, { supplier: null, amount: 2 }]).rest).toBe("2 payments wait for approval, $3.00 in all.");
   });
 });
 
@@ -87,7 +87,7 @@ describe("Purchase orders (BkOrders) and New order", () => {
 
   it("opens on Sent, and says what is on order and what waits", () => {
     expect(readOrderQuery(new URLSearchParams())).toMatchObject({ view: "sent", source: null, period: "any" });
-    expect(ordersFinding(4962, [{ number: "PO-0035", amount: 2960, what: "Vinyl" }])).toEqual({ fact: "US$4,962.00 is on order and not yet received.", rest: "PO-0035, US$2,960.00 of vinyl, waits for approval." });
+    expect(ordersFinding(4962, [{ number: "PO-0035", amount: 2960, what: "Vinyl" }])).toEqual({ fact: "$4,962.00 is on order and not yet received.", rest: "PO-0035, $2,960.00 of vinyl, waits for approval." });
     expect(ordersFinding(0, []).fact).toBe("Nothing is on order.");
   });
 
@@ -107,15 +107,15 @@ describe("Requisitions (BkRequisitions)", () => {
   });
 
   it("says what waits for this person and who has not accounted for theirs", () => {
-    expect(requisitionsFinding({ count: 2, amount: 98 }, [{ name: "Simba Gondo", amount: 95 }])).toEqual({ fact: "2 requisitions wait for you, US$98.00.", rest: "Simba Gondo's US$95.00 is not accounted for yet." });
+    expect(requisitionsFinding({ count: 2, amount: 98 }, [{ name: "Simba Gondo", amount: 95 }])).toEqual({ fact: "2 requisitions wait for you, $98.00.", rest: "Simba Gondo's $95.00 is not accounted for yet." });
     expect(requisitionsFinding({ count: 0, amount: 0 }, []).fact).toBe("No requisition waits for you.");
-    expect(requisitionsFinding({ count: 1, amount: 5 }, [{ name: "James", amount: 1 }]).rest).toBe("James' US$1.00 is not accounted for yet.");
+    expect(requisitionsFinding({ count: 1, amount: 5 }, [{ name: "James", amount: 1 }]).rest).toBe("James' $1.00 is not accounted for yet.");
   });
 });
 
 describe("Claims & petty cash (BkClaims) and Snap a slip (BkClaimPhone)", () => {
   it("says what waits for approval and to be paid back", () => {
-    expect(claimsFinding([{ name: "Simba Gondo", amount: 23 }], [{ name: "Tinashe Moyo", amount: 36 }])).toEqual({ fact: "1 claim waits for you: Simba Gondo, US$23.00.", rest: "Tinashe Moyo's US$36.00 waits to be paid back." });
+    expect(claimsFinding([{ name: "Simba Gondo", amount: 23 }], [{ name: "Tinashe Moyo", amount: 36 }])).toEqual({ fact: "1 claim waits for you: Simba Gondo, $23.00.", rest: "Tinashe Moyo's $36.00 waits to be paid back." });
     expect(claimsFinding([], []).fact).toBe("No claim waits for you.");
     expect(readClaimQuery(new URLSearchParams("view=floats"))).toMatchObject({ view: "floats" });
   });
@@ -146,7 +146,7 @@ describe("Suppliers (BkSuppliers) and one supplier (BkSupplier)", () => {
   });
 
   it("says how many are owed and how late", () => {
-    expect(suppliersFinding({ suppliers: 5, amount: 8077.15 }, [{ name: "Mutare Timber Works", amount: 1859.55 }])).toEqual({ fact: "You owe 5 suppliers US$8,077.15.", rest: "Mutare Timber Works is owed US$1,859.55 that is overdue." });
+    expect(suppliersFinding({ suppliers: 5, amount: 8077.15 }, [{ name: "Mutare Timber Works", amount: 1859.55 }])).toEqual({ fact: "You owe 5 suppliers $8,077.15.", rest: "Mutare Timber Works is owed $1,859.55 that is overdue." });
     expect(suppliersFinding({ suppliers: 0, amount: 0 }, []).fact).toBe("You owe no supplier anything.");
     // D17: who has no valid ITF263 comes first, since paying them withholds 30%.
     expect(suppliersFinding({ suppliers: 5, amount: 8077.15 }, [{ name: "Mutare Timber Works", amount: 1859.55 }], "USD", 2).rest).toBe("2 have no valid ITF263, so paying them withholds 30%.");
@@ -183,11 +183,11 @@ describe("Suppliers (BkSuppliers) and one supplier (BkSupplier)", () => {
 describe("All spending (BkSpending)", () => {
   it("says what has gone out and what is the most", () => {
     expect(spendingFinding(6716.86, 5, { bills: 3972.4, requisitions: 200, claims: 50, "till-payouts": 64, payroll: 931.9, other: 1498.56 })).toEqual({
-      fact: "US$6,716.86 has gone out this month, from 5 modules.",
-      rest: "Bills are the most, US$3,972.40.",
+      fact: "$6,716.86 has gone out this month, from 5 modules.",
+      rest: "Bills are the most, $3,972.40.",
     });
     expect(spendingFinding(0, 0, { bills: 0, requisitions: 0, claims: 0, "till-payouts": 0, payroll: 0, other: 0 }).fact).toBe("Nothing has gone out this month.");
-    expect(spendingFinding(10, 1, { bills: 0, requisitions: 0, claims: 0, "till-payouts": 0, payroll: 10, other: 0 }).rest).toBe("Payroll is the most, US$10.00.");
+    expect(spendingFinding(10, 1, { bills: 0, requisitions: 0, claims: 0, "till-payouts": 0, payroll: 10, other: 0 }).rest).toBe("Payroll is the most, $10.00.");
     expect(readSpendingQuery(new URLSearchParams("view=till-payouts&from=Retail"))).toMatchObject({ view: "till-payouts", from: "Retail", month: "this" });
   });
 

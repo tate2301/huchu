@@ -58,7 +58,7 @@ export function Sidebar({ groups, active, badges, prefs, onPref, tile, person, m
       node={node}
       where={where}
       active={active}
-      badge={badges[node.href]}
+      badge={levelCount(node, badges) ?? badges[node.href]}
       badges={badges}
       open={prefs.opened.includes(node.id) || active?.nodeId === node.id}
       pinned={prefs.pinned.includes(node.id)}
@@ -173,7 +173,7 @@ function NodeRow({
         <Link href={node.href} className={styles.link} aria-current={current ? "page" : undefined} onClick={onNavigate}>
           <Glyph name={node.icon} />
           <span className={styles.text}>{node.label}</span>
-          {badge ? <span className={styles.badge}>{badge}</span> : null}
+          {node.lock ? <Locked price={node.lock} /> : badge ? <span className={styles.badge}>{badge}</span> : null}
         </Link>
         {hasKids ? (
           <button
@@ -213,7 +213,7 @@ function NodeRow({
                 onClick={onNavigate}
               >
                 <span className={styles.text}>{kid.label}</span>
-                {badges[kid.href] ? <span className={styles.badge}>{badges[kid.href]}</span> : null}
+                {kid.lock ? <Locked price={kid.lock} /> : badges[kid.href] ? <span className={styles.badge}>{badges[kid.href]}</span> : null}
               </Link>
             </li>
           ))}
@@ -221,4 +221,22 @@ function NodeRow({
       ) : null}
     </li>
   );
+}
+
+/** A page the plan does not include: its price and a lock. It still opens, onto what the plan adds. */
+function Locked({ price }: { price: string }) {
+  const Lock = NAV_ICONS.lock;
+  return (
+    <span className={styles.badge}>
+      {price}
+      {Lock ? <Lock width={12} height={12} aria-label="Not on your plan" /> : null}
+    </span>
+  );
+}
+
+/** What waits in a level: the counts of its open rows, summed (Books' levels). */
+function levelCount(node: ComposedNode, badges: Record<string, string>): string | null {
+  if (node.group !== "books" || node.kids.length === 0) return null;
+  const total = node.kids.reduce((sum, kid) => sum + (kid.lock ? 0 : Number(badges[kid.href] ?? 0) || 0), 0);
+  return total > 0 ? String(total) : null;
 }

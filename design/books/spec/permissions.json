@@ -1,0 +1,201 @@
+{
+ "_about": "Who may do what in Books. Y = allowed. \u2013 = refused by the server. Any other value is a scope or a condition, described in spec/books.md. Write table-driven server tests from this file: every role x action, allowed and refused. Hiding a control is never the check. Bulk actions apply the same check row by row. The plan gate (spec/books.md, Tiers) applies on top: Tax, Close the month and Ledger also need the $99 plan.",
+ "roles": [
+  "owner",
+  "outside_accountant",
+  "manager",
+  "accountant",
+  "bursar",
+  "shop_manager",
+  "rep"
+ ],
+ "roleNotes": {
+  "outside_accountant": "An outside user from the firm that audits or keeps the books. Owner's rights in Books, until the access end date. Every act marked as theirs; the owner sees it the same day.",
+  "accountant": "Staff accountant. Never voids, revises or deletes anything posted; asks the owner or the outside accountant. Approves within a limit, never their own request.",
+  "superuser": "Corelith staff signed in as the owner in change mode. Owner's rights; every destructive act carries the session number (for example SA-214).",
+  "bursar": "School workspaces (Campus). Fees only."
+ },
+ "actions": [
+  {
+   "action": "See Books screens",
+   "key": "view_screens",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "Sales, Bank & cash",
+   "shop_manager": "Bank & cash, Takings",
+   "rep": "\u2013"
+  },
+  {
+   "action": "Create, edit, delete a draft",
+   "key": "edit_draft",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "fees",
+   "shop_manager": "retail",
+   "rep": "own"
+  },
+  {
+   "action": "Issue or post",
+   "key": "issue",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "fees",
+   "shop_manager": "retail",
+   "rep": "receipts"
+  },
+  {
+   "action": "Approve or pay",
+   "key": "approve_pay",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "within limit",
+   "accountant": "within limit",
+   "bursar": "\u2013",
+   "shop_manager": "within limit",
+   "rep": "\u2013"
+  },
+  {
+   "action": "Void or revise a posted document",
+   "key": "void_revise",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "\u2013",
+   "accountant": "\u2013",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "action": "Permanently delete anything posted",
+   "key": "delete_posted",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "\u2013",
+   "accountant": "\u2013",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "action": "Close a month",
+   "key": "close_month",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "action": "Reopen a month",
+   "key": "reopen_month",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "\u2013",
+   "accountant": "\u2013",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "action": "File a VAT return",
+   "key": "file_vat",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "prepare, review",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  }
+ ],
+ "levels": [
+  {
+   "level": "Money",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "Y",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Sales",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "Y",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Bills & spending",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "own requests"
+  },
+  {
+   "level": "Bank & cash",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "Y",
+   "shop_manager": "Y",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Tax",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Close the month",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Ledger",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  },
+  {
+   "level": "Settings",
+   "owner": "Y",
+   "outside_accountant": "Y",
+   "manager": "Y",
+   "accountant": "Y",
+   "bursar": "\u2013",
+   "shop_manager": "\u2013",
+   "rep": "\u2013"
+  }
+ ]
+}

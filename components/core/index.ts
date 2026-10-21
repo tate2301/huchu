@@ -1,5 +1,5 @@
 export { Kit, KitScreen } from "./kit-root";
-export { Icon, type IconName } from "./icon";
+export { Icon, IconRendererProvider, type IconName, type IconRenderer } from "./icon";
 export { VaneMark } from "./vane-mark";
 export { Button, ButtonLink, ButtonGroup, Kbd, type ButtonProps, type ButtonVariant } from "./button";
 export { Field, Input, TextArea, Select, InputWithIcon, Switch, Check } from "./field";

@@ -50,7 +50,7 @@ export type MoneyBoard = {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** "US$20,522.40 came in this month and US$6,716.86 went out. US$2,480.00 is overdue." */
+/** "$20,522.40 came in this month and $6,716.86 went out. $2,480.00 is overdue." */
 export function moneyBoardFinding(cameIn: number, wentOut: number, overdue: number, currency: string): { fact: string; rest: string | null } {
   const fact =
     cameIn > 0 || wentOut > 0

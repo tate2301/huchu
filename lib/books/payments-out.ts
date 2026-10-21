@@ -97,7 +97,7 @@ export function paymentOutWhere(companyId: string, query: PaymentOutQuery, today
   return where;
 }
 
-/** "US$6,088.90 was paid out this month." / "US$1,301.68 to Mutare Timber Works waits for approval." */
+/** "$6,088.90 was paid out this month." / "$1,301.68 to Mutare Timber Works waits for approval." */
 export function paymentsOutFinding(
   paid: number,
   waiting: Array<{ supplier: string | null; amount: number }>,

@@ -22,7 +22,7 @@ describe("what changed since the quote", () => {
     ];
     expect(changesFromQuote(invoice, quote, "USD")).toEqual([
       "coved skirting: 64, not 60",
-      "coved skirting: US$9.75, not US$9.50",
+      "coved skirting: $9.75, not $9.50",
       "Door bars: added",
       "Levelling compound: left out",
     ]);

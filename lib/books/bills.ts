@@ -63,6 +63,11 @@ export type BillRow = {
   what: string | null;
   /** The FDMS check; null for a debit note. */
   fdms: FdmsCheckStatus | null;
+  /** The supplier's fiscal tax invoice number (D16), as the bill shows it. */
+  fti: string | null;
+  /** "1 Oct": when it was dated, and when it falls due. */
+  dated: string;
+  due: string | null;
   /** The order and goods receipt it matches: "PO-0032 · GRN-0046", or null. */
   matches: { order: string | null; receipt: string | null; bill: string | null };
   state: ExpenseState;
@@ -133,6 +138,7 @@ const billSelect = {
   writeOffTotal: true,
   notes: true,
   fdmsStatus: true,
+  supplierFtiNumber: true,
   vendor: { select: { id: true, name: true } },
   purchaseOrder: { select: { poNo: true } },
   goodsReceipt: { select: { receiptNo: true } },
@@ -150,6 +156,9 @@ export function toBillRow(record: BillRecord, today: string): BillRow {
     supplier: record.vendor,
     what: record.lines[0]?.description ?? record.notes ?? null,
     fdms: record.fdmsStatus,
+    fti: record.supplierFtiNumber,
+    dated: shortDay(storedDay(record.billDate)),
+    due: record.dueDate ? shortDay(storedDay(record.dueDate)) : null,
     matches: { order: record.purchaseOrder?.poNo ?? null, receipt: record.goodsReceipt?.receiptNo ?? null, bill: null },
     state: read.state,
     stateLabel: EXPENSE_STATE_LABEL[read.state],
@@ -160,7 +169,7 @@ export function toBillRow(record: BillRecord, today: string): BillRow {
   };
 }
 
-/** "You owe US$8,077.15 on 5 bills, US$4,897.15 by Sunday." / "Mutare Timber Works' bill is 2 days late." */
+/** "You owe $8,077.15 on 5 bills, $4,897.15 by Sunday." / "Mutare Timber Works' bill is 2 days late." */
 export function billsFinding(
   toPay: { amount: number; bills: number; bySunday: number },
   overdue: Array<{ supplier: string; days: number; balance: number }>,
@@ -251,6 +260,9 @@ async function debitNoteRows(db: Db, companyId: string, query: BillQuery): Promi
         supplier: note.bill.vendor,
         what: note.reason,
         fdms: null,
+        fti: null,
+        dated: shortDay(storedDay(note.noteDate)),
+        due: null,
         matches: { order: null, receipt: null, bill: docLabel(note.bill.billNumber, "bill") },
         state: state.state,
         stateLabel: state.label,

@@ -52,7 +52,8 @@ async function applyRoleChange(request: NextRequest) {
 
   const updated = await prisma.user.update({
     where: { id: existing.id },
-    data: { role: validated.role },
+    // Only a finance officer can be an outside accountant: any other role is staff.
+    data: validated.role === "FINANCE_OFFICER" ? { role: validated.role } : { role: validated.role, memberKind: "STAFF", firmName: null, accessEndsOn: null },
     select: {
       id: true,
       name: true,

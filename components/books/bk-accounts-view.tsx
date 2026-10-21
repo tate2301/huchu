@@ -57,7 +57,7 @@ export function BkAccountsView({
         foot={
           <TableFoot
             range={`${data.rows.length} ${data.rows.length === 1 ? "account" : "accounts"}`}
-            sums={[{ label: `In ${base === "USD" ? "USD" : base}`, value: money(data.sums.inBase, base) }, ...data.sums.byCurrency.map((row) => ({ label: row.currency === "ZWG" ? "ZiG" : row.currency, value: money(row.total, row.currency) }))]}
+            sums={[{ label: `In ${base === "USD" ? "USD" : base}`, value: money(data.sums.inBase, base) }, ...data.sums.byCurrency.map((row) => ({ label: row.currency, value: money(row.total, row.currency) }))]}
             end={data.rateNote ? <span className="muted">{data.rateNote}</span> : undefined}
           />
         }

@@ -34,8 +34,9 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   // fiscal routes and the module screens call `/api/accounting/*` through
   // them, and those stay open without the screens (books-final §1.2). The
   // screens' own addresses are gated by `books.screens` in the route
-  // registry (`booksScreensKeyForPath`).
+  // registry (`booksTierKeyForPath`).
   "books.screens": ["accounting.core"],
+  "books.advanced": ["books.screens"],
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],
