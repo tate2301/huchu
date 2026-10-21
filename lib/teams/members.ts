@@ -156,13 +156,23 @@ async function refuseUnlessManageable(tx: Prisma.TransactionClient, actor: Held,
 const shown = (held: Held) => ({ status: held.status, role: held.role, isAdmin: held.isAdmin });
 
 /** Free the seat and end their sessions. Everything they did stays. */
-export async function suspendMember(actor: Actor, membershipId: string, now = new Date()): Promise<void> {
+export async function suspendMember(
+  actor: Actor,
+  membershipId: string,
+  now = new Date(),
+  /** `until`: the day they are due back, written on the audit line. `handTo`: who takes the records they own. */
+  options: { until?: Date | null; handTo?: string } = {},
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const by = await actorIn(tx, actor);
     const target = await targetIn(tx, actor.companyId, membershipId);
     if (target.status === "SUSPENDED") return;
     if (target.status !== "ACTIVE") throw new TeamsRefusal("NOT_OPEN", `${target.user.name} is not an active member.`);
     await refuseUnlessManageable(tx, by, target, "suspend");
+    if (options.handTo) {
+      if (options.handTo === target.id) throw new TeamsRefusal("SELF", "Choose someone else to take them over.");
+      await handOverAll(tx, actor, target.id, options.handTo, `${target.user.name} is suspended.`);
+    }
     await tx.user.update({ where: { id: target.userId }, data: { isActive: false, sessionsEndedAt: now } });
     const after = await tx.workspaceMembership.update({ where: { id: target.id }, data: { status: "SUSPENDED", suspendedAt: now } });
     await recordTeamsChange(tx, {
@@ -172,7 +182,7 @@ export async function suspendMember(actor: Actor, membershipId: string, now = ne
       entityType: "membership",
       entityId: target.id,
       before: shown(target),
-      after: shown({ ...target, ...after }),
+      after: { ...shown({ ...target, ...after }), ...(options.until ? { until: options.until.toISOString() } : {}) },
     });
   });
   await repriceCompany(actor.companyId);

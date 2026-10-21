@@ -22,6 +22,7 @@ export const TEAMS_CHANGES = [
   "permission.changed",
   "seats.limit_changed",
   "seats.requested",
+  "seats.declined",
   "invite.created",
   "invite.resent",
   "invite.revoked",

@@ -116,7 +116,7 @@ export async function setSeatLimit(actor: { companyId: string; userId: string },
  * gets a Needs you notice with the name and role the admin typed. Refused
  * when a seat is free (just invite) or when the owner asks themselves.
  */
-export async function requestSeat(actor: { companyId: string; userId: string }, input: { name: string; role: UserRole }, now = new Date()): Promise<void> {
+export async function requestSeat(actor: { companyId: string; userId: string }, input: { name: string; role: UserRole; phone?: string | null; email?: string | null }, now = new Date()): Promise<void> {
   const name = input.name.trim();
   if (!name) throw new TeamsRefusal("INVALID", "Say who the seat is for.");
   await prisma.$transaction(async (tx) => {
@@ -135,7 +135,7 @@ export async function requestSeat(actor: { companyId: string; userId: string }, 
       change: "seats.requested",
       entityType: "seats",
       entityId: actor.companyId,
-      after: { name, role: input.role, used: line.used, limit: line.limit, ref },
+      after: { name, role: input.role, phone: input.phone?.trim() || null, email: input.email?.trim() || null, used: line.used, limit: line.limit, ref },
     });
     await notifySeatRequest(tx, {
       companyId: actor.companyId,
