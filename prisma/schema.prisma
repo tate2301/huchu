@@ -14005,6 +14005,9 @@ model CrmActivity {
   body        String?
   metadata    Json?
   createdById String?
+  /// Where it came from and which module wrote it (`lib/teams/timeline.ts`).
+  source      EventSource     @default(WEB)
+  module      EventModule     @default(CRM)
   occurredAt  DateTime        @default(now())
   createdAt   DateTime        @default(now())
 
@@ -15499,8 +15502,11 @@ model CrmComment {
   siteId   String?
 
   createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  /// Where it came from and which module wrote it (`lib/teams/timeline.ts`).
+  source      EventSource @default(WEB)
+  module      EventModule @default(CRM)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy  User         @relation("CrmCommentCreatedBy", fields: [createdById], references: [id])
@@ -17578,4 +17584,31 @@ model RecordAccessGrant {
 
   @@unique([companyId, subjectType, subjectId, membershipId])
   @@index([companyId, subjectType, subjectId])
+}
+
+/// Where an event came from.
+enum EventSource {
+  TILL
+  PHONE
+  WEB
+  WHATSAPP
+  IMPORT
+  ZIMRA
+  BANK
+  SYSTEM
+}
+
+/// The module that wrote an event.
+enum EventModule {
+  CRM
+  RETAIL
+  BOOKS
+  PEOPLE
+  PAYROLL
+  OPERATIONS
+  SCHOOLS
+  REPORTS
+  VANE
+  GOLD
+  TEAMS
 }
