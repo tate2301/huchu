@@ -386,6 +386,78 @@
         "onboarding guide",
         "setup wizard"
       ]
+    },
+    {
+      "concept": "asking the owner to add a seat",
+      "use": [
+        "Ask Sean for a seat",
+        "Add the seat",
+        "Not now"
+      ],
+      "banned": [
+        "Request approval",
+        "Upgrade",
+        "Buy a seat"
+      ]
+    },
+    {
+      "concept": "a person holding a seat who has not joined yet",
+      "use": [
+        "Waiting to join"
+      ],
+      "banned": [
+        "Pending",
+        "Invited users"
+      ]
+    },
+    {
+      "concept": "stopping someone's access for a while",
+      "use": [
+        "Suspend",
+        "Restore"
+      ],
+      "banned": [
+        "Deactivate",
+        "Disable",
+        "Block"
+      ]
+    },
+    {
+      "concept": "the owner handing the workspace to someone",
+      "use": [
+        "Offer ownership",
+        "Send the offer",
+        "Become the owner"
+      ],
+      "banned": [
+        "Transfer ownership",
+        "Make owner"
+      ]
+    },
+    {
+      "concept": "when someone last used the app",
+      "use": [
+        "Last here"
+      ],
+      "banned": [
+        "Last login",
+        "Last seen",
+        "Last active"
+      ]
+    },
+    {
+      "concept": "the shared link that lets people join as a job",
+      "use": [
+        "Invite link",
+        "Turn on",
+        "Turn off",
+        "Make a new link"
+      ],
+      "banned": [
+        "Join URL",
+        "Magic link",
+        "Regenerate"
+      ]
     }
   ],
   "plain": [

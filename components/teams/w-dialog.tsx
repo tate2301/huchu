@@ -31,7 +31,17 @@ export function WDialog({
       <Dialog.Portal>
         <Teams className="tm--portal">
           <Dialog.Overlay className="wp-scrim" />
-          <Dialog.Content className="wp-dlg" aria-describedby={undefined}>
+          <Dialog.Content
+            className="wp-dlg"
+            aria-describedby={undefined}
+            onOpenAutoFocus={(event) => {
+              const primary = (event.currentTarget as HTMLElement).querySelector<HTMLElement>("[data-primary]");
+              if (primary) {
+                event.preventDefault();
+                primary.focus();
+              }
+            }}
+          >
             <div className="wp-dlg__h">
               {icon ? (
                 <span className="wp-dlg__mark">

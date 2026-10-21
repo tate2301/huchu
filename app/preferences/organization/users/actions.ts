@@ -10,6 +10,7 @@ import { changeUserPermission, PermissionChangeRefused } from "@/lib/platform/ch
 import type { PermissionState } from "@/lib/platform/permission-catalog";
 import { getUserPermissionCatalog } from "@/lib/platform/permission-catalog";
 import { prisma } from "@/lib/prisma";
+import { landingFor } from "@/lib/teams/words";
 import { deliverInvite } from "@/lib/teams/deliver";
 import { TeamsRefusal, type TeamsRefusalCode } from "@/lib/teams/errors";
 import { createInvite, markNotDelivered, resendInvite, revokeInvite } from "@/lib/teams/invites";
@@ -148,7 +149,8 @@ export type InviteInput = { name: string; phone?: string; email?: string; role: 
 
 export async function inviteAction(input: InviteInput): Promise<Done<{ delivered: boolean }>> {
   return run(async (actor) => {
-    const { invite, token } = await createInvite(actor, { name: input.name, phone: input.phone || null, email: input.email || null, role: input.role });
+    const company = await prisma.company.findUniqueOrThrow({ where: { id: actor.companyId }, select: { product: true } });
+    const { invite, token } = await createInvite(actor, { name: input.name, phone: input.phone || null, email: input.email || null, role: input.role, landsOn: landingFor(company.product) });
     return { delivered: await send(actor, invite, token) };
   });
 }

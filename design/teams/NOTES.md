@@ -60,3 +60,15 @@ Not matched, and why:
 - Invite link: the address is stored as a hash, so it is shown once when made. "Expires", "Used" and Join by email domain have no model.
 - W7-1/W7-2 Activity grouped by record, W7-3 personal quiet hours (quiet hours are a workspace policy today, `NotificationPolicy`), the workspace switcher component (blocked on M8) and the gate boards A4, A5, A6, P2, P3 are not built.
 - A joined person lands on the product home (`/crm`), not on the deals list: the invite takes `landsOn` but the add-the-seat path does not set it.
+
+### Agent B, second pass
+
+Built: Needs you rows in `/activity` for an ownership offer (Become the owner, Decline) and a seat request (Not now, Add the seat), from `/api/teams/asks`; the failure boards W4-F, W2-F and W7-F as `/design/<id>` fixtures; the workspace switcher component `components/teams/w-switcher.tsx` (fixtures at `/design/W7-4-switcher` and `W7-5-switcher-phone`, not mounted); invites made from Members or by adding a seat carry `landsOn: /crm/deals` on Pabasa.
+
+Still not built, and why:
+- W7-1 and W7-2 Activity grouped by day then by record. The existing `/activity` keeps Needs you, Mentions, Everything and Workspace; the notification itself still shows under the Needs-you card (the card and the row are the same notice).
+- W7-3 notification settings. WhatsApp is not a sent channel (`SENT_CHANNELS` is in-app and email), and quiet hours are one workspace policy (`NotificationPolicy`). A per person quiet hour needs a column; `NotificationSetting` holds only kind, channel and on/off, so nothing clean fits.
+- W4-9 (Simbarashe's phone, Deals Mine / Everyone's) is in `app/crm`, which Agent B does not touch.
+- A4 and A5 need a Tender workspace with shops and till PINs and a workspace that says "jobs"; no model holds that vocabulary per workspace. A6, P2 and P3 depend on the same. Not built.
+- The W1 rows: no component for them was in `components/teams` yet; `TeamsAsks` has a marked slot.
+- W7-F "joining by address, seats full" and "a workspace you can't open" need a person in more than one workspace (M8); they are fixtures only.

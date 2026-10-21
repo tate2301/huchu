@@ -8,7 +8,7 @@ import { TeamsRefusal } from "./errors";
 import { createInvite } from "./invites";
 import { settleTeamsNotifications } from "./notify";
 import { seatLine, setSeatLimit } from "./seats";
-import { roleWord } from "./words";
+import { landingFor, roleWord } from "./words";
 
 /**
  * A request for a seat, from an admin to the owner, while every seat is taken. The request is the audit line
@@ -94,7 +94,7 @@ export async function addSeatForRequest(actor: Actor, ref: string, now = new Dat
   if (line.left === 0) await setSeatLimit(actor, line.limit + 1);
   const { invite, token } = await createInvite(
     { companyId: actor.companyId, userId: request.askedById },
-    { name: request.name, phone: request.phone, email: request.email, role: request.role, channel: request.phone ? "WHATSAPP" : "EMAIL" },
+    { name: request.name, phone: request.phone, email: request.email, role: request.role, channel: request.phone ? "WHATSAPP" : "EMAIL", landsOn: landingFor((await prisma.company.findUniqueOrThrow({ where: { id: actor.companyId }, select: { product: true } })).product) },
     now,
   );
   await settleTeamsNotifications(prisma, { companyId: actor.companyId, type: "TEAMS_SEAT_REQUEST", ref, action: "seat-added" });

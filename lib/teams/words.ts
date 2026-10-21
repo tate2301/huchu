@@ -78,3 +78,8 @@ export function whenWord(at: Date, now = new Date()): string {
 
 /** "11:41" today, "7 Sep" otherwise. */
 export const stamp = whenWord;
+
+/** Where a new member of a Pabasa workspace lands: the deals. Other products use their own home. */
+export function landingFor(product: WorkspaceProduct): string | null {
+  return product === "PABASA" ? "/crm/deals" : null;
+}

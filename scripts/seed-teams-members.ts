@@ -47,6 +47,12 @@ async function main() {
   const [sean, tatenda, gerald, munashe, simbarashe, tariro] = ["sean", "tatenda", "gerald", "munashe", "simbarashe", "tariro"].map((n) => by(`${n}@corelith.co.zw`));
   const membership = async (userId: string) => (await prisma.workspaceMembership.findFirstOrThrow({ where: { companyId: company.id, userId } })).id;
 
+  // Anyone who joined through an invite since the last run goes: the six are the workspace.
+  const six = new Set(["sean", "tatenda", "gerald", "munashe", "simbarashe", "tariro"].map((n) => `${n}@corelith.co.zw`));
+  for (const user of people.filter((u) => !u.email || !six.has(u.email))) {
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => console.warn(`Left ${user.name}: they own records.`));
+  }
+
   // Put the member records back. Records, deals and the team on each are left as they are.
   await prisma.ownershipOffer.deleteMany({ where: { companyId: company.id } });
   await prisma.workspaceInvite.deleteMany({ where: { companyId: company.id } });

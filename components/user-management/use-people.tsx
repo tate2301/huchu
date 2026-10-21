@@ -235,17 +235,6 @@ function OfferDialog({ member, ownerName, billing, problem, busy, onClose, onDon
       onDone();
     }
   };
-  React.useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && !busy) {
-        event.preventDefault();
-        void submit();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy]);
   return (
     <WDialog
       open
@@ -255,7 +244,7 @@ function OfferDialog({ member, ownerName, billing, problem, busy, onClose, onDon
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={busy} onClick={submit}>
+          <Button variant="primary" data-primary disabled={busy} onClick={submit}>
             Send the offer
             <span className="kbd">Enter</span>
           </Button>
