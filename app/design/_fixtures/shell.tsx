@@ -10,7 +10,7 @@ import { VaneButtonView } from "@/components/vane/vane-button-view";
  * `rail`, `panel`, `topbar`): the rail, the module panel and the top bar as the
  * boards draw them, around a screen. The app's own shell needs a signed-in
  * workspace's navigation, so the fixtures draw this one; it has the same
- * measures (components/layout/workspace-rail).
+ * measures (components/layout/sidebar).
  */
 
 const RAIL: Array<[IconName, string]> = [

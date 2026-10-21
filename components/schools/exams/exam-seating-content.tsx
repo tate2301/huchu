@@ -78,7 +78,7 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
     <SchoolsPage>
       <PageChrome
         title="Seating and invigilation"
-        backHref="/schools/exams"
+        backHref="/schools/results/exams"
         backLabel="Exam series"
       >
         <RecordActions
@@ -137,7 +137,7 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
           body="A sitting is a paper on a date at a time. Seating hangs off it, and so does the invigilation list — so the timetable is written first."
           action={
             <Button asChild variant="primary">
-              <Link href={`/schools/exams/${seriesId}/timetable`}>Open the timetable</Link>
+              <Link href={`/schools/results/exams/${seriesId}/timetable`}>Open the timetable</Link>
             </Button>
           }
         />

@@ -1,0 +1,113 @@
+/* A module's own column beside the sidebar: 240px on the surface. */
+
+.panel {
+  width: 240px;
+  height: 100%;
+  flex: none;
+  box-sizing: border-box;
+  padding: 16px 8px;
+  overflow-y: auto;
+  background: var(--surface);
+  box-shadow: inset -1px 0 0 var(--line);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--ink-2, var(--ink));
+  text-decoration: none;
+}
+
+.row:hover {
+  background: var(--hover);
+}
+
+.current,
+.current:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.badge {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.group {
+  margin-top: 12px;
+}
+
+.groupHead {
+  margin: 0;
+}
+
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.groupToggle:hover {
+  color: var(--ink);
+}
+
+.chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 120ms ease;
+}
+
+.chevronClosed {
+  transform: rotate(-90deg);
+}
+
+.row:focus-visible,
+.groupToggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

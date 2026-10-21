@@ -54,10 +54,10 @@ function pathFor(base: string, siteId: string, date: string, today: string) {
 
 /**
  * End of day. `basePath` is the address it is shown at: the floor's
- * (`/retail/end-of-day`), or Books' Takings (`/books/takings`), so moving
+ * (`/retail/shifts/end-of-day`), or Books' Takings (`/books/takings`), so moving
  * between sites and days keeps the panel it was opened from.
  */
-export function EndOfDayPage({ basePath = "/retail/end-of-day" }: { basePath?: string } = {}) {
+export function EndOfDayPage({ basePath = "/retail/shifts/end-of-day" }: { basePath?: string } = {}) {
   const searchParams = useSearchParams();
   const site = searchParams.get("site");
   const date = searchParams.get("date");
@@ -185,7 +185,7 @@ function EndOfDay({ view, basePath }: { view: EndOfDayView; basePath: string }) 
         primary={primary}
       >
         <Button asChild>
-          <Link href="/retail/end-of-day/days">Past days</Link>
+          <Link href="/retail/shifts/end-of-day/days">Past days</Link>
         </Button>
       </PageChrome>
       <div className="cx-eod">

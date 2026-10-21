@@ -9,6 +9,7 @@ import { DataTableFloatingActions } from "@/components/ui/data-table-floating-ac
 import { ChevronRight } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
+import { useListSequence } from "@/components/records/use-list-sequence";
 import { RecordCell, type RecordCellKind } from "@/components/records/record-table";
 
 /**
@@ -98,6 +99,8 @@ export function RecordList({
     actions?: (context: { ids: string[]; clear: () => void }) => ReactNode;
   };
 }) {
+  // A record opened from here can step to its neighbours.
+  useListSequence(rows.map((row) => row.href));
   if (isLoading) {
     return (
       <div className="space-y-2" aria-busy="true" aria-live="polite">

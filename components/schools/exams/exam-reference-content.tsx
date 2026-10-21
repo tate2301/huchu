@@ -120,7 +120,7 @@ export function ExamReferenceContent() {
 
   return (
     <SchoolsPage>
-      <PageChrome title="Exam boards and syllabuses" backHref="/schools/exams" backLabel="Exam series">
+      <PageChrome title="Exam boards and syllabuses" backHref="/schools/results/exams" backLabel="Exam series">
         <Button
           variant="primary"
           onClick={() => setDialog(view)}

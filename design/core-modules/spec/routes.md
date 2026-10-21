@@ -22,7 +22,7 @@ Every board draws its module's panel the same way:
 - **Reports from <module>**, which links to that module's reports.
 - **Help** at the foot.
 
-The app's panel (`components/layout/workspace-rail/rail-panel.tsx`, items in `lib/navigation.ts`) has rows only.
+The app's sidebar (`components/layout/sidebar/`, composed in `lib/nav`) has rows only.
 
 **What changes:**
 - Groups, counts, and a Reports-from group fed by the reports registry go into the panel component.

@@ -80,7 +80,7 @@ export function ExamTimetableContent({ seriesId }: { seriesId: string }) {
     <SchoolsPage>
       <PageChrome
         title="Exam timetable"
-        backHref={`/schools/exams/${seriesId}/candidates`}
+        backHref={`/schools/results/exams/${seriesId}/candidates`}
         backLabel="Series"
       >
         <Button variant="primary" onClick={() => setAddOpen(true)}>

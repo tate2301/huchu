@@ -22,9 +22,10 @@ describe("buildCrumbs", () => {
   });
 
   it("leaves ordinary segments alone", () => {
-    expect(buildCrumbs("/schools/timetable").map((crumb) => crumb.label)).toEqual([
+    expect(buildCrumbs("/schools/attendance/timetable").map((crumb) => crumb.label)).toEqual([
       "Home",
       "Schools",
+      "Attendance",
       "Timetable",
     ]);
   });

@@ -112,7 +112,7 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
 
   return (
     <SchoolsPage>
-      <PageChrome title="Subject entries" backHref="/schools/exams" backLabel="Exam series">
+      <PageChrome title="Subject entries" backHref="/schools/results/exams" backLabel="Exam series">
         {/* Every verb this screen has, in the order the term runs them: enter,
             bill, then hand the board a file. They sit in the app bar together
             because the three are one job — a file built before the last

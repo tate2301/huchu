@@ -21,7 +21,7 @@ import {
   useUnreadNotificationCount,
 } from "@/components/notifications/notification-center";
 
-import styles from "./workspace-rail/workspace-rail.module.css";
+import styles from "./sidebar/identity.module.css";
 
 const noopSubscribe = () => () => {};
 
@@ -72,7 +72,6 @@ export function AccountMenu() {
 
   const user = session?.user as { name?: string | null; email?: string | null } | undefined;
   const dot = !mounted ? null : !device.ready ? DEVICE_TONE_COLOR[device.tone] : unread > 0 ? "var(--action)" : null;
-  const others = nav.workspaces.filter((workspace) => workspace.id !== nav.activeWorkspaceId);
 
   return (
     <>
@@ -147,16 +146,6 @@ export function AccountMenu() {
                 Guided tips
               </MenuItem>
               <MenuItem onSelect={() => router.push("/help")}>Help</MenuItem>
-              {others.length > 0 ? (
-                <>
-                  <MenuSeparator />
-                  {others.map((workspace) => (
-                    <MenuItem key={workspace.id} onSelect={() => nav.selectWorkspace(workspace.id)}>
-                      Switch to {workspace.label}
-                    </MenuItem>
-                  ))}
-                </>
-              ) : null}
               <MenuSeparator />
               <MenuItem danger onSelect={() => void signOut({ callbackUrl: "/login" })}>
                 Sign out

@@ -65,7 +65,7 @@ for (const viewport of [
 
       const shot = shooter("schools", `admissions-${viewport.name}`);
 
-      await page.goto("/schools/admissions");
+      await page.goto("/schools/students/applications");
       await expect(
         page.getByRole("heading", { name: "Admissions", exact: true }).first(),
       ).toBeVisible({ timeout: 30_000 });
@@ -89,7 +89,7 @@ for (const viewport of [
     test("taking an application asks for a name and nothing else", async ({ page }) => {
       const shot = shooter("schools", `admissions-${viewport.name}`);
 
-      await page.goto("/schools/admissions");
+      await page.goto("/schools/students/applications");
       await expect(
         page.getByRole("heading", { name: "Admissions", exact: true }).first(),
       ).toBeVisible({ timeout: 30_000 });

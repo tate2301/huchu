@@ -51,7 +51,7 @@ for (const viewport of [
       // `visible: true` for the same reason as the assertion below it: the
       // header renders a heading per breakpoint variant.
       await expect(async () => {
-        await page.goto("/schools/teachers");
+        await page.goto("/schools/staff/teachers");
         await expect(
           page
             .getByRole("heading", { name: "Teachers", exact: true })
@@ -120,7 +120,7 @@ for (const viewport of [
       // `visible: true` for the same reason as the assertion below it: the
       // header renders a heading per breakpoint variant.
       await expect(async () => {
-        await page.goto("/schools/teachers");
+        await page.goto("/schools/staff/teachers");
         await expect(
           page
             .getByRole("heading", { name: "Teachers", exact: true })

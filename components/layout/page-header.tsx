@@ -3,6 +3,7 @@
 import {
   Children,
   createElement,
+  type ElementType,
   Fragment,
   isValidElement,
   type ReactElement,
@@ -20,6 +21,9 @@ import {
 import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
+import { NAV_ICONS } from "@/lib/icons/corelith-nav.generated";
+import { useRecordStep } from "@/components/layout/use-record-step";
+import { RecordStepper } from "@/components/workspace/button-group-parts";
 import { useShell } from "@/components/layout/shell-state";
 import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
@@ -83,6 +87,8 @@ export function PageHeader() {
 
   const title = identity?.title ?? nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view"));
   const back = identity?.back;
+  // A record opened from a list steps to its neighbours in it.
+  const step = useRecordStep(Boolean(back));
   const primaryHref = primary?.href ?? (primary?.sheet ? sheetHref(pathname, searchParams.toString(), primary.sheet) : null);
   const runPrimary = (target: PagePrimary) => {
     if (target.disabled) return;
@@ -95,7 +101,7 @@ export function PageHeader() {
   const menuCount = folded.length + (phoneMenu?.length ?? 0) + (primaryInMenu ? 1 : 0);
   // Held lowercase and drawn with `createElement`: a capitalised binding read
   // during render looks to the lint rule like a component made in render.
-  const pageIcon = nav.activeItem?.icon ?? routeIcon(pathname);
+  const pageIcon: ElementType | undefined = (nav.pageIcon ? NAV_ICONS[nav.pageIcon] : undefined) ?? routeIcon(pathname);
   const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
   return (
@@ -124,6 +130,15 @@ export function PageHeader() {
           ) : null}
           <span className="min-w-0 truncate">{title}</span>
         </h1>
+        {step ? (
+          <RecordStepper
+            noun={back?.label.toLowerCase() ?? "records"}
+            onPrevious={step.previous}
+            onNext={step.next}
+            position={step.position}
+            total={step.total}
+          />
+        ) : null}
         {identity?.reference ? (
           <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
             {identity.reference}

@@ -6,9 +6,9 @@ import { signOut, useSession } from "next-auth/react";
 import { useGuidedMode } from "@/hooks/use-guided-mode";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/workspace/menu";
 import { Switch } from "@/components/workspace/switch";
-import { RailAvatar } from "@/components/layout/workspace-rail";
+import { PersonAvatar } from "@/components/layout/sidebar/avatar";
 
-import styles from "./workspace-rail/workspace-rail.module.css";
+import styles from "./sidebar/identity.module.css";
 
 /**
  * The person at the foot of the rail and their menu: Profile, Notifications,
@@ -25,7 +25,7 @@ export function PersonMenu() {
     <Menu>
       <MenuTrigger asChild>
         <button type="button" className={styles.avatarButton} aria-label={`${user?.name ?? user?.email ?? "Account"}, your menu`}>
-          <RailAvatar src={user?.image} name={user?.name ?? user?.email} />
+          <PersonAvatar src={user?.image} name={user?.name ?? user?.email} />
         </button>
       </MenuTrigger>
       <MenuContent side="right" align="end" sideOffset={14} style={{ width: 240 }}>

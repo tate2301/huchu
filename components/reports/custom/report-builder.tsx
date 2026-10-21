@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BuilderBar, BuilderGrid } from "@/components/builder/grid";
 import { Button, ButtonLink, Empty, useShortcut } from "@/components/core";
-import { useMounted } from "@/components/layout/workspace-rail/module-groups";
+import { useMounted } from "@/hooks/use-mounted";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useToast } from "@/components/ui/use-toast";
 import { useVaneStatus } from "@/components/vane/use-vane";

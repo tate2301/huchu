@@ -124,16 +124,19 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
 
   { scope: "page", prefix: "/schools/documents", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/academics", featureKey: "schools.core" },
-  { scope: "page", prefix: "/schools/timetable", featureKey: "schools.core" },
+  { scope: "page", prefix: "/schools/attendance/timetable", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/homework", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/goals", featureKey: "schools.core" },
-  { scope: "page", prefix: "/schools/meetings", featureKey: "schools.core" },
+  { scope: "page", prefix: "/schools/families/meetings", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/library", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/transport", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/finance", featureKey: "schools.fees" },
-  { scope: "page", prefix: "/schools/notices", featureKey: "schools.core" },
+  { scope: "page", prefix: "/schools/families/notices", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/reports", featureKey: "schools.core" },
-  { scope: "page", prefix: "/schools/admissions", featureKey: "schools.admissions" },
+  { scope: "page", prefix: "/schools/students/applications", featureKey: "schools.admissions" },
+  // Guardians and the calendar moved under Students and The school day; they keep the gate they had.
+  { scope: "page", prefix: "/schools/students/guardians", featureKey: "schools.core" },
+  { scope: "page", prefix: "/schools/attendance/calendar", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/students", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/imports", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/classes", featureKey: "schools.core" },
@@ -145,21 +148,20 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // describes, and a day school reaches it without buying boarding.
   { scope: "page", prefix: "/schools/boarding/welfare", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/boarding", featureKey: "schools.boarding" },
-  { scope: "page", prefix: "/schools/teachers", featureKey: "schools.teachers" },
+  { scope: "page", prefix: "/schools/staff/teachers", featureKey: "schools.teachers" },
   { scope: "page", prefix: "/schools/results/moderation", featureKey: "schools.results" },
   { scope: "page", prefix: "/schools/results/publish", featureKey: "schools.results" },
   { scope: "page", prefix: "/schools/results", featureKey: "schools.results" },
   // S-13.1. Its own key because public exams are a paid add-on: without this
-  // row `/schools/exams` falls through to the `/schools` catch-all below,
+  // row `/schools/results/exams` falls through to the `/schools` catch-all below,
   // resolves to `schools.core`, and a $99-a-term add-on is switched on for
   // every tenant by a missing line. Matching is longest-prefix-wins, so the
   // position is convention rather than necessity — the file lists the longer
   // prefix above the shorter one.
-  { scope: "page", prefix: "/schools/exams", featureKey: "schools.exams" },
+  { scope: "page", prefix: "/schools/results/exams", featureKey: "schools.exams" },
   // S-13.4 and S-13.5 ride the student directory. A leaver and an alumnus are
   // the last two states of a pupil record, and the transfer letter the queue
   // issues is already gated this way.
-  { scope: "page", prefix: "/schools/leavers", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/alumni", featureKey: "schools.students" },
   // S-12.1 and S-12.3 deliberately carry NO row. Conduct ships inside the
   // STANDARD band under `schools.core`, which the `/schools` catch-all already
@@ -187,7 +189,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/sales", featureKey: "retail.pos" },
   { scope: "page", prefix: "/retail/laybys", featureKey: "retail.pos" },
   { scope: "page", prefix: "/retail/shifts", featureKey: "retail.shifts" },
-  { scope: "page", prefix: "/retail/end-of-day", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/retail/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/accounts", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/insights", featureKey: "retail.reports" },
@@ -238,7 +239,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/crm/appointments", featureKey: "crm.appointments" },
   { scope: "page", prefix: "/crm/tasks", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/import", featureKey: "crm.core" },
-  { scope: "page", prefix: "/crm/follow-ups", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/forms", featureKey: "crm.intake" },
   { scope: "page", prefix: "/crm/insights", featureKey: "crm.insights" },
   // A report opened from a CRM panel (`/crm/reports/{key}`): the report page, each report gated by its own API.
@@ -249,7 +249,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/crm/invoices", featureKey: "crm.documents" },
   { scope: "page", prefix: "/crm/receipts", featureKey: "crm.documents" },
   { scope: "page", prefix: "/crm/reps", featureKey: "crm.core" },
-  { scope: "page", prefix: "/crm/work-orders", featureKey: "crm.core" },
   { scope: "page", prefix: "/crm/workflows", featureKey: "crm.settings" },
   { scope: "page", prefix: "/crm/build", featureKey: "crm.settings" },
   { scope: "page", prefix: "/crm/settings", featureKey: "crm.settings" },
