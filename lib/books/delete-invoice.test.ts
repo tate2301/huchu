@@ -194,6 +194,13 @@ describe("who may delete an invoice", () => {
     expect(credited.fiscalised).toBe(true);
   });
 
+  it("lets the outside accountant delete a posted invoice, with the number typed", async () => {
+    const invoice = await issueTestInvoice(fixture);
+    const outside = { ...manager(), role: "FINANCE_OFFICER", outsideAccountant: { firmName: "Mutasa & Co" } };
+    await deleteInvoice(outside, invoice.id, { reason: "Raised by mistake", confirm: invoice.invoiceNumber });
+    expect(await prisma.salesInvoice.count({ where: { id: invoice.id } })).toBe(0);
+  });
+
   it("refuses a manager both void and delete posted; the outside accountant may do either", async () => {
     const invoice = await issueTestInvoice(fixture);
     await expect(deleteInvoice(manager(), invoice.id, { reason: "Not mine", confirm: invoice.invoiceNumber })).rejects.toMatchObject({ status: 403 });
