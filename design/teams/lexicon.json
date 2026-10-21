@@ -1,0 +1,423 @@
+{
+  "$comment": "One term per concept across Tender, Pabasa and the shared record page. 'use' is the winner; 'banned' are alternatives found in the code, the docs or the earlier canvases. Product words for records come from the product (Pabasa: Enquiry, Job, Client; Tender: Customer, Sale). The lint blocks a banned term on any screen.",
+  "concepts": [
+    {
+      "concept": "a customer's account on Corelith",
+      "use": [
+        "workspace"
+      ],
+      "banned": [
+        "company",
+        "tenant",
+        "organisation",
+        "organization",
+        "org",
+        "account"
+      ]
+    },
+    {
+      "concept": "a person who signs in to a workspace",
+      "use": [
+        "member"
+      ],
+      "banned": [
+        "user",
+        "seat holder",
+        "staff account",
+        "teammate account"
+      ]
+    },
+    {
+      "concept": "the one member who owns the workspace and pays",
+      "use": [
+        "owner"
+      ],
+      "banned": [
+        "superadmin",
+        "account holder",
+        "primary contact"
+      ]
+    },
+    {
+      "concept": "a member who manages members and permissions",
+      "use": [
+        "admin"
+      ],
+      "banned": [
+        "administrator",
+        "workspace admin",
+        "superuser"
+      ]
+    },
+    {
+      "concept": "a place a plan allows one member",
+      "use": [
+        "seat"
+      ],
+      "banned": [
+        "licence",
+        "license",
+        "slot",
+        "user limit"
+      ]
+    },
+    {
+      "concept": "asking someone to join",
+      "use": [
+        "invite"
+      ],
+      "banned": [
+        "invitation",
+        "add user",
+        "onboard a user"
+      ]
+    },
+    {
+      "concept": "a thing a member is allowed to do",
+      "use": [
+        "permission"
+      ],
+      "banned": [
+        "right",
+        "rights",
+        "capability",
+        "privilege",
+        "entitlement",
+        "feature access"
+      ]
+    },
+    {
+      "concept": "the set of permissions a member starts with",
+      "use": [
+        "role"
+      ],
+      "banned": [
+        "profile",
+        "persona",
+        "user type",
+        "access level"
+      ]
+    },
+    {
+      "concept": "getting a new workspace ready to use",
+      "use": [
+        "set up"
+      ],
+      "banned": [
+        "onboarding",
+        "provisioning",
+        "configure",
+        "get started"
+      ]
+    },
+    {
+      "concept": "bringing existing data in from a file or another system",
+      "use": [
+        "import"
+      ],
+      "banned": [
+        "upload data",
+        "migrate",
+        "ingest",
+        "sync"
+      ]
+    },
+    {
+      "concept": "example records a new workspace starts with",
+      "use": [
+        "sample data"
+      ],
+      "banned": [
+        "demo data",
+        "dummy data",
+        "test data"
+      ]
+    },
+    {
+      "concept": "what happened to one record, newest first",
+      "use": [
+        "timeline"
+      ],
+      "banned": [
+        "feed",
+        "activity feed",
+        "story",
+        "what happened"
+      ]
+    },
+    {
+      "concept": "every change made to one record's fields, with who made it",
+      "use": [
+        "history"
+      ],
+      "banned": [
+        "audit log",
+        "activity log",
+        "change log",
+        "field history"
+      ]
+    },
+    {
+      "concept": "what happened across the workspace",
+      "use": [
+        "activity"
+      ],
+      "banned": [
+        "audit trail",
+        "events",
+        "log"
+      ]
+    },
+    {
+      "concept": "something that needs or concerns one member",
+      "use": [
+        "notification"
+      ],
+      "banned": [
+        "alert",
+        "inbox item",
+        "ping",
+        "update"
+      ]
+    },
+    {
+      "concept": "the members working on one record",
+      "use": [
+        "team"
+      ],
+      "banned": [
+        "deal members",
+        "collaborators",
+        "assignees",
+        "participants"
+      ]
+    },
+    {
+      "concept": "the client's own people linked to a record",
+      "use": [
+        "contacts"
+      ],
+      "banned": [
+        "people",
+        "stakeholders",
+        "related people"
+      ]
+    },
+    {
+      "concept": "the member responsible for a record",
+      "use": [
+        "owner of the job",
+        "owner of the record"
+      ],
+      "banned": [
+        "assignee",
+        "rep",
+        "handler"
+      ]
+    },
+    {
+      "concept": "a note written on a record for the team",
+      "use": [
+        "comment"
+      ],
+      "banned": [
+        "note",
+        "message",
+        "post",
+        "remark"
+      ]
+    },
+    {
+      "concept": "naming a member so they are told",
+      "use": [
+        "mention"
+      ],
+      "banned": [
+        "tag",
+        "ping",
+        "@-mention"
+      ]
+    },
+    {
+      "concept": "choosing to be told about a record's changes",
+      "use": [
+        "follow"
+      ],
+      "banned": [
+        "watch",
+        "subscribe"
+      ]
+    },
+    {
+      "concept": "talking live on a record by voice, with optional screen",
+      "use": [
+        "call"
+      ],
+      "banned": [
+        "huddle",
+        "meeting",
+        "room",
+        "session",
+        "conference"
+      ]
+    },
+    {
+      "concept": "a file attached to a record",
+      "use": [
+        "document"
+      ],
+      "banned": [
+        "file",
+        "attachment",
+        "upload"
+      ]
+    },
+    {
+      "concept": "taking someone's access away for a while",
+      "use": [
+        "suspend"
+      ],
+      "banned": [
+        "deactivate",
+        "disable",
+        "block",
+        "freeze"
+      ]
+    },
+    {
+      "concept": "taking someone out of the workspace for good",
+      "use": [
+        "remove"
+      ],
+      "banned": [
+        "delete user",
+        "kick",
+        "offboard",
+        "revoke access"
+      ]
+    },
+    {
+      "concept": "giving a record to another member",
+      "use": [
+        "hand over"
+      ],
+      "banned": [
+        "reassign",
+        "transfer",
+        "delegate"
+      ]
+    },
+    {
+      "concept": "passing the workspace to another member",
+      "use": [
+        "offer ownership"
+      ],
+      "banned": [
+        "transfer ownership",
+        "change owner"
+      ]
+    },
+    {
+      "concept": "notifications that wait on the member",
+      "use": [
+        "Needs you"
+      ],
+      "banned": [
+        "action required",
+        "to do",
+        "pending",
+        "urgent"
+      ]
+    },
+    {
+      "concept": "a member with the record open now",
+      "use": [
+        "here"
+      ],
+      "banned": [
+        "online",
+        "active",
+        "live",
+        "viewing",
+        "here now"
+      ]
+    },
+    {
+      "concept": "a sale that is not kept",
+      "use": [
+        "practice sale"
+      ],
+      "banned": [
+        "test sale",
+        "training mode",
+        "demo sale"
+      ]
+    },
+    {
+      "concept": "the counter device that sells",
+      "use": [
+        "till"
+      ],
+      "banned": [
+        "register",
+        "POS terminal",
+        "terminal"
+      ]
+    },
+    {
+      "concept": "getting a till device to work with the workspace",
+      "use": [
+        "pair"
+      ],
+      "banned": [
+        "register device",
+        "link",
+        "connect",
+        "activate"
+      ]
+    },
+    {
+      "concept": "the list of setup items on the home page",
+      "use": [
+        "checklist"
+      ],
+      "banned": [
+        "getting started",
+        "onboarding guide",
+        "setup wizard"
+      ]
+    }
+  ],
+  "plain": [
+    {
+      "use": "use",
+      "banned": [
+        "utilise",
+        "leverage"
+      ]
+    },
+    {
+      "use": "start",
+      "banned": [
+        "get started",
+        "kick off",
+        "onboard"
+      ]
+    },
+    {
+      "use": "works without internet",
+      "banned": [
+        "offline-first",
+        "no signal",
+        "signal"
+      ]
+    },
+    {
+      "use": "send",
+      "banned": [
+        "dispatch",
+        "submit"
+      ]
+    }
+  ]
+}

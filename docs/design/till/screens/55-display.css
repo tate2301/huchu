@@ -1,0 +1,44 @@
+/* The customer screen (T1-5): its own window facing the customer. Drawn at the board's phone (360 wide)
+   and scaled to the window with one unit, --u, so a second screen of 800 × 1280 shows the same screen
+   larger: the smaller of the window's width over 390 and its height over 844, never under 1. */
+
+.cscr { --u: max(1px, min(100vw / 390, 100dvh / 844)); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--color-surface); color: var(--color-ink); }
+
+/* The shop: its mark and its name. */
+.cscr-top { flex: none; display: flex; align-items: center; gap: calc(12 * var(--u)); padding: calc(40 * var(--u)) calc(28 * var(--u)) calc(18 * var(--u)); }
+.cscr-mark { flex: none; width: calc(28 * var(--u)); height: calc(28 * var(--u)); border-radius: calc(8 * var(--u)); overflow: hidden; background: var(--color-accent); color: var(--color-accent-ink); display: grid; place-items: center; font-size: calc(15 * var(--u)); font-weight: 600; }
+.cscr-mark img { width: 100%; height: 100%; object-fit: cover; }
+.cscr-shop { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(18 * var(--u)); font-weight: 600; color: var(--color-ink); }
+
+/* Selling: the lines (qty · name · amount), then Total. */
+.cscr-lines { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: calc(14 * var(--u)); margin: 0; padding: calc(6 * var(--u)) calc(28 * var(--u)); list-style: none; }
+.cscr-lines li { display: grid; grid-template-columns: calc(30 * var(--u)) minmax(0, 1fr) auto; gap: calc(8 * var(--u)); align-items: baseline; font-size: calc(16 * var(--u)); line-height: 1.35; color: var(--color-ink); animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.cscr-lines li > :first-child, .cscr-lines li > :last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cscr-lines li > :first-child { color: var(--color-muted); }
+.cscr-lines li > :last-child { text-align: right; }
+
+.cscr-total { flex: none; display: flex; flex-direction: column; margin: 0 calc(20 * var(--u)) calc(20 * var(--u)); padding: calc(22 * var(--u)) calc(24 * var(--u)); border-radius: calc(24 * var(--u)); background: var(--color-ground); }
+.cscr-total-k { font-size: calc(16 * var(--u)); font-weight: 500; color: var(--color-ink-2); }
+.cscr-total-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(44 * var(--u)); line-height: 1.15; letter-spacing: -0.03em; color: var(--color-ink); }
+.cscr-total-z { margin-top: calc(2 * var(--u)); font-family: var(--font-mono); font-size: calc(15 * var(--u)); color: var(--color-muted); }
+
+/* Paying by EcoCash: Total steps down to one row, and the code and the amount sit in the dark block. */
+.cscr.is-paying .cscr-total { flex-direction: row; align-items: baseline; padding: calc(16 * var(--u)) calc(24 * var(--u)); }
+.cscr.is-paying .cscr-total-v { margin-left: auto; font-size: calc(20 * var(--u)); letter-spacing: 0; }
+.cscr-pay { flex: none; display: flex; flex-direction: column; gap: calc(4 * var(--u)); margin: 0 calc(20 * var(--u)) calc(20 * var(--u)); padding: calc(22 * var(--u)) calc(24 * var(--u)); border-radius: calc(24 * var(--u)); background: var(--color-ink); color: var(--color-surface); animation: tl-fade-in var(--motion-base) var(--motion-ease); }
+.cscr-pay-k { font-size: calc(15 * var(--u)); opacity: 0.75; }
+.cscr-pay-code { font-family: var(--font-mono); font-size: calc(40 * var(--u)); line-height: 1.25; letter-spacing: 0.04em; }
+.cscr-pay-v { font-family: var(--font-mono); font-size: calc(20 * var(--u)); }
+
+/* Paid: the tick, thank you, the change, the sale and its time. */
+.cscr-paid { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6 * var(--u)); padding: 0 calc(28 * var(--u)) calc(60 * var(--u)); text-align: center; }
+.cscr-tick { width: calc(72 * var(--u)); height: calc(72 * var(--u)); margin-bottom: calc(18 * var(--u)); border-radius: var(--radius-pill); background: var(--color-success-tint); display: grid; place-items: center; animation: tl-pop var(--motion-slow) var(--motion-ease-out) both; }
+.cscr-tick > span { width: calc(36 * var(--u)); height: calc(36 * var(--u)); border-radius: var(--radius-pill); background: var(--color-success); color: var(--color-surface); display: grid; place-items: center; }
+.cscr-tick .ic { width: calc(20 * var(--u)); height: calc(20 * var(--u)); color: inherit; }
+.cscr-thanks { margin: 0; font-size: calc(30 * var(--u)); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; color: var(--color-ink); text-wrap: balance; }
+.cscr-k { margin-top: calc(28 * var(--u)); font-size: calc(16 * var(--u)); font-weight: 600; color: var(--color-ink-2); }
+.cscr-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: calc(52 * var(--u)); line-height: 1.15; letter-spacing: -0.03em; color: var(--color-ink); text-wrap: balance; }
+.cscr-z { margin-top: calc(4 * var(--u)); font-family: var(--font-mono); font-size: calc(16 * var(--u)); color: var(--color-muted); }
+.cscr-ref { margin-top: calc(36 * var(--u)); font-family: var(--font-mono); font-size: calc(14 * var(--u)); color: var(--color-muted); }
+
+@media (prefers-reduced-motion: reduce) { .cscr-lines li, .cscr-pay, .cscr-tick { animation: none; } }

@@ -175,7 +175,7 @@ export function NewSeriesDialog({
               No board has been set up yet. A board and its centre number come first — the board
               issues the number and it is stable across years.{" "}
               <Link
-                href="/schools/exams/reference"
+                href="/schools/results/exams/reference"
                 className="underline underline-offset-2 hover:text-[color:var(--text-body)]"
               >
                 Set one up

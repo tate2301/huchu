@@ -82,7 +82,7 @@ type Db = Pick<PrismaClient, "vendor" | "purchaseBill" | "purchasePayment" | "pu
 const round = (n: number) => Math.round(n * 100) / 100;
 const DAY = 86_400_000;
 
-/** "You owe 5 suppliers US$8,077.15." / "2 are overdue, US$2,044.55 in all." */
+/** "You owe 5 suppliers $8,077.15." / "2 are overdue, $2,044.55 in all." */
 export function suppliersFinding(owed: { suppliers: number; amount: number }, overdue: Array<{ name: string; amount: number }>, currency = "USD", missingItf263 = 0): { fact: string; rest: string | null } {
   // D17: a supplier without a valid ITF263 has 30% withheld once paid past the threshold; the owner hears it first.
   const itf = missingItf263 > 0 ? `${missingItf263 === 1 ? "1 has" : `${missingItf263} have`} no valid ITF263, so paying ${missingItf263 === 1 ? "it" : "them"} withholds 30%.` : null;

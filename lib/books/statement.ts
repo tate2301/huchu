@@ -101,7 +101,7 @@ export function parseStatementAmount(text: string): number | null {
     value = value.replace(/\s*(dr|db)$/i, "");
   }
   value = value.replace(/\s*cr$/i, "");
-  value = value.replace(/US\$|[$\s,]|USD|ZWG|ZiG/gi, "");
+  value = value.replace(/US\$|[$\s,]|USD|ZWG|ZWG/gi, "");
   if (value.startsWith("-") || value.startsWith("−")) {
     negative = !negative;
     value = value.slice(1);

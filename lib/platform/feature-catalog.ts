@@ -133,6 +133,10 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   // keeps its retail gate) and the APIs only those pages call. Without it a
   // Books address shows what the screens add, and the engine keeps posting.
   f({ key: "books.screens", name: "Books screens", description: "Invoices and bills, bank matching, VAT returns, the month's close and the ledger, on screen.", domain: "accounting", defaultEnabled: false }),
+  // The $99 tier (NOTES §5.3): Tax, Close the month and the Ledger. Held by a
+  // workspace with the screens that is on the larger vertical rate, and
+  // grantable by hand (`ADDON_BOOKS_ADVANCED`).
+  f({ key: "books.advanced", name: "Books advanced", description: "Tax, closing the month and the ledger, on screen.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.journals", name: "Journals", description: "Journal entries and posting workflows.", domain: "accounting", defaultEnabled: false }),
   f({ key: "accounting.periods", name: "Accounting Periods", description: "Accounting periods and period locks.", domain: "accounting", defaultEnabled: false }),
@@ -416,6 +420,14 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     features: ["books.screens"],
   },
   {
+    // The accountant's side of Books, the $99 tier. Workspaces on the larger vertical
+    // rate hold it without this add-on; an admin can grant it to any other.
+    code: "ADDON_BOOKS_ADVANCED",
+    name: "Books advanced",
+    description: "Tax, closing the month and the ledger.",
+    features: ["books.advanced"],
+  },
+  {
     code: "ADDON_ACCOUNTING_ADVANCED",
     name: "Accounting Advanced",
     description: "AR/AP, banking, cost centers, and multi-currency.",
@@ -514,6 +526,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
 export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
   ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
   ADDON_BOOKS_SCREENS: ["ADDON_ACCOUNTING_CORE"],
+  ADDON_BOOKS_ADVANCED: ["ADDON_BOOKS_SCREENS"],
   ADDON_ZIMRA_FISCAL: ["ADDON_ACCOUNTING_CORE"],
   ADDON_GOLD_ADVANCED: ["ADDON_GOLD_CORE"],
   // Retail does not own stock. Every retail movement — sale, refund, receipt,

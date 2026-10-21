@@ -46,5 +46,5 @@ export function offlineWindowClosed(input: {
 
 /** What the till says while it may not sell offline any longer. */
 export function offlineStopSentence(offlineHours: number): string {
-  return `This till has been offline for more than ${hoursWords(offlineHours)}, longer than the till rules allow. Connect it to send what it holds, then sell again.`;
+  return `Offline over ${hoursWords(offlineHours)}`;
 }

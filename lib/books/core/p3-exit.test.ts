@@ -2,9 +2,9 @@
  * P3's exit test (books-final §8), against the test database, with the FDMS
  * transport mocked:
  *
- *   A September with US dollar and ZiG invoices, a US dollar receipt on a ZiG
- *   invoice (settled at another rate: a realised loss), a ZiG receipt into a
- *   ZiG account, an IMTT charge on the bank statement, and a supplier without
+ *   A September with US dollar and ZWG invoices, a US dollar receipt on a ZWG
+ *   invoice (settled at another rate: a realised loss), a ZWG receipt into a
+ *   ZWG account, an IMTT charge on the bank statement, and a supplier without
  *   a tax clearance paid with 30% withheld, closes with every money account
  *   reconciled to its statement, the VAT return equal to the movement on 2200
  *   and 2210, and the revaluation posted on the 30th and reversed on the 1st.
@@ -114,13 +114,13 @@ beforeAll(async () => {
     where: { companyId: shop.companyId },
     data: { legalName: "Floorcode Zimbabwe (Pvt) Ltd", vatNumber: "220123456", taxNumber: "2000123456", address: "14 Coventry Rd, Harare" },
   });
-  // The ZiG rate: 26 from 1 Sep, 26.5 from the 15th, 27 at the month's end.
+  // The ZWG rate: 26 from 1 Sep, 26.5 from the 15th, 27 at the month's end.
   for (const [date, rate] of [["2026-09-01", 26], ["2026-09-15", 26.5], ["2026-09-30", 27]] as const) {
     await prisma.currencyRate.create({ data: { companyId: shop.companyId, baseCurrency: "USD", quoteCurrency: "ZWG", rate, effectiveDate: day(date), source: "RBZ" } });
   }
-  const zigLedger = (await prisma.chartOfAccount.create({ data: { companyId: shop.companyId, code: "1012", name: "Stanbic ZiG", type: "ASSET", category: "Cash", nodeType: "LEDGER" }, select: { id: true } })).id;
+  const zigLedger = (await prisma.chartOfAccount.create({ data: { companyId: shop.companyId, code: "1012", name: "Stanbic ZWG", type: "ASSET", category: "Cash", nodeType: "LEDGER" }, select: { id: true } })).id;
   usdBank = (await prisma.bankAccount.create({ data: { companyId: shop.companyId, name: "Stanbic USD", bankName: "Stanbic", kind: "BANK", currency: "USD", ledgerAccountId: await code("1010") }, select: { id: true } })).id;
-  zigBank = (await prisma.bankAccount.create({ data: { companyId: shop.companyId, name: "Stanbic ZiG", bankName: "Stanbic ZiG", kind: "BANK", currency: "ZWG", ledgerAccountId: zigLedger }, select: { id: true } })).id;
+  zigBank = (await prisma.bankAccount.create({ data: { companyId: shop.companyId, name: "Stanbic ZWG", bankName: "Stanbic ZWG", kind: "BANK", currency: "ZWG", ledgerAccountId: zigLedger }, select: { id: true } })).id;
   customerId = (await prisma.customer.create({ data: { companyId: shop.companyId, name: "Pomona Offices", address: "2 Pomona Rd, Harare" }, select: { id: true } })).id;
   vendorId = (await prisma.vendor.create({ data: { companyId: shop.companyId, name: "Chikomo Fitters", vatNumber: "220998877" }, select: { id: true } })).id;
   vat155 = (await prisma.taxCode.update({ where: { companyId_code: { companyId: shop.companyId, code: "VAT15_5" } }, data: { zimraTaxId: 517 }, select: { id: true } })).id;
@@ -152,8 +152,8 @@ afterAll(async () => {
   await destroyProvisionedTenant(companyId);
 }, 60_000);
 
-describe("P3 exit: a USD and ZiG month closes with every account reconciled", () => {
-  it("posts ZiG documents in US dollars at their frozen rate, keeping the ZiG beside it", async () => {
+describe("P3 exit: a USD and ZWG month closes with every account reconciled", () => {
+  it("posts ZWG documents in US dollars at their frozen rate, keeping the ZWG beside it", async () => {
     await issue("usd", "USD", 1000, "2026-09-02");
     const zig = await issue("zig", "ZWG", 26000, "2026-09-03");
     await issue("open", "ZWG", 13000, "2026-09-28");
@@ -163,18 +163,18 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
     expect(lines.find((line) => line.account.code === "2200")).toMatchObject({ credit: 155, amountInCurrency: 4030 });
   });
 
-  it("takes a US dollar receipt off a ZiG invoice at the day's rate, and posts the realised loss", async () => {
+  it("takes a US dollar receipt off a ZWG invoice at the day's rate, and posts the realised loss", async () => {
     const usd = await recordSalesReceipt({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN", invoiceId: invoices.usd, receivedAt: day("2026-09-10"), amount: 1155, method: "Bank transfer", bankAccountId: usdBank });
     const cross = await recordSalesReceipt({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN", invoiceId: invoices.zig, currency: "USD", receivedAt: day("2026-09-20"), amount: 1000, method: "Bank transfer", bankAccountId: usdBank });
     expect(cross).toMatchObject({ currency: "USD", exchangeRate: 1, baseAmount: 1000 });
-    // 1,000 US dollars at 26.5 is ZiG 26,500 off the invoice, carried at 26: 1,019.23. A loss of 19.23.
+    // 1,000 US dollars at 26.5 is ZWG 26,500 off the invoice, carried at 26: 1,019.23. A loss of 19.23.
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoices.zig } })).toMatchObject({ amountPaid: 26500, status: "ISSUED" });
     expect(await prisma.paymentLedgerEntry.findFirstOrThrow({ where: { sourceType: "SALES_RECEIPT", sourceId: cross.id } })).toMatchObject({ currency: "ZWG", credit: 26500 });
     const fx = await prisma.journalLine.findMany({ where: { entry: { sourceType: "SALES_RECEIPT", sourceId: cross.id }, account: { code: { in: ["1100", "4210"] } } }, select: { debit: true, credit: true, account: { select: { code: true } } } });
     expect(round(fx.filter((line) => line.account.code === "1100").reduce((sum, line) => sum + line.credit - line.debit, 0))).toBe(1019.23);
     expect(fx.find((line) => line.account.code === "4210")).toMatchObject({ debit: 19.23 });
 
-    // The rest, in ZiG into the ZiG account on the 25th: 3,530 at 26.5 (133.21), carried at 135.77.
+    // The rest, in ZWG into the ZWG account on the 25th: 3,530 at 26.5 (133.21), carried at 135.77.
     const rest = await recordSalesReceipt({ companyId: shop.companyId, userId: shop.ownerId, role: "SUPERADMIN", invoiceId: invoices.zig, receivedAt: day("2026-09-25"), amount: 3530, method: "Bank transfer", bankAccountId: zigBank });
     expect(rest).toMatchObject({ currency: "ZWG", exchangeRate: 26.5, baseAmount: 133.21 });
     expect(await prisma.salesInvoice.findUniqueOrThrow({ where: { id: invoices.zig } })).toMatchObject({ status: "PAID" });
@@ -226,7 +226,7 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
         { date: "2026-09-22", description: "IMTT 2% tax on transfer", reference: null, amount: 24.26, direction: "DEBIT" },
       ],
     });
-    await uploadStatement(prisma, { companyId: shop.companyId, userId: shop.managerId, accountId: zigBank, rows: [{ date: "2026-09-25", description: "Pomona Offices ZiG", reference: null, amount: 3530, direction: "CREDIT" }] });
+    await uploadStatement(prisma, { companyId: shop.companyId, userId: shop.managerId, accountId: zigBank, rows: [{ date: "2026-09-25", description: "Pomona Offices ZWG", reference: null, amount: 3530, direction: "CREDIT" }] });
 
     const receipts = await prisma.salesReceipt.findMany({ where: { companyId: shop.companyId }, orderBy: { receivedAt: "asc" }, select: { id: true } });
     const who = { companyId: shop.companyId, userId: shop.managerId, role: "MANAGER" };
@@ -234,7 +234,7 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
     await acceptMatch(prisma, { ...who, lineId: await lineId("Pomona Offices transfer"), match: { kind: "transaction", transactionId: await bankTxn("SALES_RECEIPT", receipts[1].id) } });
     await acceptMatch(prisma, { ...who, lineId: await lineId("Chikomo Fitters"), match: { kind: "transaction", transactionId: await bankTxn("PURCHASE_PAYMENT", paymentId) } });
     await acceptMatch(prisma, { ...who, lineId: await lineId("IMTT 2% tax on transfer"), match: { kind: "bank-charges", amount: 24.26, imtt: true } });
-    await acceptMatch(prisma, { ...who, lineId: await lineId("Pomona Offices ZiG"), match: { kind: "transaction", transactionId: await bankTxn("SALES_RECEIPT", receipts[2].id) } });
+    await acceptMatch(prisma, { ...who, lineId: await lineId("Pomona Offices ZWG"), match: { kind: "transaction", transactionId: await bankTxn("SALES_RECEIPT", receipts[2].id) } });
 
     const imtt = await prisma.journalLine.findFirstOrThrow({ where: { entry: { companyId: shop.companyId, sourceType: "BANK_TRANSACTION" }, account: { code: "5465" } }, select: { debit: true } });
     expect(imtt.debit).toBe(24.26);
@@ -251,7 +251,7 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
 
   it("has the VAT return equal the movement on 2200 and 2210, due on the 10th and 15th", async () => {
     const figures = await vatFigures(shop.companyId, day("2026-09-01"), day("2026-09-30"));
-    // Output: 155 + ZiG 4,030 at 26 (155.00) + ZiG 2,015 at 26.5 (76.04). Input: the bill's 232.50, its FTI valid.
+    // Output: 155 + ZWG 4,030 at 26 (155.00) + ZWG 2,015 at 26.5 (76.04). Input: the bill's 232.50, its FTI valid.
     expect(figures.totals).toMatchObject({ output: 386.04, input: 232.5, net: 153.54 });
     expect(figures.tieOut.ties).toBe(true);
     expect(figures.tieOut.output).toMatchObject({ ledger: 386.04, difference: 0 });
@@ -275,10 +275,10 @@ describe("P3 exit: a USD and ZiG month closes with every account reconciled", ()
     );
   });
 
-  it("revalues what is held in ZiG on the 30th and reverses it on the 1st", async () => {
+  it("revalues what is held in ZWG on the 30th and reverses it on the 1st", async () => {
     const result = await revalueMonth(manager(), "2026-09");
     expect(result.plan?.rates).toEqual({ ZWG: 27 });
-    // The open ZiG invoice (15,015 at 26.5 → 27: −10.49) and the ZiG account (3,530: 133.21 → 130.74: −2.47).
+    // The open ZWG invoice (15,015 at 26.5 → 27: −10.49) and the ZWG account (3,530: 133.21 → 130.74: −2.47).
     expect(result.plan?.gain).toBe(-12.96);
     const entry = await prisma.journalEntry.findUniqueOrThrow({ where: { id: result.entryId! }, include: { lines: { include: { account: { select: { code: true } } } } } });
     expect(entry.entryDate.toISOString().slice(0, 10)).toBe("2026-09-30");

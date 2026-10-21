@@ -57,7 +57,7 @@ import {
  * table under them listed subjects, the filters governed a third of the
  * screen, and "Teaching staff" was true of the first view only. The other two
  * already had pages of their own: the catalogue is the one under Master Data
- * and the grid is `/schools/teachers/assignments`, which answers the question
+ * and the grid is `/schools/staff/teachers/assignments`, which answers the question
  * this screen never could — which lesson has nobody against it. The tab strip
  * above the filters is one click to it.
  *
@@ -69,8 +69,8 @@ import {
 
 /** Teaching staff and the allocation grid, as two segments of one register. */
 const VIEWS = [
-  { href: "/schools/teachers", label: "Teaching staff" },
-  { href: "/schools/teachers/assignments", label: "Assignments" },
+  { href: "/schools/staff/teachers", label: "Teaching staff" },
+  { href: "/schools/staff/teachers/assignments", label: "Assignments" },
 ] as const;
 
 /**
@@ -313,7 +313,7 @@ export function SchoolsTeachersContent() {
         cell: ({ row }) => (
           <PersonCell
             kind="teacher"
-            href={`/schools/teachers/${row.original.id}`}
+            href={`/schools/staff/teachers/${row.original.id}`}
             name={row.original.user.name}
             reference={row.original.employeeCode}
             context={row.original.department || undefined}
@@ -360,7 +360,7 @@ export function SchoolsTeachersContent() {
         id: "hr",
         header: "HR record",
         cell: ({ row }) => (
-          <Link href={`/schools/teachers/${row.original.id}`}>
+          <Link href={`/schools/staff/teachers/${row.original.id}`}>
             <Badge tone={row.original.employee ? "success" : "warn"}>
               {row.original.employee?.employeeId ?? "No HR record"}
             </Badge>
@@ -392,7 +392,7 @@ export function SchoolsTeachersContent() {
             verbs.push({
               label: "Find the employee",
               action: "edit",
-              onSelect: () => router.push(`/schools/teachers/${profile.id}`),
+              onSelect: () => router.push(`/schools/staff/teachers/${profile.id}`),
             });
           }
           verbs.push(
@@ -586,7 +586,7 @@ export function SchoolsTeachersContent() {
                     </span>
                   }
                   onClick={() => {
-                    window.location.href = `/schools/teachers/${row.id}`;
+                    window.location.href = `/schools/staff/teachers/${row.id}`;
                   }}
                 />
               ))

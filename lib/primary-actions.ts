@@ -46,7 +46,7 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
   ],
   "school-operations": [
-    { href: "/schools/admissions", icon: Building2, label: "Admissions" },
+    { href: "/schools/students/applications", icon: Building2, label: "Admissions" },
     { href: "/schools/attendance", icon: Calendar, label: "Attendance" },
     { href: "/schools/finance", icon: ReceiptLong, label: "Finance" },
   ],
@@ -69,7 +69,7 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/crm/leads", icon: Funnel, label: "New Lead" },
     { href: "/crm/clients", icon: Users, label: "New Client" },
     { href: "/crm/appointments", icon: Calendar, label: "Book Site Visit" },
-    { href: "/crm/follow-ups", icon: ClipboardList, label: "Follow-ups" },
+    { href: "/crm/tasks/follow-ups", icon: ClipboardList, label: "Follow-ups" },
     { href: "/reports/insights/sales", icon: BarChart3, label: "Insights" },
   ],
   "service-workshop": [

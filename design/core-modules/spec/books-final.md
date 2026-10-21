@@ -196,7 +196,7 @@ The single exception: documents signed by a device registered against ZIMRA's te
 
 ### 3.1 How the panel works
 
-The rail drills down level by level (`components/layout/workspace-rail/workspace-rail.tsx`): a row with children opens its level, and the chevron before the title goes back up. Books moves from bands (`panelGroups`) to levels: each group below is a row on Books' first level that opens its own level. **Money** is a plain row at the top, the page Books opens on. **Saved views** and **Reports from Books** stay as bands at the foot of each level, as now.
+The sidebar opens a row's children in place (`components/layout/sidebar/`): a row with children opens its level, and the chevron before the title goes back up. Books moves from bands (`panelGroups`) to levels: each group below is a row on Books' first level that opens its own level. **Money** is a plain row at the top, the page Books opens on. **Saved views** and **Reports from Books** stay as bands at the foot of each level, as now.
 
 Names are the owner's words. The accountant's tools are all inside **Ledger** and **Settings**, so they are one click away but never in the owner's path.
 

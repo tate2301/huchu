@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button, ButtonLink, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { fetchReportsHome, REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { fetchReportsHome, REPORTS_HOME_KEY } from "@/lib/reports/home-client";
 import { useLibraryInsights } from "@/components/reports/use-library-insights";
 import { WeekInsightsView, type PinTarget } from "@/components/reports/week-insights-view";
 import { useToast } from "@/components/ui/use-toast";

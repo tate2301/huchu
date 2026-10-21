@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Button, ButtonLink, Empty, Kit, KitScreen } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { REPORTS_HOME_KEY } from "@/components/layout/workspace-rail/reports-groups";
+import { REPORTS_HOME_KEY } from "@/lib/reports/home-client";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CustomReport } from "@/lib/reports/custom/document";

@@ -907,7 +907,7 @@ export function StudentOverviewTab({
                   actions={
                     <span className="flex flex-wrap items-center gap-2">
                       <Button asChild variant="secondary" size="sm">
-                        <Link href={`/schools/meetings?student=${student.id}`}>
+                        <Link href={`/schools/families/meetings?student=${student.id}`}>
                           Book a meeting
                         </Link>
                       </Button>

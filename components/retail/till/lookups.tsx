@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * The lookups beside the sale: customers and price check. Neither changes the
- * sale or the stock until someone presses the one button that says so.
+ * Price check: scan or type, the products found on the left, the chosen one's
+ * price and stock in the sale column's place. It never changes the sale or
+ * the stock until someone presses Add it to the sale.
  */
 
 import * as React from "react";
@@ -10,188 +11,14 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Barcode, MagnifyingGlass, Plus, ShoppingCart, Tag, Users } from "@/lib/icons";
+import { Barcode, CaretLeft, IdentificationCard, Package, Percent, Plus, Recycle, Stack, Tag } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
-import { count, dayMonth, firstName, qty, usd, whole } from "./format";
-import { LaybySearch } from "./layby";
-import { Avatar, Empty, LoadFailed, Segmented } from "./parts";
+import { count, qty, usd } from "./format";
+import { freeKey } from "./layby";
+import { Empty, LoadFailed, useWindowKeys } from "./parts";
 import { useTill } from "./state";
 import { ProductPreview } from "./tile";
-import type { PosCatalogItem, PosCustomer } from "./types";
-
-/** "today", else "on 3 October". */
-const onDay = (at: string) => (dayMonth(at) === dayMonth(new Date()) ? "today" : `on ${dayMonth(at)}`);
-
-function useTyped(delay = 250) {
-  const [typed, setTyped] = React.useState("");
-  const [value, setValue] = React.useState("");
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setValue(typed.trim()), delay);
-    return () => window.clearTimeout(timer);
-  }, [typed, delay]);
-  return { typed, setTyped, value };
-}
-
-/* ─── Customers ──────────────────────────────────────────────────────── */
-
-/** Customers, with their lay-bys a tab away (FLR-09): find one by customer or LAY number. */
-export function CustomersScreen() {
-  const [view, setView] = React.useState<"customers" | "laybys">("customers");
-  const tabs = <Segmented label="Customers or lay-bys" value={view} options={[{ value: "customers", label: "Customers" }, { value: "laybys", label: "Lay-bys" }]} onChange={setView} />;
-  return view === "laybys" ? <LaybysView tabs={tabs} /> : <CustomerList tabs={tabs} />;
-}
-
-function LaybysView({ tabs }: { tabs: React.ReactNode }) {
-  const search = useTyped();
-  return (
-    <div className="main is-fixed">
-      <div className="bar">
-        <h1>Customers</h1>
-        {tabs}
-        <div className="end">
-          <label className="input-wrap is-search">
-            <MagnifyingGlass className="ic" />
-            <input type="search" aria-label="Search lay-bys" placeholder="Customer or LAY number" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
-          </label>
-        </div>
-      </div>
-      <LaybySearch query={search.value} />
-    </div>
-  );
-}
-
-function CustomerList({ tabs }: { tabs: React.ReactNode }) {
-  const router = useRouter();
-  const { selectCustomer, isPosHost } = useTill();
-  const search = useTyped();
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const query = useQuery({
-    queryKey: ["retail-pos-customer-search", search.value],
-    enabled: search.value.length >= 2,
-    queryFn: () => fetchJson<{ data: PosCustomer[] }>(`/api/v2/retail/pos/customers?q=${encodeURIComponent(search.value)}&limit=30`),
-  });
-  const rows = query.data?.data ?? [];
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
-
-  return (
-    <div className="with-rail">
-      <main className="main is-fixed">
-        <div className="bar">
-          <h1>Customers</h1>
-          {tabs}
-          <div className="end">
-            <label className="input-wrap is-search">
-              <MagnifyingGlass className="ic" />
-              <input type="search" aria-label="Search customers" placeholder="Name, phone or card" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
-            </label>
-          </div>
-        </div>
-        {search.value.length < 2 ? (
-          <Empty icon={Users} title="Find a customer">
-            Two letters of a name, or the start of a phone number.
-          </Empty>
-        ) : query.isLoading ? (
-          <div className="finding" aria-busy="true">
-            <span className="skeleton is-line" />
-          </div>
-        ) : query.isError ? (
-          <LoadFailed icon={Users} title="Customers did not load" error={query.error} onRetry={() => void query.refetch()} />
-        ) : !rows.length ? (
-          <Empty icon={Users} title={`No customer matches “${search.value}”`}>
-            Add them from the till with Add customer, while their sale is on it.
-          </Empty>
-        ) : (
-          <div className="table-shell">
-            <div className="table-scroll">
-              <div className="list">
-                {rows.map((row) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    className="row is-person"
-                    aria-current={row.id === selected?.id || undefined}
-                    onClick={() => setSelectedId(row.id)}
-                  >
-                    <Avatar name={row.name} />
-                    <span className="truncate">
-                      <span className="ink">{row.name}</span> <span className="muted num">{row.phone ?? ""}</span>
-                    </span>
-                    <span className="muted">{row.tier}</span>
-                    <span className="num">{whole(row.points)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="table-foot">
-              <div className="foot-row">
-                <span className="num text-left">
-                  {rows.length} {rows.length === 1 ? "customer matches" : "customers match"} “{search.value}”
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-      <aside className="rail" aria-label={selected?.name ?? "Customer"}>
-        {selected ? (
-          <>
-            <section>
-              <div className="who-head">
-                <Avatar name={selected.name} size={40} />
-                <div>
-                  <div className="title-16">{selected.name}</div>
-                  <div className="note num text-left">
-                    {selected.phone ?? ""}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary btn-block btn-lg"
-                onClick={() => {
-                  selectCustomer(selected);
-                  router.push(getPosPortalHref("checkout", isPosHost));
-                }}
-              >
-                <ShoppingCart className="ic" />
-                Start a sale for {firstName(selected.name)}
-              </button>
-            </section>
-            <section>
-              <div className="sec-title">Points</div>
-              <div className="figure">{whole(selected.points)}</div>
-              <dl className="attrs">
-                <dt>Worth</dt>
-                <dd className="num text-left">
-                  {usd(selected.worth)}
-                </dd>
-                <dt>Tier</dt>
-                <dd>
-                  {selected.tier || "None"}
-                </dd>
-                <dt>Last sale</dt>
-                <dd>
-                  {selected.lastSale ? (
-                    <>
-                      <span className="num">{selected.lastSale.saleNo}</span>, {usd(selected.lastSale.total)} {onDay(selected.lastSale.at)}
-                    </>
-                  ) : (
-                    <span className="muted">None yet</span>
-                  )}
-                </dd>
-              </dl>
-            </section>
-            <section>
-              <p className="help">Details and merging are changed in the back office.</p>
-            </section>
-          </>
-        ) : null}
-      </aside>
-    </div>
-  );
-}
-
-/* ─── Price check ────────────────────────────────────────────────────── */
+import type { PosCatalogItem } from "./types";
 
 /** What an 18+ line asks of the till here, by the shop's switches; a device not yet a till does not know them. */
 function ageWords(features: ReturnType<typeof useTill>["features"], sellableNow: boolean) {
@@ -201,113 +28,193 @@ function ageWords(features: ReturnType<typeof useTill>["features"], sellableNow:
   return id && hours ? "Ask for ID, and only in licence hours" : id ? "Ask for ID" : hours ? "Only in licence hours" : "For people 18 or over";
 }
 
+/** "US$1.20", or "Any amount" for an open price (airtime): whatever the cashier types at the till. */
+const priceOf = (item: PosCatalogItem) => (item.openPrice ? "Any amount" : usd(item.unitPrice));
+
 export function PriceCheckScreen() {
-  const router = useRouter();
-  const { addToCart, alcohol, context, features, isPosHost, shiftHere } = useTill();
-  const search = useTyped(150);
+  const { context } = useTill();
+  const [typed, setTyped] = React.useState("");
+  const [term, setTerm] = React.useState("");
+  const [chosenId, setChosenId] = React.useState<string | null>(null);
+  const [phoneRecord, setPhoneRecord] = React.useState(false);
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setTerm(typed.trim()), 150);
+    return () => window.clearTimeout(timer);
+  }, [typed]);
   // The device fixes the site: the till's own shelf.
   const siteId = context?.site.id ?? null;
   const query = useQuery({
-    queryKey: ["retail-pos-price-check", siteId, search.value],
-    enabled: search.value.length >= 1,
-    queryFn: () => fetchJson<{ data: PosCatalogItem[] }>(`/api/v2/retail/pos/catalog?search=${encodeURIComponent(search.value)}`),
+    queryKey: ["retail-pos-price-check", siteId, term],
+    enabled: term.length >= 1,
+    queryFn: () => fetchJson<{ data: PosCatalogItem[] }>(`/api/v2/retail/pos/catalog?search=${encodeURIComponent(term)}`),
   });
-  const rows = query.data?.data ?? [];
-  const item = rows[0] ?? null;
-  const others = rows.slice(1, 4);
-  const stock = item?.inventoryItem?.currentStock ?? 0;
-  // Stock at or below the shop's reorder level says so; null when the shop never set one.
-  const reorderLevel = item?.inventoryItem?.reorderLevel ?? null;
-  const site = context?.site.name ?? "this shop";
-  const deposits = features ? features.emptiesAndDeposits : true;
+  const rows = React.useMemo(() => (term ? (query.data?.data ?? []) : []), [term, query.data]);
+  const item = rows.find((row) => row.id === chosenId) ?? rows[0] ?? null;
 
   return (
-    <div className="main is-scroll">
-      <div className="bar">
-        <h1>Price check</h1>
-      </div>
-      <div className="tools">
-        <label className="input-wrap input-lg grow">
-          <Barcode className="ic" />
-          <input type="search" aria-label="Scan or search products" placeholder="Scan a barcode or type a product" autoComplete="off" autoFocus value={search.typed} onChange={(event) => search.setTyped(event.target.value)} />
-        </label>
-      </div>
-      {!search.value ? (
-        <Empty icon={Tag} title="Scan it, or type its name">
-          Price check never changes the sale or the stock.
-        </Empty>
-      ) : query.isLoading ? (
-        <div className="finding" aria-busy="true">
-          <span className="skeleton is-lede" />
+    <div className={`bench hx cu cu-pc${phoneRecord ? " is-sale" : ""}`}>
+      <main className="main hx-main" aria-label="Price check">
+        <div className="hx-head">
+          <h1>Price check</h1>
+          {term && !query.isPending && rows.length ? <span className="hx-sub">{count(rows.length, "product")}</span> : null}
         </div>
-      ) : query.isError ? (
-        <LoadFailed icon={Tag} title="Prices did not load" error={query.error} onRetry={() => void query.refetch()} />
-      ) : !item ? (
-        <Empty icon={Tag} title={`No product called “${search.value}”`}>
-          Check the spelling or scan the barcode.
-        </Empty>
-      ) : (
-        <div className="page">
-          <div className="side-by-side">
-            <span className="tile is-preview" aria-hidden="true">
-              <ProductPreview name={item.name} imageUrl={item.imageUrl} />
-            </span>
-            <p className="lede-figure">
-              {/* An open price (airtime) is whatever the cashier types at the till. */}
-              {item.name} is {item.openPrice ? "any amount" : <span className="num">{usd(item.unitPrice)}</span>}.{" "}
-              <span className="q">
-                {stock <= 0 && item.openableCase
-                  ? `None loose at ${site}; ${count(item.openableCase.casesOnHand, "case")} of ${item.openableCase.unitsPerCase} to open.`
-                  : reorderLevel !== null && stock <= reorderLevel
-                    ? `${qty(stock)} left at ${site}; the reorder level is ${qty(reorderLevel)}.`
-                    : `${qty(stock)} left at ${site}.`}
-              </span>
-            </p>
+        <label className="input-wrap cu-find">
+          <Barcode className="ic" />
+          <input
+            type="search"
+            aria-label="Scan or search products"
+            placeholder="Scan a barcode or type a product"
+            autoComplete="off"
+            autoFocus
+            value={typed}
+            onChange={(event) => {
+              setTyped(event.target.value);
+              setChosenId(null);
+            }}
+          />
+        </label>
+        {!term ? (
+          <Empty icon={Tag} title="Scan it, or type its name" />
+        ) : query.isPending ? (
+          <div className="hx-list" aria-busy="true">
+            {[0, 1, 2].map((index) => (
+              <span key={index} className="skeleton hx-skeleton" />
+            ))}
           </div>
-          <dl className="attrs">
-            <dt>{item.barcode ? "Barcode" : "Code"}</dt>
-            <dd className="num text-left">{item.barcode ?? item.sku}</dd>
-            <dt>VAT</dt>
-            <dd>{item.taxPercent ? `${item.taxInclusive ? "Included" : "Added"} at ${item.taxPercent}%` : "None"}</dd>
-            {item.ageRestricted ? (
-              <>
-                <dt>18+</dt>
-                <dd>{ageWords(features, alcohol.sellable)}</dd>
-              </>
-            ) : null}
-            {deposits && item.returnable && item.depositAmount ? (
-              <>
-                <dt>Deposit</dt>
-                <dd className="num text-left">
-                  {usd(item.depositAmount)} a bottle
-                </dd>
-              </>
-            ) : null}
-            {others.length ? (
-              <>
-                <dt>Also</dt>
-                <dd>{others.map((other) => `${other.name} ${usd(other.unitPrice)}`).join(" · ")}</dd>
-              </>
-            ) : null}
-          </dl>
-          {shiftHere ? (
-            <div>
-              <button
-                type="button"
-                className="btn btn-lg"
-                onClick={() => {
-                  addToCart(item);
-                  router.push(getPosPortalHref("checkout", isPosHost));
-                }}
-              >
-                <Plus className="ic" />
-                Add it to the sale
-              </button>
+        ) : query.isError ? (
+          <LoadFailed icon={Tag} title="Prices did not load" error={query.error} onRetry={() => void query.refetch()} />
+        ) : !rows.length ? (
+          <Empty icon={Tag} title={`No product called “${term}”`} />
+        ) : (
+          <div className="hx-list">
+            {rows.map((row) => {
+              const stock = row.inventoryItem?.currentStock ?? 0;
+              return (
+                <div key={row.id} className="hx-item">
+                  <button
+                    type="button"
+                    className="hx-row"
+                    aria-current={row.id === item?.id ? "true" : undefined}
+                    onClick={() => {
+                      setChosenId(row.id);
+                      setPhoneRecord(true);
+                    }}
+                  >
+                    <span className="hx-glyph">
+                      <ProductPreview name={row.name} imageUrl={row.imageUrl} />
+                    </span>
+                    <span className="hx-text">
+                      <span className="hx-t">
+                        <span className="truncate">{row.name}</span>
+                        {row.ageRestricted ? <span className="hx-tag">18+</span> : null}
+                      </span>
+                      <span className="hx-s">
+                        <span className="num">{row.barcode ?? row.sku}</span> · <span className="num">{qty(stock)}</span> left
+                      </span>
+                    </span>
+                    <span className="hx-v num">{priceOf(row)}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+      <aside className="bench-side hx-side" aria-label={item ? item.name : "Product"}>
+        {item ? <ProductRecord key={item.id} item={item} onBack={() => setPhoneRecord(false)} /> : null}
+      </aside>
+    </div>
+  );
+}
+
+/** A product in the sale column's place: its price as the largest figure, its stock and rules as facts, and Add it to the sale. */
+function ProductRecord({ item, onBack }: { item: PosCatalogItem; onBack: () => void }) {
+  const router = useRouter();
+  const { addToCart, alcohol, context, features, isPosHost, shiftHere } = useTill();
+  const stock = item.inventoryItem?.currentStock ?? 0;
+  // Stock at or below the shop's reorder level says so; null when the shop never set one.
+  const reorderLevel = item.inventoryItem?.reorderLevel ?? null;
+  const site = context?.site.name ?? "this shop";
+  const deposits = features ? features.emptiesAndDeposits : true;
+  const add = () => {
+    addToCart(item);
+    router.push(getPosPortalHref("checkout", isPosHost));
+  };
+  useWindowKeys((event) => {
+    if (!shiftHere || event.key !== "Enter" || !freeKey(event)) return;
+    event.preventDefault();
+    add();
+  });
+
+  return (
+    <>
+      <div className="bar sale-head">
+        <button type="button" className="btn btn-icon is-touch when-phone" aria-label="Back to Price check" onClick={onBack}>
+          <CaretLeft className="ic" />
+        </button>
+        <h1>Product</h1>
+        <span className="hx-code num">{item.barcode ?? item.sku}</span>
+      </div>
+      <div className="hx-scroll">
+        <div className="cu-product">
+          <span className="cu-pic" aria-hidden="true">
+            <ProductPreview name={item.name} imageUrl={item.imageUrl} />
+          </span>
+          <span className="cu-product-n">{item.name}</span>
+          <span className="paid-v">{priceOf(item)}</span>
+        </div>
+        <dl className="facts hx-facts">
+          <div className="fact">
+            <Package className="ic" />
+            <dt>{stock <= 0 && item.openableCase ? `None loose at ${site}` : `Left at ${site}`}</dt>
+            <dd>{qty(stock)}</dd>
+          </div>
+          {stock <= 0 && item.openableCase ? (
+            <div className="fact">
+              <Stack className="ic" />
+              <dt>{count(item.openableCase.casesOnHand, "case")} to open</dt>
+              <dd>{item.openableCase.unitsPerCase} a case</dd>
+            </div>
+          ) : reorderLevel !== null && stock <= reorderLevel ? (
+            <div className="fact">
+              <Stack className="ic" />
+              <dt>Reorder level</dt>
+              <dd>{qty(reorderLevel)}</dd>
             </div>
           ) : null}
-          <p className="help">Price check never changes the sale or the stock.</p>
+          <div className="fact">
+            <Percent className="ic" />
+            <dt>VAT</dt>
+            <dd>{item.taxPercent ? `${item.taxInclusive ? "Included" : "Added"} at ${item.taxPercent}%` : "None"}</dd>
+          </div>
+          {item.ageRestricted ? (
+            <div className="fact">
+              <IdentificationCard className="ic" />
+              <dt>{ageWords(features, alcohol.sellable)}</dt>
+              <dd>18+</dd>
+            </div>
+          ) : null}
+          {deposits && item.returnable && item.depositAmount ? (
+            <div className="fact">
+              <Recycle className="ic" />
+              <dt>Deposit a bottle</dt>
+              <dd>{usd(item.depositAmount)}</dd>
+            </div>
+          ) : null}
+        </dl>
+        <span className="grow" />
+      </div>
+      {shiftHere ? (
+        <div className="hx-keys is-one">
+          <button type="button" className="take-key" onClick={add}>
+            <Plus className="ic" />
+            Add it to the sale
+            <span className="kbd on-primary" aria-hidden="true">
+              ↵
+            </span>
+          </button>
         </div>
-      )}
-    </div>
+      ) : null}
+    </>
   );
 }

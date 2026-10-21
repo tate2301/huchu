@@ -61,22 +61,11 @@ import {
   CircleDottedLine,
   PushPin,
   Gem,
-  CreditCard,
   ListBullets,
-  QrCode,
   ShoppingBag,
-  Warning,
-  Vault,
-  Percent,
-  BookOpen,
-  MedusaCogSixToothIcon,
-  ArrowRightUp,
-  Storefront,
-  Columns,
-  ListChecks,
-  PauseCircle,
   type LucideIcon,
 } from "@/lib/icons";
+import { BOOKS_ROW_ICON } from "@/components/books/icons/books-nav-icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
@@ -147,6 +136,12 @@ export type NavItem = {
   profiles?: readonly string[];
   /** Pages outside its path that are still this row's (`lib/nav-match.ts`). */
   also?: RegExp;
+  /**
+   * A row the workspace's plan does not include: the price it shows in place
+   * of a count, with a lock (Books' $10 and $99 rows, lib/books/tiers.ts). It
+   * still opens, onto what that plan adds.
+   */
+  lock?: string;
 };
 
 /**
@@ -194,6 +189,8 @@ export type NavGroup = {
    * rows, so they are filtered like rows but never counted as the module's.
    */
   links?: { label: string; items: NavItem[] };
+  /** `level` only: its row shows the sum of its rows' counts, the things waiting in it (Books' bk-nav). */
+  sumsCounts?: boolean;
 };
 
 export type NavSection = {
@@ -308,79 +305,79 @@ const BOOKS_KEEPERS: UserRole[] = ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"];
  * (§3.2); the server refuses on its own.
  */
 export const BOOKS_LEVELS: NavGroup[] = [
-  { id: "books-sales", label: "Sales", level: true, icon: ReceiptLong },
-  { id: "books-spending", label: "Bills & spending", level: true, icon: Wallet },
-  { id: "books-bank", label: "Bank & cash", level: true, icon: Vault },
-  { id: "books-tax", label: "Tax", level: true, icon: Percent },
-  { id: "books-close", label: "Close the month", level: true, icon: ListChecks },
-  { id: "books-ledger", label: "Ledger", level: true, icon: BookOpen },
+  { id: "books-sales", label: "Sales", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Sales"] },
+  { id: "books-spending", label: "Bills & spending", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Bills & spending"] },
+  { id: "books-bank", label: "Bank & cash", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Bank & cash"] },
+  { id: "books-tax", label: "Tax", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Tax"] },
+  { id: "books-close", label: "Close the month", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Close the month"] },
+  { id: "books-ledger", label: "Ledger", level: true, sumsCounts: true, icon: BOOKS_ROW_ICON["Ledger"] },
   {
     id: "books-settings",
     label: "Settings",
     level: true,
-    icon: MedusaCogSixToothIcon,
+    icon: BOOKS_ROW_ICON.Settings,
     // Set up in Management, so a workspace without Books' screens can still set them (§1.1).
     links: {
       label: "In Management",
       items: [
-        { href: "/management/money-and-tax", icon: ArrowRightUp, label: "Business & tax details", roles: BOOKS_KEEPERS },
-        { href: "/management/money-accounts", icon: ArrowRightUp, label: "Money accounts", roles: BOOKS_KEEPERS },
-        { href: "/retail/manage/approvals", icon: ArrowRightUp, label: "Approvals & limits", roles: BOOKS_KEEPERS },
-        { href: "/retail/manage/fiscal", icon: ArrowRightUp, label: "Fiscal device", roles: BOOKS_KEEPERS },
+        { href: "/management/money-and-tax", icon: BOOKS_ROW_ICON["Business & tax details"], label: "Business & tax details", roles: BOOKS_KEEPERS },
+        { href: "/management/money-accounts", icon: BOOKS_ROW_ICON["Money accounts"], label: "Money accounts", roles: BOOKS_KEEPERS },
+        { href: "/retail/manage/approvals", icon: BOOKS_ROW_ICON["Approvals & limits"], label: "Approvals & limits", roles: BOOKS_KEEPERS },
+        { href: "/retail/manage/fiscal", icon: BOOKS_ROW_ICON["Fiscal device"], label: "Fiscal device", roles: BOOKS_KEEPERS },
       ],
     },
   },
 ];
 
 export const BOOKS_NAV_ITEMS: NavItem[] = [
-  { href: "/books", icon: Home, label: "Money", exact: true },
+  { href: "/books", icon: BOOKS_ROW_ICON["Money"], label: "Money", exact: true },
 
-  { href: "/books/invoices", icon: ReceiptLong, label: "Invoices", group: "books-sales" },
-  { href: "/books/quotes", icon: FileText, label: "Quotes", group: "books-sales" },
-  { href: "/books/payments", icon: Payments, label: "Payments received", group: "books-sales" },
-  { href: "/books/credit-notes", icon: FileCheck, label: "Credit notes", group: "books-sales" },
-  { href: "/books/customers", icon: Users, label: "Customers", group: "books-sales" },
+  { href: "/books/invoices", icon: BOOKS_ROW_ICON["Invoices"], label: "Invoices", group: "books-sales" },
+  { href: "/books/quotes", icon: BOOKS_ROW_ICON["Quotes"], label: "Quotes", group: "books-sales" },
+  { href: "/books/payments", icon: BOOKS_ROW_ICON["Payments received"], label: "Payments received", group: "books-sales" },
+  { href: "/books/credit-notes", icon: BOOKS_ROW_ICON["Credit notes"], label: "Credit notes", group: "books-sales" },
+  { href: "/books/customers", icon: BOOKS_ROW_ICON["Customers"], label: "Customers", group: "books-sales" },
 
-  { href: "/books/expenses", icon: Wallet, label: "All spending", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/bills", icon: FileText, label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/payments-made", icon: Payments, label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/orders", icon: ListBullets, label: "Purchase orders", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/requisitions", icon: ClipboardList, label: "Requisitions", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/claims", icon: Receipt, label: "Claims & petty cash", group: "books-spending", roles: BOOKS_KEEPERS },
-  { href: "/books/suppliers", icon: Storefront, label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/expenses", icon: BOOKS_ROW_ICON["All spending"], label: "All spending", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/bills", icon: BOOKS_ROW_ICON["Bills"], label: "Bills", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/payments-made", icon: BOOKS_ROW_ICON["Payments made"], label: "Payments made", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/orders", icon: BOOKS_ROW_ICON["Purchase orders"], label: "Purchase orders", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/requisitions", icon: BOOKS_ROW_ICON["Requisitions"], label: "Requisitions", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/claims", icon: BOOKS_ROW_ICON["Claims & petty cash"], label: "Claims & petty cash", group: "books-spending", roles: BOOKS_KEEPERS },
+  { href: "/books/suppliers", icon: BOOKS_ROW_ICON["Suppliers"], label: "Suppliers", group: "books-spending", roles: BOOKS_KEEPERS },
 
-  { href: "/books/accounts", icon: Vault, label: "Accounts", group: "books-bank" },
-  { href: "/books/bank", icon: CreditCard, label: "To match", group: "books-bank" },
-  { href: "/books/reconciliations", icon: ListChecks, label: "Reconciliations", group: "books-bank" },
+  { href: "/books/accounts", icon: BOOKS_ROW_ICON["Accounts"], label: "Accounts", group: "books-bank" },
+  { href: "/books/bank", icon: BOOKS_ROW_ICON["To match"], label: "To match", group: "books-bank" },
+  { href: "/books/reconciliations", icon: BOOKS_ROW_ICON["Reconciliations"], label: "Reconciliations", group: "books-bank" },
   // The tills' takings, counted and banked at the end of the day (retail only).
-  { href: "/books/takings", icon: ShoppingBag, label: "Takings", group: "books-bank", requires: [["retail.end-of-day", "view"]] },
+  { href: "/books/takings", icon: BOOKS_ROW_ICON["Takings"], label: "Takings", group: "books-bank", requires: [["retail.end-of-day", "view"]] },
 
-  { href: "/books/tax", icon: Calendar, label: "What's due", group: "books-tax", roles: BOOKS_KEEPERS },
-  { href: "/books/vat", icon: Percent, label: "VAT returns", group: "books-tax", roles: BOOKS_KEEPERS },
-  { href: "/books/withholding", icon: PauseCircle, label: "Withholding", group: "books-tax", roles: BOOKS_KEEPERS },
-  { href: "/books/provisional-tax", icon: Calendar, label: "Provisional tax", group: "books-tax", roles: BOOKS_KEEPERS },
-  { href: "/books/fiscal", icon: QrCode, label: "Fiscal register", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/tax", icon: BOOKS_ROW_ICON["What's due"], label: "What's due", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/vat", icon: BOOKS_ROW_ICON["VAT returns"], label: "VAT returns", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/withholding", icon: BOOKS_ROW_ICON["Withholding"], label: "Withholding", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/provisional-tax", icon: BOOKS_ROW_ICON["Provisional tax"], label: "Provisional tax", group: "books-tax", roles: BOOKS_KEEPERS },
+  { href: "/books/fiscal", icon: BOOKS_ROW_ICON["Fiscal register"], label: "Fiscal register", group: "books-tax", roles: BOOKS_KEEPERS },
 
-  { href: "/books/periods", icon: ListBullets, label: "Checklist", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/periods", icon: BOOKS_ROW_ICON["Checklist"], label: "Checklist", group: "books-close", roles: BOOKS_KEEPERS },
   // Money that has not reached the ledger (BkNeedsPosting).
-  { href: "/books/needs-posting", icon: Warning, label: "Needs posting", group: "books-close", roles: BOOKS_KEEPERS },
-  { href: "/books/rates", icon: Coins, label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
-  { href: "/books/year-end", icon: Calendar, label: "Year end", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/needs-posting", icon: BOOKS_ROW_ICON["Needs posting"], label: "Needs posting", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/rates", icon: BOOKS_ROW_ICON["Rates & revaluation"], label: "Rates & revaluation", group: "books-close", roles: BOOKS_KEEPERS },
+  { href: "/books/year-end", icon: BOOKS_ROW_ICON["Year end"], label: "Year end", group: "books-close", roles: BOOKS_KEEPERS },
 
-  { href: "/books/journals", icon: BookOpen, label: "Journals", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/trial-balance", icon: TableRows, label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/financials", icon: BarChart3, label: "Financial statements", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/ledger", icon: ListBullets, label: "General ledger", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/chart", icon: Columns, label: "Chart of accounts", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/cost-centres", icon: Layers, label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/posting-rules", icon: Checklist, label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
-  { href: "/books/audit", icon: History, label: "Audit trail", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/journals", icon: BOOKS_ROW_ICON["Journals"], label: "Journals", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/trial-balance", icon: BOOKS_ROW_ICON["Trial balance"], label: "Trial balance", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/financials", icon: BOOKS_ROW_ICON["Financial statements"], label: "Financial statements", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/ledger", icon: BOOKS_ROW_ICON["General ledger"], label: "General ledger", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/chart", icon: BOOKS_ROW_ICON["Chart of accounts"], label: "Chart of accounts", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/cost-centres", icon: BOOKS_ROW_ICON["Cost centres"], label: "Cost centres", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/posting-rules", icon: BOOKS_ROW_ICON["Posting rules"], label: "Posting rules", group: "books-ledger", roles: BOOKS_KEEPERS },
+  { href: "/books/audit", icon: BOOKS_ROW_ICON["Audit trail"], label: "Audit trail", group: "books-ledger", roles: BOOKS_KEEPERS },
 
-  { href: "/books/settings/tax", icon: Percent, label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
-  { href: "/books/settings/numbering", icon: ListChecks, label: "Numbering", group: "books-settings", roles: BOOKS_KEEPERS },
-  { href: "/books/settings/locks", icon: Lock, label: "Locks & periods", group: "books-settings", roles: BOOKS_KEEPERS },
-  { href: "/books/settings/opening-balances", icon: Scale, label: "Opening balances", group: "books-settings", roles: BOOKS_KEEPERS },
-  { href: "/books/settings/setup", icon: MedusaCogSixToothIcon, label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/tax", icon: BOOKS_ROW_ICON["Tax codes & rules"], label: "Tax codes & rules", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/numbering", icon: BOOKS_ROW_ICON["Numbering"], label: "Numbering", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/locks", icon: BOOKS_ROW_ICON["Locks & periods"], label: "Locks & periods", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/opening-balances", icon: BOOKS_ROW_ICON["Opening balances"], label: "Opening balances", group: "books-settings", roles: BOOKS_KEEPERS },
+  { href: "/books/settings/setup", icon: BOOKS_ROW_ICON["Set up the books"], label: "Set up the books", group: "books-settings", roles: BOOKS_KEEPERS },
 ];
 
 export const navSections: NavSection[] = [
@@ -611,13 +608,13 @@ export const navSections: NavSection[] = [
       // library.
       { href: "/schools/students", icon: Users, label: "Students", group: "students" },
       {
-        href: "/schools/admissions",
+        href: "/schools/students/applications",
         icon: NoteAdd,
         label: "Applications",
         group: "students",
         grant: { resource: "schools.admissions" },
       },
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "students" },
+      { href: "/schools/students/guardians", icon: UserRound, label: "Guardians", group: "students" },
       // An allergy does not care whether a child sleeps at school. Gated as
       // boarding it was denied to the bursar, the head of department and the
       // class teacher, all of whom hold `schools.welfare` and all of whom may
@@ -655,7 +652,7 @@ export const navSections: NavSection[] = [
       // S-13.4 and S-13.5, at the end of the group in the order of the year: a
       // pupil is admitted, taught, rolled up, and then leaves.
       {
-        href: "/schools/leavers",
+        href: "/schools/students/leavers",
         icon: SignOut,
         label: "Leavers",
         group: "students",
@@ -686,14 +683,14 @@ export const navSections: NavSection[] = [
       // who can see the roll is responsible for a child on a day the school
       // may be closed.
       {
-        href: "/schools/calendar",
+        href: "/schools/attendance/calendar",
         icon: Calendar,
         label: "Calendar",
         group: "school-day",
         grant: { resource: "schools.students" },
       },
       {
-        href: "/schools/timetable",
+        href: "/schools/attendance/timetable",
         icon: Grid3x3,
         label: "Timetable",
         group: "school-day",
@@ -757,13 +754,13 @@ export const navSections: NavSection[] = [
       // and the POST that creates one had no caller, so the whole of public
       // exams was unreachable from an empty tenant.
       {
-        href: "/schools/exams/reference",
+        href: "/schools/results/exams/reference",
         icon: Scale,
         label: "Exam boards",
         group: "results",
       },
       {
-        href: "/schools/exams",
+        href: "/schools/results/exams",
         icon: Certificate,
         label: "Exam series",
         group: "results",
@@ -811,7 +808,7 @@ export const navSections: NavSection[] = [
       // assignment, so payroll and leave stay in one place; this is the
       // school's window onto its own.
       { href: "/schools/staff", icon: MedusaIdBadgeIcon, label: "Support staff", group: "staff" },
-      { href: "/schools/teachers", icon: MedusaAcademicCapIcon, label: "Teaching staff", group: "staff" },
+      { href: "/schools/staff/teachers", icon: MedusaAcademicCapIcon, label: "Teaching staff", group: "staff" },
 
       // Everything that passes between the school and a home. A notice goes out
       // to many and cannot be replied to; a message is one family and one
@@ -819,9 +816,9 @@ export const navSections: NavSection[] = [
       // is the thing you print and hand over. Keeping the four adjacent is how
       // somebody learns which one they wanted.
       { href: "/schools/documents", icon: FileText, label: "Documents", group: "families" },
-      { href: "/schools/messages", icon: Mail, label: "Messages", group: "families" },
-      { href: "/schools/notices", icon: Megaphone, label: "Notices", group: "families" },
-      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "families" },
+      { href: "/schools/families/messages", icon: Mail, label: "Messages", group: "families" },
+      { href: "/schools/families/notices", icon: Megaphone, label: "Notices", group: "families" },
+      { href: "/schools/families/meetings", icon: CalendarCheck, label: "Parent meetings", group: "families" },
 
       // What the school is, as opposed to what it does — and because a school
       // arriving from another system brings its history with it, the import
@@ -985,7 +982,7 @@ export const navSections: NavSection[] = [
       // raised; a job is still labelled "Jobs" because that is what the page,
       // the button and everybody in the building already call it.
       { href: "/crm/projects", icon: Work, label: "Projects", group: "projects", rank: "flow" },
-      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
+      { href: "/crm/projects/jobs", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
 
       // The index first, then in the order the money moves: billed, paid,
       // chased; then asked for, spent, reported.
@@ -998,11 +995,9 @@ export const navSections: NavSection[] = [
         group: "money",
         rank: "flow",
       },
-      { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "money", rank: "flow" },
-      { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "money", rank: "flow" },
-      { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "money", rank: "flow" },
-      { href: "/crm/collections", icon: Scale, label: "Collections", group: "money", rank: "flow" },
-      { href: "/crm/requisitions", icon: Wallet, label: "Requisitions", group: "money", rank: "flow" },
+      // Quotes, invoices, receipts, collections and requisitions are Books' records,
+      // each at one address there (design/books/NOTES.md §2); a deal shows its own
+      // money and opens them. The CRM keeps the field's own money tools.
       { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money", rank: "flow" },
       {
         href: "/crm/daily-reports",
@@ -1015,7 +1010,7 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
-      { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
+      { href: "/crm/tasks/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
       // Insights and Sales reports moved to Reports (Insights → Sales, and All
       // reports); `/crm/insights` and `/crm/reports` forward there.

@@ -45,7 +45,7 @@ const ROUTES: readonly Route[] = [
   { path: "/crm/receipts", name: "Receipts" },
   { path: "/crm/collections", name: "Collections" },
   { path: "/crm/tasks", name: "Tasks" },
-  { path: "/crm/follow-ups", name: "Follow-ups" },
+  { path: "/crm/tasks/follow-ups", name: "Follow-ups" },
   { path: "/crm/appointments", name: "Appointments" },
   { path: "/crm/reps", name: "Sales reps" },
   // `/crm/insights` and `/crm/reports` forward to Reports → Insights → Sales and Reports.

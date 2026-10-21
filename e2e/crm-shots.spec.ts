@@ -36,7 +36,7 @@ import type { Page } from "@playwright/test";
  * journeys. What none of them do is **width**: every harness shot of CRM is
  * desktop, and `VIEWPORT` has no tablet entry at all. This file is the tablet
  * and phone pass over the whole surface, plus the seven routes no suite visits
- * (`/crm/work-orders`, `/crm/clients`, `/crm/import`, the three `/crm/workflows`
+ * (`/crm/projects/jobs`, `/crm/clients`, `/crm/import`, the three `/crm/workflows`
  * routes and `/crm/leads?layout=table`), the two sheets, and `fullPage` capture
  * — `shooter()` is `fullPage: false`, so a long list is only ever photographed
  * below the fold here.
@@ -84,12 +84,12 @@ const SCREENS: Screen[] = [
   { name: "crm-companies", path: "/crm/companies" },
   { name: "crm-sites", path: "/crm/sites" },
   { name: "crm-tasks", path: "/crm/tasks" },
-  { name: "crm-follow-ups", path: "/crm/follow-ups" },
+  { name: "crm-follow-ups", path: "/crm/tasks/follow-ups" },
   { name: "crm-quotes", path: "/crm/quotes" },
   { name: "crm-invoices", path: "/crm/invoices" },
   { name: "crm-collections", path: "/crm/collections" },
   { name: "crm-appointments", path: "/crm/appointments" },
-  { name: "crm-work-orders", path: "/crm/work-orders" },
+  { name: "crm-work-orders", path: "/crm/projects/jobs" },
   { name: "crm-insights", path: "/crm/insights" },
   { name: "crm-reports", path: "/crm/reports" },
   { name: "crm-workflows", path: "/crm/workflows" },

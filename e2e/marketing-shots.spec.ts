@@ -108,15 +108,15 @@ test.describe("schools", () => {
     { path: "/schools", name: "overview" },
     { path: "/schools/students", name: "students" },
     { path: "/schools/classes", name: "classes" },
-    { path: "/schools/teachers", name: "teachers" },
-    { path: "/schools/guardians", name: "guardians" },
+    { path: "/schools/staff/teachers", name: "teachers" },
+    { path: "/schools/students/guardians", name: "guardians" },
   ]);
 
   journey("schools — a term of teaching", "schools", "teaching", [
     { path: "/schools/attendance", name: "attendance" },
     { path: "/schools/attendance/follow-up", name: "absence-follow-up" },
     { path: "/schools/results", name: "results" },
-    { path: "/schools/timetable", name: "timetable" },
+    { path: "/schools/attendance/timetable", name: "timetable" },
     { path: "/schools/homework", name: "homework" },
   ]);
 
@@ -201,7 +201,7 @@ test.describe("crm", () => {
 
   journey("crm — the week ahead", "crm", "the-week", [
     { path: "/crm/tasks", name: "tasks" },
-    { path: "/crm/follow-ups", name: "follow-ups" },
+    { path: "/crm/tasks/follow-ups", name: "follow-ups" },
     { path: "/crm/appointments", name: "appointments" },
     { path: "/crm/insights", name: "insights" },
   ]);

@@ -46,6 +46,9 @@ export async function GET(
         passwordChangedAt: true,
         phone: true,
         image: true,
+        memberKind: true,
+        firmName: true,
+        accessEndsOn: true,
       },
     });
 
@@ -85,6 +88,9 @@ export async function GET(
           : null,
         phone: user.phone,
         image: user.image,
+        memberKind: user.memberKind,
+        firmName: user.firmName,
+        accessEndsOn: user.accessEndsOn ? user.accessEndsOn.toISOString().slice(0, 10) : null,
       },
       groups,
       overrideCount: countOverrides(groups),

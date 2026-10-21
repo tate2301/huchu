@@ -34,7 +34,7 @@ describe("Payments made rows (BkPaymentsOut)", () => {
   it("names the IMTT on one that is paid, and nothing is withheld without a reason", () => {
     const row = toPaymentOutRow(record({ status: "PAID", paymentNumber: "PAY-0051", amount: 1860, vendor: { id: "v2", name: "Tile & Trim Supplies", itf263Number: "ITF-1", itf263ExpiresAt: null } }), "USD", { withheld: 0, imtt: 37.2 }, now);
     expect(row).toMatchObject({ number: "PAY-0051", withheld: 0, paid: 1860 });
-    expect(row.note).toEqual({ text: "IMTT US$37.20", warn: false });
+    expect(row.note).toEqual({ text: "IMTT $37.20", warn: false });
   });
 
   it("gives a void its reason", () => {

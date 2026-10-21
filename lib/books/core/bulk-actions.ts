@@ -23,7 +23,7 @@ import { BULK_LIMIT, bulkDeleteWord, reasonOf, UNDO_NOUN, type BulkAction, type 
  *
  * Void and Delete permanently take one reason for all, and Delete also wants
  * "delete <count>" typed, as the owner's dialog asks. Both are the owner's
- * unless the owner granted void (`books.void`); drafts in a Delete go by
+ * or the outside accountant's; drafts in a Delete go by
  * whoever may edit them.
  */
 

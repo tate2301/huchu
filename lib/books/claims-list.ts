@@ -72,7 +72,7 @@ const round = (n: number) => Math.round(n * 100) / 100;
 const harareStart = (day: string) => new Date(`${day}T00:00:00.000+02:00`);
 const possessive = (name: string) => `${name}${name.endsWith("s") ? "'" : "'s"}`;
 
-/** "1 claim waits for you: Simba Gondo, US$23.00." / "Tinashe Moyo's US$36.00 waits to be paid back." */
+/** "1 claim waits for you: Simba Gondo, $23.00." / "Tinashe Moyo's $36.00 waits to be paid back." */
 export function claimsFinding(waiting: Array<{ name: string; amount: number }>, toPay: Array<{ name: string; amount: number }>, currency = "USD"): { fact: string; rest: string | null } {
   const fact =
     waiting.length === 0

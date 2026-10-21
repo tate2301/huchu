@@ -1,0 +1,30 @@
+/* The Books face (design/books/spec/tokens.json: Atkinson Hyperlegible Next with
+   IBM Plex Mono), for Books only (design/books/NOTES.md §0, §3). The rest of
+   Corelith reads in Inter (`app/themes/roles.css`). Both families are loaded
+   by the stylesheet's font import (`app/globals.css`), weights 400, 500, 600.
+
+   `BooksScope` marks the root while a Books page is open, so the app bar, the
+   panel and the drawers and menus portalled to <body> all take the face. */
+:root[data-module="books"] {
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+:root[data-module="books"] body,
+:root[data-module="books"] :is(button, input, select, textarea) {
+  font-family: var(--font-sans);
+}
+
+/* Corelith UI icons sit on an 18 grid; in a row they draw at the kit's 16. */
+.ci {
+  display: block;
+  flex: none;
+}
+.ic.ci {
+  width: 16px;
+  height: 16px;
+}
+.ic.ic-20.ci {
+  width: 20px;
+  height: 20px;
+}

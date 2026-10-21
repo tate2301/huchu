@@ -85,7 +85,7 @@ export function CrmOverview() {
             : undefined,
         note: data.collections.overdue > 0 ? "past its terms" : "all within terms",
         tone: data.collections.overdue > 0 ? "danger" : "good",
-        href: "/crm/invoices",
+        href: "/books/invoices",
         icon: Coins,
       },
       {
@@ -97,7 +97,7 @@ export function CrmOverview() {
             : `oldest ${data.documents.oldestAwaitingDays}d`,
         note: "quotes not yet answered",
         tone: (data.documents.oldestAwaitingDays ?? 0) > 14 ? "warn" : "neutral",
-        href: "/crm/quotes",
+        href: "/books/quotes",
         icon: FileText,
       },
       {

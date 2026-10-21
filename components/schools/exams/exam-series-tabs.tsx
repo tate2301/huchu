@@ -32,7 +32,7 @@ export function ExamSeriesTabs({ seriesId }: { seriesId: string }) {
   return (
     <nav aria-label="This series" className="flex gap-1 border-b border-[color:var(--border-subtle)]">
       {TABS.map((tab) => {
-        const href = `/schools/exams/${seriesId}/${tab.segment}`;
+        const href = `/schools/results/exams/${seriesId}/${tab.segment}`;
         const active = pathname === href;
         return (
           <Link

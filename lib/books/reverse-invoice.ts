@@ -12,7 +12,7 @@ import { creditLines, REASON_MAX, REASON_MIN, wasFiscalised, type CreditChoice }
 
 /**
  * Reversing an issued or paid invoice from its page (Reverse), by the
- * workspace's owner or someone the owner let (`books.void`), with a reason
+ * workspace's owner or the outside accountant, with a reason
  * that is kept:
  *
  * - **Void the whole invoice** (books-final §4.1 rule 4, §4.3): never a bare

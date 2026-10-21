@@ -301,7 +301,7 @@ async function main() {
     An intake form, a saved list, a document template and a job. They were
     found missing by the e2e sweep rather than by reading the seed: four record
     pages — `/crm/forms/[id]`, `/crm/lists/[id]`, `/crm/templates/[id]` and
-    `/crm/work-orders/[id]` — had nothing to open, and their four list pages
+    `/crm/projects/jobs/[id]` — had nothing to open, and their four list pages
     were rendering an empty state that looked like a working screen.
 
     A work order is the one that matters most. It is what a service provider

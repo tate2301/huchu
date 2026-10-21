@@ -19,12 +19,7 @@ export default async function WhoIsSellingPage() {
   return (
     <TillGate
       base={base}
-      till={{
-        name: device.register.name,
-        site: device.register.site.name,
-        pairedAt: device.pairedAt.toISOString(),
-        pairedBy: device.pairedBy.name ?? "a manager",
-      }}
+      till={{ name: device.register.name, site: device.register.site.name }}
     />
   );
 }

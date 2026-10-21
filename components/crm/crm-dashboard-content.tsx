@@ -203,7 +203,7 @@ export function CrmDashboardContent() {
               ? "warn"
               : "neutral"
           }
-          onClick={() => router.push("/crm/quotes")}
+          onClick={() => router.push("/books/quotes")}
         />
         <KpiGrid.Item
           label="In the pipeline"
@@ -220,7 +220,7 @@ export function CrmDashboardContent() {
               : "all within terms"
           }
           tone={collections.overdue > 0 ? "warn" : "neutral"}
-          onClick={() => router.push("/crm/collections")}
+          onClick={() => router.push("/books/invoices?view=overdue")}
         />
       </KpiGrid>
 
@@ -236,7 +236,7 @@ export function CrmDashboardContent() {
                 : `${needsAttention} past due · ${tasks.open} open in total`
             }
             status={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-            onClick={() => router.push("/crm/follow-ups")}
+            onClick={() => router.push("/crm/tasks/follow-ups")}
           />
           <RowCard
             icon={<CheckCircle className="size-4" />}
@@ -278,7 +278,7 @@ export function CrmDashboardContent() {
                 : `${collections.invoiceCount} open · ${money(collections.outstanding, currency)} outstanding`
             }
             status={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-            onClick={() => router.push("/crm/collections")}
+            onClick={() => router.push("/books/invoices?view=overdue")}
           />
           <RowCard
             icon={<Wrench className="size-4" />}
@@ -296,7 +296,7 @@ export function CrmDashboardContent() {
                     .join(" · ")
             }
             status={<ChevronRight className="size-4 text-[var(--text-subtle)]" />}
-            onClick={() => router.push("/crm/work-orders")}
+            onClick={() => router.push("/crm/projects/jobs")}
           />
           <RowCard
             icon={<Calendar className="size-4" />}

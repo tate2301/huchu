@@ -1,0 +1,1783 @@
+{
+ "$comment": "The model every screen in design/teams is a view of. Written 19 Oct 2026 against huchu main (bd003c69b). Names, codes, figures and times here are the only ones screens may use. 'schema' notes say what exists in prisma/schema.prisma and what must be added; the model is written as the business lives it. model.md is the readable version.",
+ "tenancy": {
+  "unit": "workspace",
+  "sub": {
+   "TENDER": [
+    "shop (Site)",
+    "till (RetailRegister) with one paired device (RetailDevice)"
+   ],
+   "PABASA": []
+  },
+  "switcher": "one control at the top of the sidebar: the workspace's logo and name over the member's face and name; opens to the member's workspaces and their account",
+  "membership": "one person, many workspaces. Signing in on a workspace's address needs a membership there; the central address shows the workspaces to choose from",
+  "scope_visible": "a Tender page that shows figures names its shop; members of one shop never see that others exist",
+  "products": {
+   "TENDER": {
+    "name": "Tender",
+    "home": "/retail",
+    "theme": "tender",
+    "trialDays": 14
+   },
+   "PABASA": {
+    "name": "Pabasa",
+    "home": "/work",
+    "theme": "corelith until its brand is set",
+    "trialDays": 14
+   }
+  },
+  "schema": "Company.product (WorkspaceProduct: CORELITH, FLARE today) gains TENDER and PABASA; FLARE is renamed PABASA. WorkspaceMembership is new. User.companyId stays as the active workspace."
+ },
+ "roles": [
+  {
+   "role": "owner",
+   "maps_to": "SUPERADMIN + WorkspaceMembership.isOwner",
+   "device": "phone first; laptop for setup when one is near",
+   "conditions": "signed up from an ad or a WhatsApp link; pays for data",
+   "can": [
+    "everything an admin can",
+    "make and unmake admins",
+    "raise the seat limit and pay",
+    "offer ownership to another member",
+    "close the workspace"
+   ],
+   "cannot": [
+    "remove themselves while they are the owner"
+   ],
+   "never_sees": []
+  },
+  {
+   "role": "admin",
+   "maps_to": "SUPERADMIN",
+   "device": "laptop",
+   "conditions": "office or the back of the shop",
+   "can": [
+    "invite people within the seats left",
+    "change a member's role, except to or from admin",
+    "allow or deny a permission they hold themselves",
+    "suspend, restore and remove members who are not admins",
+    "resend and revoke invites",
+    "turn the invite link on and off"
+   ],
+   "cannot": [
+    "billing and the seat limit",
+    "change, suspend or remove the owner or another admin",
+    "give a permission they do not hold",
+    "offer ownership"
+   ],
+   "never_sees": [
+    "the payment method's details"
+   ]
+  },
+  {
+   "role": "shop manager (Tender)",
+   "maps_to": "SHOP_MANAGER",
+   "device": "laptop or tablet in the back; phone on the floor",
+   "conditions": "between the counter and the storeroom",
+   "can": [
+    "run the shop's tills and shifts",
+    "change prices within their limit"
+   ],
+   "cannot": [
+    "members and permissions unless allowed one by one"
+   ],
+   "never_sees": [
+    "other shops"
+   ]
+  },
+  {
+   "role": "cashier (Tender)",
+   "maps_to": "CASHIER",
+   "device": "the till: Counter Mini, Kora or a browser; signed in by PIN",
+   "conditions": "a queue waiting; power cuts",
+   "can": [
+    "sell",
+    "comment on a sale or a customer when allowed"
+   ],
+   "cannot": [
+    "see members",
+    "invite"
+   ],
+   "never_sees": [
+    "cost prices",
+    "other shops",
+    "who else is a member"
+   ]
+  },
+  {
+   "role": "stock clerk (Tender)",
+   "maps_to": "STOCK_CLERK",
+   "device": "phone or tablet in the storeroom",
+   "conditions": "boxes in hand",
+   "can": [
+    "receive and count stock",
+    "comment and mention on products and suppliers"
+   ],
+   "cannot": [
+    "sell",
+    "members"
+   ],
+   "never_sees": [
+    "takings"
+   ]
+  },
+  {
+   "role": "bookkeeper (both)",
+   "maps_to": "FINANCE_OFFICER",
+   "device": "laptop, often part-time, sometimes an outside accountant",
+   "conditions": "month end",
+   "can": [
+    "money and documents",
+    "comment"
+   ],
+   "cannot": [
+    "members"
+   ],
+   "never_sees": []
+  },
+  {
+   "role": "manager (Pabasa)",
+   "maps_to": "MANAGER",
+   "device": "laptop all day, WhatsApp beside it",
+   "conditions": "the office",
+   "can": [
+    "every job and client",
+    "assign and hand over",
+    "issue quotes and invoices"
+   ],
+   "cannot": [
+    "members and permissions unless allowed one by one"
+   ],
+   "never_sees": []
+  },
+  {
+   "role": "field worker (Pabasa)",
+   "maps_to": "SALES_REP",
+   "device": "phone on site",
+   "conditions": "one hand, poor signal, sun on the screen",
+   "can": [
+    "their own jobs and the jobs they are on",
+    "log site visits with photos",
+    "comment, mention, join a call"
+   ],
+   "cannot": [
+    "see everyone's money",
+    "delete records",
+    "members"
+   ],
+   "never_sees": [
+    "other people's commission"
+   ]
+  },
+  {
+   "role": "invited person",
+   "maps_to": "no membership yet",
+   "device": "phone, from WhatsApp or email",
+   "conditions": "first time in the product",
+   "can": [
+    "accept the invite",
+    "ignore it"
+   ],
+   "cannot": [
+    "see anything in the workspace before accepting"
+   ],
+   "never_sees": []
+  },
+  {
+   "role": "Vane",
+   "maps_to": "the workspace's assistant, reader role only",
+   "device": "server",
+   "conditions": "always",
+   "can": [
+    "write suggestions and summaries to a record's timeline, marked as Vane's"
+   ],
+   "cannot": [
+    "join or listen to calls",
+    "send anything without a member",
+    "count as a seat"
+   ],
+   "never_sees": []
+  }
+ ],
+ "permissions": {
+  "model": "A member's permission is their role's default, then a per-person Allow or Deny. Three states: Role default, Allowed, Denied. Changing someone's role moves everything left on Role default.",
+  "who_changes": "owner, and admins for permissions they hold themselves",
+  "takes_effect": "on the member's next action; their open pages are told over the live channel and refresh what they show",
+  "denied_action": {
+   "role_never_has_it": "absent from the screen",
+   "denied_one_by_one": "absent from the screen",
+   "a_limit": "present with the reason and who can do it, plus Ask: 'Quotes over US$5,000 need a manager. Ask Rudo'"
+  },
+  "groups": {
+   "shared": [
+    "Members and invites",
+    "Permissions",
+    "Records: see, edit own, edit any, delete, merge",
+    "Import and export",
+    "Comments and calls",
+    "Settings"
+   ],
+   "TENDER": [
+    "Selling and refunds",
+    "Prices and discounts",
+    "Stock",
+    "Tills and shifts",
+    "Fiscal receipts",
+    "Money and cash-up"
+   ],
+   "PABASA": [
+    "Jobs and stages",
+    "Quotes and invoices",
+    "Money: approve, pay out, see everyone's",
+    "Commissions",
+    "Forms and site visits"
+   ]
+  },
+  "schema": "UserPermissionOverride and lib/platform/permission-catalog.ts already hold the three states over features and CRM capabilities. Retail capabilities join the catalogue. Overrides move to the membership so the same person can differ per workspace."
+ },
+ "seats": {
+  "limit_from": "the plan; every plan starts at 5 (VERTICAL_RATE.includedMembers)",
+  "counts": "active members and pending invites, till staff included (decided 19 Oct 2026: 'they are users'). Suspended and removed members do not hold a seat.",
+  "states": [
+   "Room",
+   "Last seat",
+   "Full"
+  ],
+  "shown": "'4 of 5 seats used' on Members and in the invite composer, before the limit is hit",
+  "at_limit": {
+   "owner": "Invite turns into 'Add a sixth member'. It says the price on the other side: each product goes from US$39 to US$99 a month. Continue opens billing.",
+   "admin": "'All 5 seats are taken. Only Nyasha can add more.' with Ask Nyasha, which sends the owner a Needs you notification carrying the name and role typed"
+  },
+  "after_a_downgrade": "the owner chooses who stays; until then the most recently joined over the limit go read-only and are told why",
+  "schema": "verticals.ts counts BILLED_MEMBER on User. Counting moves to WorkspaceMembership (Active) plus WorkspaceInvite (Sent, not expired)."
+ },
+ "records": [
+  {
+   "record": "workspace",
+   "code": "slug, e.g. mufaro-hardware",
+   "written_by": [
+    "signup"
+   ],
+   "shown_on": [
+    "switcher",
+    "invites",
+    "every page"
+   ]
+  },
+  {
+   "record": "member",
+   "code": "none; face and name",
+   "written_by": [
+    "invite accepted",
+    "signup"
+   ],
+   "shown_on": [
+    "Members",
+    "record team",
+    "timeline",
+    "notifications",
+    "presence"
+   ]
+  },
+  {
+   "record": "invite",
+   "code": "none",
+   "written_by": [
+    "Members",
+    "setup",
+    "a record's team",
+    "a seat request"
+   ],
+   "shown_on": [
+    "Members, in the same list as members"
+   ]
+  },
+  {
+   "record": "invite link",
+   "code": "none; one per role",
+   "written_by": [
+    "Members"
+   ],
+   "shown_on": [
+    "Members",
+    "the invite composer"
+   ]
+  },
+  {
+   "record": "ownership offer",
+   "code": "none",
+   "written_by": [
+    "owner"
+   ],
+   "shown_on": [
+    "Members",
+    "the new owner's notifications"
+   ]
+  },
+  {
+   "record": "setup",
+   "code": "none; one per workspace",
+   "written_by": [
+    "the product's setup steps"
+   ],
+   "shown_on": [
+    "setup screens",
+    "the checklist on the product's home",
+    "empty states"
+   ]
+  },
+  {
+   "record": "sample data",
+   "code": "rows marked isSample",
+   "written_by": [
+    "signup"
+   ],
+   "shown_on": [
+    "every list, marked Sample",
+    "Remove sample data"
+   ]
+  },
+  {
+   "record": "import",
+   "code": "IM-0000",
+   "written_by": [
+    "setup",
+    "a list's Import"
+   ],
+   "shown_on": [
+    "the import result",
+    "activity",
+    "the rows it created"
+   ]
+  },
+  {
+   "record": "the record (Pabasa: job J-0000, client C-0000, enquiry E-0000; Tender: customer CU-0000, product, supplier)",
+   "code": "per type",
+   "written_by": [
+    "every module"
+   ],
+   "shown_on": [
+    "the record page",
+    "search",
+    "links from other records"
+   ]
+  },
+  {
+   "record": "event",
+   "code": "none",
+   "written_by": [
+    "people",
+    "modules",
+    "integrations",
+    "Vane",
+    "the system"
+   ],
+   "shown_on": [
+    "timeline",
+    "history",
+    "activity",
+    "notifications"
+   ]
+  },
+  {
+   "record": "comment",
+   "code": "none",
+   "written_by": [
+    "members"
+   ],
+   "shown_on": [
+    "timeline",
+    "notifications"
+   ]
+  },
+  {
+   "record": "document",
+   "code": "the file's name, or the module's number (Q-0000)",
+   "written_by": [
+    "members",
+    "modules"
+   ],
+   "shown_on": [
+    "Documents",
+    "timeline"
+   ]
+  },
+  {
+   "record": "call",
+   "code": "none",
+   "written_by": [
+    "a member starting it on a record"
+   ],
+   "shown_on": [
+    "the record header while live",
+    "the timeline once ended",
+    "notifications for the team"
+   ]
+  },
+  {
+   "record": "notification",
+   "code": "none",
+   "written_by": [
+    "events, fanned out by rule"
+   ],
+   "shown_on": [
+    "the bell",
+    "Notifications",
+    "email, WhatsApp, phone by the member's settings"
+   ]
+  }
+ ],
+ "states": {
+  "member": [
+   "Invited",
+   "Active",
+   "Suspended",
+   "Removed"
+  ],
+  "member.sub": {
+   "Active": [
+    "Never signed in",
+    "PIN locked",
+    "Read-only, over the seat limit"
+   ]
+  },
+  "invite": [
+   "Sent",
+   "Not delivered",
+   "Accepted",
+   "Expired",
+   "Revoked"
+  ],
+  "invite link": [
+   "On",
+   "Off"
+  ],
+  "ownership offer": [
+   "Offered",
+   "Accepted",
+   "Declined",
+   "Withdrawn",
+   "Expired"
+  ],
+  "seats": [
+   "Room",
+   "Last seat",
+   "Full"
+  ],
+  "setup": [
+   "Setting up",
+   "Ready",
+   "Complete",
+   "Checklist hidden"
+  ],
+  "setup step": [
+   "To do",
+   "Done",
+   "Skipped",
+   "Waiting on ZIMRA",
+   "Needs fixing"
+  ],
+  "import": [
+   "Choosing a file",
+   "Matching columns",
+   "Checked",
+   "Importing",
+   "Imported",
+   "Imported with skipped rows",
+   "Paused",
+   "Undone",
+   "Failed"
+  ],
+  "sample data": [
+   "Present",
+   "Removed"
+  ],
+  "fiscal device": [
+   "Not set up",
+   "Checking with ZIMRA",
+   "Verified",
+   "Rejected",
+   "ZIMRA not reachable",
+   "Later",
+   "Not VAT-registered"
+  ],
+  "till pairing": [
+   "Not paired",
+   "Code shown",
+   "Paired",
+   "Code expired"
+  ],
+  "comment": [
+   "Waiting to send",
+   "Posted",
+   "Edited",
+   "Resolved",
+   "Deleted"
+  ],
+  "mention": [
+   "Unread",
+   "Read"
+  ],
+  "notification": [
+   "New",
+   "Seen",
+   "Done"
+  ],
+  "notification.kind": {
+   "Needs you": "mention, assigned or handed to you, ownership offer, approval asked, follow-up due, seat request, a call on a record you are on. Stays until you act on it or mark it done",
+   "For your information": "a record you own, are on or follow changed. Done once seen"
+  },
+  "presence": [
+   "Here",
+   "Typing",
+   "Editing a field",
+   "In the call",
+   "Away"
+  ],
+  "live connection": [
+   "Connecting",
+   "Live",
+   "Reconnecting",
+   "Unavailable"
+  ],
+  "call": [
+   "Live",
+   "Ended"
+  ],
+  "call participant": [
+   "Joining",
+   "In the call",
+   "Muted",
+   "Sharing screen",
+   "Reconnecting",
+   "Dropped",
+   "Left"
+  ],
+  "record team place": [
+   "Owner of the job",
+   "On the job"
+  ],
+  "follow": [
+   "Following",
+   "Not following"
+  ]
+ },
+ "transitions": [
+  {
+   "record": "invite",
+   "from": null,
+   "to": "Sent",
+   "action": "Invite",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "takes a seat at once"
+  },
+  {
+   "record": "invite",
+   "from": "Sent",
+   "to": "Not delivered",
+   "action": null,
+   "decidedBy": "email bounce or WhatsApp provider failure",
+   "reversible": true
+  },
+  {
+   "record": "invite",
+   "from": "Not delivered",
+   "to": "Sent",
+   "action": "Send again",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "invite",
+   "from": "Sent",
+   "to": "Accepted",
+   "action": "Join Mufaro Hardware",
+   "decidedBy": "invited person",
+   "reversible": false,
+   "note": "creates the membership; the seat moves from invite to member. Not asked twice: it only adds"
+  },
+  {
+   "record": "invite",
+   "from": "Sent",
+   "to": "Expired",
+   "action": null,
+   "decidedBy": "the system after 7 days",
+   "reversible": true,
+   "note": "frees the seat; Send again makes a new one"
+  },
+  {
+   "record": "invite",
+   "from": "Sent",
+   "to": "Revoked",
+   "action": "Revoke invite",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "frees the seat; the link stops working"
+  },
+  {
+   "record": "invite link",
+   "from": "Off",
+   "to": "On",
+   "action": "Turn on the invite link",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "one link per role; joining takes a seat while seats remain"
+  },
+  {
+   "record": "invite link",
+   "from": "On",
+   "to": "Off",
+   "action": "Turn off",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "the old link never works again"
+  },
+  {
+   "record": "member",
+   "from": "Active",
+   "to": "Active",
+   "action": "Change role",
+   "decidedBy": "owner; admin except to or from admin",
+   "reversible": true
+  },
+  {
+   "record": "member",
+   "from": "Active",
+   "to": "Active",
+   "action": "Allow / Deny / Back to role default",
+   "decidedBy": "owner; admin for permissions they hold",
+   "reversible": true
+  },
+  {
+   "record": "member",
+   "from": "Active",
+   "to": "Active",
+   "action": "Make admin / Remove admin",
+   "decidedBy": "owner only",
+   "reversible": true
+  },
+  {
+   "record": "member",
+   "from": "Active",
+   "to": "Suspended",
+   "action": "Suspend",
+   "decidedBy": "owner; admin for non-admins",
+   "reversible": true,
+   "note": "signs them out everywhere, frees the seat, keeps everything they did"
+  },
+  {
+   "record": "member",
+   "from": "Suspended",
+   "to": "Active",
+   "action": "Restore",
+   "decidedBy": "owner; admin for non-admins",
+   "reversible": true,
+   "note": "needs a free seat"
+  },
+  {
+   "record": "member",
+   "from": [
+    "Active",
+    "Suspended"
+   ],
+   "to": "Removed",
+   "action": "Remove Tendai from Mufaro Hardware",
+   "decidedBy": "owner; admin for non-admins",
+   "reversible": false,
+   "note": "asks twice. Their open jobs and follow-ups are handed to someone chosen in the same dialog. Their name stays on what they did"
+  },
+  {
+   "record": "ownership offer",
+   "from": null,
+   "to": "Offered",
+   "action": "Offer ownership to Tendai",
+   "decidedBy": "owner",
+   "reversible": true,
+   "note": "only to an active member"
+  },
+  {
+   "record": "ownership offer",
+   "from": "Offered",
+   "to": "Accepted",
+   "action": "Become the owner",
+   "decidedBy": "the member offered",
+   "reversible": false,
+   "note": "asks twice; billing moves to them; the old owner becomes an admin"
+  },
+  {
+   "record": "ownership offer",
+   "from": "Offered",
+   "to": "Declined",
+   "action": "Decline",
+   "decidedBy": "the member offered",
+   "reversible": true
+  },
+  {
+   "record": "ownership offer",
+   "from": "Offered",
+   "to": "Withdrawn",
+   "action": "Withdraw offer",
+   "decidedBy": "owner",
+   "reversible": true
+  },
+  {
+   "record": "ownership offer",
+   "from": "Offered",
+   "to": "Expired",
+   "action": null,
+   "decidedBy": "the system after 7 days",
+   "reversible": true
+  },
+  {
+   "record": "setup step",
+   "from": "To do",
+   "to": "Done",
+   "action": "the step's own verb (Import, Pair till, Invite)",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "setup step",
+   "from": "To do",
+   "to": "Skipped",
+   "action": "Do this later",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "stays on the checklist"
+  },
+  {
+   "record": "setup",
+   "from": "Setting up",
+   "to": "Ready",
+   "action": null,
+   "decidedBy": "the system, when the product's minimum is met",
+   "reversible": false
+  },
+  {
+   "record": "setup",
+   "from": "Ready",
+   "to": "Complete",
+   "action": null,
+   "decidedBy": "the system, when every checklist item is done",
+   "reversible": false
+  },
+  {
+   "record": "setup",
+   "from": "Ready",
+   "to": "Checklist hidden",
+   "action": "Hide checklist",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "sample data",
+   "from": "Present",
+   "to": "Removed",
+   "action": "Remove 3 sample clients and 3 sample jobs",
+   "decidedBy": "owner or admin",
+   "reversible": false,
+   "note": "asks twice. Offered once the first real import lands, never done unasked"
+  },
+  {
+   "record": "import",
+   "from": "Checked",
+   "to": "Importing",
+   "action": "Import 214 products",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "import",
+   "from": "Imported",
+   "to": "Undone",
+   "action": "Undo import",
+   "decidedBy": "the person who imported, within 24 hours and before any imported row is used",
+   "reversible": false
+  },
+  {
+   "record": "fiscal device",
+   "from": "Not set up",
+   "to": "Checking with ZIMRA",
+   "action": "Check with ZIMRA",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "fiscal device",
+   "from": "Checking with ZIMRA",
+   "to": "Verified",
+   "action": null,
+   "decidedBy": "ZIMRA FDMS",
+   "reversible": false,
+   "note": "taxpayer and VAT numbers come back and are shown read-only"
+  },
+  {
+   "record": "till pairing",
+   "from": "Not paired",
+   "to": "Paired",
+   "action": "Use this computer as a till",
+   "decidedBy": "owner or admin",
+   "reversible": true
+  },
+  {
+   "record": "till pairing",
+   "from": "Not paired",
+   "to": "Code shown",
+   "action": "Pair a Counter Mini",
+   "decidedBy": "owner or admin",
+   "reversible": true,
+   "note": "six digits, good once, for 10 minutes"
+  },
+  {
+   "record": "comment",
+   "from": null,
+   "to": "Posted",
+   "action": "Comment (Ctrl Enter)",
+   "decidedBy": "member",
+   "reversible": true
+  },
+  {
+   "record": "comment",
+   "from": "Posted",
+   "to": "Edited",
+   "action": "Edit",
+   "decidedBy": "its writer",
+   "reversible": true,
+   "note": "shows 'edited'; the earlier text is in History"
+  },
+  {
+   "record": "comment",
+   "from": "Posted",
+   "to": "Resolved",
+   "action": "Resolve",
+   "decidedBy": "its writer or the owner of the record",
+   "reversible": true,
+   "note": "collapses to one line"
+  },
+  {
+   "record": "comment",
+   "from": "Posted",
+   "to": "Deleted",
+   "action": "Delete comment",
+   "decidedBy": "its writer; owner and admin",
+   "reversible": true,
+   "note": "undo for 10 seconds instead of a confirm"
+  },
+  {
+   "record": "record team",
+   "from": null,
+   "to": "On the job",
+   "action": "Add to the team",
+   "decidedBy": "anyone who can edit the record",
+   "reversible": true,
+   "note": "they follow it and are told"
+  },
+  {
+   "record": "record team",
+   "from": "On the job",
+   "to": "Owner of the job",
+   "action": "Hand over to Tinashe",
+   "decidedBy": "the owner of the job; a manager",
+   "reversible": true,
+   "note": "a note goes with it; the new owner gets a Needs you"
+  },
+  {
+   "record": "notification",
+   "from": "New",
+   "to": "Seen",
+   "action": null,
+   "decidedBy": "the system after a second on screen",
+   "reversible": true
+  },
+  {
+   "record": "notification",
+   "from": [
+    "New",
+    "Seen"
+   ],
+   "to": "Done",
+   "action": "Done (E)",
+   "decidedBy": "recipient",
+   "reversible": true,
+   "note": "a Needs you also becomes Done when its action is taken anywhere"
+  },
+  {
+   "record": "call",
+   "from": null,
+   "to": "Live",
+   "action": "Start a call",
+   "decidedBy": "anyone who can see the record",
+   "reversible": true,
+   "note": "the team and anyone mentioned get 'Rudo is calling about J-0142' with Join; it lapses when the call ends"
+  },
+  {
+   "record": "call",
+   "from": "Live",
+   "to": "Ended",
+   "action": null,
+   "decidedBy": "the system when the last person leaves, or one person has been alone for 5 minutes",
+   "reversible": false,
+   "note": "writes one timeline event: who, how long"
+  },
+  {
+   "record": "call participant",
+   "from": "In the call",
+   "to": "Sharing screen",
+   "action": "Share screen",
+   "decidedBy": "participant on a computer",
+   "reversible": true
+  }
+ ],
+ "parallel": [
+  "After the first step, a setup's steps run in any order: products, tills, payments, fiscal and staff. The checklist is one list with a changing sub-line per item, not a wizard that blocks",
+  "Presence and a call run beside the record; neither changes what the record shows",
+  "A fiscal device check can take minutes; setup carries on while it is Checking with ZIMRA",
+  "An import runs while the person carries on; the result lands as a notification and on the list"
+ ],
+ "cut": [
+  "No 'accept the terms' step for an invited person; joining is acceptance",
+  "No password at signup or on accepting; an emailed or texted code",
+  "No asking a Tender owner what they sell when they import a file: the file says it",
+  "No team-size question at signup: inviting answers it",
+  "No tour. Empty states and the checklist do the teaching",
+  "No 'confirm role' screen after an invite: the role is on the invite and can be changed later"
+ ],
+ "failures": [
+  {
+   "when": "Invite",
+   "what": "all seats taken",
+   "screen": "Seat limit",
+   "way_out": [
+    "Add a sixth member (owner) / Ask the owner (admin)"
+   ]
+  },
+  {
+   "when": "Invite",
+   "what": "the email bounces",
+   "screen": "Members row: Not delivered",
+   "way_out": [
+    "Change the address"
+   ]
+  },
+  {
+   "when": "Invite",
+   "what": "the WhatsApp message fails",
+   "screen": "Members row: Not delivered",
+   "way_out": [
+    "Send by email"
+   ]
+  },
+  {
+   "when": "Invite",
+   "what": "they are already a member",
+   "screen": "Inline on the field",
+   "way_out": [
+    "Open their member page"
+   ]
+  },
+  {
+   "when": "Accept",
+   "what": "the invite has expired",
+   "screen": "Invite expired",
+   "way_out": [
+    "Ask Nyasha for a new one"
+   ]
+  },
+  {
+   "when": "Accept",
+   "what": "the invite was revoked",
+   "screen": "Invite no longer works",
+   "way_out": [
+    "Ask the person who invited you"
+   ]
+  },
+  {
+   "when": "Accept",
+   "what": "the workspace filled up through the link",
+   "screen": "Workspace is full",
+   "way_out": [
+    "Ask the owner"
+   ]
+  },
+  {
+   "when": "Accept",
+   "what": "signed in as someone else",
+   "screen": "This invite is for another address",
+   "way_out": [
+    "Sign out and continue"
+   ]
+  },
+  {
+   "when": "Remove member",
+   "what": "they own open jobs or follow-ups",
+   "screen": "Remove dialog: hand over",
+   "way_out": [
+    "Choose who takes them"
+   ]
+  },
+  {
+   "when": "Restore member",
+   "what": "no seat free",
+   "screen": "Seat limit",
+   "way_out": [
+    "Add a seat (owner)"
+   ]
+  },
+  {
+   "when": "Import",
+   "what": "some rows cannot be read",
+   "screen": "Checked: 12 rows will be skipped, with the reason per row",
+   "way_out": [
+    "Import the rest"
+   ]
+  },
+  {
+   "when": "Import",
+   "what": "the file is not one the importer reads",
+   "screen": "Choosing a file: refused",
+   "way_out": [
+    "Save it as CSV"
+   ]
+  },
+  {
+   "when": "Import",
+   "what": "the connection drops mid-import",
+   "screen": "Import paused",
+   "way_out": [
+    "Carry on from the last row written"
+   ]
+  },
+  {
+   "when": "Fiscal device",
+   "what": "ZIMRA rejects the device ID or key",
+   "screen": "Rejected, with ZIMRA's reason in plain words",
+   "way_out": [
+    "Fix the key"
+   ]
+  },
+  {
+   "when": "Fiscal device",
+   "what": "ZIMRA does not answer",
+   "screen": "ZIMRA not reachable",
+   "way_out": [
+    "Check again"
+   ]
+  },
+  {
+   "when": "Pair a till",
+   "what": "the code expired",
+   "screen": "Code expired",
+   "way_out": [
+    "Make a new code"
+   ]
+  },
+  {
+   "when": "Staff PIN",
+   "what": "WhatsApp not delivered",
+   "screen": "Staff row: PIN not delivered",
+   "way_out": [
+    "Send again"
+   ]
+  },
+  {
+   "when": "Open a record",
+   "what": "the live connection cannot be made",
+   "screen": "Record works; the presence row shows the offline mark and Try again",
+   "way_out": [
+    "Try again"
+   ]
+  },
+  {
+   "when": "Live",
+   "what": "the connection drops",
+   "screen": "Reconnecting: faces dim, the composer keeps working",
+   "way_out": [
+    "automatic"
+   ]
+  },
+  {
+   "when": "Save a field",
+   "what": "someone else changed it first",
+   "screen": "Conflict: 'Rudo changed this at 10:40'",
+   "way_out": [
+    "Keep mine",
+    "Keep Rudo's"
+   ]
+  },
+  {
+   "when": "Post a comment",
+   "what": "no connection",
+   "screen": "Comment shown, marked 'Waiting to send'",
+   "way_out": [
+    "sends itself when back"
+   ]
+  },
+  {
+   "when": "Start a call",
+   "what": "the microphone is blocked",
+   "screen": "Allow the microphone",
+   "way_out": [
+    "Allow the microphone"
+   ]
+  },
+  {
+   "when": "Start a call",
+   "what": "calls cannot connect",
+   "screen": "Calls can't connect",
+   "way_out": [
+    "Call Tinashe on WhatsApp"
+   ]
+  },
+  {
+   "when": "In a call",
+   "what": "the connection is poor",
+   "screen": "Screen share paused, audio only",
+   "way_out": [
+    "resumes by itself"
+   ]
+  },
+  {
+   "when": "In a call",
+   "what": "dropped for more than 20 seconds",
+   "screen": "You dropped out of the call",
+   "way_out": [
+    "Rejoin"
+   ]
+  },
+  {
+   "when": "Share screen",
+   "what": "a phone browser cannot share a screen",
+   "screen": "absent on phones",
+   "way_out": []
+  },
+  {
+   "when": "Notification",
+   "what": "the record was deleted or access lost",
+   "screen": "Row reads 'You can no longer open this'",
+   "way_out": [
+    "Done"
+   ]
+  }
+ ],
+ "events": {
+  "fields": [
+   "at",
+   "actor (member | Vane | the system | the client through the portal | an integration)",
+   "module",
+   "object (type and id)",
+   "source (till, phone, computer, WhatsApp, email, import, ZIMRA, the bank)",
+   "kind",
+   "summary",
+   "detail"
+  ],
+  "kinds": {
+   "written by a person": [
+    "comment",
+    "site visit",
+    "call (ended)",
+    "document added",
+    "WhatsApp or email logged"
+   ],
+   "work moving": [
+    "stage changed",
+    "handed over",
+    "added to the team",
+    "quote or invoice sent, opened, approved, declined",
+    "payment recorded",
+    "sale"
+   ],
+   "field changes": [
+    "one or more fields changed, with before and after"
+   ],
+   "from outside": [
+    "fiscal receipt stamped",
+    "bank line matched",
+    "message delivered or not"
+   ],
+   "Vane": [
+    "suggestion",
+    "summary"
+   ]
+  },
+  "views": {
+   "timeline": "one record, newest first. Person-written events one per line, never rolled up. Work-moving events one per line. One person's field changes within an hour roll into 'Rudo changed value and close date', opening in place. Machine events of one kind on one day roll into a line with a count and a total. Filters: Everything, Comments, Documents, Calls, Changes",
+   "history": "one record, every field change with before, after, who, when and source. Its own tab",
+   "activity": "the whole workspace, for people with the permission, by day then by record. Filters by person, module and record type",
+   "notifications": "one member's: Needs you first, then the rest by day. Several events on one record within an hour group under the record with a count. Mentions are never grouped"
+  },
+  "fan_out": {
+   "Needs you": "mention, assigned, handed over, approval asked, follow-up due, seat request, ownership offer, a call on a record you are on",
+   "For your information": "a record you own, are on or follow changed: stage, document sent or answered, payment, a comment. Never field edits",
+   "never": "your own actions; Vane's suggestions (they live on For you)"
+  },
+  "channels": "in-app always. Email and WhatsApp by the member's settings per kind (NotificationSetting). Needs you defaults to in-app and WhatsApp; the rest to in-app only. Quiet hours 20:00 to 06:00 hold WhatsApp and phone",
+  "schema": "Three stores today: PlatformAuditEvent (one event per request: activity), CrmActivity with CrmComment, CrmRecordFile and field history (the timeline), Notification with NotificationRecipient. Keep the stores. Give the timeline one reader that merges them by subjectType and subjectId. Add needsAction to Notification so Needs you is a query; actedAt already exists. Extend subject keys to retail customers, products and suppliers."
+ },
+ "live": {
+  "transport": "LiveKit, one room per record ('record:<type>:<id>') joined while the record page is open and visible; left after 60 seconds hidden",
+  "carries": [
+   "who is here",
+   "typing in the composer",
+   "which field someone is editing",
+   "calls: audio, then video or screen share when asked"
+  ],
+  "never_carries": [
+   "anything that must be kept: comments and edits go to the API and Postgres first, then the room is told to refresh"
+  ],
+  "tokens": "minted by our server only for members who can see the record; a token names one room and lasts 1 hour",
+  "presence_rules": "Here = page open and visible. Away = hidden or idle 5 minutes; dimmed, then gone after 10 minutes",
+  "region": "LiveKit Cloud Africa group: one location in South Africa, no in-region redundancy; falls back to EU. Voice crossing the border is checked against the Cyber and Data Protection Act before launch; self-hosting is the alternative",
+  "fallback": "/api/live (SSE) keeps notification counts. With LiveKit down, records work fully; only presence and calls are missing, and the page says so"
+ },
+ "setup": {
+  "TENDER": {
+   "minimum_to_sell": [
+    "shop",
+    "at least one product (sample counts)",
+    "one till paired"
+   ],
+   "aha": "the first real sale",
+   "steps": [
+    {
+     "step": "Your shop",
+     "asks": [
+      "shop name (from signup)",
+      "town",
+      "currencies: USD, ZiG or both",
+      "ZiG rate: typed in or the RBZ's daily rate",
+      "logo (later is fine)"
+     ],
+     "skippable": false,
+     "writes": "Company, Site, rate settings"
+    },
+    {
+     "step": "What you sell",
+     "asks": [
+      "Import a spreadsheet",
+      "Import another till's export",
+      "Start from a list for your kind of shop: hardware, grocery, bottle store, pharmacy, clothing",
+      "Add products one by one",
+      "Use sample products for now"
+     ],
+     "skippable": true,
+     "writes": "products, categories, prices (app/retail/products/import)"
+    },
+    {
+     "step": "Tills",
+     "asks": [
+      "Use this computer as a till",
+      "Pair a Counter Mini",
+      "Pair a Kora",
+      "printer, cash drawer, scale"
+     ],
+     "skippable": false,
+     "writes": "RetailRegister, RetailDevice"
+    },
+    {
+     "step": "Getting paid",
+     "asks": [
+      "Cash (on)",
+      "EcoCash",
+      "InnBucks",
+      "Card machine",
+      "Bank transfer",
+      "On account"
+     ],
+     "skippable": true,
+     "writes": "tender policy (RetailTenderType)"
+    },
+    {
+     "step": "Fiscal receipts",
+     "asks": [
+      "device ID",
+      "serial number",
+      "activation key",
+      "or: Later / We're not VAT-registered"
+     ],
+     "skippable": true,
+     "writes": "RetailFiscalSettings and the device; taxpayer and VAT numbers read back from ZIMRA",
+     "note": "whether a shop must fiscalise depends on ZIMRA's current rules; check before any copy says so"
+    },
+    {
+     "step": "Staff",
+     "asks": [
+      "name",
+      "phone",
+      "role: shop manager, cashier, stock clerk",
+      "which shop"
+     ],
+     "skippable": true,
+     "writes": "invite by phone; PIN by WhatsApp (RetailStaffInvite pattern)"
+    },
+    {
+     "step": "A practice sale",
+     "asks": [
+      "sell two items on the till in practice mode"
+     ],
+     "skippable": true,
+     "writes": "nothing kept: not fiscalised, not in reports, not in stock"
+    }
+   ]
+  },
+  "PABASA": {
+   "minimum_to_work": [
+    "business",
+    "at least one client (sample counts)"
+   ],
+   "aha": "the first quote sent, or a job moving stage",
+   "steps": [
+    {
+     "step": "Your business",
+     "asks": [
+      "business name (from signup)",
+      "the work you do: building, carpentry and interiors, electrical, plumbing, real estate, cleaning, consulting, other",
+      "where you work: provinces or towns",
+      "logo (later is fine)"
+     ],
+     "skippable": false,
+     "writes": "Company, trades and area"
+    },
+    {
+     "step": "Your clients",
+     "asks": [
+      "Import a spreadsheet",
+      "Import contacts from your phone (vCard)",
+      "Import another system's export",
+      "Use sample clients for now"
+     ],
+     "skippable": true,
+     "writes": "clients and contacts (CRM import wizard)"
+    },
+    {
+     "step": "How a job moves",
+     "asks": [
+      "stages suggested from the work chosen: Enquiry, Site visit, Quote out, Won, In progress, Done, Paid; rename, add or drop"
+     ],
+     "skippable": true,
+     "writes": "pipeline and stages"
+    },
+    {
+     "step": "Quotes that look like you",
+     "asks": [
+      "logo, address, how to pay you (bank, EcoCash), standard terms"
+     ],
+     "skippable": true,
+     "writes": "document template"
+    },
+    {
+     "step": "Your team",
+     "asks": [
+      "email or phone, role: manager, field worker, bookkeeper"
+     ],
+     "skippable": true,
+     "writes": "invites"
+    },
+    {
+     "step": "Your first job",
+     "asks": [
+      "pick a client, name the job, add a quote, send it by WhatsApp or email"
+     ],
+     "skippable": true,
+     "writes": "job, quote"
+    }
+   ]
+  },
+  "both": {
+   "after_signup": "the product's own first step, in the product's brand; then the product's home with the checklist holding the rest",
+   "checklist": "top of the home's main column, not a modal. Each item shows its sub-line ('214 products imported', 'Till 1 paired', 'Checking with ZIMRA'). Disappears when complete or hidden",
+   "empty_states": "every list a new workspace can reach: what belongs here, one action that fills it, Import beside it",
+   "invited_person_first_screen": "the record or page they were invited for when there is one, else the product's home; never setup"
+  }
+ },
+ "clock": {
+  "today": "2026-10-19",
+  "now": "10:42",
+  "timezone": "Africa/Harare"
+ },
+ "money": {
+  "currency": "USD",
+  "symbol": "US$",
+  "decimals": 2,
+  "others": [
+   "ZiG, for Tender shops that take it; the rate is the shop's own and is never stated in mocks"
+  ]
+ },
+ "entities": [
+  {
+   "workspace": "Mufaro Hardware",
+   "slug": "mufaro-hardware",
+   "product": "TENDER",
+   "plan": "trial, 9 days left",
+   "seats": "5 of 5 used (4 active, 1 invited)",
+   "shop": "Mufaro Hardware, Chitungwiza",
+   "tills": [
+    {
+     "code": "T1",
+     "name": "Till 1",
+     "device": "Counter Mini",
+     "state": "Paired"
+    },
+    {
+     "code": "T2",
+     "name": "Till 2",
+     "device": "Windows PC",
+     "state": "Paired"
+    }
+   ],
+   "members": [
+    {
+     "name": "Nyasha Mlambo",
+     "role": "owner",
+     "state": "Active"
+    },
+    {
+     "name": "Tendai Chari",
+     "role": "shop manager",
+     "state": "Active"
+    },
+    {
+     "name": "Rumbidzai Moyo",
+     "role": "cashier",
+     "state": "Active",
+     "sub": "PIN locked"
+    },
+    {
+     "name": "Blessing Dube",
+     "role": "stock clerk",
+     "state": "Active"
+    },
+    {
+     "name": "Kudzai Ncube",
+     "role": "cashier",
+     "state": "Invited",
+     "invite": "by WhatsApp to +263 77 412 0938, sent 17 Oct 15:20, expires 24 Oct 15:20"
+    }
+   ],
+   "setup": {
+    "state": "Ready",
+    "steps": {
+     "Your shop": "Done",
+     "What you sell": "Done: 214 products imported, 12 rows skipped",
+     "Tills": "Done: 2 paired",
+     "Getting paid": "Done: cash, EcoCash, InnBucks",
+     "Fiscal receipts": "Checking with ZIMRA",
+     "Staff": "Done: 4 people",
+     "A practice sale": "Skipped"
+    }
+   },
+   "record": {
+    "type": "customer",
+    "code": "CU-0218",
+    "name": "Mavhima Construction",
+    "terms": "on account, 30 days",
+    "owes": "US$1,312.40",
+    "last_sale": "S-10482, 19 Oct 09:58, US$486.00 on account, Till 1, Rumbidzai Moyo"
+   },
+   "signup": "Wednesday 14 Oct 2026; price list Mufaro price list Oct 2026.xlsx read 09:12, 226 rows, 214 imported, 12 skipped"
+  },
+  {
+   "workspace": "Kuda Interiors",
+   "slug": "kuda-interiors",
+   "product": "PABASA",
+   "plan": "Pabasa, paid; signed up Tuesday 1 Sep 2026 (14-day trial ended 15 Sep)",
+   "seats": "4 of 5 used",
+   "members": [
+    {
+     "name": "Kudakwashe Sibanda",
+     "role": "owner",
+     "state": "Active"
+    },
+    {
+     "name": "Rudo Mapfumo",
+     "role": "admin; manager",
+     "state": "Active"
+    },
+    {
+     "name": "Tinashe Gumbo",
+     "role": "field worker",
+     "state": "Active"
+    },
+    {
+     "name": "Farai Chikwanha",
+     "role": "field worker",
+     "state": "Active",
+     "sub": "Never signed in"
+    },
+    {
+     "name": "Chipo Ndlovu",
+     "role": "bookkeeper",
+     "state": "Invited",
+     "invite": "by email to chipo@ndlovubooks.co.zw, sent 10 Oct, expired 17 Oct (frees its seat)"
+    }
+   ],
+   "setup": {
+    "state": "Complete"
+   },
+   "record": {
+    "type": "job",
+    "code": "J-0142",
+    "name": "Reception counter and cabinets",
+    "client": "Msasa Dental Studio (C-0031)",
+    "contact": "Dr Precious Mutasa",
+    "stage": "Quote out",
+    "value": "US$5,450.00 (was US$4,850.00)",
+    "owner_of_the_job": "Rudo Mapfumo",
+    "on_the_job": [
+     "Tinashe Gumbo"
+    ],
+    "following": [
+     "Kudakwashe Sibanda"
+    ],
+    "next_follow_up": "Call Dr Mutasa about the revised quote, today 14:00, Rudo",
+    "documents": [
+     "Q-0088 Quote, US$4,850.00, sent 16 Oct",
+     "Reception floor plan.pdf, 1.2 MB, 14 Oct, Tinashe",
+     "6 site photos, 14 Oct, Tinashe"
+    ],
+    "timeline": [
+     {
+      "at": "2026-10-19 10:40",
+      "actor": "Rudo Mapfumo",
+      "source": "computer",
+      "kind": "field changes",
+      "summary": "Changed value from US$4,850.00 to US$5,450.00"
+     },
+     {
+      "at": "2026-10-19 10:31",
+      "actor": "Rudo Mapfumo",
+      "source": "computer",
+      "kind": "call (ended)",
+      "summary": "Call with Tinashe Gumbo, 9 min"
+     },
+     {
+      "at": "2026-10-19 10:12",
+      "actor": "Tinashe Gumbo",
+      "source": "phone",
+      "kind": "comment",
+      "summary": "@Rudo Mapfumo the client wants oak instead of white gloss. Adds about US$600 in board and edging."
+     },
+     {
+      "at": "2026-10-17 11:30",
+      "actor": "Dr Precious Mutasa",
+      "source": "client portal",
+      "kind": "work moving",
+      "summary": "Opened Q-0088"
+     },
+     {
+      "at": "2026-10-16 08:06",
+      "actor": "the system",
+      "source": "WhatsApp",
+      "kind": "from outside",
+      "summary": "Q-0088 delivered"
+     },
+     {
+      "at": "2026-10-16 08:05",
+      "actor": "Rudo Mapfumo",
+      "source": "computer",
+      "kind": "work moving",
+      "summary": "Sent Q-0088 by WhatsApp"
+     },
+     {
+      "at": "2026-10-15 16:20",
+      "actor": "Rudo Mapfumo",
+      "source": "computer",
+      "kind": "document added",
+      "summary": "Created quote Q-0088, US$4,850.00"
+     },
+     {
+      "at": "2026-10-14 09:10",
+      "actor": "Tinashe Gumbo",
+      "source": "phone",
+      "kind": "site visit",
+      "summary": "Site visit V-0057, 6 photos, floor plan"
+     },
+     {
+      "at": "2026-10-13 14:02",
+      "actor": "Rudo Mapfumo",
+      "source": "WhatsApp",
+      "kind": "work moving",
+      "summary": "Enquiry E-0311 became job J-0142"
+     }
+    ],
+    "here_at_10:42": [
+     {
+      "name": "Rudo Mapfumo",
+      "state": "Here"
+     },
+     {
+      "name": "Kudakwashe Sibanda",
+      "state": "Here"
+     },
+     {
+      "name": "Tinashe Gumbo",
+      "state": "Away"
+     }
+    ]
+   },
+   "notifications_for_rudo_at_10:42": {
+    "Needs you": [
+     "Tinashe Gumbo mentioned you on J-0142, 10:12",
+     "Follow-up due today 14:00: call Dr Mutasa, J-0142",
+     "Kudakwashe Sibanda handed you J-0150 Office partitions, Avondale, 09:02"
+    ],
+    "Today": [
+     "Farai Chikwanha logged 3 site visits on 3 jobs, 08:15 to 09:40"
+    ],
+    "Earlier": [
+     "Dr Precious Mutasa opened Q-0088, 17 Oct 11:30"
+    ]
+   },
+   "signup": "1 Sep 2026 08:14, Kudakwashe Sibanda, company profile read by Vane (see knowledge)"
+  }
+ ],
+ "mock": {
+  "$comment": "Invented for the canvas boards on 19 Oct 2026 (timeline bank K3–K5, panel K6–K7, W5 onboarding O1–O7). Replace with real data when there is any.",
+  "kuda_knowledge": {
+   "document": "Kuda Interiors company profile 2026.pdf, 12 pages, 4.8 MB, added 1 Sep 08:14, read by 08:17, kept 08:21; office desk Not this 08:22; Vane asked 08:24",
+   "facts": [
+    "Kuda Interiors (Private) Limited, founded 2019 by Kudakwashe Sibanda",
+    "Workshop and showroom 14 Coventry Road, Workington, Harare",
+    "Mon–Fri 07:30–17:00, Sat 08:00–13:00",
+    "+263 77 318 4420, hello@kudainteriors.co.zw, kudainteriors.co.zw",
+    "Free site visit in Harare, Chitungwiza, Ruwa, Norton; quote within 3 working days",
+    "60% deposit, balance on installation; kitchens 3–4 weeks, wardrobes 2 weeks",
+    "Warranty 2 years workmanship, 5 years Blum hardware; CBZ transfer, EcoCash, cash; USD, VAT included; quotes valid 30 days"
+   ],
+   "prices_usd": {
+    "kitchen units white gloss melamine /m": 185.0,
+    "(page 4 says) kitchen from /m": 170.0,
+    "kitchen units oak veneer /m": 240.0,
+    "worktop postform /m": 45.0,
+    "worktop granite /m2": 260.0,
+    "worktop quartz /m2": 310.0,
+    "wardrobe white melamine /m2 front": 120.0,
+    "wardrobe oak veneer /m2 front": 165.0,
+    "reception counter white gloss /m": 420.0,
+    "reception counter oak veneer /m": 520.0,
+    "office desk melamine 1.6 m (not used)": 210.0,
+    "boardroom table oak /m": 380.0,
+    "Blum hinges and runners each": 18.0,
+    "travel outside Harare /km": 0.5
+   },
+   "stages": [
+    "Enquiry",
+    "Site visit",
+    "Quote out",
+    "Deposit paid",
+    "In the workshop",
+    "Installed",
+    "Paid"
+   ],
+   "extras_photos": "1 Sep 08:40, 2 pages, 9 prices: 5 kept, 4 waiting",
+   "totals": "36 found, 35 kept (16 facts, 7 FAQs, 12 prices), 1 not used"
+  },
+  "kuda_records": {
+   "J-0142": "10:40 Rudo: finish White gloss → Oak, fitting Fri 6 Nov → Fri 13 Nov; V-0057 check-in 18 m from pin, 09:10–10:02; task Measure the reception ticked 14 Oct 10:02; Q-0088 7 lines, good until 15 Nov, deposit US$2,910.00; Q-0089 revised in oak US$5,450.00 drafted by Vane; Dr Mutasa portal 17 Oct 11:30 (4 min), 11:34 asked for week of 9 Nov; reception@msasadental.co.zw bounces; owners-only comment floor US$5,100.00",
+   "J-0129": "Fitted wardrobes, 6 rooms, Highlands Guest Lodge (Mrs Chido Marufu); Q-0081 US$3,200.00 sent 28 Sep, signed 1 Oct 16:48; INV-0064 issued 2 Oct 09:15, fiscalised 0412/1842 on FD-01; deposit US$1,920.00 CBZ 5 Oct 14:12, matched by Rudo 14:30; balance US$1,280.00 on fitting Mon 26 Oct; moved to In the workshop 14:35",
+   "INV-0060": "Avondale Pharmacy shop counter US$860.00, 14 Sep; reminder 28 Sep; credit note CN-0007 US$120.00; paid US$740.00 InnBucks 2 Oct",
+   "WO-0021": "Drawer runner broken, Avondale Pharmacy (Mrs Nyarai Choto), 15 Oct; Tinashe 16 Oct 09:12–10:05, 2 runners US$36.00",
+   "site_visit_form": "Build: site visit form version 4, changed by Rudo 12 Oct; Wall length field 6 of 14, answered on 14 visits since 1 Sep"
+  },
+  "mufaro": {
+   "S-10482": "20 cement 32.5R @11.50, 10 Y12 rebar @9.80, 2 river sand @45.00, 1 binding wire @68.00 = US$486.00",
+   "S-10485": "10:14 Till 1, PVA paint 5 L 30.00 + 2 × brush 75 mm 2.40 = US$34.80 (EcoCash 30.00, cash 4.80)",
+   "Till 2 today": "Tendai, 14 sales 07:30–10:15, US$412.50",
+   "LB-0012": "Tsitsi Banda, shed kit US$320.00, US$200.00 paid",
+   "refund": "US$4.80 on S-10466, 08:47, approved by Tendai",
+   "cash-up": "Till 2 17 Oct short US$4.00",
+   "GRN-0088": "Ruwa Building Supplies, 17 Oct, US$3,412.80, 2 short",
+   "price change": "cement 11.00 → 11.50 from Mon 07:00",
+   "skipped rows": "5 no price, 3 duplicate codes, 2 call for price, 2 totals",
+   "today": "US$933.30 over 16 sales by 10:42; Tendai in since 07:20"
+  },
+  "campus": "Mabvazuva Primary School, Ruwa; bursar Mrs Ruvimbo Chikore; term 3 invoices to 412 families 14 Sep, US$74,160.00, 287 paid; P-0412 Tanaka Mhere",
+  "huchu": "Muzvezve Mine, Kadoma; lot L-0418 312.4 g delivered to Fidelity Gold Refinery 16 Oct by Tapiwa Gora; assay 18 Oct 86.2%, 269.3 g fine",
+  "corelith": {
+   "roles": {
+    "Sean Muchenje": "owner (until 19 Oct 15:40 offer, accepted in W4-8)",
+    "Tatenda Chinyamakobvu": "admin",
+    "Gerald Pondai": "admin",
+    "Munashe Mangwiro": "manager",
+    "Simbarashe Mudonhi": "field worker",
+    "Tariro Mhlanga": "field worker, joined 19 Oct 12:06"
+   },
+   "emails": "firstname@corelith.co.zw",
+   "signup": "Mon 7 Sep 2026 ~10:05, Sean on his phone; code 482 913; corelith.co.zw read by Vane (9 pages); Corelith prospects.xlsx 64 rows, 52 imported, 12 skipped; invites 10:21; first deal D-0001 at 10:36",
+   "stages": [
+    "Lead",
+    "Visit",
+    "Proposal sent",
+    "Negotiating",
+    "Won",
+    "Onboarding",
+    "Live"
+   ],
+   "open_deals": [
+    [
+     "D-0016",
+     "Black Ivy Media",
+     "Munashe",
+     "Negotiating"
+    ],
+    [
+     "D-0011",
+     "Huchu for Shamva Gold Mine",
+     "Gerald",
+     "Negotiating"
+    ],
+    [
+     "D-0014",
+     "Campus for Nyatsime College",
+     "Sean",
+     "Proposal sent"
+    ],
+    [
+     "D-0017",
+     "Campus for Goromonzi High School",
+     "Tatenda",
+     "Proposal sent"
+    ],
+    [
+     "D-0019",
+     "Tender for Ruwa Building Supplies",
+     "Simbarashe",
+     "Proposal sent"
+    ],
+    [
+     "D-0001",
+     "Campus for Marondera High School",
+     "Simbarashe",
+     "Visit"
+    ],
+    [
+     "D-0012",
+     "Tender for Gweru Building Centre",
+     "Munashe",
+     "Visit"
+    ],
+    [
+     "D-0015",
+     "Tender for Glen View Hardware",
+     "Munashe",
+     "Visit"
+    ],
+    [
+     "D-0013",
+     "Campus for Chisipite Junior School",
+     "Tatenda",
+     "Visit"
+    ]
+   ],
+   "D-0014": "created by Tatenda 9 Sep",
+   "w2": "Tatenda asks Sean 11:41; Sean adds the sixth seat 11:53, Pabasa US$39.00 → US$99.00 a month, today US$25.16 (Visa ending 4417); invite by WhatsApp to Tariro +263 77 540 2186, expires 26 Oct 11:53; joined 12:06; lands on an empty deals list (field worker)",
+   "w4": "15:06 Tatenda allows Simbarashe to see every deal; 15:12 suspends Munashe until Mon 2 Nov (seats 6 of 6 → 5 of 6); 15:40 Sean offers ownership to Tatenda, accepted; Sean denied Simbarashe discounts 21 Sep",
+   "Black Ivy Media": "Munashe moved it to Negotiating 08:40 on 19 Oct",
+   "w7": "Activity 18 events today; Tatenda WhatsApp +263 77 118 9024; quiet hours 20:00–06:00; ownership accepted 15:52; invite link corelith.co.zw/join/k7Qm2 made 16:10 by Tatenda, expires 26 Oct, field worker; join by @corelith.co.zw; Tariro also owns Mhlanga Events (Pabasa), tariro.mhlanga@gmail.com",
+   "w8": "11:20 Munashe follows D-0014; 12:20 Sean copies corelith.co.zw/d/D-0014; 12:22 Tariro asks, 12:25 Sean lets her in; 16:10 Sean hands D-0014 to Tatenda (away 26–30 Oct), 'Check the board's decision' Fri 30 Oct moves; 16:14 Tatenda gives Gerald 'Visit the bursar with the order form' Wed 28 Oct"
+  },
+  "mufaro_setup": "Wed 14 Oct: signed up 08:52; shop 08:58 (Stand 4417, Makoni Shopping Centre, Chitungwiza; +263 77 260 5514; Mon–Sat 07:30–17:30); price list 09:12; Till 2 paired 09:40; Till 1 Counter Mini code 482 731 paired 09:46; EcoCash merchant 041288 10:07; InnBucks IB-77310; float US$50.00; ZIMRA device 21457 checking since 10:31 (FD-MH-0093-24, TIN 2001877316, VAT 220187731); Tendai joined 10:44 (+263 71 300 4471); practice sale skipped; Home 10:52; Rumbidzai first PIN sign-in 11:02",
+  "kuda_first_quote": "Tue 1 Sep: Mrs Faith Marimo, Greendale, +263 77 615 2240; J-0120 Kitchen units 08:50; Q-0071 US$1,679.00 (4.2 m white gloss 777.00, 2.5 m² granite 650.00, 14 Blum 252.00), deposit US$1,007.40, good until 1 Oct, sent WhatsApp 09:05, opened 09:20; Rudo joined 09:12 (2 of 5); samples removed; setup 6 of 6"
+ },
+ "failures_rule": "One way out per failure, as a button, chosen by role where two roles differ; a conflict is a choice between two values. No auto-retry lines."
+}

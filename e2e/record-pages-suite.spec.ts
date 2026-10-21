@@ -120,7 +120,7 @@ test.describe("CRM records", () => {
     },
     {
       name: "One work order",
-      path: (id) => `/crm/work-orders/${id}`,
+      path: (id) => `/crm/projects/jobs/${id}`,
       find: async () =>
         (await db.crmWorkOrder.findFirst({ where: { companyId: await crmCompanyId() }, select: { id: true } }))?.id ?? null,
       expect: /CRMW-\d{4}/,

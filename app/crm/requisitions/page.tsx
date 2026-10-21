@@ -1,24 +1,11 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { RequisitionsContent } from "@/components/crm/money/requisitions-content";
-import { authOptions } from "@/lib/auth";
+/** The CRM's queues, as Books' requisition tabs. */
+const QUEUE_VIEW: Record<string, string> = { AWAITING_DECISION: "to-approve", APPROVED: "to-pay", OUTSTANDING: "to-account" };
 
-/**
- * Asking for money, and answering.
- *
- * Approval and payment are separate acts on this page because they are
- * separate acts in the business: somebody says yes, and on another day
- * somebody hands the cash over.
- */
-export default async function CrmRequisitionsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  return (
-    <CrmPage>
-      <RequisitionsContent />
-    </CrmPage>
-  );
+/** The CRM's requisitions are Books' list, filtered to the CRM (bk-x-crm-reqs; design/books/NOTES.md §2). */
+export default async function CrmRequisitionsMoved({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const queue = (await searchParams).queue;
+  const view = typeof queue === "string" ? QUEUE_VIEW[queue] : undefined;
+  redirect(`/books/requisitions?source=crm${view ? `&view=${view}` : ""}`);
 }

@@ -127,7 +127,7 @@ function NewInvoiceForm({ options }: { options: Options }) {
               label="Currency"
               value={form.currency}
               onChange={(code) => setForm((current) => ({ ...current, currency: code, paidInto: "" }))}
-              options={options.currencies.map((code) => ({ value: code, label: code === "ZWG" ? "ZiG" : code }))}
+              options={options.currencies.map((code) => ({ value: code, label: code }))}
             />
           </BkField>
           {foreign ? (

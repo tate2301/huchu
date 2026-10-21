@@ -15,8 +15,8 @@ export function useHomeLinkIfAny(): { href: string; label: string } | null {
 }
 
 function homeLink(nav: ShellNav): { href: string; label: string } {
-  const home = nav.rail.areas
-    .flatMap((area) => area.items)
+  const home = nav.groups
+    .flatMap((group) => group.items.flatMap((item) => [item, ...item.kids]))
     .find((item) => item.href === nav.homeHref);
   return { href: nav.homeHref, label: home?.label ?? "your start page" };
 }

@@ -24,6 +24,7 @@ import {
   Percent,
   Plus,
   Trash,
+  CircleUserRound,
   UserPlus,
   X,
 } from "@/lib/icons";
@@ -36,6 +37,7 @@ import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { discountPinSentence } from "@/lib/retail/till-rule-words";
 import { AdjustStockDialog, DiscountVoucherField } from "./floor-parts";
 import { count, firstName, MEASURES, qty, usd, whole } from "./format";
+import { customerLine } from "./layby";
 import { lineMotion } from "./motion";
 import { Avatar, ErrorLine, TillDialog, TillPopover } from "./parts";
 import { discountApprovalReason } from "./sale-rules";
@@ -272,14 +274,22 @@ export function SaleLine({ item }: { item: CartItem }) {
 
 /* ─── The customer ───────────────────────────────────────────────────── */
 
+/**
+ * The customer key on the sale (T2-1): a 520 sheet with the search, the
+ * customers found as rows (code and phone), Cancel and the orange Add <name>
+ * (↵), which puts the chosen one on the sale. The arrows move the choice.
+ * Nobody found: a new customer, with their phone and name (CUS-02).
+ */
 export function CustomerPopover() {
   const { toast } = useToast();
   const { tenantKey } = useOfflineRuntime();
   const { customerName, setCustomerName, selectedCustomer, selectCustomer, customerSearchResults, customerSearchLoading } = useTill();
   const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(0);
   const listId = React.useId();
   const query = customerName.trim();
   const showResults = query.length >= 2 && customerSearchResults.length > 0;
+  const chosen = showResults ? (customerSearchResults[Math.min(active, customerSearchResults.length - 1)] ?? null) : null;
   const phoneLike = /^[+\d\s-]{6,}$/.test(query);
   // The inline add: a number and a name, both needed (CUS-02).
   const [adding, setAdding] = React.useState<{ phone: string; name: string } | null>(null);
@@ -290,6 +300,16 @@ export function CustomerPopover() {
     setAddError(null);
     setAdding(phoneLike ? { phone: query, name: "" } : { phone: "", name: query });
   };
+  const close = () => {
+    setOpen(false);
+    setAdding(null);
+    setTaken(null);
+    setAddError(null);
+  };
+  const put = (customer: PosCustomer) => {
+    selectCustomer(customer);
+    close();
+  };
 
   const create = useMutation({
     mutationFn: (input: { phone: string; name: string }) =>
@@ -297,11 +317,7 @@ export function CustomerPopover() {
         method: "POST",
         body: JSON.stringify({ phone: input.phone, name: input.name, via: "till" }),
       }),
-    onSuccess: (payload) => {
-      selectCustomer(newPosCustomer(payload.data));
-      setAdding(null);
-      setOpen(false);
-    },
+    onSuccess: (payload) => put(newPosCustomer(payload.data)),
     onError: async (error, input) => {
       // A number someone already has: offer them instead.
       const existing = error instanceof ApiError && error.status === 409 ? (error.details as { existing?: { id: string; name: string } } | null)?.existing : null;
@@ -314,9 +330,7 @@ export function CustomerPopover() {
       const offline = /network|failed to fetch|load failed/i.test(message) || (typeof navigator !== "undefined" && !navigator.onLine);
       if (offline && tenantKey) {
         const queued = await createOfflineRetailCustomer(tenantKey, { name: input.name, phone: input.phone });
-        selectCustomer(newPosCustomer({ id: queued.record.tempId, name: input.name, phone: input.phone }));
-        setAdding(null);
-        setOpen(false);
+        put(newPosCustomer({ id: queued.record.tempId, name: input.name, phone: input.phone }));
         return;
       }
       if (error instanceof ApiError && error.status === 400) {
@@ -333,63 +347,137 @@ export function CustomerPopover() {
       return found.data.find((customer) => customer.id === existing.id) ?? null;
     },
     onSuccess: (customer) => {
-      if (!customer) return;
-      selectCustomer(customer);
-      setAdding(null);
-      setTaken(null);
-      setOpen(false);
+      if (customer) put(customer);
     },
   });
 
+  const addNew = () => {
+    if (!adding || create.isPending) return;
+    setAddError(null);
+    setTaken(null);
+    create.mutate(adding);
+  };
+
   const trigger = selectedCustomer ? (
-    <button type="button" className="btn btn-quiet">
+    <button type="button" className="customer-pill" onClick={() => setOpen(true)}>
       <Avatar name={selectedCustomer.name} size={24} />
-      <span className="truncate max-140">
-        {selectedCustomer.name}
-      </span>
+      <span className="truncate max-140">{selectedCustomer.name}</span>
     </button>
   ) : (
-    <button type="button" className="btn btn-quiet">
+    <button type="button" className="btn btn-icon is-touch" aria-label="Add a customer" title="Add a customer" onClick={() => setOpen(true)}>
       <UserPlus className="ic" />
-      Add customer
     </button>
   );
 
+  const enterKey = (
+    <span className="kbd" aria-hidden="true">
+      ↵
+    </span>
+  );
+  let go: React.ReactNode = null;
+  if (selectedCustomer) {
+    go = (
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          selectCustomer(null);
+          close();
+        }}
+      >
+        <X className="ic" />
+        Take {firstName(selectedCustomer.name)} off the sale
+      </button>
+    );
+  } else if (adding) {
+    go = taken ? (
+      <button type="button" className="btn btn-primary" disabled={pickTaken.isPending} onClick={() => pickTaken.mutate(taken)}>
+        <Check className="ic" />
+        Use {taken.name}
+      </button>
+    ) : (
+      <button type="button" className="btn btn-primary" disabled={create.isPending} aria-busy={create.isPending || undefined} onClick={addNew}>
+        <UserPlus className="ic" />
+        Add customer
+        {enterKey}
+      </button>
+    );
+  } else if (chosen) {
+    go = (
+      <button type="button" className="btn btn-primary" onClick={() => put(chosen)}>
+        <UserPlus className="ic" />
+        <span className="truncate">Add {chosen.name}</span>
+        {enterKey}
+      </button>
+    );
+  }
+
   return (
-    <TillPopover arrow open={open} onOpenChange={setOpen} label={selectedCustomer ? selectedCustomer.name : "Add a customer"} align="end" size="lg" trigger={trigger}>
-      {selectedCustomer ? (
-        <>
-          <div className="pop-body">
-            <div className="who-head">
-              <Avatar name={selectedCustomer.name} size={40} />
-              <div>
-                <b className="strong">{selectedCustomer.name}</b>
-                <p className="note num text-left">
-                  {[selectedCustomer.phone, selectedCustomer.tier, `${whole(selectedCustomer.points)} points`]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="pop-foot">
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                selectCustomer(null);
-                setOpen(false);
-              }}
-            >
-              <X className="ic" />
-              Take {firstName(selectedCustomer.name)} off the sale
+    <>
+      {trigger}
+      <TillDialog
+        open={open}
+        onOpenChange={(next) => (next ? setOpen(true) : close())}
+        title="Customer"
+        foot={
+          <>
+            <button type="button" className="btn" onClick={close}>
+              Cancel
             </button>
+            {go}
+          </>
+        }
+      >
+        {selectedCustomer ? (
+          <div className="cu-crow is-static">
+            <span className="hx-glyph">
+              <CircleUserRound className="ic" />
+            </span>
+            <span className="hx-text">
+              <span className="hx-t">
+                <span className="truncate">{selectedCustomer.name}</span>
+              </span>
+              <span className="hx-s num">{customerLine(selectedCustomer) || selectedCustomer.tier}</span>
+            </span>
+            <span className="hx-v">
+              <span className="cu-k">Points</span>
+              <span className="num">{whole(selectedCustomer.points)}</span>
+            </span>
           </div>
-        </>
-      ) : (
-        <>
-          <div className="pop-body">
-            <label className="input-wrap">
+        ) : adding ? (
+          <form
+            className="cu-new"
+            onSubmit={(event) => {
+              event.preventDefault();
+              addNew();
+            }}
+          >
+            <label className="input-wrap cu-search">
+              <input
+                aria-label="Phone or WhatsApp"
+                placeholder="Phone or WhatsApp"
+                className="num text-left"
+                inputMode="tel"
+                value={adding.phone}
+                autoFocus={!adding.phone}
+                onChange={(event) => setAdding({ ...adding, phone: event.target.value })}
+              />
+            </label>
+            <label className="input-wrap cu-search">
+              <input
+                aria-label="Name"
+                placeholder="Name"
+                value={adding.name}
+                autoFocus={Boolean(adding.phone)}
+                onChange={(event) => setAdding({ ...adding, name: event.target.value })}
+              />
+            </label>
+            {addError ? <ErrorLine>{addError}</ErrorLine> : null}
+            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+          </form>
+        ) : (
+          <>
+            <label className="input-wrap cu-search">
               <MagnifyingGlass className="ic" />
               <input
                 role="combobox"
@@ -397,130 +485,73 @@ export function CustomerPopover() {
                 aria-autocomplete="list"
                 aria-expanded={showResults}
                 aria-controls={showResults ? listId : undefined}
-                aria-activedescendant={showResults ? `${listId}-0` : undefined}
+                aria-activedescendant={chosen ? `${listId}-${customerSearchResults.indexOf(chosen)}` : undefined}
                 placeholder="Name, phone or email"
                 value={customerName}
                 autoFocus
-                onChange={(event) => setCustomerName(event.target.value)}
+                onChange={(event) => {
+                  setCustomerName(event.target.value);
+                  setActive(0);
+                }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && customerSearchResults[0]) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
-                    selectCustomer(customerSearchResults[0]);
-                    setOpen(false);
+                    const last = customerSearchResults.length - 1;
+                    setActive((now) => Math.max(0, Math.min(last, Math.min(now, last) + (event.key === "ArrowDown" ? 1 : -1))));
+                  } else if (event.key === "Enter" && chosen) {
+                    event.preventDefault();
+                    put(chosen);
                   }
                 }}
               />
             </label>
             {query.length >= 2 ? (
-              <div className="menu is-bare">
+              <div className="cu-clist">
                 {showResults ? (
-                  <div id={listId} role="listbox" aria-label="Customers found">
+                  <div id={listId} role="listbox" aria-label="Customers found" className="cu-clist">
                     {customerSearchResults.map((customer, index) => (
                       <button
                         key={customer.id}
                         id={`${listId}-${index}`}
                         type="button"
                         role="option"
-                        aria-selected={index === 0}
-                        className="menu-item is-tall"
-                        data-active={index === 0 || undefined}
-                        onClick={() => {
-                          selectCustomer(customer);
-                          setOpen(false);
-                        }}
+                        aria-selected={customer === chosen}
+                        className="cu-crow"
+                        onClick={() => put(customer)}
                       >
-                        <Avatar name={customer.name} />
-                        <span className="text-stack text-left">
-                          <span className="ink weight-500">{customer.name}</span>
-                          <span className="muted num text-left text-12">
-                            {[customer.phone, customer.tier, `${whole(customer.points)} points`].filter(Boolean).join(" · ")}
-                          </span>
+                        <span className="hx-glyph">
+                          <CircleUserRound className="ic" />
                         </span>
+                        <span className="hx-text">
+                          <span className="hx-t">
+                            <span className="truncate">{customer.name}</span>
+                          </span>
+                          <span className="hx-s num">{customerLine(customer) || customer.tier}</span>
+                        </span>
+                        <span />
                       </button>
                     ))}
                   </div>
+                ) : customerSearchLoading ? (
+                  <span className="skeleton cu-crow-skeleton" aria-busy="true" />
                 ) : null}
-                {customerSearchLoading && !customerSearchResults.length ? (
-                  <p className="note pad-8">
-                    Looking
-                  </p>
-                ) : null}
-                {customerSearchResults.length ? <div className="menu-sep" /> : null}
-                {adding ? (
-                  <form
-                    className="pad-8"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      setAddError(null);
-                      setTaken(null);
-                      create.mutate(adding);
-                    }}
-                  >
-                    <label className="input-wrap">
-                      <input
-                        aria-label="Phone or WhatsApp"
-                        placeholder="Phone or WhatsApp"
-                        className="num"
-                        inputMode="tel"
-                        value={adding.phone}
-                        autoFocus={!adding.phone}
-                        onChange={(event) => setAdding({ ...adding, phone: event.target.value })}
-                      />
-                    </label>
-                    <label className="input-wrap">
-                      <input
-                        aria-label="Name"
-                        placeholder="Name"
-                        value={adding.name}
-                        autoFocus={Boolean(adding.phone)}
-                        onChange={(event) => setAdding({ ...adding, name: event.target.value })}
-                      />
-                    </label>
-                    {addError ? <ErrorLine>{addError}</ErrorLine> : null}
-                    {taken ? (
-                      <button type="button" className="btn" disabled={pickTaken.isPending} onClick={() => pickTaken.mutate(taken)}>
-                        <Check className="ic" />
-                        Use {taken.name}
-                      </button>
-                    ) : (
-                      <button type="submit" className="btn btn-ink" disabled={create.isPending} aria-busy={create.isPending || undefined}>
-                        <UserPlus className="ic" />
-                        Add customer
-                      </button>
-                    )}
-                  </form>
-                ) : (
-                  <button type="button" className="menu-item" onClick={startAdding}>
+                <button type="button" className="cu-crow is-new" onClick={startAdding}>
+                  <span className="hx-glyph">
                     <UserPlus className="ic" />
-                    Add {query} as a new customer
-                  </button>
-                )}
+                  </span>
+                  <span className="hx-text">
+                    <span className="hx-t">
+                      <span className="truncate">New customer “{query}”</span>
+                    </span>
+                  </span>
+                  <span />
+                </button>
               </div>
-            ) : (
-              <p className="help">Type two letters of a name, or the start of a phone number.</p>
-            )}
-          </div>
-          <div className="pop-foot">
-            <span className="kbd push-left">
-              Esc
-            </span>
-            {customerSearchResults[0] ? (
-              <button
-                type="button"
-                className="btn btn-ink"
-                onClick={() => {
-                  selectCustomer(customerSearchResults[0]);
-                  setOpen(false);
-                }}
-              >
-                <Check className="ic" />
-                Put {firstName(customerSearchResults[0].name)} on the sale
-              </button>
             ) : null}
-          </div>
-        </>
-      )}
-    </TillPopover>
+          </>
+        )}
+      </TillDialog>
+    </>
   );
 }
 
@@ -553,11 +584,19 @@ export function useDropSale() {
 }
 
 /** Opened by its button, or by H on the keyboard (the sell screen holds `open`). */
-export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function HoldPopover({
+  open,
+  onOpenChange: setOpen,
+  disabled = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  disabled?: boolean;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { cart, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
+  const { cart, amountDue, shiftHere, customerName, orderDiscountAmount, clearCart, isPosHost } = useTill();
   const [label, setLabel] = React.useState("");
   // However it opens, it opens on the customer's name.
   const [wasOpen, setWasOpen] = React.useState(open);
@@ -565,7 +604,6 @@ export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; on
     setWasOpen(open);
     if (open) setLabel(customerName);
   }
-  const id = React.useId();
 
   const hold = useMutation({
     mutationFn: () =>
@@ -593,37 +631,41 @@ export function HoldPopover({ open, onOpenChange: setOpen }: { open: boolean; on
       open={open}
       onOpenChange={setOpen}
       label="Hold this sale"
-      align="end"
+      align="start"
+      side="top"
       trigger={
-        <button type="button" className="btn btn-quiet is-icon-on-phone" aria-label="Hold">
+        <button type="button" className="hold-key" aria-label="Hold" title="Hold  H" disabled={disabled}>
           <PauseCircle className="ic" />
-          <span className="when-wide">Hold</span>
         </button>
       }
     >
       <form
+        className="hold-sheet"
         onSubmit={(event) => {
           event.preventDefault();
           hold.mutate();
         }}
       >
-        <div className="pop-body">
-          <div className="field">
-            <label htmlFor={id}>
-              Name it <span className="opt">optional</span>
-            </label>
-            <input id={id} className="input input-lg" value={label} autoFocus onChange={(event) => setLabel(event.target.value)} />
-            <span className="help">It waits under Held until this shift closes.</span>
-          </div>
+        <div className="hold-sheet-head">
+          <span className="hold-sheet-t">Hold this sale</span>
+          <span className="hold-sheet-amount">{usd(amountDue)}</span>
         </div>
-        <div className="pop-foot">
-          <span className="kbd push-left">
-            Esc
-          </span>
-          <button type="submit" className="btn btn-ink" disabled={hold.isPending} aria-busy={hold.isPending || undefined}>
+        <input
+          className="input hold-sheet-note"
+          aria-label="Note"
+          placeholder="Note"
+          value={label}
+          autoFocus
+          onChange={(event) => setLabel(event.target.value)}
+        />
+        <div className="hold-sheet-btns">
+          <button type="button" className="btn" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={hold.isPending} aria-busy={hold.isPending || undefined}>
             <PauseCircle className="ic" />
-            Hold the sale
-            <span className="kbd on-primary">Enter</span>
+            Hold
+            <span className="kbd on-primary">↵</span>
           </button>
         </div>
       </form>

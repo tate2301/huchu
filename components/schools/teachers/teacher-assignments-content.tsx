@@ -180,7 +180,7 @@ export function TeacherAssignmentsContent() {
           return (
             <PersonCell
               kind="teacher"
-              href={`/schools/teachers/${profile.id}`}
+              href={`/schools/staff/teachers/${profile.id}`}
               name={profile.user?.name ?? "Unnamed"}
               reference={profile.employeeCode ?? profile.user?.email ?? undefined}
             />

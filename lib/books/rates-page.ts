@@ -89,7 +89,7 @@ export async function readRates(db: Db, companyId: string, { tab = "revaluation"
     plan = null;
   }
   const todayRate = todays?.rate ?? null;
-  const code = currency === "ZWG" ? "ZiG" : currency;
+  const code = currency;
   const fact = todays
     ? `Today’s documents use ${todays.rate.toFixed(2)}${storedDay(todays.effectiveDate) === today ? `, ${todays.source === "RBZ" ? "RBZ’s rate" : "the rate typed in"} at ${asOf(todays.createdAt, now).replace(/^Today /, "")}.` : `, the rate of ${shortDay(storedDay(todays.effectiveDate))}: there is none for today.`}`
     : `There is no ${code} rate yet.`;

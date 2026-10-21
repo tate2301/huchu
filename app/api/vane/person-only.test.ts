@@ -87,7 +87,7 @@ describe("Vane's data changes need a person", () => {
         sourceModule: "crm",
         headline: "11 follow-ups are overdue.",
         body: "Let's make the calls today.",
-        action: { type: "open", label: "Open the follow-ups", target: "/crm/follow-ups" },
+        action: { type: "open", label: "Open the follow-ups", target: "/crm/tasks/follow-ups" },
         status: "MUTED",
         mutedReason: "Not mine",
       },

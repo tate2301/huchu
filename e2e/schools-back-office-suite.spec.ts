@@ -105,7 +105,7 @@ const PASTORAL: readonly Route[] = [
   { path: "/schools/goals", name: "Subject targets", expect: /Nobody has set these children anything/i },
   { path: "/schools/staff", name: "Support staff", expect: /No support staff yet/i },
   {
-    path: "/schools/meetings",
+    path: "/schools/families/meetings",
     name: "Parents' evenings",
     /*
       No apostrophes in the pattern. The source writes `&rsquo;`, which renders

@@ -59,12 +59,12 @@ const SCREENS = {
   OverviewAsBuilt: null,
   Attendance: '/schools/attendance',
   AttendanceFollowUp: '/schools/attendance/follow-up',
-  Notices: '/schools/notices',
+  Notices: '/schools/families/notices',
   Documents: '/schools/documents',
   Reports: '/schools/reports',
   ReportsArrears: '/schools/finance/arrears',
-  Meetings: '/schools/meetings',
-  Timetable: '/schools/timetable',
+  Meetings: '/schools/families/meetings',
+  Timetable: '/schools/attendance/timetable',
   Homework: '/schools/homework',
   Goals: '/schools/goals',
 
@@ -73,12 +73,12 @@ const SCREENS = {
   StudentsClass: '/schools/students/class/[classId]',
   StudentRecord: '/schools/students/[id]',
   StudentRollUp: '/schools/students/roll-up',
-  Admissions: '/schools/admissions',
+  Admissions: '/schools/students/applications',
   Imports: '/schools/imports',
-  Guardians: '/schools/guardians',
-  GuardianRecord: '/schools/guardians/[id]',
-  Teachers: '/schools/teachers',
-  TeacherRecord: '/schools/teachers/[id]',
+  Guardians: '/schools/students/guardians',
+  GuardianRecord: '/schools/students/guardians/[id]',
+  Teachers: '/schools/staff/teachers',
+  TeacherRecord: '/schools/staff/teachers/[id]',
   Identity: '/management/master-data/schools/identity',
 
   // Academics
@@ -115,15 +115,15 @@ const SCREENS = {
   Pastoral: '/schools/conduct/pastoral',
 
   // Public exams
-  Exams: '/schools/exams',
-  ExamCandidates: '/schools/exams/[seriesId]/candidates',
-  ExamEntries: '/schools/exams/[seriesId]/entries',
-  ExamSeating: '/schools/exams/[seriesId]/seating',
-  ExamResults: '/schools/exams/[seriesId]/results',
+  Exams: '/schools/results/exams',
+  ExamCandidates: '/schools/results/exams/[seriesId]/candidates',
+  ExamEntries: '/schools/results/exams/[seriesId]/entries',
+  ExamSeating: '/schools/results/exams/[seriesId]/seating',
+  ExamResults: '/schools/results/exams/[seriesId]/results',
 
   // Leavers and alumni
-  Leavers: '/schools/leavers',
-  LeavingDocuments: '/schools/leavers/documents',
+  Leavers: '/schools/students/leavers',
+  LeavingDocuments: '/schools/students/leavers/documents',
   Alumni: '/schools/alumni',
   AlumniRecord: '/schools/alumni/[alumnusId]',
 

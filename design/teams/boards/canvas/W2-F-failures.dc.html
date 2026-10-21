@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>W2 · What goes wrong</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="icons-tl.css">
+<link rel="stylesheet" href="icons-ob.css">
+<link rel="stylesheet" href="teams.css">
+<link rel="stylesheet" href="timeline.css">
+<link rel="stylesheet" href="onboarding.css">
+<link rel="stylesheet" href="w2.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}.w2f{width:1440px;min-height:900px;box-sizing:border-box;padding:var(--s6) var(--s7);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s6) var(--s5);align-content:start;background:var(--surface)}.w2f-c{display:flex;flex-direction:column;gap:var(--s2);min-width:0}.w2f-n{color:var(--ink);font-weight:600}.w2f-f{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);background:var(--surface);padding:var(--s2) 0}</style>
+</helmet>
+<div class="cx w2f" data-theme="corelith">
+  <div class="w2f-c"><div class="w2f-n">WhatsApp didn't deliver it</div><div class="w2f-f"><div style="padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+        <div class="mrow__who"><span class="face face-32"><span class="i i-person"></span></span><div style="min-width: 0; flex: 1"><div class="mrow__name">Tariro Mhlanga</div><div class="mrow__sub"><span style="display: inline-flex; align-items: center; gap: 5px"><span class="mark-wa" style="width: 12px; height: 12px"></span>+263 77 540 2186 · 11:53</span></div></div><span class="state state--bad">Not delivered</span></div>
+        <div><button class="btn" type="button"><span class="i i-pencil"></span>Change the number</button></div>
+      </div></div></div>
+  <div class="w2f-c"><div class="w2f-n">The invite ran out</div><div class="w2f-f"><div style="padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+        <div class="mrow__who"><span class="face face-32"><span class="i i-person"></span></span><div style="min-width: 0; flex: 1"><div class="mrow__name">Tariro Mhlanga</div><div class="mrow__sub">+263 77 540 2186</div></div><span class="state state--calm">Expired 26 Oct 11:53</span></div>
+        <div><button class="btn" type="button"><span class="mark-wa"></span>Send a new invite</button></div>
+      </div></div></div>
+  <div class="w2f-c"><div class="w2f-n">Sean said not now</div><div class="w2f-f"><div style="padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+        <div class="mrow__who"><span class="face face-32"><span class="i i-person"></span></span><div style="min-width: 0; flex: 1"><div class="mrow__name">Tariro Mhlanga</div><div class="mrow__sub">+263 77 540 2186</div></div><span class="state state--calm">Sean · not now · 11:55</span></div>
+        <div><button class="btn" type="button"><span class="i i-x i-sm"></span>Remove the invite</button></div>
+      </div></div></div>
+  <div class="w2f-c"><div class="w2f-n">The card was declined</div><div class="w2f-f"><div style="padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+        <dl class="kv" style="margin: 0"><dt><span class="i i-card"></span>Card</dt><dd style="color: var(--bad)">Visa ending 4417 · declined</dd><dt><span class="i i-cal"></span>Today</dt><dd>US$25.16</dd></dl>
+        <button class="btn" type="button" style="align-self: flex-start"><span class="i i-card"></span>Use another card</button>
+      </div></div></div>
+  <div class="w2f-c"><div class="w2f-n">She's already in another workspace</div><div class="w2f-f"><div style="padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+        <div class="w2-ws"><span class="wsmark" style="background: #6b3fa0; width: 24px; height: 24px; border-radius: 7px"><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12 3l3.2 6.5L22 12l-6.8 2.5L12 21l-3.2-6.5L2 12l6.8-2.5z"/></svg></span><span class="strong">Mhlanga Events</span><span class="muted">· yours</span></div>
+        <div class="w2-ws"><span class="wsmark" style="width: 24px; height: 24px; border-radius: 7px; background: var(--surface); box-shadow: var(--shadow-ring)"><img src="/_blob/5cb94a92544c012adfc9f737955a54ca" alt="" width="13" height="15"></span><span class="strong">Corelith</span><span class="muted">· Field worker</span></div>
+        <button class="btn btn--primary" type="button" style="align-self: flex-start">Join Corelith too<span class="kbd">Enter</span></button>
+      </div></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

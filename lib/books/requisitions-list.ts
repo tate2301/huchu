@@ -99,7 +99,7 @@ const payable = (row: { amount: Prisma.Decimal | number; approvedAmount: Prisma.
   Number(row.paidAmount ?? row.approvedAmount ?? row.amount);
 const possessive = (name: string) => `${name}${name.endsWith("s") ? "'" : "'s"}`;
 
-/** "2 requisitions wait for you, US$98.00." / "Simba Gondo's US$95.00 is not accounted for yet." */
+/** "2 requisitions wait for you, $98.00." / "Simba Gondo's $95.00 is not accounted for yet." */
 export function requisitionsFinding(
   forMe: { count: number; amount: number },
   unaccounted: Array<{ name: string; amount: number }>,

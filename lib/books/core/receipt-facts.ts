@@ -55,7 +55,7 @@ export async function receiptFacts(
   const bank = !input.currency && !invoice?.currency && input.bankAccountId
     ? await db.bankAccount.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId }, select: { currency: true } })
     : null;
-  // The currency the money came in: as given (a US dollar payment on a ZiG invoice stays US dollars,
+  // The currency the money came in: as given (a US dollar payment on a ZWG invoice stays US dollars,
   // books-final §5.9.3), else the invoice's, else the money account's, else the base currency.
   const currency = (input.currency ?? invoice?.currency ?? bank?.currency ?? (await resolveBaseCurrency(input.companyId))).trim().toUpperCase();
   try {

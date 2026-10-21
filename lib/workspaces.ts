@@ -1,4 +1,5 @@
 import { canViewAccountingHref } from "@/lib/accounting/visibility";
+import { BOOKS_TIER_PRICE, booksTierForPath, hasBooksTier } from "@/lib/books/tiers";
 import { buildProvisions, type BuildProvisions } from "@/lib/build/provision";
 import { hasRole } from "@/lib/roles";
 import type { BuildNavItem, NavGroup, NavItem, NavSection } from "@/lib/navigation";
@@ -13,8 +14,6 @@ import {
 } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-import { BOOKS_SCREENS_KEY } from "@/lib/platform/gating/route-registry";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { RETAIL_NAV_MODULES, roleMeetsRetailRequires } from "@/lib/retail/nav";
@@ -416,14 +415,15 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     homeHref: "/books",
     // The panel the boards draw (`lib/navigation.ts`), each page behind its own feature.
     getItems(context) {
-      const items = (context.navSectionById.get("accounting")?.items ?? []).filter((item) =>
-        canViewAccountingHref(item.href, context.enabledFeatures),
-      );
-      // Without the screens Books stays in the owner's rail, its pages showing
-      // what the screens add; others keep only Takings, on its retail gate
-      // (books-final §1.2).
-      if (hasTokenFeature(context.enabledFeatures, BOOKS_SCREENS_KEY) || context.role === "SUPERADMIN") return items;
-      return items.filter((item) => item.href.startsWith("/books/takings"));
+      // Every free row is open on every plan; a paid row shows once with its
+      // price and a lock, and opens what that plan adds (lib/books/tiers.ts,
+      // design/books/NOTES.md §1). The server refuses on its own.
+      return (context.navSectionById.get("accounting")?.items ?? [])
+        .filter((item) => canViewAccountingHref(item.href, context.enabledFeatures))
+        .map((item) => {
+          const tier = booksTierForPath(item.href);
+          return tier && tier !== "free" && !hasBooksTier(context.enabledFeatures, tier) ? { ...item, lock: BOOKS_TIER_PRICE[tier] } : item;
+        });
     },
     // A level's links out (Settings › In Management) are filtered as its rows are.
     getGroups(context) {

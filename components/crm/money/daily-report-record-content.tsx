@@ -277,7 +277,7 @@ export function DailyReportRecordContent({ reportId }: { reportId: string }) {
                   rows={summary.jobs.map((job) => ({
                     id: job.id,
                     cells: {
-                      job: <ColumnName name={job.title} meta={job.clientName ?? undefined} href={`/crm/work-orders/${job.id}`} />,
+                      job: <ColumnName name={job.title} meta={job.clientName ?? undefined} href={`/crm/projects/jobs/${job.id}`} />,
                       status: (
                         <StatusDot
                           tone={JOB_TONE[job.status] ?? "neutral"}

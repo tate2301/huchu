@@ -50,7 +50,7 @@ export type MatchCandidates = {
   chargesFiledBefore?: (line: StatementLineInput) => string | null;
   /** The workspace's other money accounts in the line's currency: a transfer names one of them. */
   ownAccounts?: Array<{ id: string; name: string; last4: string | null }>;
-  /** The IMTT rate on the line's currency, for the reason ("2% of the US$1,184.60 paid to ZIMRA"). */
+  /** The IMTT rate on the line's currency, for the reason ("2% of the $1,184.60 paid to ZIMRA"). */
   imttRate?: number;
 };
 

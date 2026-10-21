@@ -28,7 +28,7 @@ export function BkProvisionalView({ data, onYear, onRevise, onDates, exportHref 
             rows={[
               ["Worked from", data.estimate?.incomeUsd ? `Income of about ${money(data.estimate.incomeUsd, c)}` : "The tax you expect to owe"],
               ["Rates", data.rates],
-              ["Currency split", data.estimate?.split5050 ? "50/50, US$ and ZiG" : "Off"],
+              ["Currency split", data.estimate?.split5050 ? "50/50, $ and ZWG" : "Off"],
               ["Last revised", data.estimate?.revisedAt ? `${data.estimate.revisedAt}${data.estimate.revisedBy ? `, ${data.estimate.revisedBy.split(" ")[0]}` : ""}` : "—"],
             ]}
             after={

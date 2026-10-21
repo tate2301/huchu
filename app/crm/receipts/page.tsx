@@ -1,22 +1,8 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { DocumentsListContent } from "@/components/crm/documents/documents-list-content";
-import { authOptions } from "@/lib/auth";
+import { movedTo } from "@/lib/books/moved";
 
-export default async function CrmReceiptsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  return (
-    <CrmPage>
-      <DocumentsListContent
-        kind="RECEIPT"
-        title="Receipts"
-        searchPlaceholder="Search by receipt number or customer"
-        emptyBody="A receipt is written when a payment is recorded against an invoice."
-      />
-    </CrmPage>
-  );
+/** Receipts are Books' payments received, at one address (design/books/NOTES.md §2). */
+export default async function CrmReceiptsMoved({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(movedTo("/books/payments", await searchParams));
 }

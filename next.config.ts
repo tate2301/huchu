@@ -116,6 +116,23 @@ const nextConfig: NextConfig = {
       { source: "/home/solutions/schools", destination: "/home/schools", permanent: true },
       { source: "/home/pricing/schools", destination: "/home/schools", permanent: true },
 
+      // Pages moved to the one address each has in the sidebar (`lib/nav/registry.ts`).
+      // The old address forwards for good, with whatever followed it, so a
+      // bookmark, an e-mailed link or a record link in a timeline still lands.
+      { source: "/retail/end-of-day/:path*", destination: "/retail/shifts/end-of-day/:path*", permanent: true },
+      { source: "/crm/work-orders/:path*", destination: "/crm/projects/jobs/:path*", permanent: true },
+      { source: "/crm/follow-ups/:path*", destination: "/crm/tasks/follow-ups/:path*", permanent: true },
+      { source: "/schools/admissions/:path*", destination: "/schools/students/applications/:path*", permanent: true },
+      { source: "/schools/guardians/:path*", destination: "/schools/students/guardians/:path*", permanent: true },
+      { source: "/schools/leavers/:path*", destination: "/schools/students/leavers/:path*", permanent: true },
+      { source: "/schools/calendar/:path*", destination: "/schools/attendance/calendar/:path*", permanent: true },
+      { source: "/schools/timetable/:path*", destination: "/schools/attendance/timetable/:path*", permanent: true },
+      { source: "/schools/exams/:path*", destination: "/schools/results/exams/:path*", permanent: true },
+      { source: "/schools/teachers/:path*", destination: "/schools/staff/teachers/:path*", permanent: true },
+      { source: "/schools/messages/:path*", destination: "/schools/families/messages/:path*", permanent: true },
+      { source: "/schools/notices/:path*", destination: "/schools/families/notices/:path*", permanent: true },
+      { source: "/schools/meetings/:path*", destination: "/schools/families/meetings/:path*", permanent: true },
+
       { source: "/gold/pour", destination: "/gold/intake/pours", permanent: true },
       { source: "/gold/pour/new", destination: "/gold/intake/pours/new", permanent: true },
       { source: "/gold/dispatch", destination: "/gold/transit/dispatches", permanent: true },

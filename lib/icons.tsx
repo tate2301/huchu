@@ -18,6 +18,7 @@ import {
   ArrowsDownUp as PhosphorArrowsDownUp,
   ArrowsLeftRight as PhosphorArrowsLeftRight,
   ArrowsOut as PhosphorArrowsOut,
+  ArrowsSplit as PhosphorArrowsSplit,
   At as PhosphorAt,
   Backspace as PhosphorBackspace,
   BagSimple as PhosphorBagSimple,
@@ -277,6 +278,7 @@ const iconRegistry = {
   ArrowsDownUp: PhosphorArrowsDownUp,
   ArrowsLeftRight: PhosphorArrowsLeftRight,
   ArrowsOut: PhosphorArrowsOut,
+  ArrowsSplit: PhosphorArrowsSplit,
   At: PhosphorAt,
   Backspace: PhosphorBackspace,
   BagSimple: PhosphorBagSimple,
@@ -804,6 +806,7 @@ export const MailCheck = createPhosphorIcon(
 );
 export const ManageAccounts = createPhosphorIcon("UserGear", "ManageAccounts");
 export const Maximize2 = createPhosphorIcon("ArrowsOut", "Maximize2");
+export const ArrowsSplit = createPhosphorIcon("ArrowsSplit", "ArrowsSplit");
 export const MapPin = createPhosphorIcon("MapPin", "MapPin");
 export const Menu = createPhosphorIcon("List", "Menu");
 export const Mic = createPhosphorIcon("Microphone", "Mic");
@@ -1019,7 +1022,7 @@ export const Warning = createPhosphorIcon("Warning", "Warning");
  * Results when it already means Insights, and a warning triangle cannot mean
  * Conduct when it also means an overdue invoice two rows below. These are the
  * specific ones. Where a mark is claimed by an area, nothing else in the same
- * column may use it — see `AREA_ICONS` in `lib/rail/areas.ts`.
+ * column may use it.
  */
 export const Sun = createPhosphorIcon("Sun", "Sun");
 export const UsersThree = createPhosphorIcon("UsersThree", "UsersThree");

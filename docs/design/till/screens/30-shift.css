@@ -1,0 +1,141 @@
+/* The shift (T6): Open the shift, Shift with Cash in or out beside it, Count the drawer, Close the shift, closed.
+   The screen on the left, a 400 wide ground side with the keypad and the one orange key on the right. */
+
+.shift-bench { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100%; min-height: 0; background: var(--color-surface); }
+.shift-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 0; padding: 24px 28px; overflow: auto; }
+
+/* The head: the title, then facts in a quieter line; a back key before it on a step. */
+.shift-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.shift-h h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.shift-h .sub { font-size: 15px; color: var(--color-muted); }
+.shift-h .sub .num { font-family: var(--font-mono); font-size: var(--text-14); }
+.shift-h .end { margin-left: auto; }
+.shift-h.is-nav { align-items: center; }
+.shift-back { height: 48px; padding: 0 14px 0 10px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); color: var(--color-ink-2); font-size: 15px; font-weight: 500; white-space: nowrap; }
+.shift-back .ic { width: 18px; height: 18px; }
+@media (hover: hover) { .shift-back:hover { background: var(--color-hover); } }
+.shift-back:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--color-rule), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Figures, as tiles. */
+.shift-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.shift-stat { padding: 14px 18px; border-radius: 16px; background: var(--color-ground); min-width: 0; }
+.shift-stat .k { font-size: var(--text-14); color: var(--color-muted); }
+.shift-stat .v { margin-top: 2px; font-family: var(--font-mono); font-size: 26px; letter-spacing: -0.02em; color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The shift's log. */
+.shift-log { display: flex; flex-direction: column; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.shift-log-r { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 60px; padding: 10px 18px; box-shadow: inset 0 -1px 0 var(--color-line); font-size: 15px; line-height: 1.4; color: var(--color-ink-2); }
+.shift-log-r:last-child { box-shadow: none; }
+.shift-log-r b { font-weight: 600; color: var(--color-ink); }
+.shift-log-r .num, .shift-log-r time { font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); }
+.shift-log-r .g { width: 40px; height: 40px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.shift-log-r .g .ic { width: 20px; height: 20px; }
+
+/* The side: a title, what is chosen, the figure, the keypad, and the one key at the foot. */
+.shift-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: 20px; overflow: auto; background: var(--color-ground); box-shadow: inset 1px 0 0 var(--color-line); }
+.shift-side-head { display: flex; align-items: center; gap: var(--space-12); padding-right: 20px; }
+.shift-side-head .seg { margin-left: auto; }
+.shift-side-head .seg button { height: 36px; padding: 0 14px; font-size: 15px; }
+.shift-side-head .seg button[aria-checked="true"] { color: var(--color-ink); background: var(--color-surface); box-shadow: var(--shadow-ring), var(--shadow-raised); }
+.shift-side-t { margin: 0; padding: 0 24px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; color: var(--color-ink); }
+.shift-fig { display: flex; align-items: baseline; gap: 12px; padding: 10px 24px 0; }
+.shift-fig .k { font-size: 15px; color: var(--color-muted); }
+.shift-fig .v { margin-left: auto; font-family: var(--font-mono); font-size: 46px; line-height: 1.1; letter-spacing: -0.03em; color: var(--color-ink); }
+.shift-side .keypad { max-width: none; gap: 6px; padding: 14px 20px 0; }
+.shift-side .keypad button { height: 56px; border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); font-family: var(--font-sans); font-size: 24px; font-weight: 600; }
+.shift-side .keypad button .ic { width: 24px; height: 24px; }
+.shift-side .keypad button:active:not(:disabled) { background: var(--color-pressed); box-shadow: none; }
+.shift-side .keypad button:focus-visible { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.shift-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 20px; }
+.shift-foot .take-key { width: 100%; }
+
+/* Cash in or out: the three ways, then the notes counted and the amount. */
+.shift-ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 14px 20px 0; }
+.shift-ways button { height: 64px; padding: 0 var(--space-4); border-radius: 14px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4); font-size: var(--text-13); font-weight: 500; line-height: 1.15; color: var(--color-ink-2); text-align: center; }
+.shift-ways button .ic { width: 22px; height: 22px; }
+.shift-ways button[aria-checked="true"] { background: var(--color-ink); color: var(--color-surface); box-shadow: none; }
+.shift-notes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 14px 20px 0; }
+.shift-notes button { height: 54px; min-width: 0; border-radius: 12px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 15px; line-height: 1.2; color: var(--color-ink); }
+.shift-notes button small { font-size: var(--text-12); color: var(--color-muted); white-space: nowrap; }
+.shift-notes button.is-amount small { font-family: var(--font-sans); }
+.shift-notes button[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--color-ink); }
+.shift-ways button:focus-visible, .shift-notes button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-accent); }
+.shift-note { height: 52px; margin: 12px 20px 0; padding: 0 16px; border-radius: 14px; border: 0; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: var(--text-16); color: var(--color-ink); }
+.shift-note::placeholder { color: var(--color-muted); }
+.shift-note:focus { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+
+/* A count: one row per note, the chosen row marked, the total at the foot. */
+.tally { border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); overflow: hidden; }
+.tally-h, .tally-r { display: grid; grid-template-columns: minmax(0, 1fr) 110px 150px; align-items: center; padding: 0 20px; }
+.tally-h { height: 40px; background: var(--color-ground); box-shadow: inset 0 -1px 0 var(--color-line); font-size: var(--text-13); font-weight: 500; color: var(--color-muted); }
+.tally-h span:not(:first-child), .tally-r span:not(:first-child) { text-align: right; }
+.tally-r { width: 100%; height: 50px; background: transparent; box-shadow: inset 0 -1px 0 var(--color-line); font-family: var(--font-mono); font-size: 17px; color: var(--color-ink); text-align: left; }
+.tally-r span:last-child { color: var(--color-ink-2); }
+.tally-r.is-zero span:nth-child(2), .tally-r.is-zero span:last-child { color: var(--color-faint); }
+.tally-r[aria-current="true"] { background: var(--color-fill); box-shadow: inset 3px 0 0 var(--color-ink), inset 0 -1px 0 var(--color-line); }
+.tally-r:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.tally-f { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; height: 58px; padding: 0 20px; font-size: var(--text-16); font-weight: 600; color: var(--color-ink); }
+.tally-f .num { font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
+.tally.is-slim .tally-h, .tally.is-slim .tally-r { grid-template-columns: minmax(0, 1fr) 80px 120px; }
+.tally.is-slim .tally-r { height: 44px; font-size: var(--text-16); }
+.tally-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+
+/* Close the shift: Out by, the count, the float left, what happened, then Count again and Close. */
+.shift-page { display: flex; flex-direction: column; gap: 22px; height: 100%; min-height: 0; padding: 28px 48px; overflow: auto; background: var(--color-surface); }
+.shift-lede { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; color: var(--color-ink); }
+.shift-lede .num { font-family: var(--font-mono); font-weight: 500; }
+.shift-lede .is-bad { color: var(--color-danger); }
+.shift-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; max-width: 900px; }
+.shift-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.shift-field.is-wide { max-width: 900px; }
+.shift-field label, .shift-field .label { font-size: 15px; font-weight: 600; color: var(--color-ink-2); }
+.shift-box, .shift-input { height: 60px; border-radius: 14px; display: flex; align-items: center; gap: 6px; padding: 0 18px; font-size: 19px; color: var(--color-ink); }
+.shift-box { background: var(--color-ground); }
+.shift-box .num { font-family: var(--font-mono); }
+.shift-box small { margin-left: auto; font-size: 15px; color: var(--color-muted); }
+.shift-box small .num { font-size: var(--text-16); color: var(--color-ink-2); }
+.shift-input { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); }
+.shift-input small { margin-right: 6px; font-size: 15px; color: var(--color-muted); }
+.shift-input input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: transparent; font: inherit; color: inherit; }
+.shift-input input, .shift-input input:focus, .shift-input input:focus-visible { outline: none; box-shadow: none; }
+.shift-input.is-money input { font-family: var(--font-mono); }
+.shift-input:focus-within { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.shift-input:has(input[aria-invalid="true"]) { box-shadow: inset 0 0 0 2px var(--color-danger); }
+.shift-fact { display: flex; align-items: center; gap: var(--space-8); margin: 0; font-size: 15px; color: var(--color-ink-2); }
+.shift-fact .ic { width: 18px; height: 18px; color: var(--color-muted); }
+.shift-fact .num { font-family: var(--font-mono); }
+.shift-acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.shift-btn { height: 64px; padding: 0 24px; border-radius: 16px; display: inline-flex; align-items: center; gap: 10px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-rule); font-size: 17px; font-weight: 600; color: var(--color-ink); }
+.shift-btn .ic { width: 20px; height: 20px; }
+.shift-btn .kbd { margin: 0; }
+.shift-btn.is-go { background: var(--color-accent); color: var(--color-accent-ink); box-shadow: 0 1px 2px rgba(36, 20, 14, 0.18); }
+.shift-btn.is-go:disabled { background: var(--color-fill); color: var(--color-faint); box-shadow: none; }
+.shift-btn:active:not(:disabled) { transform: scale(var(--motion-press)); }
+.shift-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink); }
+
+/* Closed: the mark, the shift, its facts; who closed it beside, and Who's selling next. */
+.shift-done { display: grid; grid-template-columns: minmax(0, 1fr) 420px; height: 100%; min-height: 0; background: var(--color-surface); }
+.shift-done-main { display: flex; flex-direction: column; gap: 26px; min-width: 0; padding: 72px 64px; overflow: auto; }
+.shift-done-mark { width: 72px; height: 72px; border-radius: var(--radius-pill); background: var(--color-fill); color: var(--color-ink-2); display: grid; place-items: center; }
+.shift-done-mark .ic { width: 36px; height: 36px; }
+.shift-done-main h1 { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.shift-done-main h1 .num { font-family: var(--font-mono); font-weight: 500; }
+.shift-done-main .facts { max-width: 560px; margin: 0; }
+.shift-done-main .fact.is-bad, .shift-done-main .fact.is-bad > .ic, .shift-done-main .fact.is-bad dd { color: var(--color-danger); }
+.shift-done-main .fact dd.is-name { font-family: var(--font-sans); font-size: 15px; color: var(--color-ink-2); }
+.shift-done-side { display: flex; flex-direction: column; gap: 16px; padding: 72px 40px 40px; background: var(--color-ground); box-shadow: inset 1px 0 0 var(--color-line); }
+.shift-done-side .avatar { width: 72px; height: 72px; }
+.shift-done-side .avatar .ic { width: 32px; height: 32px; }
+.shift-done-side .who { font-size: 20px; font-weight: 600; color: var(--color-ink); }
+.shift-done-side .sub { font-size: 15px; color: var(--color-muted); }
+.shift-done-side .take-key { margin-top: auto; }
+
+@media (max-width: 760px) {
+  .shift-bench, .shift-done { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .shift-main, .shift-done-main { padding: 20px 16px; overflow: visible; }
+  .shift-side, .shift-done-side { box-shadow: inset 0 1px 0 var(--color-line); overflow: visible; }
+  .shift-stats, .tally-two, .shift-fields { grid-template-columns: minmax(0, 1fr); }
+  .shift-page { height: auto; padding: 20px 16px; }
+  .shift-done-side { padding: 24px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .shift-btn:active:not(:disabled) { transform: none; } }

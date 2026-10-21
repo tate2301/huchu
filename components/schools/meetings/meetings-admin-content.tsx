@@ -826,7 +826,7 @@ export function MeetingsAdminContent() {
             body="Slots are opened against a teacher's profile. Add staff under Teachers first."
             action={
               <Button asChild variant="secondary">
-                <Link href="/schools/teachers">Open the staff list</Link>
+                <Link href="/schools/staff/teachers">Open the staff list</Link>
               </Button>
             }
           />
@@ -872,7 +872,7 @@ export function MeetingsAdminContent() {
                     <span className="flex items-center gap-2">
                       <PersonAvatar name={group.name} src={group.image} size="sm" />
                       <EntityLink
-                        href={`/schools/teachers/${group.slots[0]!.teacherProfile.id}`}
+                        href={`/schools/staff/teachers/${group.slots[0]!.teacherProfile.id}`}
                       >
                         {group.name}
                       </EntityLink>
@@ -990,7 +990,7 @@ export function MeetingsAdminContent() {
                               {slot.guardian ? (
                                 <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
                                   <EntityLink
-                                    href={`/schools/guardians/${slot.guardian.id}`}
+                                    href={`/schools/students/guardians/${slot.guardian.id}`}
                                     muted
                                   >
                                     {slot.guardian.firstName} {slot.guardian.lastName}

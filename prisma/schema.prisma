@@ -1416,6 +1416,11 @@ enum UserRole {
   SALES_REP
 }
 
+enum MemberKind {
+  STAFF
+  OUTSIDE_ACCOUNTANT
+}
+
 model User {
   retailEmptiesEntriesCreated RetailEmptiesEntry[] @relation("RetailEmptiesEntryCreatedBy")
   id                String    @id @default(uuid())
@@ -1445,6 +1450,14 @@ model User {
   /// everywhere". `enrichTokenClaims` compares it with the token's
   /// `signedInAt` on every request, so it takes effect on the next click.
   sessionsEndedAt   DateTime?
+  /// Staff, or an accountant from outside the business (the firm that audits or
+  /// keeps the books). In Books an outside accountant has the owner's rights
+  /// until `accessEndsOn`; everywhere else they are their role.
+  memberKind        MemberKind @default(STAFF)
+  /// The outside accountant's firm. Set with `accessEndsOn` for an outside accountant, null for staff.
+  firmName          String?
+  /// The last day an outside accountant may sign in and use Books.
+  accessEndsOn      DateTime? @db.Date
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

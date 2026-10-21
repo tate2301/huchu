@@ -74,7 +74,7 @@ import {
  * written *inside* a year, which is exactly where the board puts it.
  *
  * The holiday calendar that used to be a third tab here has its own route at
- * `/schools/calendar` and is reachable from this record's overflow; nothing was
+ * `/schools/attendance/calendar` and is reachable from this record's overflow; nothing was
  * dropped to make room for it.
  *
  * Presentation only. The query keys and the four API calls are the ones
@@ -305,7 +305,7 @@ export function YearsRegister() {
                     <Link href="/schools/students/roll-up">Roll up the year</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/schools/calendar">The school calendar</Link>
+                    <Link href="/schools/attendance/calendar">The school calendar</Link>
                   </DropdownMenuItem>
                   {canArchive ? (
                     <DropdownMenuItem

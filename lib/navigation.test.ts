@@ -6,9 +6,9 @@ import {
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateFeatureKeys,
 } from "@/lib/platform/client-templates";
-import { areaRows, areasFromSections } from "@/lib/rail/areas";
-import { getRailModel } from "@/lib/rail/model";
-import { getWorkspaceOptions, getWorkspaceProfileForTemplate, getWorkspaceSidebarModel } from "@/lib/workspaces";
+import { composeNav } from "@/lib/nav/compose";
+import { canOpenFor, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
+import { getWorkspaceProfileForTemplate, getWorkspaceSidebarModel } from "@/lib/workspaces";
 
 const books = navSections.find((section) => section.id === "accounting")!;
 
@@ -69,71 +69,53 @@ describe("Books' panel (design/core-modules/tools/boards/books_nav.py)", () => {
     }
   });
 
-  it("reaches the rail as one module whose groups are levels, each page behind its own feature", () => {
+  it("reaches the sidebar as one group, each page behind its own feature", () => {
     const features = ["accounting.core", "accounting.ar", "accounting.banking", "accounting.journals", "accounting.periods", "accounting.tax"];
-    const model = getWorkspaceSidebarModel({ role: "SUPERADMIN", enabledFeatures: features, workspaceProfile: "GENERAL" });
-    const area = getRailModel(model.sections).areas.find((candidate) => candidate.label === "Books");
-    expect(area?.bands ?? []).toEqual([]);
-    expect(area?.folders?.map((folder) => folder.label)).toEqual(["Sales", "Bank & cash", "Tax", "Close the month", "Ledger", "Settings"]);
-    expect(areaRows(area!).map((item) => item.label)).toEqual(["Money"]);
-    const labels = area?.items.map((item) => item.label) ?? [];
-    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "Payments received", "To match", "VAT returns", "Journals", "Checklist"]));
-    // Takings needs the tills; All spending needs Payables.
+    const who = { role: "SUPERADMIN", enabledFeatures: features, workspaceProfile: "GENERAL" };
+    const books = composeNav({ canOpen: canOpenFor(who), products: productGroupsFor(visibleAddresses(who), "GENERAL") }).find((group) => group.id === "books");
+    const labels = books?.items.flatMap((item) => [item.label, ...item.kids.map((kid) => kid.label)]) ?? [];
+    expect(books?.items.map((item) => item.id)).toEqual(expect.arrayContaining(["money", "bsales", "bbank", "btax", "bledger"]));
+    expect(labels).toEqual(expect.arrayContaining(["Money", "Invoices", "To match", "VAT returns", "Journals"]));
+    // Takings needs the tills.
     expect(labels).not.toContain("Takings");
-    expect(labels).not.toContain("All spending");
   });
 
-  it("keeps Ledger and Settings for the owner, a manager and the accountant (§3.2)", () => {
+  it("keeps Ledger for the owner, a manager and the accountant (§3.2)", () => {
     const features = getClientTemplateFeatureKeys("TEMPLATE_CRM");
-    const levels = (role: string) => {
-      const sections = getWorkspaceSidebarModel({ role, enabledFeatures: features, workspaceProfile: "GENERAL" }).sections;
-      return areasFromSections(sections, { flatten: false }).find((area) => area.label === "Books")?.folders?.map((folder) => folder.label) ?? [];
+    const has = (role: string) => {
+      const who = { role, enabledFeatures: features, workspaceProfile: "GENERAL" };
+      const groups = composeNav({ canOpen: canOpenFor(who), products: productGroupsFor(visibleAddresses(who), "GENERAL") });
+      return groups.some((group) => group.items.some((item) => item.id === "bledger"));
     };
-    for (const role of ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"]) expect(levels(role)).toEqual(expect.arrayContaining(["Ledger", "Settings"]));
-    for (const role of ["BURSAR", "CLERK"]) {
-      expect(levels(role)).not.toContain("Ledger");
-      expect(levels(role)).not.toContain("Settings");
-    }
+    for (const role of ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"]) expect(has(role), role).toBe(true);
+    for (const role of ["BURSAR", "CLERK"]) expect(has(role), role).toBe(false);
   });
 });
 
-describe("each module's panel (the owner, 15 Oct: Reports listed its rows twice, and leaked into the CRM's)", () => {
-  // Every template, every workspace it splits into, for the roles that see the most and the least.
+describe("the sidebar for each template and role", () => {
+  // Every template, for the roles that see the most and the least.
   const cases = CLIENT_BUNDLE_TEMPLATES.flatMap((template) => {
     const disabled = new Set(getClientTemplateDisabledFeatureKeys(template.code));
     const enabledFeatures = getClientTemplateFeatureKeys(template.code).filter((key) => !disabled.has(key));
     const workspaceProfile = getWorkspaceProfileForTemplate(template.code);
-    return ["SUPERADMIN", "MANAGER", "CLERK"].flatMap((role) =>
-      getWorkspaceOptions({ role, enabledFeatures, workspaceProfile }).map((option) => ({
-        name: `${template.code} › ${option.label} as ${role}`,
-        args: { role, enabledFeatures, workspaceProfile, activeWorkspaceId: option.id },
-      })),
-    );
+    return ["SUPERADMIN", "MANAGER", "CLERK"].map((role) => ({
+      name: `${template.code} as ${role}`,
+      args: { role, enabledFeatures, workspaceProfile },
+    }));
   });
 
-  it.each(cases.map((entry) => [entry.name, entry.args] as const))("%s: no row twice, and no other module's rows", (_, args) => {
-    const sections = getWorkspaceSidebarModel(args).sections;
-    // Read both ways the rail can: modules split into their groups, and modules whole with their groups as levels.
-    for (const areas of [getRailModel(sections).areas, areasFromSections(sections, { flatten: false })]) {
-      const owner = new Map<string, string>();
-      for (const area of areas) {
-        const hrefs = area.items.map((item) => item.href);
-        expect(new Set(hrefs).size, `${area.label} lists a row twice: ${hrefs.join(", ")}`).toBe(hrefs.length);
-        for (const folder of area.folders ?? []) {
-          const inFolder = folder.items.map((item) => item.href);
-          expect(new Set(inFolder).size, `${area.label} › ${folder.label}`).toBe(inFolder.length);
-          expect(inFolder.every((href) => hrefs.includes(href)), `${area.label} › ${folder.label}`).toBe(true);
-        }
-        for (const href of hrefs) {
-          expect(owner.get(href), `${href} is in ${owner.get(href)} and ${area.label}`).toBeUndefined();
-          owner.set(href, area.label);
-        }
+  it.each(cases.map((entry) => [entry.name, entry.args] as const))("%s: no page twice, no empty group, children under their page", (_, args) => {
+    const groups = composeNav({ canOpen: canOpenFor(args), products: productGroupsFor(visibleAddresses(args), args.workspaceProfile) });
+    const ids = groups.flatMap((group) => group.items.map((item) => item.id));
+    expect(new Set(ids).size, `a page is listed twice: ${ids.join(", ")}`).toBe(ids.length);
+    for (const group of groups) {
+      expect(group.items.length, `${group.label} is empty`).toBeGreaterThan(0);
+      for (const item of group.items) {
+        const kidIds = item.kids.map((kid) => kid.id);
+        expect(new Set(kidIds).size, `${item.label} lists a child twice`).toBe(kidIds.length);
+        // One visible child is not a list: the page opens it instead.
+        expect(item.kids.length === 1, `${item.label} has one child`).toBe(false);
       }
-      // Reports' rows are in Reports' panel alone; Explore and Vane are modules of their own.
-      const holding = (prefix: RegExp) => areas.filter((area) => area.items.some((item) => prefix.test(item.href))).map((area) => area.id);
-      expect(holding(/^\/reports(\/|\?|$)/).length).toBeLessThanOrEqual(1);
-      expect(holding(/^\/explore/).every((id) => id === "explore")).toBe(true);
-      expect(holding(/^\/vane/).every((id) => id === "vane")).toBe(true);
     }
   });
 

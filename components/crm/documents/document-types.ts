@@ -123,10 +123,15 @@ export function documentNumber(doc: LeadDocument): string {
   );
 }
 
-/** The document's own page: `/crm/quotes/<id>`, `/crm/invoices/<id>`, `/crm/receipts/<id>`. */
-export function documentHref(doc: { id: string; type: CrmDocumentKind | string }): string {
-  const list = doc.type === "QUOTATION" ? "quotes" : doc.type === "INVOICE" ? "invoices" : "receipts";
-  return `/crm/${list}/${doc.id}`;
+/**
+ * The document's one address, in Books (design/books/NOTES.md §2): a quote by
+ * the CRM document's id, an invoice by its invoice's, a receipt by its
+ * receipt's. Without the Books id yet, the CRM's old address forwards there.
+ */
+export function documentHref(doc: { id: string; type: CrmDocumentKind | string; invoiceId?: string | null; receiptId?: string | null }): string {
+  if (doc.type === "QUOTATION") return `/books/quotes/${doc.id}`;
+  if (doc.type === "INVOICE") return doc.invoiceId ? `/books/invoices/${doc.invoiceId}` : `/crm/invoices/${doc.id}`;
+  return doc.receiptId ? `/books/payments?payment=${doc.receiptId}` : `/crm/receipts/${doc.id}`;
 }
 
 export function documentRecordId(doc: LeadDocument): string | null {

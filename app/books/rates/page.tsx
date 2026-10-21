@@ -116,7 +116,7 @@ function BooksRates() {
           <Field label="Day" htmlFor="rate-day">
             <Input id="rate-day" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
           </Field>
-          <Field label={`${currency === "ZWG" ? "ZiG" : currency} for one ${data?.baseCurrency ?? "USD"}`} htmlFor="rate-value" error={error}>
+          <Field label={`${currency} for one ${data?.baseCurrency ?? "USD"}`} htmlFor="rate-value" error={error}>
             <Input id="rate-value" inputMode="decimal" value={form.rate} onChange={(event) => setForm({ ...form, rate: event.target.value.replace(/[^\d.]/g, "") })} />
           </Field>
         </div>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Members on a phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/corelith-workspace/components/bundle.css">
+<link rel="stylesheet" href="icons.css">
+<link rel="stylesheet" href="teams.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}</style>
+</helmet>
+<div class="cx phone" data-theme="tender">
+  <div class="pbar">
+    <a class="btn btn--quiet btn--icon" href="#" aria-label="Back" style="width: 44px"><span class="i i-caret-left"></span></a>
+    <span class="pbar__t">Members</span>
+    <span class="spacer"></span>
+    <button class="btn btn--quiet btn--icon" type="button" aria-label="Invite link" style="width: 44px"><span class="i i-share"></span></button>
+  </div>
+  <div class="pbody">
+    <div style="padding: var(--s4); display: flex; flex-direction: column; gap: var(--s2); border-bottom: 1px solid var(--line)">
+      <span class="seats"><span class="meter"><i class="used"></i><i class="used"></i><i class="used"></i><i class="used"></i><i class="held"></i></span><span class="seats__t">5 of 5 seats used</span></span>
+    </div>
+    <div class="list-h" style="padding: 0 var(--s4)">Waiting to join<span class="muted">1</span></div>
+    <div style="padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: var(--s2)">
+      <div class="mrow__who"><span class="face face-40"><span class="i i-person i-lg"></span></span><div style="min-width: 0"><div class="mrow__name">Kudzai Ncube</div><div class="mrow__sub">Cashier · WhatsApp, 17 Oct</div></div><span class="state state--calm" style="margin-left: auto">Expires 24 Oct</span></div>
+      <div class="group" style="display: flex"><button class="btn" type="button" style="flex: 1"><span class="mark-wa"></span>Send again</button><button class="btn" type="button" style="flex: 1"><span class="i i-x i-sm"></span>Revoke</button></div>
+    </div>
+    <div class="list-h" style="padding: 0 var(--s4)">Members<span class="muted">4</span></div>
+    <div class="mrow" style="grid-template-columns: minmax(0, 1fr) auto; padding: 0 var(--s4); min-height: 64px"><div class="mrow__who"><span class="pres"><img class="face face-40" src="/_blob/0964fc98daf159e133baa301d8314c40" alt=""></span><div><div class="mrow__name">Nyasha Mlambo · you</div><div class="mrow__sub">Owner</div></div></div><span class="i i-crown i-sm" style="color: var(--warn-dot)"></span></div>
+    <div class="mrow" style="grid-template-columns: minmax(0, 1fr) auto; padding: 0 var(--s4); min-height: 64px"><div class="mrow__who"><span class="pres"><img class="face face-40" src="/_blob/345dc2679a89a59a8684aa172b4f45d3" alt=""></span><div><div class="mrow__name">Tendai Chari</div><div class="mrow__sub">Shop manager</div></div></div><span class="i i-caret-right i-sm" style="color: var(--faint)"></span></div>
+    <div class="mrow" style="grid-template-columns: minmax(0, 1fr) auto; padding: 0 var(--s4); min-height: 64px"><div class="mrow__who"><img class="face face-40" src="/_blob/2a4a6d8df97c5df72897686f73d1d6c2" alt=""><div><div class="mrow__name">Rumbidzai Moyo</div><div class="mrow__sub" style="color: var(--bad)">Cashier · PIN locked 10:20</div></div></div><button class="btn" type="button" style="height: 40px"><span class="i i-lock"></span>Unlock</button></div>
+    <div class="mrow" style="grid-template-columns: minmax(0, 1fr) auto; padding: 0 var(--s4); min-height: 64px"><div class="mrow__who"><span class="pres"><img class="face face-40" src="/_blob/81c03dae91fdd18d1f0b59aa98e43ca4" alt=""></span><div><div class="mrow__name">Blessing Dube</div><div class="mrow__sub">Stock clerk</div></div></div><span class="i i-caret-right i-sm" style="color: var(--faint)"></span></div>
+  </div>
+  <div class="pin"><button class="btn btn--primary btn--block" type="button"><span class="i i-user-plus"></span>Add a sixth member</button></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

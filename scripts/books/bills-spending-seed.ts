@@ -64,7 +64,9 @@ async function main() {
   await ensureAccountingDefaults(companyId);
 
   // ── Suppliers ──
-  const vendor = (name: string, extra: Partial<Prisma.VendorUncheckedCreateInput> = {}) => prisma.vendor.create({ data: { companyId, name, ...extra } });
+  // A supplier the workspace already has (the world seed's Halsted Builders) is used as it is.
+  const vendor = async (name: string, extra: Partial<Prisma.VendorUncheckedCreateInput> = {}) =>
+    (await prisma.vendor.findFirst({ where: { companyId, name } })) ?? prisma.vendor.create({ data: { companyId, name, ...extra } });
   const mutare = await vendor("Mutare Timber Works", { contactName: "Mr G. Sithole", phone: "+263 20 206 4471", address: "14 Herbert Chitepo St, Mutare", vatNumber: "220145873", taxNumber: "2000418236", payTermsDays: 7, bankDetails: "CBZ Mutare, 0112 4478 2210", deliversOn: "Tuesdays and Fridays" });
   const tile = await vendor("Tile Trader Zimbabwe", { contactName: "Mrs P. Chari", phone: "+263 24 270 1180", address: "22 Coventry Rd, Workington, Harare", vatNumber: "220098812", payTermsDays: 30 });
   const carpet = await vendor("Carpet Mills Africa", { contactName: "Mr T. Banda", phone: "+263 24 248 6601", address: "5 Simon Mazorodze Rd, Harare", vatNumber: "220077140", payTermsDays: 30 });
@@ -75,8 +77,11 @@ async function main() {
   // ── Money accounts: the showroom's cash box, and a petty cash float Rudo holds ──
   const cbz = await prisma.bankAccount.findFirstOrThrow({ where: { companyId, kind: "BANK", isActive: true }, orderBy: { createdAt: "asc" } });
   const cashBox = await prisma.bankAccount.create({ data: { companyId, name: "Showroom cash box", kind: "CASH", currency: "USD", openingBalance: 600 } });
-  const pettyCash = await prisma.bankAccount.create({ data: { companyId, name: "Showroom petty cash", kind: "CASH", currency: "USD", openingBalance: 200 } });
-  await setUpFloat(owner, { bankAccountId: pettyCash.id, holderId: ownerUser.id, imprestAmount: 200 });
+  // A petty cash float the workspace already has (the world seed's, Rudo's) stays with its holder.
+  const pettyCash =
+    (await prisma.bankAccount.findFirst({ where: { companyId, name: "Showroom petty cash" } })) ??
+    (await prisma.bankAccount.create({ data: { companyId, name: "Showroom petty cash", kind: "CASH", currency: "USD", openingBalance: 200 } }));
+  if (!pettyCash.isFloat) await setUpFloat(owner, { bankAccountId: pettyCash.id, holderId: ownerUser.id, imprestAmount: 200 });
 
   // ── Bills, recorded through the core ──
   const vat = { taxRate: 15.5 };

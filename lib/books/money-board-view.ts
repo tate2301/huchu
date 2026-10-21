@@ -61,7 +61,7 @@ export type MoneyBoard = {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** "US$20,522.40 came in this month and US$6,716.86 went out. US$2,480.00 is overdue." */
+/** "$20,522.40 came in this month and $6,716.86 went out. $2,480.00 is overdue." */
 export function moneyBoardFinding(cameIn: number, wentOut: number, overdue: number, currency: string): { fact: string; rest: string | null } {
   const fact =
     cameIn > 0 || wentOut > 0
@@ -124,8 +124,8 @@ export function ageBuckets(amounts: number[]): MoneyAge[] {
 
 /**
  * The finding: how the month stands, and the lowest the money accounts reach
- * across what is coming up. "Up US$8,139.90 this month. Cash stays above
- * US$7,985.93 to 3 Nov, lowest on 20 Oct."
+ * across what is coming up. "Up $8,139.90 this month. Cash stays above
+ * $7,985.93 to 3 Nov, lowest on 20 Oct."
  */
 export function moneyFinding(net: number, low: { amount: number; day: string } | null, until: string, currency: string): { fact: string; rest: string | null } {
   const fact = net >= 0 ? `Up ${money(net, currency)} this month.` : `Down ${money(Math.abs(net), currency)} this month.`;

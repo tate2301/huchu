@@ -56,9 +56,9 @@ import {
   DetailValue,
 } from "@/app/management/master-data/operations/_components/register-fields";
 
+import { MemberKindRows } from "./member-kind-rows";
 import styles from "./users.module.css";
 import { Avatar } from "@/components/core";
-import { VoidGrantSetting } from "@/components/books/void-grant-setting";
 
 /** Every register on this surface links its trail out to the same log. */
 const FULL_LOG_HREF = "/activity?view=workspace";
@@ -389,6 +389,8 @@ export function UserRecord({ userId }: { userId: string }) {
           <Fact label="Role">{roleLabel}</Fact>
         )}
 
+        <MemberKindRows user={user} canEdit={detail.canMutateAccount} onChanged={refresh} />
+
         {detail.canMutateAccount ? (
           <DetailRow label="Status">
             {(id) => (
@@ -435,8 +437,6 @@ export function UserRecord({ userId }: { userId: string }) {
         onReset={() => resetPermissionsMutation.mutate()}
       />
 
-      {/* Books' "May void and revise posted documents" (books-final §2.3): the owner's to give a manager or the accountant. */}
-      <VoidGrantSetting userId={userId} name={user.name || user.email} />
 
       {/* `chainVerified` is deliberately not passed: nothing here walked
           `prevEventHash` back to the first event, and `/api/users/[id]/audit`
@@ -525,6 +525,7 @@ const ACCOUNT_EVENT_LABELS: Record<string, string> = {
   USER_SET_STATUS: "Status changed",
   USER_RESET_PASSWORD: "Password reset",
   USER_CHANGE_ROLE: "Role changed",
+  USER_CHANGE_MEMBER_KIND: "Staff or outside accountant changed",
   USER_SET_FEATURE_ACCESS: "Feature access changed",
   USER_RESET_FEATURE_ACCESS: "Permissions reset",
   USER_SET_PERMISSION: "Permission changed",

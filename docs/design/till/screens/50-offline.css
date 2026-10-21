@@ -1,0 +1,61 @@
+/* Selling with no connection (T8). Saved on this till (T8-2): Paid's layout in the sale column, and the slip
+   it prints on the shelf's side. Waiting to send (T8-3, T8-5): the title with its count, then big rows. */
+
+/* Saved on this till: Paid shows the change, not the total over it. */
+.tray:has(> .paid.is-saved) > .tray-top { display: none; }
+
+/* The slip on the shelf's side, over the shelf until Next sale. */
+.bench > .main:has(> .shelf-slip) { position: relative; }
+.shelf-slip { position: absolute; inset: 0; z-index: 2; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 34px var(--space-24) var(--space-24); background: var(--color-ground); }
+.shelf-slip .receipt-page { padding: 0; }
+.shelf-slip .receipt { width: 340px; padding: 22px 22px 26px; border-radius: 4px; background: var(--color-surface); box-shadow: 0 18px 40px -20px rgba(36, 20, 14, 0.5), 0 0 0 1px rgba(36, 20, 14, 0.06); font-family: var(--font-mono); font-size: 13px; line-height: 1.55; color: var(--color-ink); animation: offline-print 600ms var(--motion-ease-out) both; }
+.shelf-slip .receipt hr { margin: 10px 0; }
+.shelf-slip .receipt .t, .shelf-slip .receipt .l.t { padding: 0; font-size: 13px; font-weight: 500; color: var(--color-ink); }
+.shelf-slip .receipt .l.is-change { font-weight: 400; }
+.shelf-slip .receipt .c.muted { font-family: var(--font-sans); font-size: 12px; line-height: 1.45; color: var(--color-muted); }
+@keyframes offline-print { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 760px) { .shelf-slip { display: none; } }
+
+/* Waiting to send. */
+.wait-page { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 22px; padding: 26px 28px 28px; background: var(--color-surface); }
+.wait-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; min-height: 48px; }
+.wait-h h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink); }
+.wait-h .sub { font-size: 15px; color: var(--color-muted); }
+.wait-h .sub .num { font-family: var(--font-mono); font-size: var(--text-14); }
+.wait-h .end { margin-left: auto; align-self: center; }
+.wait-group { display: flex; flex-direction: column; gap: 12px; }
+.wait-sub { margin: 0; font-size: 15px; font-weight: 500; color: var(--color-muted); }
+.wait-sub .num { font-family: var(--font-mono); color: var(--color-ink-2); }
+
+/* A sale: its glyph, its tag (or its number once sent), who and when, the amount, and where it stands. */
+.wait-box { display: flex; flex-direction: column; border-radius: 18px; background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-line); }
+.wait-row { display: grid; grid-template-columns: 44px 110px minmax(0, 1fr) 150px minmax(140px, auto); gap: 16px; align-items: center; min-height: 64px; padding: 0 20px; box-shadow: inset 0 -1px 0 var(--color-line); font-size: 16px; color: var(--color-ink); }
+.wait-row:last-child { box-shadow: none; }
+.wait-row:has(> .wait-acts) { grid-template-columns: 44px 110px minmax(0, 1fr) 150px minmax(140px, auto) auto; }
+.wait-g { width: 44px; height: 44px; border-radius: 12px; background: var(--color-fill); display: grid; place-items: center; color: var(--color-ink-2); }
+.wait-g .ic, .wait-g .mark { width: 20px; height: 20px; }
+.wait-g.is-ok { background: var(--color-success-tint); color: var(--color-success); }
+.wait-n { font-family: var(--font-mono); font-size: 16px; color: var(--color-ink); white-space: nowrap; }
+.wait-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-2); }
+.wait-t time { margin-left: var(--space-8); font-family: var(--font-mono); font-size: var(--text-14); color: var(--color-muted); }
+.wait-v { font-family: var(--font-mono); font-size: 17px; text-align: right; white-space: nowrap; }
+.wait-s { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--text-14); color: var(--color-muted); }
+.wait-s.num { font-family: var(--font-mono); font-size: var(--text-13); }
+.wait-s.is-warn { color: var(--color-warning); font-weight: 500; }
+.wait-s.is-bad { color: var(--color-danger); font-weight: 500; }
+.wait-acts { display: flex; gap: var(--space-8); }
+a.wait-row { text-decoration: none; }
+@media (hover: hover) { a.wait-row:hover { background: var(--color-hover); } }
+a.wait-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink); border-radius: 18px; }
+
+@media (max-width: 760px) {
+  .wait-page { padding: var(--space-16); }
+  .wait-row, .wait-row:has(> .wait-acts) { grid-template-columns: 44px minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 2px; padding: 10px var(--space-16); }
+  .wait-g { grid-row: span 2; }
+  .wait-n { grid-column: 2; }
+  .wait-v { grid-column: 3; grid-row: 1; }
+  .wait-t { grid-column: 2; grid-row: 2; }
+  .wait-s { grid-column: 3; grid-row: 2; }
+  .wait-acts { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) { .shelf-slip .receipt { animation: none; } }

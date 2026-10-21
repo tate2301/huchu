@@ -72,7 +72,6 @@ const BINDINGS: Record<string, Binding[]> = {
   ],
   "Ctrl J | Give Vane a job (opens the Vane panel on its box)": [{ file: "components/vane/vane-panel.tsx" }],
   "/ | Search this panel, or add a block in the builder": [
-    { file: "components/layout/workspace-rail/rail-panel.tsx" },
     { file: "components/management/ui/settings-rail.tsx" },
     { file: "components/explore/explore-panel.tsx" },
     { file: "components/builder/grid/builder-outline.tsx" },

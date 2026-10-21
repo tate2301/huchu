@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What goes wrong in W1</title>
+<link rel="stylesheet" href="../assets/bundle.css">
+<link rel="stylesheet" href="../assets/icons.css">
+<link rel="stylesheet" href="../assets/teams.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0;background:#ffffff}
+.f{padding:var(--s6) var(--s7);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s6)}
+.f-cell{display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.f-name{color:var(--ink);font-weight:600}
+.f-sub{color:var(--ink-3);margin-bottom:var(--s2)}
+.f-frame{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);background:var(--surface);overflow:hidden}
+</style>
+</head>
+<body>
+<div class="cx f" data-theme="corelith" style="width: 1440px; min-height: 900px; box-sizing: border-box">
+
+  <div class="f-cell">
+    <div class="f-name">The email bounces</div>
+    <div class="f-frame" style="padding: var(--s3) var(--s5)">
+      <div class="ev"><span class="ev__g" style="background: var(--bad-soft); color: var(--bad)"><span class="i i-mail"></span></span><div class="ev__line"><b>Sean</b> emailed the bursar <span class="ev__src">· contact with the client</span><div class="ask" style="box-shadow: inset 0 0 0 1px var(--bad); margin-top: var(--s2)"><span class="i i-alert" style="color: var(--bad)"></span><div class="ask__t"><b>Not delivered.</b> Nyatsime College's mail server refused the address. The documents are still attached here.</div></div><div style="margin-top: var(--s2); display: flex; gap: var(--s2)"><button class="btn" type="button"><span class="i i-pencil"></span>Change the address</button></div></div><span class="ev__time">10:52</span></div>
+    </div>
+  </div>
+
+  <div class="f-cell">
+    <div class="f-name">Gerald's line drops during the call</div>
+    <div class="f-frame" style="padding: var(--s3)">
+      <div class="callbar" style="margin: 0"><span class="faces"><span class="pres pres--talk"><span class="face" style="background: #ffffff1f; color: #fff"><span class="i i-person i-sm"></span></span></span><span class="pres"><span class="face" style="background: #ffffff1f; color: #fff; opacity: 0.4"><span class="i i-person i-sm"></span></span></span></span><div><div class="callbar__t">Call with Gerald and Tatenda</div><div class="callbar__m">Gerald's connection dropped. Waiting for him · 07:12</div></div><span class="spacer"></span><button class="cbtn" type="button"><span class="mark-wa"></span>Call Gerald on WhatsApp</button><button class="cbtn cbtn--leave" type="button"><span class="i i-hangup"></span>Leave</button></div>
+      <div class="notice notice--warn" style="margin-top: var(--s3)"><span class="i i-offline"></span><div style="flex: 1"><div class="notice__t">On Gerald's phone: you dropped out of the call</div><div class="notice__b">Sean and Tatenda are still on it</div></div><button class="btn" type="button" style="background: var(--surface)"><span class="i i-phone"></span>Rejoin</button></div>
+    </div>
+  </div>
+
+  <div class="f-cell">
+    <div class="f-name">Presence can't connect</div>
+    <div class="f-frame">
+      <header class="tb" style="padding: 0 var(--s3) 0 var(--s4); border-radius: 12px">
+        <a class="tb__back" href="#"><span class="i i-caret-left"></span>Deals</a><span class="tb__sep">/</span><h1 class="tb__title" style="font-size: 15px">Campus for Nyatsime College</h1>
+        <span class="spacer"></span>
+        <span class="face face-24" role="img" aria-label="Can't show who's here or start a call" title="Can't show who's here or start a call"><span class="i i-offline i-sm"></span></span>
+        <button class="btn" type="button"><span class="i i-undo"></span>Try again</button>
+        <span class="tb__div" aria-hidden="true"></span>
+        <div class="tb__tools"><button class="ibtn" type="button" aria-label="Search everything, Ctrl K"><span class="i i-search"></span></button><button class="ibtn" type="button" aria-label="Notifications"><span class="i i-bell"></span></button><button class="ibtn ibtn--vane" type="button" aria-label="Vane"><svg class="vm" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect class="vm-t" width="24" height="24" rx="6" fill="var(--ink)"/><path class="vm-p" d="M5 12h10" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round"/><path class="vm-a" d="M19.5 12 14 8v8z" fill="var(--surface)"/><path class="vm-p" d="M5 8.5 7.5 12 5 15.5" stroke="var(--surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+      </header>
+    </div>
+  </div>
+
+  <div class="f-cell">
+    <div class="f-name">Two people change the terms date</div>
+    <div class="f-frame" style="padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3)">
+      <div style="display: flex; align-items: center; gap: var(--s2)"><span class="face face-24" style="background: var(--ok-soft); color: var(--ok)"><span class="i i-person i-sm"></span></span><span><b class="strong">Gerald</b> changed the terms date at 10:49</span></div>
+      <dl class="attrs" style="margin: 0"><dt>Gerald's</dt><dd>30 November</dd><dt>Yours</dt><dd>15 November</dd></dl>
+      <div class="group" style="align-self: flex-start"><button class="btn" type="button">Keep mine</button><button class="btn" type="button">Keep Gerald's</button></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

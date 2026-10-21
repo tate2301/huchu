@@ -159,6 +159,7 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.multitenancy.",
     "accounting.core",
     "books.screens",
+    "books.advanced",
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",

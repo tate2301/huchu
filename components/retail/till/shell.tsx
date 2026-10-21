@@ -21,6 +21,7 @@ import { fetchJson } from "@/lib/api-client";
 import {
   CashRegister,
   ChartBar,
+  CloudSync,
   DotsThree,
   GearSix,
   Key,
@@ -37,10 +38,14 @@ import {
   Users,
   Vault,
   WarningCircle,
+  Wifi,
+  WifiSlash,
   X,
 } from "@/lib/icons";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { getPosPortalHref, type PosPortalNavKey } from "@/lib/retail/pos-host";
-import { dayMonth, hhmm, ROLE_WORD } from "./format";
+import { useConnection } from "./connection";
+import { dayMonth, hhmm, ROLE_WORD, usd } from "./format";
 import { useTillLock } from "./lock";
 import { Avatar, TillDialog, TillPopover } from "./parts";
 import { useSignOut } from "./sign-out";
@@ -204,15 +209,23 @@ export function PersonMenu({ trigger, doors = [] }: { trigger: React.ReactNode; 
  * ZIMRA is away: above every screen, until they no longer apply.
  */
 function TillNotes() {
-  const { messages, dismissMessage, offlineStop, fiscalStop } = useTill();
+  const { messages, dismissMessage, offlineStop, fiscalStop, pendingOfflineSales } = useTill();
+  const { online, since } = useConnection();
   const stop = offlineStop ?? fiscalStop;
   return (
     <>
+      {!online && !stop ? (
+        <div className="banner banner-warning" role="status">
+          <WifiSlash className="ic" />
+          <b className="weight-500">No connection{since ? ` since ${hhmm(since)}` : ""}</b>
+        </div>
+      ) : null}
       {stop ? (
         <div className="banner banner-danger" role="alert">
           <WarningCircle className="ic" />
           <span>
-            <b className="weight-500">Selling has stopped.</b> {stop}
+            <b className="weight-500">Selling has stopped</b> · {stop}
+            {offlineStop && pendingOfflineSales ? ` · ${pendingOfflineSales} waiting to send` : ""}
           </span>
         </div>
       ) : null}
@@ -300,7 +313,7 @@ function PersonMessages() {
 
 function CashDropPrompt() {
   const router = useRouter();
-  const { cashDropPrompt, answerCashDrop, isPosHost } = useTill();
+  const { cashDropPrompt, answerCashDrop, isPosHost, shiftHere, rules } = useTill();
   const { isLocked } = useTillLock();
   return (
     <TillDialog
@@ -309,7 +322,6 @@ function CashDropPrompt() {
         if (!open) answerCashDrop();
       }}
       title="Move cash to the safe"
-      description={cashDropPrompt ?? undefined}
       foot={
         <>
           <button type="button" className="btn" onClick={answerCashDrop}>
@@ -318,6 +330,7 @@ function CashDropPrompt() {
           <button
             type="button"
             className="btn btn-primary"
+            autoFocus
             onClick={() => {
               answerCashDrop();
               router.push(`${getPosPortalHref("shift", isPosHost)}?move=drop`);
@@ -325,10 +338,90 @@ function CashDropPrompt() {
           >
             <Vault className="ic" />
             Move cash now
+            <span className="kbd on-primary" aria-hidden="true">
+              ↵
+            </span>
           </button>
         </>
       }
-    />
+    >
+      {shiftHere && rules ? (
+        <dl className="facts">
+          <div className="fact">
+            <Vault className="ic" />
+            <dt>In the drawer</dt>
+            <dd>about {usd(shiftHere.expectedCash)}</dd>
+          </div>
+          <div className="fact">
+            <GearSix className="ic" />
+            <dt>Till rules</dt>
+            <dd>{usd(Number(rules.cashDropPromptOver))}</dd>
+          </div>
+        </dl>
+      ) : null}
+    </TillDialog>
+  );
+}
+
+/** The time on the strip, to the minute: the device's clock, so none until the page is on it. */
+function useClock() {
+  const [now, setNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    const tickNow = () => setNow(new Date());
+    tickNow();
+    const tick = window.setInterval(tickNow, 15_000);
+    return () => window.clearInterval(tick);
+  }, []);
+  return now;
+}
+
+/** The strip across the top of the till: the shop, this till, the line and the time. */
+function TillStrip() {
+  const { data: session } = useSession();
+  const { context: known, pendingOfflineSales, isPosHost } = useTill();
+  const { online } = useConnection();
+  const now = useClock();
+  // The till's details can come from the device's cache, which the server does not have.
+  const context = useHydrated() ? known : null;
+  const shop = context?.site.name ?? "";
+  const logo = context?.receipt.logoUrl ?? null;
+  const name = session?.user?.name ?? "You";
+  return (
+    <header className="strip">
+      <span className="strip-mark" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element -- the shop's own logo, cached offline */}
+        {logo ? <img src={logo} alt="" /> : shop.charAt(0)}
+      </span>
+      <span className="strip-shop">{shop}</span>
+      {context ? <span className="strip-till">· {context.till.name}</span> : null}
+      <span className="grow" />
+      {pendingOfflineSales ? (
+        <Link className="strip-wait" href={getPosPortalHref("offline", isPosHost)}>
+          <CloudSync className="ic" />
+          {pendingOfflineSales} waiting
+        </Link>
+      ) : null}
+      {online ? (
+        <Wifi className="ic" role="img" aria-label="Connected" />
+      ) : (
+        <WifiSlash className="ic is-off" role="img" aria-label="No connection" />
+      )}
+      {now ? (
+        <time className="strip-time" dateTime={now.toISOString()}>
+          {hhmm(now)}
+        </time>
+      ) : null}
+      <span className="when-phone">
+        <PersonMenu
+          doors={DOORS.filter((entry) => !entry.phone)}
+          trigger={
+            <button type="button" className="strip-who" aria-label={`${name}, open the menu`}>
+              <Avatar name={name} image={session?.user?.image} />
+            </button>
+          }
+        />
+      </span>
+    </header>
   );
 }
 
@@ -379,42 +472,45 @@ export function TillShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="shell-b">
-      <nav className="rail-b" aria-label="Till">
-        <PersonMenu
-          trigger={
-            <button type="button" className="who" aria-label={`${name}, open the menu`}>
-              <Avatar name={name} image={session?.user?.image} />
+    <div className="shell-cm">
+      <TillStrip />
+      <div className="shell-b">
+        <nav className="rail-b" aria-label="Till">
+          <PersonMenu
+            trigger={
+              <button type="button" className="who" aria-label={`${name}, open the menu`}>
+                <Avatar name={name} image={session?.user?.image} />
+              </button>
+            }
+          />
+          {DOORS.map((entry) => door(entry, "rail"))}
+          <span className="gap" />
+          {pinConfigured ? (
+            <button type="button" className="nav" onClick={lock}>
+              <Lock className="ic" />
+              <span>Lock</span>
             </button>
-          }
-        />
-        {DOORS.map((entry) => door(entry, "rail"))}
-        <span className="gap" />
-        {pinConfigured ? (
-          <button type="button" className="nav" onClick={lock}>
-            <Lock className="ic" />
-            <span>Lock</span>
-          </button>
-        ) : null}
-      </nav>
-      <div className="shell-screen">
-        <TillNotes />
-        {children}
+          ) : null}
+        </nav>
+        <div className="shell-screen">
+          <TillNotes />
+          {children}
+        </div>
+        <CashDropPrompt />
+        <PersonMessages />
+        <nav className="tabbar" aria-label="Till">
+          {DOORS.filter((entry) => entry.phone).map((entry) => door(entry, "tab"))}
+          <PersonMenu
+            doors={DOORS.filter((entry) => !entry.phone)}
+            trigger={
+              <button type="button" className="nav">
+                <DotsThree className="ic" />
+                <span>More</span>
+              </button>
+            }
+          />
+        </nav>
       </div>
-      <CashDropPrompt />
-      <PersonMessages />
-      <nav className="tabbar" aria-label="Till">
-        {DOORS.filter((entry) => entry.phone).map((entry) => door(entry, "tab"))}
-        <PersonMenu
-          doors={DOORS.filter((entry) => !entry.phone)}
-          trigger={
-            <button type="button" className="nav">
-              <DotsThree className="ic" />
-              <span>More</span>
-            </button>
-          }
-        />
-      </nav>
     </div>
   );
 }

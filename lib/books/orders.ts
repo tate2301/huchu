@@ -130,7 +130,7 @@ export function receivedShare(lines: Line[]): number {
   return Math.min(100, Math.round((lines.reduce((sum, line) => sum + Math.min(Number(line.receivedQuantity), Number(line.quantity)), 0) / ordered) * 100));
 }
 
-/** "US$4,962.00 is on order and not yet received." / "PO-0035, US$2,960.00, waits for approval." */
+/** "$4,962.00 is on order and not yet received." / "PO-0035, $2,960.00, waits for approval." */
 export function ordersFinding(onOrder: number, waiting: Array<{ number: string; amount: number; what: string | null }>, currency = "USD"): { fact: string; rest: string | null } {
   const fact = onOrder > 0.005 ? `${money(onOrder, currency)} is on order and not yet received.` : "Nothing is on order.";
   if (waiting.length === 0) return { fact, rest: null };

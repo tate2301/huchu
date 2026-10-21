@@ -15,6 +15,16 @@ describe("role route allowlist", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/api/documents/artifacts/abc")).toBe(true);
   });
 
+  it("lets SALES_REP reach their money records at their Books address, and nothing else in Books", () => {
+    expect(isRouteAllowedForRole("SALES_REP", "/books/requisitions/abc")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/books/claims/new")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/books/quotes/abc")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/api/books/requisitions")).toBe(true);
+    expect(isRouteAllowedForRole("SALES_REP", "/books")).toBe(false);
+    expect(isRouteAllowedForRole("SALES_REP", "/books/bills")).toBe(false);
+    expect(isRouteAllowedForRole("SALES_REP", "/api/books/journals")).toBe(false);
+  });
+
   it("blocks SALES_REP from other modules", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/accounting")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/people")).toBe(false);

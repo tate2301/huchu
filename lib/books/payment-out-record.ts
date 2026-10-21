@@ -25,7 +25,7 @@ export type PaymentOutStep = {
   /** Who did it, or null while nobody has. */
   person: { name: string; image: string | null } | null;
   done: boolean;
-  /** Their role and why: "Owner, over the US$500.00 limit". */
+  /** Their role and why: "Owner, over the $500.00 limit". */
   sub: string | null;
 };
 
@@ -100,7 +100,7 @@ export async function readPaymentOutRecord(db: Db, companyId: string, id: string
   const due = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, settings.withholding.paymentDay));
 
   const limit = row.approvalLimit != null ? Number(row.approvalLimit) : limits.paymentOwnerOver;
-  const limitWord = `${currency === "USD" ? "US$" : `${currency} `}${limit.toFixed(2)}`;
+  const limitWord = `${currency === "USD" ? "$" : `${currency} `}${limit.toFixed(2)}`;
   const over = row.amount > limit + 0.004;
   const approver = (row.approvedById && who.get(row.approvedById)) || (row.approverId && who.get(row.approverId)) || null;
   const approverPerson = approver ? { name: approver.name, image: approver.image ?? null } : null;

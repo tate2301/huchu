@@ -3,8 +3,7 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { PanelGroup } from "@/components/layout/workspace-rail/panel-group";
-import { RailRow } from "@/components/layout/workspace-rail/rail-row";
+import { Panel, PanelGroup, PanelRow } from "@/components/layout/sidebar/panel";
 import { MedusaChartBarIcon, MedusaBookOpenIcon, Funnel, Storefront, GraduationCap, Factory, User, type LucideIcon } from "@/lib/icons";
 
 import { useVaneStatus, useVaneWatching } from "./use-vane";
@@ -53,9 +52,9 @@ export function VaneModulePanel() {
   };
 
   return (
-    <>
+    <Panel label="Vane">
       {VANE_PAGES.map((item) => (
-        <RailRow
+        <PanelRow
           key={item.href}
           href={item.href}
           label={item.label}
@@ -67,7 +66,7 @@ export function VaneModulePanel() {
       {watching.data && watching.data.length > 0 ? (
         <PanelGroup label="Watching" holdsCurrent={Boolean(from)}>
           {watching.data.map((module) => (
-            <RailRow
+            <PanelRow
               key={module.key}
               href={`/vane?from=${module.key}`}
               label={module.name}
@@ -77,6 +76,6 @@ export function VaneModulePanel() {
           ))}
         </PanelGroup>
       ) : null}
-    </>
+    </Panel>
   );
 }

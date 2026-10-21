@@ -25,26 +25,25 @@ export type UpsellView = {
   canAdd: boolean;
 };
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "1 March", with the year when it is not this one: "14 November 2025". */
-export function sinceWords(iso: string, now: Date): string {
+/** "1 Mar 2026", as bk-x-noscreens writes the books' first day. */
+export function sinceWords(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number) as [number, number, number];
-  const words = `${day} ${MONTHS[month - 1]}`;
-  return year === now.getUTCFullYear() ? words : `${words} ${year}`;
+  return `${day} ${MONTHS[month - 1]} ${year}`;
 }
 
-export function upsellView(facts: UpsellFacts, role: string | null | undefined, now: Date): UpsellView {
+export function upsellView(facts: UpsellFacts, role: string | null | undefined): UpsellView {
   const entries = new Intl.NumberFormat("en-GB").format(facts.entries);
   const fact =
     facts.entries > 0 && facts.since
-      ? `Your books hold ${entries} ${facts.entries === 1 ? "entry" : "entries"} since ${sinceWords(facts.since, now)}.`
+      ? `Your books hold ${entries} ${facts.entries === 1 ? "entry" : "entries"} since ${sinceWords(facts.since)}.`
       : "Your books are ready.";
   const rest =
     facts.waiting > 0
       ? `${new Intl.NumberFormat("en-GB").format(facts.waiting)} ${facts.waiting === 1 ? "is" : "are"} still waiting to post.`
       : facts.entries > 0
-        ? "Every sale, payment and pay run has posted."
+        ? "Every sale, payment and pay run has posted from the first day."
         : "Every sale, payment and pay run posts here.";
   return { finding: { fact, rest }, canAdd: role === "SUPERADMIN" };
 }

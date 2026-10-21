@@ -440,10 +440,10 @@ export function GlobalCommandBar() {
             // (S-1.4), not through a "new student" dialog, and a shortcut that
             // promises a form nobody wrote is worse than none.
             { label: "Students", href: "/schools/students", icon: Users },
-            { label: "Admissions", href: "/schools/admissions", icon: AddressBook },
+            { label: "Admissions", href: "/schools/students/applications", icon: AddressBook },
             { label: "Classes", href: "/schools/classes", icon: TableRows },
             { label: "Subjects", href: "/schools/subjects", icon: MedusaBookOpenIcon },
-            { label: "Staff", href: "/schools/teachers", icon: ManageAccounts },
+            { label: "Staff", href: "/schools/staff/teachers", icon: ManageAccounts },
           ]
         : []),
     ].filter((entry) => matches(entry.label));
