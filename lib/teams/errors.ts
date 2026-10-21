@@ -18,6 +18,7 @@ export type TeamsRefusalCode =
   | "INVALID"
   | "ALREADY_ON_TEAM"
   | "NOT_ON_TEAM"
+  | "OPEN_WORK"
   | "DISABLED";
 
 export class TeamsRefusal extends Error {

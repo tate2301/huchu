@@ -1,8 +1,9 @@
 /**
  * Telling a record's members that something happened on it.
  *
- * A record's members are the people following it — commenting follows a
- * record, and anyone can press Follow or be added — and whoever owns it. When
+ * A record's members are the people on its team (working on it or following
+ * it; commenting follows a record, and anyone can press Follow or be added)
+ * and whoever owns it. When
  * somebody adds to a record's timeline (logs a call, moves the stage, edits a
  * field, sends a quote, records a payment), every other member is notified,
  * in the app and by email.
@@ -21,6 +22,7 @@ import type { ActivityRequest } from "@/lib/activity/context";
 import { collabRecordPath, COLLAB_ENTITY_LABELS } from "@/lib/crm/collaboration";
 import { emitCrmNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { teamUserIds } from "@/lib/teams/record-team";
 
 export type MemberRecordEntity = "LEAD" | "DEAL" | "COMPANY" | "PERSON" | "SITE";
 
@@ -170,17 +172,14 @@ export async function notifyRecordMembers(request: ActivityRequest): Promise<voi
 
     const actor = request.actorName ?? "Someone";
     for (const { entity, recordId, lines } of byRecord.values()) {
-      const [heading, followers] = await Promise.all([
+      const [heading, teamIds] = await Promise.all([
         recordHeading(companyId, entity, recordId),
-        prisma.crmFollower.findMany({
-          where: { companyId, entity, recordId },
-          select: { userId: true },
-        }),
+        teamUserIds(prisma, companyId, { type: entity, id: recordId }),
       ]);
       if (!heading) continue;
 
       const recipientIds = recordMembers({
-        followerIds: followers.map((follower) => follower.userId),
+        followerIds: teamIds,
         ownerId: heading.ownerId,
         actorId,
       });

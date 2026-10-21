@@ -35,7 +35,7 @@ import {
   CRM_FIELD_TYPES,
   normalizeFieldKey,
 } from "@/lib/crm/custom-fields";
-import type { CrmFieldEntity, CrmFieldType } from "@prisma/client";
+import type { RecordSubjectType, CrmFieldType } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 import { SetupPanel } from "./setup-chrome";
@@ -59,7 +59,7 @@ const CRM_RECORD_ENTITIES = [
   "COMPANY",
   "SITE",
   "WORK_ORDER",
-] as const satisfies ReadonlyArray<CrmFieldEntity>;
+] as const satisfies ReadonlyArray<RecordSubjectType>;
 
 /** Where a field with no section of its own is filed. */
 const DEFAULT_SECTION = "Additional details";
@@ -85,7 +85,7 @@ export function CustomFieldsPanel({
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [entity, setEntity] = useState<CrmFieldEntity>("DEAL");
+  const [entity, setEntity] = useState<RecordSubjectType>("DEAL");
 
   const [label, setLabel] = useState("");
   const [description, setDescription] = useState("");
@@ -114,7 +114,7 @@ export function CustomFieldsPanel({
     [fieldsQuery.data],
   );
 
-  const countFor = (value: CrmFieldEntity) =>
+  const countFor = (value: RecordSubjectType) =>
     all.filter((definition) => definition.entity === value).length;
 
   const definitions = useMemo(
@@ -282,7 +282,7 @@ export function CustomFieldsPanel({
         <span className="acct-caption">Fields on</span>
         <SegmentedControl
           value={entity}
-          onValueChange={(value) => setEntity(value as CrmFieldEntity)}
+          onValueChange={(value) => setEntity(value as RecordSubjectType)}
           size="sm"
           ariaLabel="Record type"
           options={CRM_RECORD_ENTITIES.map((value) => ({

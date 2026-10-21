@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ActivityRequest } from "@/lib/activity/context";
 import { runWithActivityRequest } from "@/lib/activity/context";
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 
 const { sendEmailMock } = vi.hoisted(() => ({ sendEmailMock: vi.fn() }));
 
@@ -28,7 +29,7 @@ const SLUG = "crm-record-members-test";
 
 let companyId: string;
 let dealId: string;
-const users: Record<"actor" | "owner" | "follower" | "quiet" | "away" | "outsider", { id: string; email: string }> =
+const users: Record<"actor" | "owner" | "follower" | "quiet" | "away" | "outsider", { id: string; email: string; membershipId: string }> =
   {} as never;
 
 function openRequest(actorId: string): ActivityRequest {
@@ -64,12 +65,11 @@ beforeAll(async () => {
 
   for (const key of ["actor", "owner", "follower", "quiet", "away", "outsider"] as const) {
     const email = `${SLUG}-${key}@example.invalid`;
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: { companyId },
-      create: { email, name: key, companyId, role: "CLERK" },
+    const user = await createMember(prisma, {
+      data: { email, name: key, companyId, role: "CLERK" },
+      select: { id: true, memberships: { select: { id: true } } },
     });
-    users[key] = { id: user.id, email };
+    users[key] = { id: user.id, email, membershipId: user.memberships[0].id };
   }
   // Follows the deal, but has email turned off.
   await prisma.userNotificationPreference.create({
@@ -96,12 +96,13 @@ beforeAll(async () => {
       },
     })
   ).id;
-  await prisma.crmFollower.createMany({
+  await prisma.recordTeamMember.createMany({
     data: [users.follower, users.quiet, users.away, users.actor].map((user) => ({
       companyId,
-      userId: user.id,
-      entity: "DEAL" as const,
-      recordId: dealId,
+      membershipId: user.membershipId,
+      subjectType: "DEAL" as const,
+      subjectId: dealId,
+      followsOnly: true,
     })),
   });
 });

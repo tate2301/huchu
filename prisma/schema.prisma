@@ -76,6 +76,8 @@ model Company {
   workspaceInvites              WorkspaceInvite[]
   inviteLinks                   InviteLink[]
   ownershipOffers               OwnershipOffer[]
+  recordTeamMembers             RecordTeamMember[]
+  recordAccessGrants            RecordAccessGrant[]
   crmTemplates                  CrmTemplate[]
   crmTemplateEvents             CrmTemplateEvent[]
   crmFieldChanges               CrmFieldChange[]
@@ -335,7 +337,6 @@ model Company {
   crmKnowledgeEntries           CrmKnowledgeEntry[]
   crmDocumentResources          CrmDocumentResource[]
   crmMentions                   CrmMention[]
-  crmFollowers                  CrmFollower[]
   crmAutomations                CrmAutomation[]
   crmAutomationRuns             CrmAutomationRun[]
   crmDiscountApprovals          CrmDiscountApproval[]
@@ -709,6 +710,8 @@ model WorkspaceMembership {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   permissionOverrides UserPermissionOverride[]
+  teamPlaces          RecordTeamMember[]
+  accessGrants        RecordAccessGrant[]
   offersMade          OwnershipOffer[]         @relation("OwnershipOfferFrom")
   offersReceived      OwnershipOffer[]         @relation("OwnershipOfferTo")
 
@@ -1663,7 +1666,6 @@ model User {
   crmRecordFilesUploaded            CrmRecordFile[]                @relation("CrmRecordFileUploadedBy")
   crmRecordFilesAbout               CrmRecordFile[]                @relation("CrmRecordFileSubject")
   crmMentions                       CrmMention[]                   @relation("CrmMentionUser")
-  crmFollowing                      CrmFollower[]                  @relation("CrmFollowerUser")
   crmAutomationsCreated             CrmAutomation[]                @relation("CrmAutomationCreatedBy")
   crmDiscountsRequested             CrmDiscountApproval[]          @relation("CrmDiscountRequestedBy")
   crmDiscountsDecided               CrmDiscountApproval[]          @relation("CrmDiscountDecidedBy")
@@ -15230,15 +15232,12 @@ model CrmPipelineStage {
 // reads a single row fetch and avoids an EAV join on every list query.
 // ---------------------------------------------------------------------------
 
-/// Which kind of record a custom field, a list membership or a follow is about.
-///
-/// The `Crm` prefix is now a misnomer and is kept only because renaming a
-/// Postgres enum that four features key off is a migration with no user-visible
-/// payoff. It is the product's record-type discriminator: `CrmFieldDefinition`,
-/// `CrmList`/`CrmListMember`, `CrmFollower` and the merge dialog all read it,
-/// and S-4.4 needs school records in it so a school can add its own fields to a
-/// pupil. See `lib/records/registry.ts` for the type list this mirrors.
-enum CrmFieldEntity {
+/// Which kind of record a custom field, a list membership, a comment, a file or
+/// a team is about: the product's record-type discriminator. School records and
+/// Tender's customers, products and suppliers are in it so each can have a
+/// team, comments and its own fields. See `lib/records/registry.ts` for the
+/// type list this mirrors.
+enum RecordSubjectType {
   PERSON
   COMPANY
   LEAD
@@ -15258,6 +15257,10 @@ enum CrmFieldEntity {
   /// A `CrmProject`. Drawings, permits and the signed scope of works hang off
   /// the project rather than whichever job happened to be open at the time.
   PROJECT
+  /// Tender: a shop's customer, a product it sells and a supplier it buys from.
+  RETAIL_CUSTOMER
+  RETAIL_PRODUCT
+  RETAIL_SUPPLIER
 }
 
 enum CrmFieldType {
@@ -15284,7 +15287,7 @@ enum CrmFieldType {
 model CrmFieldDefinition {
   id           String         @id @default(uuid())
   companyId    String
-  entity       CrmFieldEntity
+  entity       RecordSubjectType
   /// Stable key used in the record's customFields JSON. Immutable once set.
   key          String
   label        String
@@ -15320,7 +15323,7 @@ model CrmFieldDefinition {
 model CrmList {
   id          String         @id @default(uuid())
   companyId   String
-  entity      CrmFieldEntity
+  entity      RecordSubjectType
   name        String
   description String?
   isShared    Boolean        @default(false)
@@ -15466,7 +15469,7 @@ model CrmTask {
   /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
   /// The old columns come out in a migration of your choosing — this side of the
   /// change adds and backfills, and drops nothing.
-  subjectType CrmFieldEntity?
+  subjectType RecordSubjectType?
   subjectId   String?
 
   @@index([companyId, assignedToId, status, dueAt])
@@ -15522,7 +15525,7 @@ model CrmComment {
   /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
   /// The old columns come out in a migration of your choosing — this side of the
   /// change adds and backfills, and drops nothing.
-  subjectType CrmFieldEntity?
+  subjectType RecordSubjectType?
   subjectId   String?
 
   @@index([companyId, dealId, createdAt])
@@ -15585,7 +15588,7 @@ model CrmRecordFile {
   /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
   /// The old columns come out in a migration of your choosing — this side of the
   /// change adds and backfills, and drops nothing.
-  subjectType CrmFieldEntity?
+  subjectType RecordSubjectType?
   subjectId   String?
 
   @@index([companyId, leadId, createdAt])
@@ -15614,21 +15617,6 @@ model CrmMention {
 }
 
 /// Following a record opts you into its notable updates — not every field edit.
-model CrmFollower {
-  id        String         @id @default(uuid())
-  companyId String
-  userId    String
-  entity    CrmFieldEntity
-  recordId  String
-  createdAt DateTime       @default(now())
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation("CrmFollowerUser", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, entity, recordId])
-  @@index([companyId, entity, recordId])
-}
-
 /// A rule that watches for something happening and does something about it.
 /// Triggers, conditions and actions are stored as JSON rather than columns
 /// because the shape changes as rules are added, and a migration per rule type
@@ -15668,7 +15656,7 @@ model CrmAutomationRun {
   companyId    String
   automationId String
   /// What it fired on.
-  entity       CrmFieldEntity
+  entity       RecordSubjectType
   recordId     String
   status       CrmAutomationRunStatus @default(SUCCEEDED)
   /// Per-action outcomes, and the message when one failed.
@@ -17539,4 +17527,55 @@ model OwnershipOffer {
   toMembership   WorkspaceMembership @relation("OwnershipOfferTo", fields: [toMembershipId], references: [id], onDelete: Cascade)
 
   @@index([companyId, status])
+}
+
+/// Someone on a record's team: the owner of the job, others working on it, or
+/// someone who only follows it (`followsOnly`). One owner per record (partial
+/// unique index in the migration).
+model RecordTeamMember {
+  id           String            @id @default(uuid())
+  companyId    String
+  subjectType  RecordSubjectType
+  subjectId    String
+  membershipId String
+  isOwner      Boolean           @default(false)
+  /// Told about it, not working on it.
+  followsOnly  Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  membership WorkspaceMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, subjectType, subjectId, membershipId])
+  @@index([companyId, subjectType, subjectId])
+  @@index([membershipId])
+}
+
+enum RecordAccessStatus {
+  ACTIVE
+  REQUESTED
+  DENIED
+}
+
+/// Who may see a record they are not on the team of: asked for, granted or
+/// turned down.
+model RecordAccessGrant {
+  id           String             @id @default(uuid())
+  companyId    String
+  subjectType  RecordSubjectType
+  subjectId    String
+  membershipId String
+  status       RecordAccessStatus @default(REQUESTED)
+  /// The user who granted or denied it; null while it is only asked for.
+  grantedById  String?
+  createdAt    DateTime           @default(now())
+  decidedAt    DateTime?
+  updatedAt    DateTime           @updatedAt
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  membership WorkspaceMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, subjectType, subjectId, membershipId])
+  @@index([companyId, subjectType, subjectId])
 }

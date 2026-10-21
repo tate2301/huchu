@@ -27,7 +27,7 @@
  * them is a migration of your choosing; when you do, delete `LEGACY_COLUMN` and
  * everything that reads it and this file gets much shorter.
  */
-import type { CrmFieldEntity, Prisma } from "@prisma/client";
+import type { RecordSubjectType, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 /** The record types that can be the subject of a task, comment or file. */
@@ -47,7 +47,12 @@ export const SUBJECT_TYPES = [
   // A project has no legacy column either: its files were never anywhere
   // until it had a page to hang them off.
   "PROJECT",
-] as const satisfies readonly CrmFieldEntity[];
+  // Tender's records. They have no legacy column and were never CRM records,
+  // so comments, files and a team hang off the pair alone.
+  "RETAIL_CUSTOMER",
+  "RETAIL_PRODUCT",
+  "RETAIL_SUPPLIER",
+] as const satisfies readonly RecordSubjectType[];
 
 export type SubjectType = (typeof SUBJECT_TYPES)[number];
 
@@ -144,7 +149,7 @@ export function subjectWhere(table: SubjectTable, subject: RecordSubject): Prism
  * column was nullable and nothing stopped all of them being null at once.
  */
 export function subjectOf(row: {
-  subjectType?: CrmFieldEntity | null;
+  subjectType?: RecordSubjectType | null;
   subjectId?: string | null;
   leadId?: string | null;
   dealId?: string | null;
@@ -213,6 +218,9 @@ const FILE_OWNER_TO_SUBJECT: Record<string, SubjectType> = {
   subject: "SUBJECT",
   hostel: "HOSTEL",
   project: "PROJECT",
+  retail_customer: "RETAIL_CUSTOMER",
+  retail_product: "RETAIL_PRODUCT",
+  retail_supplier: "RETAIL_SUPPLIER",
 };
 
 export function subjectFromFileOwner(owner: string, id: string): RecordSubject | null {

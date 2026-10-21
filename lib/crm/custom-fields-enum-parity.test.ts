@@ -2,7 +2,7 @@
  * The hand-written lists match the Prisma enums they mirror.
  *
  * `CRM_FIELD_ENTITIES` and `CRM_FIELD_TYPES` are `as const` arrays that feed
- * zod enums. Nothing makes them agree with `CrmFieldEntity` and `CrmFieldType`;
+ * zod enums. Nothing makes them agree with `RecordSubjectType` and `CrmFieldType`;
  * they are maintained by hand, and both had already drifted:
  *
  *   - `CRM_FIELD_ENTITIES` did not gain the six school record types when the
@@ -15,7 +15,7 @@
  * caller's fault, and a Set miss is just `false`. Parity has to be asserted or
  * it decays.
  *
- * `satisfies readonly CrmFieldEntity[]` on the array catches a value that is not
+ * `satisfies readonly RecordSubjectType[]` on the array catches a value that is not
  * in the enum. These tests catch the other direction — an enum value the array
  * forgot — which is the one that actually happened.
  */
@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
 import { CRM_FIELD_ENTITIES, CRM_FIELD_TYPES } from "./custom-fields";
 
 /* Mirrors of the generated enums. Written out rather than imported, because
- * `Object.values(Prisma.CrmFieldEntity)` would make both sides the same source
+ * `Object.values(Prisma.RecordSubjectType)` would make both sides the same source
  * and the test vacuous. If you add an enum value, add it here too — that is the
  * deliberate friction. */
 const PRISMA_FIELD_ENTITIES = [
@@ -66,7 +66,7 @@ const PRISMA_FIELD_TYPES = [
 ] as const;
 
 describe("custom field enum parity", () => {
-  it("CRM_FIELD_ENTITIES is a subset of CrmFieldEntity", () => {
+  it("CRM_FIELD_ENTITIES is a subset of RecordSubjectType", () => {
     const known = new Set<string>(PRISMA_FIELD_ENTITIES);
     const unknown = CRM_FIELD_ENTITIES.filter((entity) => !known.has(entity));
     expect(unknown).toEqual([]);

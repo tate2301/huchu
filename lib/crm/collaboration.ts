@@ -5,7 +5,7 @@
  * and who wants to hear about it" — so they share one way of naming a record
  * rather than each inventing their own.
  */
-import type { CrmFieldEntity, Prisma } from "@prisma/client";
+import type { RecordSubjectType, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { recordType } from "@/lib/records/registry";
@@ -114,8 +114,8 @@ export const COLLAB_ENTITY_LABELS: Record<CollabEntity, string> = {
 };
 
 /** `CollabEntity` is a subset of the field-definition entity enum. */
-export function asFieldEntity(entity: CollabEntity): CrmFieldEntity {
-  return entity as CrmFieldEntity;
+export function asFieldEntity(entity: CollabEntity): RecordSubjectType {
+  return entity as RecordSubjectType;
 }
 
 export const createCommentSchema = collabRecordSchema.extend({

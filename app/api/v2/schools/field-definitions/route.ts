@@ -23,7 +23,7 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
  * `/api/v2/crm/field-definitions` is registered against `crm.settings` in
  * `lib/platform/gating/route-registry.ts`, so a school without the CRM module —
  * which is every school — is refused before the handler runs. Adding the six
- * school types to `CrmFieldEntity` made the data model ready and changed nothing
+ * school types to `RecordSubjectType` made the data model ready and changed nothing
  * about who could reach it.
  *
  * This route is deliberately narrower than the CRM one in two ways: it will only

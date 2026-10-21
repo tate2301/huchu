@@ -49,7 +49,7 @@ export function notifyOwnershipOffer(
 
 export function notifyRecordHandedOver(
   db: Db,
-  args: { companyId: string; toUserId: string; fromUserId: string; fromName: string; recordLabel: string; viewPath: string; ref: string },
+  args: { companyId: string; toUserId: string; fromUserId: string; fromName: string; recordLabel: string; viewPath: string; ref: string; note?: string },
 ) {
   return emitTeamsNotification(db as Tx, {
     companyId: args.companyId,
@@ -57,7 +57,7 @@ export function notifyRecordHandedOver(
     actorId: args.fromUserId,
     type: "TEAMS_RECORD_HANDED_OVER",
     title: `${args.fromName} handed ${args.recordLabel} to you`,
-    summary: `You now own ${args.recordLabel}.`,
+    summary: args.note ? `You now own ${args.recordLabel}. ${args.note}` : `You now own ${args.recordLabel}.`,
     viewPath: args.viewPath,
     ref: args.ref,
   });

@@ -5,7 +5,7 @@
  * page in the CRM already is, and "add to list" beside a list of records
  * reads as nothing.
  */
-import type { CrmFieldEntity } from "@prisma/client";
+import type { RecordSubjectType } from "@prisma/client";
 
 import { registerHref } from "@/lib/crm/registers/href";
 import { isEngineRegisterKey } from "@/lib/crm/registers/registry";
@@ -17,7 +17,7 @@ export const GROUP_ENTITY_LABELS = {
   LEAD: "Leads",
   DEAL: "Deals",
   WORK_ORDER: "Jobs",
-} as const satisfies Partial<Record<CrmFieldEntity, string>>;
+} as const satisfies Partial<Record<RecordSubjectType, string>>;
 
 export type GroupEntity = keyof typeof GROUP_ENTITY_LABELS;
 

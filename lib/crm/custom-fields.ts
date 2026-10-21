@@ -9,12 +9,12 @@
  * Deliberately not supported: formula fields, rollups, and custom code. Those
  * turn a CRM into a programming environment.
  */
-import type { CrmFieldEntity, CrmFieldType, Prisma } from "@prisma/client";
+import type { RecordSubjectType, CrmFieldType, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 export type FieldDefinition = {
   id: string;
-  entity: CrmFieldEntity;
+  entity: RecordSubjectType;
   key: string;
   label: string;
   description: string | null;
@@ -32,7 +32,7 @@ export type FieldOption = { value: string; label: string; colorToken?: string };
 /**
  * Every record type a custom field can be defined on.
  *
- * A SUBSET of the `CrmFieldEntity` enum, asserted as one by the test beside this
+ * A SUBSET of the `RecordSubjectType` enum, asserted as one by the test beside this
  * file. The enum is the product's record-type discriminator and is deliberately
  * wider: S-4.2 added `REP` to it so a file can belong to a member of staff, and
  * a rep is a `User` whose fields belong to the platform rather than to a tenant.
@@ -57,7 +57,7 @@ export const CRM_FIELD_ENTITIES = [
   "CLASS",
   "SUBJECT",
   "HOSTEL",
-] as const satisfies readonly CrmFieldEntity[];
+] as const satisfies readonly RecordSubjectType[];
 
 export const CRM_FIELD_TYPES = [
   "SHORT_TEXT",
@@ -101,7 +101,7 @@ export const CRM_FIELD_TYPE_LABELS: Record<CrmFieldType, string> = {
   SITE: "Site",
 };
 
-export const CRM_FIELD_ENTITY_LABELS: Record<CrmFieldEntity, string> = {
+export const CRM_FIELD_ENTITY_LABELS: Record<RecordSubjectType, string> = {
   PERSON: "People",
   COMPANY: "Companies",
   LEAD: "Leads",
@@ -121,6 +121,10 @@ export const CRM_FIELD_ENTITY_LABELS: Record<CrmFieldEntity, string> = {
   // platform rather than to a tenant. Present because this map is exhaustive
   // over the enum, and S-4.2 added REP to it so a file can belong to a rep.
   REP: "Staff",
+  // Tender's records. Teams and comments reach them; custom fields do not yet.
+  RETAIL_CUSTOMER: "Customers",
+  RETAIL_PRODUCT: "Products",
+  RETAIL_SUPPLIER: "Suppliers",
 };
 
 /** Types whose value is a reference to another record, stored as that record's id. */

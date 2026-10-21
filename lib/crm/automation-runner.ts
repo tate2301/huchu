@@ -5,7 +5,7 @@
  * out. It never throws into the caller: a rule failing must not stop a lead
  * being created, so failures are logged as runs and the request carries on.
  */
-import type { CrmAutomationTrigger, CrmFieldEntity, Prisma } from "@prisma/client";
+import type { CrmAutomationTrigger, RecordSubjectType, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { emitCrmNotification } from "@/lib/notifications";
@@ -23,7 +23,7 @@ import { autoAssignLead } from "./auto-assign";
 export type AutomationEvent = {
   companyId: string;
   trigger: CrmAutomationTrigger;
-  entity: CrmFieldEntity;
+  entity: RecordSubjectType;
   recordId: string;
   /** The record as it now stands, for conditions to read. */
   record: Record<string, unknown>;
@@ -35,7 +35,7 @@ export type AutomationEvent = {
 
 type ActionOutcome = { type: string; ok: boolean; detail?: string };
 
-const RECORD_COLUMN: Partial<Record<CrmFieldEntity, string>> = {
+const RECORD_COLUMN: Partial<Record<RecordSubjectType, string>> = {
   LEAD: "leadId",
   DEAL: "dealId",
   COMPANY: "clientId",
@@ -43,7 +43,7 @@ const RECORD_COLUMN: Partial<Record<CrmFieldEntity, string>> = {
   SITE: "siteId",
 };
 
-function recordPath(entity: CrmFieldEntity, id: string): string {
+function recordPath(entity: RecordSubjectType, id: string): string {
   switch (entity) {
     case "DEAL":
       return `/crm/deals/${id}`;

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { recordTeamsChange } from "./audit";
 import type { Db } from "./db";
 import { TeamsRefusal } from "./errors";
+import { handOverAll, ownedRecordCount } from "./record-team";
 import { lockSeats, requireSeat } from "./seats";
 
 /**
@@ -159,14 +160,26 @@ export async function suspendMember(actor: Actor, membershipId: string, now = ne
 
 /**
  * Remove them from the workspace. Their name stays on everything they did.
- * Open jobs are handed over by the caller first (`lib/teams/record-team.ts`).
+ *
+ * The records they own go to `handTo` in the same step; while they own any and
+ * no one is named, it is refused (OPEN_WORK) so nothing is left without an
+ * owner.
  */
-export async function removeMember(actor: Actor, membershipId: string, now = new Date()): Promise<void> {
+export async function removeMember(actor: Actor, membershipId: string, options: { handTo?: string; now?: Date } = {}): Promise<void> {
+  const now = options.now ?? new Date();
   await prisma.$transaction(async (tx) => {
     const by = await actorIn(tx, actor);
     const target = await targetIn(tx, actor.companyId, membershipId);
     if (target.status === "REMOVED") return;
     await refuseUnlessManageable(tx, by, target, "remove");
+    const owned = await ownedRecordCount(tx, actor.companyId, target.id);
+    if (owned > 0) {
+      if (!options.handTo) {
+        throw new TeamsRefusal("OPEN_WORK", `${target.user.name} owns ${owned} ${owned === 1 ? "record" : "records"}. Choose who takes them over.`);
+      }
+      if (options.handTo === target.id) throw new TeamsRefusal("SELF", "Choose someone else to take them over.");
+      await handOverAll(tx, actor, target.id, options.handTo, `${target.user.name} was removed from the workspace.`);
+    }
     await tx.user.update({
       where: { id: target.userId },
       data: { isActive: false, accessRemovedAt: now, accessRemovedById: actor.userId, sessionsEndedAt: now },

@@ -18,6 +18,7 @@ import {
   subjectWhere,
 } from "@/lib/records/subject";
 import { emitCrmNotification } from "@/lib/notifications";
+import { followByCommenting, teamUserIds } from "@/lib/teams/record-team";
 import { crmRecordExists } from "../_helpers";
 
 const authorSelect = { select: { id: true, name: true, email: true } } as const;
@@ -136,22 +137,7 @@ export async function POST(request: NextRequest) {
 
       // Commenting is a statement of interest, so the author starts following
       // the record without having to think about it.
-      await tx.crmFollower.upsert({
-        where: {
-          userId_entity_recordId: {
-            userId: session.user.id,
-            entity: record.entity,
-            recordId: record.recordId,
-          },
-        },
-        create: {
-          companyId,
-          userId: session.user.id,
-          entity: record.entity,
-          recordId: record.recordId,
-        },
-        update: {},
-      });
+      await followByCommenting(tx, companyId, session.user.id, { type: record.entity, id: record.recordId });
 
       return created;
     });
@@ -174,11 +160,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const [followers, participants] = await Promise.all([
-      prisma.crmFollower.findMany({
-        where: { companyId, entity: record.entity, recordId: record.recordId },
-        select: { userId: true },
-      }),
+    const [teamIds, participants] = await Promise.all([
+      teamUserIds(prisma, companyId, { type: record.entity, id: record.recordId }),
       prisma.crmComment.findMany({
         where: { companyId, ...subjectWhere("comment", writeSubject) },
         select: { createdById: true },
@@ -187,7 +170,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     const audience = commentAudience({
-      followerIds: followers.map((follower) => follower.userId),
+      followerIds: teamIds,
       participantIds: participants.map((participant) => participant.createdById),
       mentionedIds: validMentions,
       authorId: session.user.id,

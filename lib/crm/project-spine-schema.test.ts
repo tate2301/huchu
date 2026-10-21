@@ -97,11 +97,11 @@ describe("the project's team", () => {
 });
 
 describe("files can hang off a project", () => {
-  it("adds PROJECT to CrmFieldEntity", async () => {
+  it("adds PROJECT to RecordSubjectType", async () => {
     const rows = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
       SELECT e.enumlabel
       FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-      WHERE t.typname = 'CrmFieldEntity'
+      WHERE t.typname = 'RecordSubjectType'
     `;
     expect(rows.map((row) => row.enumlabel)).toContain("PROJECT");
   });

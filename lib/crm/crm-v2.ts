@@ -665,20 +665,23 @@ export function deleteCrmComment(id: string) {
   return fetchJson<{ id: string }>(`/api/v2/crm/comments/${id}`, { method: "DELETE" });
 }
 
-export type CrmFollowerRecord = {
+/** Someone on a record's team: working on it, or only following it. */
+export type RecordTeamRecord = {
   id: string;
   userId: string;
+  isOwner: boolean;
+  followsOnly: boolean;
   user: CrmCommentAuthor;
 };
 
 export function fetchCrmFollowers(entity: CollabEntity, recordId: string) {
-  return fetchJson<{ followers: CrmFollowerRecord[]; isFollowing: boolean }>(
+  return fetchJson<{ followers: RecordTeamRecord[]; isFollowing: boolean }>(
     `/api/v2/crm/followers${qs({ entity, recordId })}`,
   );
 }
 
 export function followCrmRecord(entity: CollabEntity, recordId: string, userId?: string) {
-  return fetchJson<CrmFollowerRecord>(`/api/v2/crm/followers`, {
+  return fetchJson<RecordTeamRecord>(`/api/v2/crm/followers`, {
     method: "POST",
     body: JSON.stringify({ entity, recordId, userId }),
   });
