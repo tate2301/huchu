@@ -6,6 +6,7 @@ import { recordOperatorEvent } from "@/lib/operators/audit";
 import { repriceCompany } from "@/lib/platform/entitlements";
 import type { SignedInOperator } from "@/lib/operators/guards";
 import { prisma } from "@/lib/prisma";
+import { createMember, syncMemberships } from "@/lib/teams/members";
 import { checkPhone, cleanName, EMAIL_WRONG, NAME_NEEDED } from "@/lib/retail/people/fields";
 import { endSignInAsForMember } from "@/lib/sign-in-as/sessions";
 import { normaliseZimbabweMobile } from "@/lib/signup/whatsapp-number";
@@ -50,6 +51,7 @@ export async function changeMemberRole(operator: SignedInOperator, workspace: Wo
       throw new AdminRefusal(`${member.name} is the only owner of ${workspace.name}. Make someone else an owner first.`);
     }
     await tx.user.update({ where: { id: member.id }, data: { role } });
+    await syncMemberships(tx, { userId: member.id });
     // A new role starts from that role's features, as it does in the product.
     await tx.userFeatureFlag.deleteMany({ where: { userId: member.id } });
     await recordOperatorEvent(
@@ -107,6 +109,7 @@ export async function removeMemberAccess(
       where: { id: member.id },
       data: { isActive: false, accessRemovedAt: now, accessRemovedById: null, sessionsEndedAt: now },
     });
+    await syncMemberships(tx, { userId: member.id });
     await tx.retailStaffInvite.updateMany({
       where: { userId: member.id, acceptedAt: null, revokedAt: null },
       data: { revokedAt: now },
@@ -136,6 +139,7 @@ export async function giveMemberAccessBack(operator: SignedInOperator, workspace
       where: { id: member.id },
       data: { isActive: true, accessRemovedAt: null, accessRemovedById: null },
     });
+    await syncMemberships(tx, { userId: member.id });
     await recordOperatorEvent(
       {
         operatorId: operator.id,
@@ -278,7 +282,7 @@ export async function addMembers(
     const added = await prisma.$transaction(async (tx) => {
       const made: Array<{ id: string; name: string }> = [];
       for (const line of lines) {
-        const user = await tx.user.create({
+        const user = await createMember(tx, {
           data: { companyId: workspace.id, name: line.name, email: line.email, phone: line.phone, role: line.role, isActive: true },
           select: { id: true, name: true },
         });

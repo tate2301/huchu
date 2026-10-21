@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../prisma";
+import { createMember, syncMemberships } from "../../../lib/teams/members";
 import {
   USER_ACCOUNT_STATUSES,
   USER_MANAGEMENT_ROLES,
@@ -196,7 +197,7 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
   if (existing) throw new Error(`User already exists for email: ${email}`);
 
   const password = await bcrypt.hash(normalizedPassword, 12);
-  const user = await prisma.user.create({
+  const user = await createMember(prisma, {
     data: {
       companyId: input.companyId,
       email,
@@ -272,6 +273,7 @@ export async function setUserStatus(input: SetUserStatusInput & { isActive: bool
     },
   });
 
+  await syncMemberships(prisma, { userId: updated.id });
   await assertHasActiveSuperadmin(updated.companyId);
 
   const audit = await appendAuditEvent({
@@ -385,6 +387,7 @@ export async function changeUserRole(input: ChangeUserRoleInput): Promise<UserRo
     },
   });
 
+  await syncMemberships(prisma, { userId: updated.id });
   await assertHasActiveSuperadmin(updated.companyId);
 
   const audit = await appendAuditEvent({

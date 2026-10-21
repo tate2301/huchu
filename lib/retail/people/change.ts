@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { syncMemberships } from "@/lib/teams/members";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import type { Sent } from "@/lib/retail/messages/send-now";
@@ -104,6 +105,7 @@ export async function changePerson(actor: PeopleActor, id: string, input: Change
         where: { id },
         data: { name: name!, phone, role: userRoleOf(role), allSites: scope.all },
       });
+      await syncMemberships(tx, { userId: id });
       if (changes.some((change) => change.field === "sites")) {
         await writeSites(tx, { companyId: actor.companyId, userId: id, scope });
       }

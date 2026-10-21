@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../prisma";
+import { createMember } from "../../../lib/teams/members";
 import { FEATURE_BUNDLES, FEATURE_CATALOG } from "../../../lib/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
@@ -613,7 +614,8 @@ export async function provisionBundle(input: ProvisionBundleInput): Promise<Prov
             select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
           });
 
-          const admin = await trx.user.create({
+          const admin = await createMember(trx, {
+            owner: true,
             data: {
               companyId: company.id,
               email: preview.adminEmail,

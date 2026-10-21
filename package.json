@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "create-user": "node scripts/create-user.js",
+    "create-user": "tsx scripts/create-user.ts",
     "operator:add": "tsx scripts/add-operator.ts",
     "admin:seed-dev": "tsx scripts/seed-admin-dev.ts",
     "create-employee": "node scripts/create-employee.js",

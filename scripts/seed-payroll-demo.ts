@@ -7,6 +7,7 @@ import "dotenv/config";
  * number so the blocker path renders, an approved run, and a posted journal.
  */
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { seedZimbabweLeavePack } from "@/lib/people/leave/zimbabwe-pack";
@@ -102,7 +103,8 @@ async function main() {
   // the requirement was wrong: the only way past onboarding used to be inventing
   // one.
 
-  const admin = await prisma.user.create({
+  const admin = await createMember(prisma, {
+    owner: true,
     data: {
       companyId,
       // The email domain carries the tenant: `<slug>.test` matches how the school

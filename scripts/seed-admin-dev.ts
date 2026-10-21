@@ -4,6 +4,7 @@ import type { OperatorRole } from "@prisma/client";
 
 import { LOGIN_SUCCESS_EVENT } from "@/lib/auth-core/last-sign-in";
 import { getProduct, getTrialTierCode } from "@/lib/platform/products";
+import { syncMemberships } from "@/lib/teams/members";
 import { provisionTenant } from "@/lib/platform/provision";
 import { prisma } from "@/lib/prisma";
 import { sealSecret } from "@/lib/operators/secret-box";
@@ -229,6 +230,7 @@ async function seedWorkspaces() {
         update: { name: person.name, role: person.role ?? "CLERK", companyId, isActive: true },
       });
     }
+    await syncMemberships(prisma, { companyId });
 
     await prisma.platformAuditEvent.deleteMany({ where: { companyId, eventType: LOGIN_SUCCESS_EVENT } });
     for (const person of workspace.people) {

@@ -70,6 +70,7 @@ model Company {
   subscriptions                 CompanySubscription[]
   featureFlags                  CompanyFeatureFlag[]
   userPermissionOverrides       UserPermissionOverride[]
+  memberships                   WorkspaceMembership[]
   crmTemplates                  CrmTemplate[]
   crmTemplateEvents             CrmTemplateEvent[]
   crmFieldChanges               CrmFieldChange[]
@@ -665,6 +666,46 @@ model UserFeatureFlag {
   @@unique([userId, featureId])
   @@index([featureId])
   @@index([userId, isEnabled])
+}
+
+/// Where a person stands in a workspace. Invited and Active hold a seat;
+/// Suspended and Removed do not.
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+/// A person in one workspace: the source for who owns it, who is an admin, who
+/// holds a seat and what state they are in (`lib/teams/members.ts`). `User`
+/// still carries the sign-in (`companyId`, `role`, `isActive`) and the helper
+/// keeps the two in step until one person can belong to several workspaces.
+///
+/// One owner per workspace: a partial unique index on ("companyId") WHERE
+/// "isOwner" in the migration, which Prisma cannot express. Ownership moves in
+/// one transaction (`lib/teams/ownership.ts`).
+model WorkspaceMembership {
+  id          String           @id @default(uuid())
+  companyId   String
+  userId      String
+  status      MembershipStatus @default(ACTIVE)
+  isOwner     Boolean          @default(false)
+  isAdmin     Boolean          @default(false)
+  /// The job they do in this workspace.
+  role        UserRole
+  suspendedAt DateTime?
+  removedAt   DateTime?
+  removedById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([companyId, status])
+  @@index([userId, status])
 }
 
 /// A permission one person has, or has had taken away, against what their role
@@ -1526,6 +1567,7 @@ model User {
   webPushSubscriptions              WebPushSubscription[]
   featureFlags                      UserFeatureFlag[]
   permissionOverrides               UserPermissionOverride[]       @relation("UserPermissionOverrideUser")
+  memberships                       WorkspaceMembership[]
   permissionOverridesGranted        UserPermissionOverride[]       @relation("UserPermissionOverrideGrantedBy")
   crmTemplatesCreated               CrmTemplate[]                  @relation("CrmTemplateCreatedBy")
   crmFieldChanges                   CrmFieldChange[]               @relation("CrmFieldChangeChangedBy")

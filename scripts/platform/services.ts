@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { Prisma } from "@prisma/client";
 
 import { prisma, disconnectPrisma } from "./prisma";
+import { createMember, syncMemberships } from "../../lib/teams/members";
 import { provisionSchool } from "../../lib/schools/provision";
 import { provisionRetail } from "../../lib/retail/provision";
 import {
@@ -1264,7 +1265,8 @@ async function provisionOrganization(input: ProvisionOrganizationInput): Promise
       select: { id: true, name: true, slug: true, workspaceProfile: true, tenantStatus: true, isProvisioned: true },
     });
 
-    const adminUser = await tx.user.create({
+    const adminUser = await createMember(tx, {
+      owner: true,
       data: { email: adminEmail, name: adminName, password: passwordHash, role: "SUPERADMIN", companyId: company.id, isActive: true },
       select: { id: true, email: true, name: true, role: true, companyId: true },
     });
@@ -1333,6 +1335,7 @@ async function setOrganizationStatus(args: {
     prisma.site.updateMany({ where: { companyId: args.companyId, isActive: !activate }, data: { isActive: activate } }),
   ]);
 
+  await syncMemberships(prisma, { companyId: args.companyId });
   const after = await getOrganization(args.companyId);
   const action = args.targetStatus === "ACTIVE" ? "ORG_ACTIVATE" : args.targetStatus === "DISABLED" ? "ORG_DISABLE" : "ORG_SUSPEND";
 
@@ -2269,7 +2272,7 @@ async function createAdmin(input: CreateAdminInput): Promise<AdminCreateResult> 
   if (existing) throw new Error(`User already exists for email: ${email}`);
 
   const password = await bcrypt.hash(normalizedPassword, 12);
-  const user = await prisma.user.create({
+  const user = await createMember(prisma, {
     data: { companyId: input.companyId, email, name, password, role, isActive: true },
     select: { id: true, companyId: true, email: true, name: true, role: true, isActive: true, createdAt: true },
   });
@@ -2320,6 +2323,7 @@ async function setAdminStatus(input: SetAdminStatusInput & { isActive: boolean }
     data: { isActive: input.isActive },
     select: { id: true, email: true, name: true, role: true, isActive: true, companyId: true, company: { select: { name: true } }, updatedAt: true },
   });
+  await syncMemberships(prisma, { userId: updated.id });
 
   const audit = await appendAuditEvent({
     actor: input.actor,

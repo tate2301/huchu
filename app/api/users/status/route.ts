@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { prisma } from "@/lib/prisma";
+import { syncMemberships } from "@/lib/teams/members";
 
 import { canMutateUserManagement, isManagedRole } from "../_helpers";
 import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
@@ -51,6 +52,7 @@ async function applyStatusChange(request: NextRequest) {
       updatedAt: true,
     },
   });
+  await syncMemberships(prisma, { userId: updated.id });
   await repriceCompany(session.user.companyId);
 
   await appendUserManagementEvent({

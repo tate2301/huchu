@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { buildWorkspaceUrl } from "@/lib/platform/tenant-url";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
@@ -131,7 +132,7 @@ export async function invitePerson(actor: PeopleActor, input: InviteInput, now =
   const address = (email as { email: string | null }).email;
 
   const { userId, token, pin } = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
+    const user = await createMember(tx, {
       data: {
         companyId: actor.companyId,
         name: name!,

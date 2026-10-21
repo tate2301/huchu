@@ -6,6 +6,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 
 import { canMutateUserManagement, getManagedRolesForSession, managedRoleSchema, normalizeEmail } from "../_helpers";
 import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(validated.password, 12);
-    const user = await prisma.user.create({
+    const user = await createMember(prisma, {
       data: {
         companyId: session.user.companyId,
         name: validated.name.trim(),

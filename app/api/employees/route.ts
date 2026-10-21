@@ -10,6 +10,7 @@ import {
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { toNumberOrZero } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
+import { createMember } from "@/lib/teams/members"
 import { repriceCompany } from "@/lib/platform/entitlements"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
@@ -524,13 +525,13 @@ export async function POST(request: NextRequest) {
       let linkedUserId: string | undefined = validated.linkUserId
       if (validated.createUserAccount && validated.userEmail && validated.userPassword && requestedUserRole) {
         const passwordHash = await bcrypt.hash(validated.userPassword, 12)
-        const user = await tx.user.create({
+        const user = await createMember(tx, {
           data: {
             companyId: session.user.companyId,
             name: validated.name,
             email: validated.userEmail.trim().toLowerCase(),
             password: passwordHash,
-            role: requestedUserRole as Prisma.UserCreateInput["role"],
+            role: requestedUserRole as Prisma.UserUncheckedCreateInput["role"],
             isActive: validated.isActive ?? true,
             phone: validated.phone,
           },

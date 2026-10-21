@@ -55,6 +55,7 @@ import { postIntegrationEvent } from "@/lib/accounting/integration"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { RETAIL_SOURCE_TYPES } from "@/lib/retail/posting-settings"
 import { prisma } from "@/lib/prisma"
+import { createMember, ensureOwner, syncMemberships } from "@/lib/teams/members"
 import { builtInTemplate, type TemplateQuery } from "@/lib/reports/definitions/retail/templates"
 import { getReportDefinition } from "@/lib/reports/registry"
 import { fromTemplateQuery } from "@/lib/reports/template-query"
@@ -609,6 +610,8 @@ async function main() {
     })
     staff.push({ id: user.id, name: user.name ?? person.name, cashier: person.cashier })
   }
+  await syncMemberships(prisma, { companyId })
+  await ensureOwner(prisma, companyId)
   const tills = staff.filter((person) => person.cashier)
   console.log(`  ${staff.length} staff (password ${STAFF_PASSWORD})`)
 
@@ -2675,6 +2678,7 @@ async function seedPins(companyId: string, passwordHash: string) {
     update: { name: "Kuda Banda", role: "CASHIER", companyId, isActive: true },
     create: { email: "kuda.till@bottlestore.test", name: "Kuda Banda", role: "CASHIER", companyId, password: passwordHash, isActive: true },
   })
+  await syncMemberships(prisma, { companyId })
   // When each was last used (Last in on People): Chipo and Kuda selling now,
   // Rudo 10:40, Tafara 12:31, Farai last night — and Farai's locked by five
   // wrong tries on Back till at 08:12 today, until somebody sends a new one.
@@ -2775,7 +2779,8 @@ async function seedPeople(input: {
   const ownerSeed = PEOPLE[0]
   const owner =
     (await prisma.user.findFirst({ where: { email: ownerSeed.email! }, select: { id: true } })) ??
-    (await prisma.user.create({
+    (await createMember(prisma, {
+      owner: true,
       data: { email: ownerSeed.email, name: ownerSeed.name, role: ownerSeed.role, companyId, phone: ownerSeed.phone, allSites: true, password: passwordHash },
       select: { id: true },
     }))
@@ -2809,7 +2814,7 @@ async function seedPeople(input: {
     const invitedAt = person.email ? null : harareTime(2, 10, 0)
     const user = found
       ? await prisma.user.update({ where: { id: found.id }, data, select: { id: true, createdAt: true } })
-      : await prisma.user.create({
+      : await createMember(prisma, {
           data: { ...data, email: person.email, password: person.email ? passwordHash : null, ...(invitedAt ? { createdAt: invitedAt } : {}) },
           select: { id: true, createdAt: true },
         })
@@ -2920,6 +2925,8 @@ async function seedPeople(input: {
     }
     if (extra.length) console.log(`  people: ${extra.map((person) => person.name).join(", ")} taken away (acceptance)`)
   }
+  await syncMemberships(prisma, { companyId })
+  await ensureOwner(prisma, companyId)
   console.log(
     `  people: ${PEOPLE.length} on Staff and PINs; Tatenda Gumbo's PIN 8257` +
       (link ? `, join link ${link} on the shop's host` : ", invite already out"),
@@ -2971,6 +2978,7 @@ async function seedStockPeople(companyId: string, passwordHash: string) {
     update: rudo,
     create: { email: "rudo.stock@bottlestore.test", password: passwordHash, ...rudo },
   })
+  await syncMemberships(prisma, { companyId })
 }
 
 /**

@@ -37,6 +37,27 @@ const prisma = new PrismaClient({
   },
 });
 
+/**
+ * Keep memberships in step with users after a status change, as `syncMemberships`
+ * does in lib/teams/members.ts (this script is plain Node and cannot import it).
+ */
+async function mirrorMembership(scope) {
+  const column = scope.userId ? "id" : "companyId";
+  await prisma.$executeRawUnsafe(
+    `UPDATE "WorkspaceMembership" m SET
+       "status" = (CASE WHEN u."isActive" THEN 'ACTIVE' WHEN u."accessRemovedAt" IS NOT NULL THEN 'REMOVED' ELSE 'SUSPENDED' END)::"MembershipStatus",
+       "role" = u."role",
+       "isAdmin" = (u."role" = 'SUPERADMIN' AND NOT m."isOwner"),
+       "suspendedAt" = CASE WHEN NOT u."isActive" AND u."accessRemovedAt" IS NULL THEN COALESCE(m."suspendedAt", CURRENT_TIMESTAMP) END,
+       "removedAt" = u."accessRemovedAt",
+       "removedById" = u."accessRemovedById",
+       "updatedAt" = CURRENT_TIMESTAMP
+     FROM "User" u
+     WHERE m."userId" = u."id" AND m."companyId" = u."companyId" AND m."status" <> 'INVITED' AND u."${column}" = $1`,
+    scope.userId ?? scope.companyId,
+  );
+}
+
 const rawArgs = process.argv.slice(2);
 const actorArg = getArgFrom(rawArgs, "--actor");
 const contextCompanyIdArg = getArgFrom(rawArgs, "--company-id");
@@ -662,6 +683,7 @@ async function provisionOrganization({ name, slug, adminEmail, adminName, adminP
       select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true },
     });
 
+    // The membership is born with the user (`createUser` in lib/teams/members.ts).
     const user = await tx.user.create({
       data: {
         email: normalizedAdminEmail,
@@ -670,6 +692,7 @@ async function provisionOrganization({ name, slug, adminEmail, adminName, adminP
         role: "SUPERADMIN",
         companyId: company.id,
         isActive: true,
+        memberships: { create: { companyId: company.id, role: "SUPERADMIN", isOwner: true } },
       },
       select: { id: true, email: true, name: true, role: true, companyId: true },
     });
@@ -735,6 +758,7 @@ async function setOrganizationStatus({ companyId, activate, actor, reason, targe
       data: { isActive: activate },
     }),
   ]);
+  await mirrorMembership({ companyId });
   const after = await getOrganization(companyId);
 
   const audit = await appendAuditEvent({
@@ -1079,6 +1103,7 @@ async function createAdmin({ companyId, email, name, password, role, actor }) {
       password: passwordHash,
       role: normalizedRole,
       isActive: true,
+      memberships: { create: { companyId, role: normalizedRole, isAdmin: normalizedRole === "SUPERADMIN" } },
     },
     select: {
       id: true,
@@ -1142,6 +1167,7 @@ async function setAdminStatus({ userId, isActive, actor, reason }) {
       company: { select: { name: true } },
     },
   });
+  await mirrorMembership({ userId });
 
   const audit = await appendAuditEvent({
     actor,

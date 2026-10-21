@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import type { SchoolPortalInviteSubject } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 
 /**
  * Portal invitations.
@@ -267,7 +268,7 @@ export async function claimPortalInvite(input: {
       );
     }
 
-    const user = await tx.user.create({
+    const user = await createMember(tx, {
       data: {
         companyId: invite.companyId,
         email: invite.sentTo,

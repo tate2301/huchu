@@ -23,6 +23,7 @@ import { Prisma, type UserRole } from "@prisma/client";
 import { FEATURE_BUNDLES, LADDER_TIERS } from "../lib/platform/feature-catalog";
 import { WORKSPACE_PROFILES } from "../lib/workspace-products";
 import { disconnectPrisma, prisma } from "./platform/prisma";
+import { ensureOwner, syncMemberships } from "../lib/teams/members";
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -111,6 +112,8 @@ async function main() {
     create: { email, name: userName, password: passwordHash, role, companyId: company.id },
     select: { id: true, email: true, role: true },
   });
+  await syncMemberships(prisma, { userId: user.id });
+  await ensureOwner(prisma, company.id);
 
   // getCompanyFeatureMap turns a feature on by its catalogue default, then by
   // what the tier and the addon bundles carry. So the lever here is the top of

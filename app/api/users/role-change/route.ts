@@ -5,6 +5,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
 import { prisma } from "@/lib/prisma";
+import { syncMemberships } from "@/lib/teams/members";
 
 import { canMutateUserManagement, getManagedRolesForSession, isManagedRole, managedRoleSchema } from "../_helpers";
 import { appendUserManagementEvent } from "@/lib/platform/user-management-events";
@@ -64,6 +65,7 @@ async function applyRoleChange(request: NextRequest) {
     },
   });
 
+  await syncMemberships(prisma, { userId: updated.id });
   await clearUserFeatureOverrides(updated.id);
   await repriceCompany(session.user.companyId);
 

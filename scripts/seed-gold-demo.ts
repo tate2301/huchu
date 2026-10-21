@@ -53,6 +53,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { ensureOwner, syncMemberships } from "@/lib/teams/members";
 
 /* ── Arguments ────────────────────────────────────────────────────────── */
 
@@ -210,6 +211,8 @@ async function main() {
     });
     users[person.key] = user.id;
   }
+  await syncMemberships(prisma, { companyId });
+  await ensureOwner(prisma, companyId);
   const managerId = users.manager;
   const clerkId = users.clerk;
   console.log(`  ${STAFF.length} staff`);

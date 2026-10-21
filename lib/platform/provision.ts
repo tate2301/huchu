@@ -14,6 +14,7 @@ import {
   resolveClientTemplateCode,
 } from "@/lib/platform/client-templates";
 import { getProduct } from "@/lib/platform/products";
+import { createMember } from "@/lib/teams/members";
 import { VERTICAL_ORDER, VERTICALS } from "@/lib/platform/verticals";
 
 /**
@@ -303,7 +304,8 @@ export async function provisionTenant(
   });
   const admin =
     existingAdmin ??
-    (await prisma.user.create({
+    (await createMember(prisma, {
+      owner: true,
       data: {
         companyId,
         email: adminEmail,

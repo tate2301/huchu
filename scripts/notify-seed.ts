@@ -21,6 +21,7 @@ import "dotenv/config";
 import type { NotificationType, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 
 const SEED = "notify";
 
@@ -31,7 +32,7 @@ function ago(minutes: number) {
 async function personNamed(companyId: string, name: string) {
   const existing = await prisma.user.findFirst({ where: { companyId, name, email: null } });
   if (existing) return existing;
-  return prisma.user.create({ data: { companyId, name, role: "MANAGER", isActive: false } });
+  return createMember(prisma, { data: { companyId, name, role: "MANAGER", isActive: false } });
 }
 
 async function main() {

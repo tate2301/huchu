@@ -93,6 +93,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { ensureOwner, syncMemberships } from "@/lib/teams/members";
 import { ensureCurrentTermEnrolments, provisionSchool } from "@/lib/schools/provision";
 
 /* ── Arguments ────────────────────────────────────────────────────────── */
@@ -610,6 +611,8 @@ async function main() {
     data: { userId: parentUser.id },
   });
 
+  await syncMemberships(prisma, { companyId });
+  await ensureOwner(prisma, companyId);
   console.log(
     `  portal accounts: student@${SLUG}.test, parent@${SLUG}.test, ${teacherProfiles[0].email}`,
   );

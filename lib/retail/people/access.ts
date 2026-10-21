@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { syncMemberships } from "@/lib/teams/members";
 import { repriceCompany } from "@/lib/platform/entitlements";
 import { RETAIL_AUDIT_EVENTS, writeRetailAuditEvent } from "@/lib/retail/audit";
 import { closeFiscalDayIfLastShift } from "@/lib/retail/fiscal-settings";
@@ -56,6 +57,7 @@ async function remove(actor: PeopleActor, person: PersonView, now: Date): Promis
       where: { id: person.id },
       data: { isActive: false, accessRemovedAt: now, accessRemovedById: actor.userId },
     });
+    await syncMemberships(tx, { userId: person.id });
     await tx.retailTillPin.deleteMany({ where: { userId: person.id } });
     await tx.retailStaffInvite.updateMany({
       where: { userId: person.id, acceptedAt: null, revokedAt: null },
@@ -129,6 +131,7 @@ export async function giveAccessBack(
       where: { id },
       data: { isActive: true, accessRemovedAt: null, accessRemovedById: null },
     });
+    await syncMemberships(tx, { userId: id });
     const issued = sendNewPin
       ? await issueTillPin(tx, { companyId: actor.companyId, userId: id, issuedById: actor.userId, now })
       : null;

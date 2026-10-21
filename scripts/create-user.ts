@@ -1,31 +1,18 @@
-#!/usr/bin/env node
-/* eslint-disable @typescript-eslint/no-require-imports */
-"use strict";
-require("dotenv").config();
+import "dotenv/config";
+import bcrypt from "bcryptjs";
 
-const { PrismaClient } = require("@prisma/client");
-const { PrismaPg } = require("@prisma/adapter-pg");
-const { Pool } = require("pg");
-const bcrypt = require("bcryptjs");
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.warn("DATABASE_URL not set. Prisma will use PG* env vars.");
-}
-
-const pool = connectionString ? new Pool({ connectionString }) : new Pool();
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "@/lib/prisma";
+import { createMember } from "@/lib/teams/members";
 
 const ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
 
-function getArg(flag) {
+function getArg(flag: string) {
   const index = process.argv.indexOf(flag);
   if (index === -1) return undefined;
   return process.argv[index + 1];
 }
 
-function hasFlag(flag) {
+function hasFlag(flag: string) {
   return process.argv.includes(flag);
 }
 
@@ -43,7 +30,7 @@ Options:
 `);
 }
 
-async function resolveCompanyId(companyId) {
+async function resolveCompanyId(companyId: string | undefined) {
   if (companyId) {
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -61,9 +48,7 @@ async function resolveCompanyId(companyId) {
   });
 
   if (companies.length === 0) {
-    throw new Error(
-      "No companies found. Create a company before adding users.",
-    );
+    throw new Error("No companies found. Create a company before adding users.");
   }
 
   if (companies.length > 1) {
@@ -99,9 +84,7 @@ async function main() {
   }
 
   if (!ALLOWED_ROLES.has(role)) {
-    throw new Error(
-      `Invalid role: ${roleArg}. Use superadmin, manager, or clerk.`,
-    );
+    throw new Error(`Invalid role: ${roleArg}. Use superadmin, manager, or clerk.`);
   }
 
   const companyId = await resolveCompanyId(companyIdArg);
@@ -117,12 +100,12 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const user = await prisma.user.create({
+  const user = await createMember(prisma, {
     data: {
       email,
       name,
       password: passwordHash,
-      role,
+      role: role as "SUPERADMIN" | "MANAGER" | "CLERK",
       companyId,
       isActive: true,
     },
