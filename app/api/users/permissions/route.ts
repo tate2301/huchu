@@ -127,7 +127,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await Promise.all([
-      resetUserPermissions(user.id),
+      resetUserPermissions(session.user.companyId, user.id),
       clearUserFeatureOverrides(user.id),
     ]);
 

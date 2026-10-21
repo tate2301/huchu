@@ -53,6 +53,7 @@ import { nextNumber } from "./numbering";
 import { fiscalDevicesFor, markTestDevice, planPurge, purgeTestDevice } from "./purge";
 import { partyAging, partyStatement } from "./statement-aging";
 import { deleteDocument, reviseDocument, undoChoices, UndoRefused, voidDocument } from "./undo";
+import { createMember } from "@/lib/teams/members";
 import { setVoidGrant } from "./void-grant";
 
 vi.setConfig({ testTimeout: 90_000, hookTimeout: 180_000 });
@@ -149,7 +150,7 @@ beforeAll(async () => {
   customerId = (await prisma.customer.create({ data: { companyId: shop.companyId, name: "Pomona Offices", address: "2 Pomona Rd, Harare" }, select: { id: true } })).id;
   vendorId = (await prisma.vendor.create({ data: { companyId: shop.companyId, name: "Chikomo Fitters" }, select: { id: true } })).id;
   vat155 = (await prisma.taxCode.update({ where: { companyId_code: { companyId: shop.companyId, code: "VAT15_5" } }, data: { zimraTaxId: 517 }, select: { id: true } })).id;
-  accountantId = (await prisma.user.create({ data: { email: `accountant-${crypto.randomUUID().slice(0, 8)}@shop.test`, name: "Rumbi Chari", role: "FINANCE_OFFICER", companyId: shop.companyId }, select: { id: true } })).id;
+  accountantId = (await createMember(prisma, { data: { email: `accountant-${crypto.randomUUID().slice(0, 8)}@shop.test`, name: "Rumbi Chari", role: "FINANCE_OFFICER", companyId: shop.companyId }, select: { id: true } })).id;
 }, 180_000);
 
 afterAll(async () => {

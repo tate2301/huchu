@@ -19,12 +19,14 @@ export async function setVoidGrant(actor: BooksActor, userId: string, allowed: b
   const person = await prisma.user.findFirst({ where: { id: userId, companyId: actor.companyId }, select: { id: true, name: true, role: true } });
   if (!person) throw new UndoRefused("That person is not in this workspace.", 404);
   if (allowed && !GRANTABLE.has(String(person.role))) throw new UndoRefused(`${person.name ?? "They"} would need to be a manager or the accountant first: only they can be let void and revise.`, 409);
-  const before = await prisma.userPermissionOverride.findUnique({ where: { userId_permissionKey: { userId, permissionKey: VOID_GRANT } }, select: { isAllowed: true } });
+  const membership = await prisma.workspaceMembership.findFirst({ where: { companyId: actor.companyId, userId }, select: { id: true } });
+  if (!membership) throw new UndoRefused("That person is not in this workspace.", 404);
+  const before = await prisma.userPermissionOverride.findUnique({ where: { membershipId_permissionKey: { membershipId: membership.id, permissionKey: VOID_GRANT } }, select: { isAllowed: true } });
   const row = await prisma.userPermissionOverride.upsert({
-    where: { userId_permissionKey: { userId, permissionKey: VOID_GRANT } },
-    create: { companyId: actor.companyId, userId, permissionKey: VOID_GRANT, isAllowed: allowed, grantedById: actor.userId },
-    update: { isAllowed: allowed, grantedById: actor.userId, companyId: actor.companyId },
-    select: { userId: true, isAllowed: true },
+    where: { membershipId_permissionKey: { membershipId: membership.id, permissionKey: VOID_GRANT } },
+    create: { companyId: actor.companyId, membershipId: membership.id, permissionKey: VOID_GRANT, isAllowed: allowed, grantedById: actor.userId },
+    update: { isAllowed: allowed, grantedById: actor.userId },
+    select: { isAllowed: true },
   });
   await writePlatformAuditEvent({
     companyId: actor.companyId,
@@ -34,13 +36,13 @@ export async function setVoidGrant(actor: BooksActor, userId: string, allowed: b
     entityId: userId,
     payload: { by: auditActor(actor), permissionKey: VOID_GRANT, from: before?.isAllowed ?? false, to: allowed },
   });
-  return row;
+  return { userId, isAllowed: row.isAllowed };
 }
 
 /** Who in the workspace holds the grant now. */
 export async function voidGrantHolders(companyId: string): Promise<string[]> {
-  const rows = await prisma.userPermissionOverride.findMany({ where: { companyId, permissionKey: VOID_GRANT, isAllowed: true }, select: { userId: true } });
-  return rows.map((row) => row.userId);
+  const rows = await prisma.userPermissionOverride.findMany({ where: { companyId, permissionKey: VOID_GRANT, isAllowed: true }, select: { membership: { select: { userId: true } } } });
+  return rows.map((row) => row.membership.userId);
 }
 
 export type VoidGrant = {
@@ -58,8 +60,8 @@ export type VoidGrant = {
 export async function voidGrantOf(companyId: string, userId: string): Promise<VoidGrant | null> {
   const person = await prisma.user.findFirst({ where: { id: userId, companyId }, select: { id: true, role: true } });
   if (!person) return null;
-  const row = await prisma.userPermissionOverride.findUnique({
-    where: { userId_permissionKey: { userId, permissionKey: VOID_GRANT } },
+  const row = await prisma.userPermissionOverride.findFirst({
+    where: { permissionKey: VOID_GRANT, membership: { userId, companyId } },
     select: { isAllowed: true, updatedAt: true, grantedBy: { select: { id: true, name: true, image: true } } },
   });
   return {

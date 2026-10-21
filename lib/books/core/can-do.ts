@@ -263,11 +263,11 @@ export async function booksActor(session: AuthenticatedSession): Promise<BooksAc
   };
   const tier = tierOf(base);
   if (tier !== "manager" && tier !== "accountant") return base;
-  const override = await prisma.userPermissionOverride.findUnique({
-    where: { userId_permissionKey: { userId: session.user.id, permissionKey: VOID_GRANT } },
-    select: { isAllowed: true, companyId: true },
+  const override = await prisma.userPermissionOverride.findFirst({
+    where: { permissionKey: VOID_GRANT, membership: { userId: session.user.id, companyId: session.user.companyId } },
+    select: { isAllowed: true },
   });
-  return override?.isAllowed && override.companyId === session.user.companyId ? { ...base, grants: new Set([VOID_GRANT]) } : base;
+  return override?.isAllowed ? { ...base, grants: new Set([VOID_GRANT]) } : base;
 }
 
 /** What the audit trail keeps about who did it: the member, and the operator when it was one. */

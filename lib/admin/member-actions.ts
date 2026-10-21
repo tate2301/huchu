@@ -424,7 +424,7 @@ const OWN_ROWS = new Set([
   "Session.userId",
   "SessionHandoff.userId",
   "UserFeatureFlag.userId",
-  "UserPermissionOverride.userId",
+  "WorkspaceMembership.userId",
   "UserSiteAccess.userId",
   "RetailStaffInvite.userId",
   "RetailTillPin.userId",

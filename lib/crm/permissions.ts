@@ -130,12 +130,10 @@ export async function canUser(
 ): Promise<boolean> {
   const roleDefault = can(session, capability);
 
-  const override = await prisma.userPermissionOverride.findUnique({
+  const override = await prisma.userPermissionOverride.findFirst({
     where: {
-      userId_permissionKey: {
-        userId: session.user.id,
-        permissionKey: capability,
-      },
+      permissionKey: capability,
+      membership: { userId: session.user.id, companyId: session.user.companyId },
     },
     select: { isAllowed: true },
   });
@@ -162,11 +160,11 @@ export async function canUserAll(
  * after its requester has gone, which still has to answer as them.
  */
 export async function capabilityCheckFor(
-  user: { id: string; role: string | null | undefined },
+  user: { id: string; role: string | null | undefined; companyId: string },
   capabilities: readonly CrmCapability[],
 ): Promise<(capability: CrmCapability) => boolean> {
   const overrides = await prisma.userPermissionOverride.findMany({
-    where: { userId: user.id, permissionKey: { in: [...capabilities] } },
+    where: { membership: { userId: user.id, companyId: user.companyId }, permissionKey: { in: [...capabilities] } },
     select: { permissionKey: true, isAllowed: true },
   });
   const decided = new Map(overrides.map((row) => [row.permissionKey, row.isAllowed]));

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { recordTeamsChange } from "@/lib/teams/audit";
 
 import { countOverrides, getUserPermissionCatalog, setUserPermission, type PermissionKind, type PermissionState } from "./permission-catalog";
 import { appendUserManagementEvent } from "./user-management-events";
@@ -41,6 +42,10 @@ export async function changeUserPermission(
   if (user.id === actor.userId) throw new PermissionChangeRefused(400, "You cannot change your own permissions.");
   if (user.role === "SUPERADMIN" && actor.role !== "SUPERADMIN") throw new PermissionChangeRefused(403, "Only a superadmin can change a superadmin's permissions.");
 
+  const stateOf = (groups: Awaited<ReturnType<typeof getUserPermissionCatalog>>) =>
+    groups.flatMap((group) => group.entries).find((entry) => entry.kind === change.kind && entry.key === change.key)?.state ?? "DEFAULT";
+  const was = stateOf(await getUserPermissionCatalog({ companyId: actor.companyId, userId: user.id, role: user.role }));
+
   try {
     await setUserPermission({ companyId: actor.companyId, userId: user.id, role: user.role, kind: change.kind, key: change.key, state: change.state, actorId: actor.userId });
   } catch (error) {
@@ -52,6 +57,20 @@ export async function changeUserPermission(
 
   const groups = await getUserPermissionCatalog({ companyId: actor.companyId, userId: user.id, role: user.role });
   const permission = groups.flatMap((group) => group.entries).find((entry) => entry.kind === change.kind && entry.key === change.key) ?? null;
+  if (was !== change.state) {
+    const membership = await prisma.workspaceMembership.findFirst({ where: { companyId: actor.companyId, userId: user.id }, select: { id: true } });
+    if (membership) {
+      await recordTeamsChange(prisma, {
+        companyId: actor.companyId,
+        actorId: actor.userId,
+        change: "permission.changed",
+        entityType: "membership",
+        entityId: membership.id,
+        before: { kind: change.kind, key: change.key, state: was },
+        after: { kind: change.kind, key: change.key, state: change.state },
+      });
+    }
+  }
   await appendUserManagementEvent({
     companyId: actor.companyId,
     actorId: actor.userId,

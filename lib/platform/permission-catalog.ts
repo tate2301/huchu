@@ -183,12 +183,12 @@ export function permissionStateFor(roleDefault: boolean, override: boolean | und
   return override ? "ALLOW" : "DENY";
 }
 
-export async function getCapabilityOverrideMap(userId: string): Promise<Map<string, boolean>> {
+export async function getCapabilityOverrideMap(companyId: string, userId: string): Promise<Map<string, boolean>> {
   const normalized = userId.trim();
   if (!normalized) return new Map();
 
   const rows = await prisma.userPermissionOverride.findMany({
-    where: { userId: normalized },
+    where: { membership: { companyId, userId: normalized } },
     select: { permissionKey: true, isAllowed: true },
   });
 
@@ -233,7 +233,7 @@ export async function getUserPermissionCatalog(input: {
 }): Promise<PermissionGroup[]> {
   const [features, capabilityOverrides] = await Promise.all([
     getManagedUserFeatureAccessEntries(input),
-    getCapabilityOverrideMap(input.userId),
+    getCapabilityOverrideMap(input.companyId, input.userId),
   ]);
 
   const groups = new Map<string, PermissionGroup>();
@@ -320,20 +320,26 @@ export async function setUserPermission(input: {
 
   if (input.state === "DEFAULT") {
     await prisma.userPermissionOverride.deleteMany({
-      where: { userId: input.userId, permissionKey: input.key },
+      where: { permissionKey: input.key, membership: { companyId: input.companyId, userId: input.userId } },
     });
     return;
   }
 
+  const membership = await prisma.workspaceMembership.findFirst({
+    where: { companyId: input.companyId, userId: input.userId },
+    select: { id: true },
+  });
+  if (!membership) throw new Error("NOT_A_MEMBER");
+
   const isAllowed = input.state === "ALLOW";
   await prisma.userPermissionOverride.upsert({
     where: {
-      userId_permissionKey: { userId: input.userId, permissionKey: input.key },
+      membershipId_permissionKey: { membershipId: membership.id, permissionKey: input.key },
     },
     update: { isAllowed, grantedById: input.actorId },
     create: {
       companyId: input.companyId,
-      userId: input.userId,
+      membershipId: membership.id,
       permissionKey: input.key,
       isAllowed,
       grantedById: input.actorId,
@@ -342,8 +348,8 @@ export async function setUserPermission(input: {
 }
 
 /** Put somebody back on their role's defaults across both systems. */
-export async function resetUserPermissions(userId: string): Promise<void> {
-  await prisma.userPermissionOverride.deleteMany({ where: { userId } });
+export async function resetUserPermissions(companyId: string, userId: string): Promise<void> {
+  await prisma.userPermissionOverride.deleteMany({ where: { membership: { companyId, userId } } });
 }
 
 /** How many decisions differ from the role, for the summary line. */

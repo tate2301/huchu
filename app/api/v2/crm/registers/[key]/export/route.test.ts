@@ -11,6 +11,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { syncMemberships } from "@/lib/teams/members";
 
 const { validateSessionMock } = vi.hoisted(() => ({ validateSessionMock: vi.fn() }));
 
@@ -30,6 +31,7 @@ const OTHER = "crm-register-export-test-other";
 
 let companyId: string;
 let tendai: string;
+let membership: string;
 let mine: string;
 let stranger: string;
 
@@ -65,6 +67,8 @@ beforeAll(async () => {
     create: { email: `${SLUG}-tendai@example.invalid`, name: "Tendai", companyId, role: "SALES_REP" },
   });
   tendai = user.id;
+  await syncMemberships(prisma, { userId: tendai });
+  membership = (await prisma.workspaceMembership.findFirstOrThrow({ where: { userId: tendai }, select: { id: true } })).id;
   mine = (
     await prisma.crmPerson.create({
       data: {
@@ -89,12 +93,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.userPermissionOverride.deleteMany({ where: { userId: tendai } });
+  await prisma.userPermissionOverride.deleteMany({ where: { membershipId: membership } });
 });
 
 afterAll(async () => {
   await prisma.platformAuditEvent.deleteMany({ where: { companyId } });
-  await prisma.userPermissionOverride.deleteMany({ where: { userId: tendai } });
+  await prisma.userPermissionOverride.deleteMany({ where: { membershipId: membership } });
   await prisma.crmPerson.deleteMany({ where: { company: { slug: { in: [SLUG, OTHER] } } } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { slug: { in: [SLUG, OTHER] } } });
@@ -145,7 +149,7 @@ describe("exporting a CRM list", () => {
 
   it("is refused without the export permission", async () => {
     await prisma.userPermissionOverride.create({
-      data: { companyId, userId: tendai, permissionKey: "records.export", isAllowed: false },
+      data: { companyId, membershipId: membership, permissionKey: "records.export", isAllowed: false },
     });
     const response = await exportList("person", { format: "csv", filters: {} });
     expect(response.status).toBe(403);

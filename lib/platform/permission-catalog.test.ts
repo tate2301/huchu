@@ -9,6 +9,7 @@ const {
   mockOverrideFindMany,
   mockOverrideDeleteMany,
   mockOverrideUpsert,
+  mockMembershipFindFirst,
 } = vi.hoisted(() => ({
   mockGetCompanyFeatureMap: vi.fn(),
   mockUserFeatureFlagFindMany: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockOverrideFindMany: vi.fn(),
   mockOverrideDeleteMany: vi.fn(),
   mockOverrideUpsert: vi.fn(),
+  mockMembershipFindFirst: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -33,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
       deleteMany: mockOverrideDeleteMany,
       upsert: mockOverrideUpsert,
     },
+    workspaceMembership: { findFirst: mockMembershipFindFirst },
   },
 }));
 
@@ -49,12 +52,14 @@ import {
 
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
+const MEMBERSHIP_ID = "membership-1";
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetCompanyFeatureMap.mockResolvedValue({ "crm.core": true });
   mockUserFeatureFlagFindMany.mockResolvedValue([]);
   mockOverrideFindMany.mockResolvedValue([]);
+  mockMembershipFindFirst.mockResolvedValue({ id: MEMBERSHIP_ID });
   mockPlatformFeatureUpsert.mockResolvedValue({ id: "feature-1" });
 });
 
@@ -159,7 +164,7 @@ describe("setUserPermission", () => {
     });
 
     expect(mockOverrideDeleteMany).toHaveBeenCalledWith({
-      where: { userId: USER_ID, permissionKey: "records.merge" },
+      where: { permissionKey: "records.merge", membership: { companyId: COMPANY_ID, userId: USER_ID } },
     });
     expect(mockOverrideUpsert).not.toHaveBeenCalled();
   });
@@ -177,9 +182,18 @@ describe("setUserPermission", () => {
 
     expect(mockOverrideUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ isAllowed: false, permissionKey: "records.delete" }),
+        where: { membershipId_permissionKey: { membershipId: MEMBERSHIP_ID, permissionKey: "records.delete" } },
+        create: expect.objectContaining({ isAllowed: false, permissionKey: "records.delete", membershipId: MEMBERSHIP_ID }),
       }),
     );
+  });
+
+  it("will not store a decision for someone who is not in the workspace", async () => {
+    mockMembershipFindFirst.mockResolvedValue(null);
+    await expect(
+      setUserPermission({ companyId: COMPANY_ID, userId: USER_ID, role: "SALES_REP", kind: "CAPABILITY", key: "records.delete", state: "DENY", actorId: "admin-1" }),
+    ).rejects.toThrow("NOT_A_MEMBER");
+    expect(mockOverrideUpsert).not.toHaveBeenCalled();
   });
 
   it("refuses a key that is not a capability", async () => {

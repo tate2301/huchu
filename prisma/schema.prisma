@@ -703,6 +703,8 @@ model WorkspaceMembership {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  permissionOverrides UserPermissionOverride[]
+
   @@unique([companyId, userId])
   @@index([companyId, status])
   @@index([userId, status])
@@ -715,20 +717,21 @@ model WorkspaceMembership {
 model UserPermissionOverride {
   id            String   @id @default(uuid())
   companyId     String
-  userId        String
+  /// Whose it is, in this workspace: a person can differ per workspace.
+  membershipId  String
   permissionKey String
   isAllowed     Boolean
   grantedById   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user      User    @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
-  grantedBy User?   @relation("UserPermissionOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  membership WorkspaceMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  grantedBy  User?               @relation("UserPermissionOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
 
-  @@unique([userId, permissionKey])
+  @@unique([membershipId, permissionKey])
   @@index([companyId, permissionKey])
-  @@index([userId])
+  @@index([membershipId])
 }
 
 model FeatureBundle {
@@ -1566,7 +1569,6 @@ model User {
   displayPreference               UserDisplayPreference?
   webPushSubscriptions              WebPushSubscription[]
   featureFlags                      UserFeatureFlag[]
-  permissionOverrides               UserPermissionOverride[]       @relation("UserPermissionOverrideUser")
   memberships                       WorkspaceMembership[]
   permissionOverridesGranted        UserPermissionOverride[]       @relation("UserPermissionOverrideGrantedBy")
   crmTemplatesCreated               CrmTemplate[]                  @relation("CrmTemplateCreatedBy")

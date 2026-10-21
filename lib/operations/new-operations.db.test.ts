@@ -26,6 +26,7 @@ import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import { destroyProvisionedTenant } from "@/lib/platform/tenant-teardown";
 import { prisma } from "@/lib/prisma";
 import { makeTestShop, type TestShop } from "@/lib/retail/products/test-fixtures";
+import { createMember } from "@/lib/teams/members";
 
 import { findOperation } from "./registry";
 import { OperationRefused, outcomeWords, type OperationActor, type OperationOutcome } from "./types";
@@ -71,7 +72,7 @@ beforeAll(async () => {
   process.env.NEXTAUTH_SECRET ??= "test-secret";
   shop = await makeTestShop("Operations");
   const companyId = shop.companyId;
-  ids.rep = (await prisma.user.create({ data: { email: `rudo-${randomUUID().slice(0, 6)}@ops.test`, name: "Rudo Moyo", role: "SALES_REP", companyId }, select: { id: true } })).id;
+  ids.rep = (await createMember(prisma, { data: { email: `rudo-${randomUUID().slice(0, 6)}@ops.test`, name: "Rudo Moyo", role: "SALES_REP", companyId }, select: { id: true } })).id;
   const pipeline = await prisma.crmPipeline.create({ data: { companyId, name: "Sales", isDefault: true } });
   const stage = await prisma.crmPipelineStage.create({ data: { companyId, pipelineId: pipeline.id, name: "Quoting", position: 1 } });
   const client = await prisma.crmClient.create({ data: { companyId, clientNo: `CL-${randomUUID().slice(0, 6)}`, name: "Pomona Offices", email: "accounts@pomona.example" } });
@@ -185,7 +186,7 @@ describe("people and promotions", () => {
     const change = (userId: string, as = manager()) =>
       run("people.permission.set", { userId, person: "Rudo Moyo", kind: "CAPABILITY", key: "documents.issue", permission: "Issue quotes and invoices", state: "DENY" }, as);
     expect(outcomeWords(await change(ids.rep))).toBe('Rudo Moyo: "Issue quotes and invoices" is now deny.');
-    expect(await prisma.userPermissionOverride.findFirst({ where: { userId: ids.rep, permissionKey: "documents.issue" } })).toMatchObject({ isAllowed: false });
+    expect(await prisma.userPermissionOverride.findFirst({ where: { membership: { userId: ids.rep }, permissionKey: "documents.issue" } })).toMatchObject({ isAllowed: false });
     expect(await refused(change(shop.managerId))).toBe("You cannot change your own permissions.");
     expect(await refused(change(shop.managerId, rep()))).toMatch(/Only an admin or manager|cannot/);
   });
