@@ -30,13 +30,22 @@ type UserSelection = Prisma.UserSelect | undefined;
  */
 export async function createMember<S extends UserSelection = undefined>(
   db: Db,
-  args: { data: Prisma.UserUncheckedCreateInput; select?: S; owner?: boolean },
+  args: {
+    data: Prisma.UserUncheckedCreateInput;
+    select?: S;
+    owner?: boolean;
+    /** Who added them, for the audit line; null (the default) for the system, a seed or a script. */
+    actorId?: string | null;
+    /** How they came in: "invite", "invite_link", "provisioning" ... */
+    reason?: string;
+  },
 ): Promise<Prisma.UserGetPayload<{ select: S }>> {
   const { data } = args;
   const owner = args.owner ?? false;
   const active = data.isActive ?? true;
   const removedAt = data.accessRemovedAt ? new Date(data.accessRemovedAt) : null;
   const status: MembershipStatus = active ? "ACTIVE" : removedAt ? "REMOVED" : "SUSPENDED";
+  const isAdmin = data.role === "SUPERADMIN" && !owner;
   const made = await db.user.create({
     data: {
       ...data,
@@ -46,14 +55,25 @@ export async function createMember<S extends UserSelection = undefined>(
           role: data.role,
           status,
           isOwner: owner,
-          isAdmin: data.role === "SUPERADMIN" && !owner,
+          isAdmin,
           suspendedAt: status === "SUSPENDED" ? new Date() : null,
           removedAt,
           removedById: data.accessRemovedById ?? null,
         },
       },
     },
-    select: args.select,
+    // The id is always read, for the audit line; the caller's own selection rides along.
+    select: (args.select ? { ...args.select, id: true } : undefined) as never,
+  });
+  const membership = await db.workspaceMembership.findFirst({ where: { userId: (made as { id: string }).id, companyId: data.companyId }, select: { id: true } });
+  await recordTeamsChange(db, {
+    companyId: data.companyId,
+    actorId: args.actorId ?? null,
+    change: "member.added",
+    entityType: "membership",
+    entityId: membership?.id ?? (made as { id: string }).id,
+    after: { status, role: data.role, isAdmin, isOwner: owner },
+    reason: args.reason,
   });
   return made as unknown as Prisma.UserGetPayload<{ select: S }>;
 }

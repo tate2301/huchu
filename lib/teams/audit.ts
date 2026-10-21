@@ -11,37 +11,41 @@ import { writePlatformAuditEvent, type AuditClient } from "@/lib/audit/platform"
 
 export type TeamsEntity = "membership" | "permission" | "seats" | "invite" | "invite_link" | "ownership_offer" | "record_team" | "record_access";
 
-export type TeamsChange =
-  | "member.added"
-  | "member.role_changed"
-  | "member.admin_changed"
-  | "member.suspended"
-  | "member.restored"
-  | "member.removed"
-  | "permission.changed"
-  | "seats.limit_changed"
-  | "seats.requested"
-  | "invite.created"
-  | "invite.resent"
-  | "invite.revoked"
-  | "invite.expired"
-  | "invite.accepted"
-  | "invite.delivery_failed"
-  | "invite_link.turned_on"
-  | "invite_link.turned_off"
-  | "invite_link.rotated"
-  | "ownership.offered"
-  | "ownership.accepted"
-  | "ownership.declined"
-  | "ownership.lapsed"
-  | "record_team.joined"
-  | "record_team.left"
-  | "record_team.followed"
-  | "record_team.unfollowed"
-  | "record_team.handed_over"
-  | "record_access.requested"
-  | "record_access.granted"
-  | "record_access.denied";
+/** Every kind of change that is written down, one per line of the audit chain. */
+export const TEAMS_CHANGES = [
+  "member.added",
+  "member.role_changed",
+  "member.admin_changed",
+  "member.suspended",
+  "member.restored",
+  "member.removed",
+  "permission.changed",
+  "seats.limit_changed",
+  "seats.requested",
+  "invite.created",
+  "invite.resent",
+  "invite.revoked",
+  "invite.expired",
+  "invite.accepted",
+  "invite.delivery_failed",
+  "invite_link.turned_on",
+  "invite_link.turned_off",
+  "invite_link.rotated",
+  "ownership.offered",
+  "ownership.accepted",
+  "ownership.declined",
+  "ownership.lapsed",
+  "record_team.joined",
+  "record_team.left",
+  "record_team.followed",
+  "record_team.unfollowed",
+  "record_team.handed_over",
+  "record_access.requested",
+  "record_access.granted",
+  "record_access.denied",
+] as const;
+
+export type TeamsChange = (typeof TEAMS_CHANGES)[number];
 
 export type TeamsAuditInput = {
   companyId: string;

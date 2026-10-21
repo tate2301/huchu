@@ -280,7 +280,7 @@ async function homeOf(db: Db, companyId: string): Promise<string> {
 
 async function joinWorkspace(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  input: { companyId: string; role: UserRole; name: string; email: string | null; phone: string | null },
+  input: { companyId: string; role: UserRole; name: string; email: string | null; phone: string | null; actorId: string; reason: string },
 ): Promise<{ userId: string; membershipId: string }> {
   if (input.email) {
     const taken = await tx.user.findUnique({ where: { email: input.email }, select: { companyId: true } });
@@ -294,6 +294,8 @@ async function joinWorkspace(
   const user = await createMember(tx, {
     data: { companyId: input.companyId, name: input.name, email: input.email, phone: input.phone, role: input.role, emailVerified: input.email ? new Date() : null },
     select: { id: true, memberships: { select: { id: true } } },
+    actorId: input.actorId,
+    reason: input.reason,
   });
   return { userId: user.id, membershipId: user.memberships[0].id };
 }
@@ -316,7 +318,7 @@ export async function acceptInvite(input: { token: string; name?: string }, now 
     await lockSeats(tx, invite.companyId);
     const name = (input.name ?? invite.name ?? "").trim();
     if (!name) throw new TeamsRefusal("INVALID", "Add your name.");
-    const made = await joinWorkspace(tx, { companyId: invite.companyId, role: invite.role, name, email: invite.email, phone: invite.phone });
+    const made = await joinWorkspace(tx, { companyId: invite.companyId, role: invite.role, name, email: invite.email, phone: invite.phone, actorId: invite.invitedById, reason: "invite" });
     const after = await tx.workspaceInvite.update({
       where: { id: invite.id },
       data: { status: "ACCEPTED", acceptedAt: now, acceptedMembershipId: made.membershipId },
@@ -329,15 +331,6 @@ export async function acceptInvite(input: { token: string; name?: string }, now 
       entityId: invite.id,
       before: shown(invite),
       after: shown(after),
-    });
-    await recordTeamsChange(tx, {
-      companyId: invite.companyId,
-      actorId: invite.invitedById,
-      change: "member.added",
-      entityType: "membership",
-      entityId: made.membershipId,
-      after: { status: "ACTIVE", role: invite.role, isAdmin: invite.role === "SUPERADMIN" },
-      reason: "invite",
     });
     return { ...made, companyId: invite.companyId, landsOn: invite.landsOn ?? (await homeOf(tx, invite.companyId)) };
   });
@@ -420,16 +413,7 @@ export async function acceptInviteLink(
     await lockSeats(tx, link.companyId);
     await expireInvites(now, link.companyId, tx);
     await requireSeat(tx, link.companyId, link.role, now);
-    const made = await joinWorkspace(tx, { companyId: link.companyId, role: link.role, name, email, phone });
-    await recordTeamsChange(tx, {
-      companyId: link.companyId,
-      actorId: link.createdById,
-      change: "member.added",
-      entityType: "membership",
-      entityId: made.membershipId,
-      after: { status: "ACTIVE", role: link.role, isAdmin: link.role === "SUPERADMIN" },
-      reason: "invite_link",
-    });
+    const made = await joinWorkspace(tx, { companyId: link.companyId, role: link.role, name, email, phone, actorId: link.createdById, reason: "invite_link" });
     return { ...made, companyId: link.companyId, landsOn: cleanLandsOn(input.landsOn) ?? (await homeOf(tx, link.companyId)) };
   });
   await repriceCompany(joined.companyId);

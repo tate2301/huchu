@@ -306,6 +306,7 @@ export async function provisionTenant(
     existingAdmin ??
     (await createMember(prisma, {
       owner: true,
+      reason: "provisioning",
       data: {
         companyId,
         email: adminEmail,
