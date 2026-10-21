@@ -25,6 +25,7 @@ export const ROUTING_KINDS: RoutingKind[] = [
   { key: "approvals", group: "needs", label: "Approvals", note: "Pay runs, disbursements, requisitions, prices and deliveries", features: null },
   { key: "mentions", group: "needs", label: "Mentions", note: "When someone names a person on a record", features: ["crm."] },
   { key: "assigned", group: "needs", label: "Work handed over", note: "Leads, tasks, follow-ups and counts given to someone", features: ["crm.", "retail."] },
+  { key: "team", group: "needs", label: "Team", note: "Seat requests, ownership offers, jobs handed over and requests to see a record", features: null },
   { key: "vane", group: "needs", label: "Vane’s issues", note: "Things Vane found that need a person", features: null },
   { key: "permits", group: "needs", label: "Permits", note: "A permit about to expire, or expired", features: ["compliance."] },
   { key: "decisions", group: "updates", label: "Decisions", note: "Approved, rejected or cancelled, back to whoever asked", features: null },
@@ -106,6 +107,10 @@ const KIND_OF_TYPE: Record<NotificationType, string> = {
   HR_LEAVE_REJECTED: "decisions",
   REPORT_SENT: "reports",
   VANE_ISSUE_RAISED: "vane",
+  TEAMS_SEAT_REQUEST: "team",
+  TEAMS_OWNERSHIP_OFFER: "team",
+  TEAMS_RECORD_HANDED_OVER: "team",
+  TEAMS_ACCESS_REQUEST: "team",
 };
 
 /** Kinds the NotificationType enum has no value for carry their module in the payload. */

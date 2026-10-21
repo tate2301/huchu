@@ -20,6 +20,7 @@ import "dotenv/config";
 
 import type { NotificationType, Prisma } from "@prisma/client";
 
+import { needsYou } from "@/lib/inbox/describe";
 import { prisma } from "@/lib/prisma";
 import { createMember } from "@/lib/teams/members";
 
@@ -234,6 +235,7 @@ async function main() {
         title: seed.title,
         summary: seed.summary,
         severity: seed.severity ?? "INFO",
+        needsAction: needsYou({ type: seed.type, severity: seed.severity ?? "INFO", payload: seed.payload ?? null }),
         entityType: seed.entityType,
         entityId: seed.entityId,
         payloadJson: JSON.stringify({ ...seed.payload, seed: SEED }),

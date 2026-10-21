@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { recordTeamsChange } from "./audit";
 import type { Db } from "./db";
 import { TeamsRefusal } from "./errors";
+import { notifyOwnershipOffer, settleTeamsNotifications } from "./notify";
+
+const settle = (db: Db, offer: { companyId: string; id: string }, action: string) =>
+  settleTeamsNotifications(db, { companyId: offer.companyId, type: "TEAMS_OWNERSHIP_OFFER", ref: offer.id, action });
 
 /**
  * Ownership. There is one owner, because billing moves with it. The owner
@@ -33,6 +37,7 @@ export async function lapseOwnershipOffers(now = new Date(), companyId?: string,
     const done = await client.ownershipOffer.updateMany({ where: { id: offer.id, status: "OPEN" }, data: { status: "LAPSED", decidedAt: now } });
     if (done.count === 0) continue;
     lapsed += 1;
+    await settle(client, offer, "lapsed");
     await recordTeamsChange(client, {
       companyId: offer.companyId,
       actorId: null,
@@ -74,6 +79,7 @@ export async function offerOwnership(actor: Actor, toMembershipId: string, now =
         after: shown({ ...open, status: "LAPSED" }),
         reason: "replaced by a new offer",
       });
+      await settle(tx, open, "replaced");
     }
     const offer = await tx.ownershipOffer.create({
       data: { companyId: actor.companyId, fromMembershipId: from.id, toMembershipId: to.id, expiresAt: new Date(now.getTime() + OFFER_DAYS * DAY) },
@@ -85,6 +91,19 @@ export async function offerOwnership(actor: Actor, toMembershipId: string, now =
       entityType: "ownership_offer",
       entityId: offer.id,
       after: shown(offer),
+    });
+    const [sender, company] = await Promise.all([
+      tx.user.findUniqueOrThrow({ where: { id: from.userId }, select: { name: true } }),
+      tx.company.findUniqueOrThrow({ where: { id: actor.companyId }, select: { name: true } }),
+    ]);
+    await notifyOwnershipOffer(tx, {
+      companyId: actor.companyId,
+      toUserId: to.userId,
+      fromUserId: from.userId,
+      fromName: sender.name,
+      workspace: company.name,
+      offerId: offer.id,
+      lapses: offer.expiresAt,
     });
     return offer;
   });
@@ -134,6 +153,7 @@ export async function acceptOwnership(actor: Actor, offerId: string, now = new D
       before: { ...shown(offer), owner: from.id, newOwnerAdmin: to.isAdmin, oldOwnerAdmin: from.isAdmin },
       after: { ...shown(after), owner: to.id, newOwnerAdmin: false, oldOwnerAdmin: true },
     });
+    await settle(tx, offer, "accepted");
   });
 }
 
@@ -151,5 +171,6 @@ export async function declineOwnership(actor: Actor, offerId: string, now = new 
       before: shown(offer),
       after: shown(after),
     });
+    await settle(tx, offer, "declined");
   });
 }

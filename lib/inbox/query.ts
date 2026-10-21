@@ -13,8 +13,6 @@ import {
   isMention,
   MENTION_TYPES,
   moduleOf,
-  NEEDS_YOU_TYPES,
-  needsYou,
   secondLineFor,
   sentenceFor,
   subjectOf,
@@ -79,15 +77,8 @@ const ALL_TYPES = Object.values(NotificationType) as string[];
 
 function notificationWhere(filters: InboxFilters): Prisma.NotificationWhereInput {
   const and: Prisma.NotificationWhereInput[] = [];
-  if (filters.view === "needs") {
-    and.push({
-      OR: [
-        { type: { in: NEEDS_YOU_TYPES as NotificationType[] } },
-        { severity: "CRITICAL" },
-        { payloadJson: { contains: '"needsYou":true' } },
-      ],
-    });
-  }
+  // Set when the notification is written (`needsYou`), so reading never clears it.
+  if (filters.view === "needs") and.push({ needsAction: true });
   if (filters.view === "mentions") {
     and.push({ OR: [{ type: { in: MENTION_TYPES as NotificationType[] } }, { payloadJson: { contains: '"mention":true' } }] });
   }
@@ -108,7 +99,9 @@ function notificationWhere(filters: InboxFilters): Prisma.NotificationWhereInput
 type Row = {
   id: string;
   isRead: boolean;
+  actedAt: Date | null;
   notification: {
+    needsAction: boolean;
     type: string;
     severity: string;
     title: string;
@@ -160,7 +153,7 @@ async function shape(rows: Row[], companyId: string, viewerName: string | null, 
           ? { ref: fallbackRef, fact: null, status: null, kind: subject?.kind ?? "deal" }
           : null,
       href: concern?.href ?? viewPath,
-      needsYou: needsYou(n),
+      needsYou: row.notification.needsAction && !row.actedAt,
       mention: isMention(n),
     };
     return { item, concern, changes, n };
@@ -183,7 +176,8 @@ export async function listInbox(args: {
   };
   const where: Prisma.NotificationRecipientWhereInput = {
     ...base,
-    ...(args.filters.view === "needs" ? { isRead: false } : {}),
+    // Needs you holds an item until it is acted on or dismissed (archived), not until it is read.
+    ...(args.filters.view === "needs" ? { actedAt: null } : {}),
     notification: { companyId: args.companyId, ...notificationWhere(args.filters) },
   };
 
@@ -193,8 +187,9 @@ export async function listInbox(args: {
       select: {
         id: true,
         isRead: true,
+        actedAt: true,
         notification: {
-          select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
+          select: { needsAction: true, type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
         },
       },
       orderBy: [{ notification: { createdAt: "desc" } }, { createdAt: "desc" }],
@@ -202,7 +197,7 @@ export async function listInbox(args: {
       take: args.limit + 1,
     }),
     prisma.notificationRecipient.count({
-      where: { ...base, isRead: false, notification: { companyId: args.companyId, ...notificationWhere({ view: "needs", module: null }) } },
+      where: { ...base, actedAt: null, notification: { companyId: args.companyId, ...notificationWhere({ view: "needs", module: null }) } },
     }),
     prisma.notificationRecipient.count({ where: { ...base, isRead: false } }),
   ]);
@@ -228,8 +223,9 @@ export async function getInboxDetail(args: {
     select: {
       id: true,
       isRead: true,
+      actedAt: true,
       notification: {
-        select: { type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
+        select: { needsAction: true, type: true, severity: true, title: true, summary: true, payloadJson: true, entityType: true, entityId: true, createdAt: true, actor: { select: { name: true, image: true } } },
       },
     },
   });

@@ -9,6 +9,7 @@ import {
   type ApprovalTargetType,
   type UserRole,
 } from "@prisma/client"
+import { needsYou } from "@/lib/inbox/describe"
 import { kindOf } from "@/lib/inbox/routing"
 import { allows, readSettings } from "@/lib/inbox/settings"
 import { emailNotificationAfterResponse } from "@/lib/notification-email"
@@ -132,6 +133,8 @@ async function createNotification(
       entityType: input.entityType,
       entityId: input.entityId,
       sourceAction: input.sourceAction,
+      // Stays in Needs you until acted on or dismissed, however often it is read.
+      needsAction: needsYou({ type: input.type, severity: input.severity, payload: input.payload ?? null }),
       expiresAt: input.expiresAt ?? undefined,
       actorId: input.actorId ?? undefined,
     },
@@ -1375,6 +1378,42 @@ export async function emitCrmNotification(args: {
   } catch (error) {
     console.error("[Notifications] emitCrmNotification failed:", error)
   }
+}
+
+/**
+ * A teams notice (a seat request, an ownership offer, a job handed over, a
+ * request to see a record). It runs inside the caller's transaction, so the
+ * notice and the change it is about commit together. `ref` is what the
+ * workflow later uses to settle it (`settleTeamsNotifications`).
+ */
+export async function emitTeamsNotification(
+  db: Prisma.TransactionClient | PrismaClient,
+  args: {
+    companyId: string
+    recipientIds: string[]
+    type: NotificationType
+    title: string
+    summary: string
+    viewPath: string
+    ref: string
+    actorId?: string | null
+    expiresAt?: Date | null
+  },
+): Promise<void> {
+  const recipientIds = args.recipientIds.filter(Boolean)
+  if (recipientIds.length === 0) return
+  await createNotification(db, {
+    companyId: args.companyId,
+    actorId: args.actorId,
+    type: args.type,
+    title: args.title,
+    summary: args.summary,
+    severity: NotificationSeverity.INFO,
+    recipientIds,
+    payload: { viewPath: args.viewPath, ref: args.ref },
+    sourceAction: NotificationSourceAction.STATUS_CHANGE,
+    expiresAt: args.expiresAt,
+  })
 }
 
 /**

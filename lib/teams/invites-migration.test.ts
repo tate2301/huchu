@@ -48,6 +48,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.workspaceInvite.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });

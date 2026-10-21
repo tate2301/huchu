@@ -1,3 +1,4 @@
+import { needsYou } from "@/lib/inbox/describe";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -190,6 +191,7 @@ export async function sendSchoolNotice(input: {
         title: input.title,
         summary: input.body,
         severity: input.severity ?? "INFO",
+        needsAction: needsYou({ type: TYPE_FOR[input.audience], severity: input.severity ?? "INFO", payload: null }),
         expiresAt: input.expiresAt ?? null,
         payloadJson: JSON.stringify({
           sentBy: input.senderUserId,

@@ -2415,6 +2415,10 @@ model Notification {
   entityType   NotificationEntityType?
   entityId     String?
   sourceAction NotificationSourceAction?
+  /// Waits for the reader to act: it stays in Needs you until acted on or
+  /// dismissed, however often it is read. Set when it is written
+  /// (`lib/notifications.ts`).
+  needsAction  Boolean                   @default(false)
   /// Who did the thing the notification is about; null for the system or Vane.
   actorId      String?
   expiresAt    DateTime?
@@ -2430,6 +2434,7 @@ model Notification {
   @@index([companyId, createdAt])
   @@index([companyId, type, createdAt])
   @@index([companyId, severity, createdAt])
+  @@index([companyId, needsAction])
   @@index([entityType, entityId])
 }
 
@@ -3554,6 +3559,12 @@ enum NotificationType {
   HR_LEAVE_REJECTED
   REPORT_SENT
   VANE_ISSUE_RAISED
+  /// Teams: an admin asks the owner for a seat; the owner offers ownership;
+  /// a job is handed to someone; someone asks to see a record.
+  TEAMS_SEAT_REQUEST
+  TEAMS_OWNERSHIP_OFFER
+  TEAMS_RECORD_HANDED_OVER
+  TEAMS_ACCESS_REQUEST
 }
 
 enum NotificationSeverity {

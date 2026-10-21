@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { recordTeamsChange } from "./audit";
 import type { Db } from "./db";
 import { TeamsRefusal } from "./errors";
+import { notifySeatRequest, settleTeamsNotifications } from "./notify";
 
 /**
  * Seats. The plan sets a limit (`Company.seatLimit`, five to start). Active
@@ -104,7 +105,46 @@ export async function setSeatLimit(actor: { companyId: string; userId: string },
         before: { limit: before.limit, used: before.used },
         after: { limit, used: before.used },
       });
+      if (limit > before.limit) await settleTeamsNotifications(tx, { companyId: actor.companyId, type: "TEAMS_SEAT_REQUEST", action: "seat-added" });
     }
     return seatLineOf({ ...before, limit });
+  });
+}
+
+/**
+ * An admin asks the owner for a seat when the workspace is full: the owner
+ * gets a Needs you notice with the name and role the admin typed. Refused
+ * when a seat is free (just invite) or when the owner asks themselves.
+ */
+export async function requestSeat(actor: { companyId: string; userId: string }, input: { name: string; role: UserRole }, now = new Date()): Promise<void> {
+  const name = input.name.trim();
+  if (!name) throw new TeamsRefusal("INVALID", "Say who the seat is for.");
+  await prisma.$transaction(async (tx) => {
+    const by = await tx.workspaceMembership.findFirst({ where: { companyId: actor.companyId, userId: actor.userId, status: "ACTIVE" }, include: { user: { select: { name: true } } } });
+    if (!by) throw new TeamsRefusal("NOT_A_MEMBER", "You are not a member of this workspace.");
+    if (!by.isOwner && !by.isAdmin) throw new TeamsRefusal("NOT_ALLOWED", "Only an owner or admin can ask for a seat.");
+    if (by.isOwner) throw new TeamsRefusal("SELF", "You own this workspace. Raise the number of seats yourself.");
+    const owner = await tx.workspaceMembership.findFirst({ where: { companyId: actor.companyId, isOwner: true, status: "ACTIVE" } });
+    if (!owner) throw new TeamsRefusal("NOT_FOUND", "This workspace has no owner to ask.");
+    const line = await seatLine(tx, actor.companyId, now);
+    if (line.left > 0) throw new TeamsRefusal("NOT_OPEN", `There ${line.left === 1 ? "is a seat" : "are seats"} free. Invite them.`);
+    const ref = crypto.randomUUID();
+    await recordTeamsChange(tx, {
+      companyId: actor.companyId,
+      actorId: actor.userId,
+      change: "seats.requested",
+      entityType: "seats",
+      entityId: actor.companyId,
+      after: { name, role: input.role, used: line.used, limit: line.limit, ref },
+    });
+    await notifySeatRequest(tx, {
+      companyId: actor.companyId,
+      ownerUserId: owner.userId,
+      requestedById: actor.userId,
+      requestedBy: by.user.name,
+      name,
+      role: input.role.toLowerCase().replace(/_/g, " "),
+      ref,
+    });
   });
 }
