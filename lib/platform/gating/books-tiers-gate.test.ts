@@ -59,7 +59,7 @@ describe("the Books tiers (design/books/NOTES.md §1)", () => {
 
   it("reads a workspace's plan from its features", () => {
     expect(booksPlanOf(ENGINE_ONLY)).toBe("free");
-    expect(booksPlanOf(WITH_SCREENS)).toBe(BOOKS_TIER_KEY.advanced === "books.screens" ? "advanced" : "screens");
+    expect(booksPlanOf(WITH_SCREENS)).toBe("screens");
     expect(booksPlanOf(WITH_ADVANCED)).toBe("advanced");
   });
 });

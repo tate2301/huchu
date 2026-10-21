@@ -103,24 +103,25 @@ const gross = (description: string, amount: number, taxRate = VAT) => ({ descrip
 /* ── The plan ───────────────────────────────────────────────────────────── */
 
 /**
- * The Books screens' flag, explicit either way so it outranks the plan.
- * `advanced` is the screens for now: `books.advanced` waits on the owner's
- * approval (lib/books/tiers.ts, BOOKS_ADVANCED_KEY); switch it here when it lands.
+ * The Books screens' and the $99 tier's flags, explicit either way so they outrank
+ * the plan and the member count: free has neither, screens the first, advanced both.
  */
 async function applyPlan(companyId: string, plan: Plan) {
-  let feature = await prisma.platformFeature.findUnique({ where: { key: "books.screens" }, select: { id: true } });
-  if (!feature) {
-    await syncEntitlementCatalog();
-    feature = await prisma.platformFeature.findUniqueOrThrow({ where: { key: "books.screens" }, select: { id: true } });
-  }
-  const isEnabled = plan !== "free";
   const reason = `World seed: plan ${plan}`;
-  await prisma.companyFeatureFlag.upsert({
-    where: { companyId_featureId: { companyId, featureId: feature.id } },
-    update: { isEnabled, reason, expiresAt: null },
-    create: { companyId, featureId: feature.id, isEnabled, reason },
-  });
-  console.log(`${NAME}: plan ${plan} (books.screens ${isEnabled ? "on" : "off"}).`);
+  const on: Record<string, boolean> = { "books.screens": plan !== "free", "books.advanced": plan === "advanced" };
+  for (const [key, isEnabled] of Object.entries(on)) {
+    let feature = await prisma.platformFeature.findUnique({ where: { key }, select: { id: true } });
+    if (!feature) {
+      await syncEntitlementCatalog();
+      feature = await prisma.platformFeature.findUniqueOrThrow({ where: { key }, select: { id: true } });
+    }
+    await prisma.companyFeatureFlag.upsert({
+      where: { companyId_featureId: { companyId, featureId: feature.id } },
+      update: { isEnabled, reason, expiresAt: null },
+      create: { companyId, featureId: feature.id, isEnabled, reason },
+    });
+  }
+  console.log(`${NAME}: plan ${plan} (books.screens ${on["books.screens"] ? "on" : "off"}, books.advanced ${on["books.advanced"] ? "on" : "off"}).`);
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */

@@ -36,6 +36,7 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   // screens' own addresses are gated by `books.screens` in the route
   // registry (`booksTierKeyForPath`).
   "books.screens": ["accounting.core"],
+  "books.advanced": ["books.screens"],
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],

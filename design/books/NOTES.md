@@ -33,7 +33,7 @@ Rates & revaluation sits in the Close the month level on the panel but is a $10 
 
 - **One map, as data**: `lib/books/tiers.ts`. Each panel row and each route prefix (page and API) names its tier: `free`, `screens` or `advanced`. The route registry, the API gate, the Books layout, the panel and the upsell read only this map. Moving a row is a one-line change.
 - **Free rows** are gated on `accounting.core` (always on), not on `accounting.ar` or `accounting.ap`. The old fine keys stay in the catalogue for the tiers that list them, and no Books route reads them.
-- **Screens rows** need `books.screens`. **Advanced rows** need `books.advanced` (Waiting, §5.3). Until it exists, advanced rows resolve to `books.screens`, which is today's behaviour.
+- **Screens rows** need `books.screens`. **Advanced rows** need `books.advanced` (§5.3, built).
 - **The panel** shows free rows and levels as they are. A paid level, or a paid row in a free level, shows once with its price ("$10" or "$99") and a lock. It opens `bk-x-noscreens` or `bk-x-advanced`. The layout no longer swaps every page: only paid addresses show the upsell.
 - **The server** refuses a paid API with 403 and the feature key, row by row in bulk. `canDo` stays the role check; the plan check sits in the route gate, which every route and API passes through. A test walks the map: every free route opens with the engine only, every `screens` route needs `books.screens`, every `advanced` route needs the advanced key.
 - **A free record is never thinner.** An invoice, bill, requisition or claim renders the same component on every plan. Only the paid actions on it (bulk, saved views) go. The record's Void, Revise and Delete permanently are core (`/api/books/core/*`) and stay on every plan, for the roles allowed.
@@ -121,11 +121,13 @@ The design draws `bk-x-crm-reqs` as "Books' requisitions list, filtered to the C
 | Saved views and Reports from Books bands under every level | Present | Saved views are a $10 band (§1) |
 | The $10 plan draws Tax, Close the month and Ledger with "$99" and a lock (`bk-nav` plan10) | No locked state | Built from the tier map |
 
-## 5. Model changes: proposals waiting for the owner's yes
+## 5. Model changes: approved 21 Oct and built
 
-Nothing in this section is built until the owner says yes. The code above is written so each lands as a small change.
+The owner said yes to all three (and that the $99 plan is the over-five-members rate). Each paragraph below says what was built; the migrations are `20261021100000_books_outside_accountant` and `20261021110000_books_advanced_tier`.
 
-### 5.1 Who may undo: the outside accountant replaces the void grant
+### 5.1 Who may undo: the outside accountant replaces the void grant — built
+
+**Built as proposed.** `tierOf` lifts an outside accountant to `owner` (`BooksActor.outsideAccountant`, read by `booksActor` from `User.memberKind`/`firmName`/`accessEndsOn`); once the end date has passed they have no role in Books and sign-in refuses them (`lib/books/outside-accountant.ts`). `void-grant.ts`, its setting and `/api/books/core/grants` are deleted; `auditActor` records `outsideAccountant: { firm }`. Management → People has Kind, Firm and Access ends on a finance officer's record (`POST /api/users/member-kind`); changing the role away from finance officer makes them staff. Witnesses: `outside-accountant-migration.test.ts`, `can-do.test.ts`.
 
 - **Design** (`permissions.json`, `decisions.md` 19 Oct): an outside accountant is a kind of user, from the firm that audits or keeps the books, with an access end date. They have the owner's rights in Books, including void, revise, permanent delete and reopening a month. Every act is marked as theirs. A staff accountant (`FINANCE_OFFICER`) never voids, revises or deletes anything posted. The per-person grant `books.void` goes.
 - **Build**: `VOID_GRANT = "books.void"` as a `UserPermissionOverride`, nobody holds it by default, and a manager or accountant can be granted void and revise (`lib/books/core/void-grant.ts`, `components/books/void-grant-setting.tsx`).
@@ -154,13 +156,17 @@ Nothing in this section is built until the owner says yes. The code above is wri
   - The audit trail marks their acts.
 - **Role note.** The outside accountant's base role is `FINANCE_OFFICER`, with `memberKind` lifting it in Books only. Outside Books they are a finance officer.
 
-### 5.2 Who may delete permanently
+### 5.2 Who may delete permanently — built
+
+**Built.** `delete.posted`, `period.reopen`, `period.freeze` and the other owner-only acts are the owner tier's, which the outside accountant now holds; the refusals read "the owner or the outside accountant". Same change as 5.1.
 
 - **Build**: owner only (`OWNER_ONLY["delete.posted"]`).
 - **Design**: owner and outside accountant, with the typed confirmation and the hard refusals.
-- No migration beyond 5.1; it is the same `OWNER_ONLY` change. Waiting on 5.1.
+- No migration beyond 5.1; it is the same `OWNER_ONLY` change.
 
-### 5.3 The $99 tier: `books.advanced`
+### 5.3 The $99 tier: `books.advanced` — built
+
+**Built as proposed.** `books.advanced` and `ADDON_BOOKS_ADVANCED` are in the catalogue; `getCompanyFeatureMap` grants the feature to a workspace with `books.screens` and more than five billed members unless an explicit flag says otherwise; `BOOKS_ADVANCED_KEY` in `lib/books/tiers.ts` is now `books.advanced`; the finance officer role may use it. Witness: `books-advanced.test.ts`.
 
 - **Build**: only `books.screens` exists.
 - **Design**: Tax, Close the month and Ledger need the $99 plan. In this codebase "$99" is a vertical's rate once a workspace has more than five members (`VERTICAL_RATE.large` in `lib/platform/verticals.ts`). It is not a tier code.

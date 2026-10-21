@@ -20,11 +20,12 @@ export type BooksTier = "free" | "screens" | "advanced";
 export const BOOKS_SCREENS_KEY = "books.screens";
 
 /**
- * The $99 tier's key. `books.advanced` waits on the owner (NOTES §5.3); until
- * it is in the catalogue the advanced rows need what they needed before, the
- * screens. Switching is this one line.
+ * The $99 tier's key: Tax, Close the month and the Ledger. A workspace has it
+ * when it holds the screens and is on the larger vertical rate (more than five
+ * billed members; `getCompanyFeatureMap`), or when an admin grants it by hand
+ * (`ADDON_BOOKS_ADVANCED`, NOTES §5.3).
  */
-export const BOOKS_ADVANCED_KEY = BOOKS_SCREENS_KEY;
+export const BOOKS_ADVANCED_KEY = "books.advanced";
 
 export const BOOKS_TIER_KEY: Record<Exclude<BooksTier, "free">, string> = {
   screens: BOOKS_SCREENS_KEY,
