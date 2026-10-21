@@ -1,0 +1,19 @@
+/* Money: the desk board (bk-money) and the owner's phone board (bk-p-money)
+   are one page; the width picks which is drawn. Scoped to a Books page. */
+.bkd .k-phone {
+  display: none;
+}
+@media (max-width: 759px) {
+  .bkd .k-desk {
+    display: none;
+  }
+  .bkd .k-phone {
+    display: block;
+  }
+  .bkd .k-phone .m {
+    min-height: 0;
+  }
+  .bkd .k-phone .k-pr {
+    text-decoration: none;
+  }
+}

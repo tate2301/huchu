@@ -200,7 +200,7 @@ async function wonWithoutInvoice(db: Db, companyId: string, now: Date): Promise<
     key: "won-deal",
     lead: deals.length === 1 ? "A won deal has no invoice" : `${deals.length} won deals have no invoice`,
     detail: `${parts.join(", ")}.`,
-    action: { label: "Write it", href: `/crm/deals/${first.id}` },
+    action: { label: "Write it", href: `/books/invoices/new?deal=${first.id}` },
   };
 }
 

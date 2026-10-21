@@ -3,370 +3,293 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Icon, Person } from "@/components/core";
-import { money } from "@/lib/books/format";
+import { QrCode } from "@/components/sheet-form/qr-code";
+import { Icon } from "@/components/core";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 import type { InvoiceState } from "@/lib/books/invoice-state";
 
-import { Said } from "./bk-record";
+import { Amt, BkBlock, BkFacts, BkHistory, BkRecord, BkRecordHead, BkSectionHead, None, St, type BkTone } from "./ui";
 
-const PILL: Record<InvoiceState, string> = { draft: "pill-n", sent: "pill-info", "part-paid": "pill-info", paid: "pill-ok", overdue: "pill-warn", void: "pill-plain" };
-const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const STATE_TONE: Record<InvoiceState, BkTone> = { draft: "draft", sent: "info", "part-paid": "info", paid: "done", overdue: "warn", void: "void" };
+const FISCAL_TONE: Record<"Valid" | "Failed" | "Pending" | "Void", BkTone> = { Valid: "done", Failed: "bad", Pending: "warn", Void: "void" };
 const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, ""));
 
-function Section({ id, title, sum, children }: { id: string; title: string; sum?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section aria-labelledby={id}>
-      <div className="group-head">
-        <h2 id={id}>{title}</h2>
-        {sum !== undefined && sum !== null ? <span className="sum">{sum}</span> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Boxed({ children }: { children: React.ReactNode }) {
-  return <div className="bk-bleed">{children}</div>;
+/** The record's big figure and the line under it: what is owing, and what was paid. */
+function owing(invoice: InvoiceRecordPage): { big: number; note: string } {
+  if (invoice.status === "DRAFT") return { big: invoice.total, note: "to invoice, not issued yet" };
+  if (invoice.status === "VOIDED") return { big: invoice.total, note: "void" };
+  if (invoice.balance <= 0.005) return { big: invoice.total, note: "paid in full" };
+  return { big: invoice.balance, note: invoice.paid > 0.005 ? `owing, ${invoice.paid.toFixed(2)} paid` : "owing, nothing paid yet" };
 }
 
 /**
- * One invoice (design/core-modules/boards/view/BkInvoice.html): the total and
- * its state, who and when; its lines and sums; the payments on it with their
- * bank line; what it posted; its history. On the right, the fiscal block and
- * the details. Pure: the page feeds it and holds the actions.
+ * The chase on an owing invoice (`.k-steps`): issued, due, then what comes
+ * next. Only what the records hold is marked done; the rest is the plan.
+ */
+function chase(invoice: InvoiceRecordPage): { steps: string[]; at: number } | null {
+  if (invoice.status !== "ISSUED" || invoice.balance <= 0.005) return null;
+  const steps = [`Issued, ${invoice.date}`, invoice.due === "No due date" ? "No due date" : `Due, ${invoice.due}`];
+  if (invoice.daysOverdue > 0) {
+    steps.push("Send a reminder, today", `Call ${invoice.customer.contact ?? invoice.customer.name}`);
+    return { steps, at: 2 };
+  }
+  steps.push("Reminder on the due date");
+  return { steps, at: 1 };
+}
+
+/**
+ * One invoice (bk-invoice): who it is to, its state and the big figure; the
+ * facts; its lines with net, VAT and total; payments and credits; the chase.
+ * Beside it, Fiscal, Posting and History. Pure: the page holds the actions.
  */
 export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
   const board = invoice.board;
   const draft = invoice.status === "DRAFT";
-  const credited = invoice.credits.filter((note) => !note.voided).reduce((sum, note) => sum + note.total, 0);
-  const writtenOff = Math.max(0, Math.round((invoice.total - invoice.paid - credited - invoice.balance) * 100) / 100);
-  // The sums as the lines table's foot (the board's `sums()`): the label beside its amount, under Amount.
-  const sums: Array<{ label: string; amount: number; total?: boolean }> = [
-    { label: "Before VAT", amount: invoice.subTotal },
-    { label: invoice.taxLabel === "VAT" ? "VAT" : `VAT at ${invoice.taxLabel.replace(/^VAT /, "")}`, amount: invoice.taxTotal },
-    { label: "Total", amount: invoice.total, total: true },
-    ...(invoice.paid > 0.005 ? [{ label: "Paid", amount: -invoice.paid }] : []),
-    ...(credited > 0.005 ? [{ label: "Credited", amount: -credited }] : []),
-    ...(writtenOff > 0.005 ? [{ label: "Written off", amount: -writtenOff }] : []),
-    ...(!draft && invoice.status !== "VOIDED" ? [{ label: "Left to pay", amount: invoice.balance, total: true }] : []),
-  ];
-  const due = draft ? `Due ${invoice.due}` : invoice.state.key === "overdue" ? `Was due ${invoice.due}` : invoice.due === "No due date" ? invoice.due : `Due ${invoice.due}`;
-  const phoneState = invoice.state.key === "overdue" && invoice.daysOverdue > 0 ? `Overdue, ${invoice.daysOverdue} ${invoice.daysOverdue === 1 ? "day" : "days"}` : invoice.stateLabel;
-  const fiscal = board?.fiscal;
-  return (
+  const head = owing(invoice);
+  const plan = chase(invoice);
+  const fiscal = board?.fiscal ?? null;
+  const late = invoice.daysOverdue > 0 ? `${invoice.daysOverdue} ${invoice.daysOverdue === 1 ? "day" : "days"} late` : null;
+  const payments = board?.payments ?? [];
+  const credits = invoice.credits;
+  const moved = payments.length + credits.length;
+  const posting = board?.posting ?? [];
+  const debit = posting.reduce((sum, row) => sum + (row.debit ?? 0), 0);
+  const credit = posting.reduce((sum, row) => sum + (row.credit ?? 0), 0);
+
+  const side = (
     <>
-    <div className="bk bk-rec bk-has-ph">
-      <div className="bk-main">
-        <div className="bk-hd">
-          <div className="tr">
-            <div className="bk-title">{money(invoice.total, invoice.currency)}</div>
-            <span className={`pill ${PILL[invoice.state.key]}`}>{invoice.stateLabel}</span>
+      {fiscal ? (
+        <section className="k-blk">
+          <div className="k-bh">
+            <Icon name="fiscal" />
+            <b>Fiscal</b>
+            <St tone={FISCAL_TONE[fiscal.status]}>{fiscal.status}</St>
           </div>
-          <div className="ml">
-            <span>
-              <Person name={invoice.customer.name} src={invoice.customer.image} />
-            </span>
-            <i>·</i>
-            <span>{due}</span>
+          <div className="k-fis">
+            {fiscal.qr ? (
+              <QrCode payload={fiscal.qr} label={`Fiscal code ${fiscal.code ?? ""}`} size={72} />
+            ) : (
+              <span className="k-qrph">
+                <Icon name="clock" />
+              </span>
+            )}
+            <dl className="attrs">
+              <dt>Verification</dt>
+              <dd className="mono">{fiscal.code ?? "Not signed yet"}</dd>
+              <dt>Fiscal day</dt>
+              <dd>{fiscal.day != null ? `Day ${fiscal.day}${fiscal.signed ? `, ${fiscal.signed}` : ""}` : "—"}</dd>
+              {fiscal.error ? (
+                <>
+                  <dt>Refused</dt>
+                  <dd>{fiscal.error}</dd>
+                </>
+              ) : null}
+            </dl>
           </div>
-        </div>
+        </section>
+      ) : null}
+      {posting.length ? (
+        <BkBlock icon="posting" title="Posting" code={posting[0]?.entry} meta={posting[0]?.date}>
+          <table className="bkt dense k-pt" aria-label="Posting">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th className="r">Debit</th>
+                <th className="r">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posting.map((row, index) => (
+                <tr key={index}>
+                  <td>
+                    <span className="k-ac">
+                      <span className="mono">{row.account.split(" ")[0]}</span>
+                      {row.account.split(" ").slice(1).join(" ")}
+                    </span>
+                  </td>
+                  <td className="r">{row.debit != null ? <Amt value={row.debit} currency={invoice.currency} /> : null}</td>
+                  <td className="r">{row.credit != null ? <Amt value={row.credit} currency={invoice.currency} /> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>{Math.abs(debit - credit) < 0.005 ? "Balanced" : "Not balanced"}</td>
+                <td className="r">
+                  <Amt value={debit} currency={invoice.currency} />
+                </td>
+                <td className="r">
+                  <Amt value={credit} currency={invoice.currency} />
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </BkBlock>
+      ) : null}
+      {board?.history.length ? (
+        <BkBlock icon="history" title="History">
+          <BkHistory
+            items={board.history.map((item) => {
+              const who = Object.keys(board.faces ?? {}).find((name) => item.text.startsWith(`${name} `)) ?? null;
+              return { who, what: who ? item.text.slice(who.length + 1) : item.text, when: item.when, avatarUrl: who ? (board.faces?.[who] ?? null) : null };
+            })}
+          />
+        </BkBlock>
+      ) : null}
+    </>
+  );
 
-        {invoice.waiting || (invoice.madeByVane && draft) ? (
-          <div className="bk-box bk-callout">
-            <Icon name="foryou" />
-            <span className="grow">
-              <b>Vane drafted this{invoice.quote ? ` from ${invoice.quote.number}` : ""}.</b> {invoice.changes.length ? invoice.changes.join("; ") + "." : "Check it, then issue it as yours."}
-            </span>
-          </div>
-        ) : null}
-        {invoice.voided ? (
-          <div className="bk-box warn bk-callout">
-            <Icon name="warn" />
-            <span className="grow">
-              <b>
-                Voided{invoice.voided.on ? ` ${invoice.voided.on}` : ""}
-                {invoice.voided.by ? (
-                  <>
-                    {" by "}
-                    <Person name={invoice.voided.by} src={invoice.faces?.[invoice.voided.by]} />
-                  </>
-                ) : null}
-                .
-              </b>{" "}
-              {invoice.voided.reason ?? ""}
-            </span>
-          </div>
-        ) : null}
-
-        <Section id="l1" title="Lines" sum={invoice.lines.length === 1 ? "1 line" : `${invoice.lines.length} lines`}>
-          <Boxed>
-            <table className="table" aria-label="Lines">
-              <colgroup>
-                <col />
-                <col style={{ width: 120 }} />
-                <col style={{ width: 120 }} />
-                <col style={{ width: 140 }} />
-              </colgroup>
-              <thead>
+  return (
+    <BkRecord side={side}>
+      <BkRecordHead
+        title={<Link href={`/books/customers/${invoice.customer.id}`}>{invoice.customer.name}</Link>}
+        meta={[
+          <St key="state" tone={STATE_TONE[invoice.state.key]}>
+            {invoice.stateLabel}
+          </St>,
+          ...(late ? [late] : []),
+          ...(invoice.replacedBy
+            ? [
+                <Link key="replaced" href={`/books/invoices/${invoice.replacedBy.id}`}>
+                  Replaced by {invoice.replacedBy.number}
+                </Link>,
+              ]
+            : invoice.voided
+              ? [`Voided${invoice.voided.on ? ` ${invoice.voided.on}` : ""}${invoice.voided.reason ? `: ${invoice.voided.reason}` : ""}`]
+              : []),
+          ...(invoice.customer.code ? [<span key="code" className="mono">{invoice.customer.code}</span>] : []),
+          ...(invoice.customer.vat ? [`VAT ${invoice.customer.vat}`] : []),
+          ...(invoice.customer.tin ? [`TIN ${invoice.customer.tin}`] : []),
+        ]}
+        big={<Amt value={head.big} currency={invoice.currency} />}
+        bigNote={head.note}
+      />
+      <BkFacts
+        items={[
+          { label: "Issued", value: invoice.issuedOn ?? "On issue" },
+          { label: "Due", value: invoice.dueOn ?? "No due date" },
+          { label: "Currency", value: board?.rate.startsWith("None") || !board ? `${invoice.currency}, base` : `${invoice.currency}, at ${board.rate}` },
+          invoice.quote
+            ? { label: "Quote", value: <Link href={`/books/quotes/${invoice.quote.id}`}>{invoice.quote.number}</Link> }
+            : { label: "Cost centre", value: board?.costCentre ?? "None" },
+        ]}
+      />
+      <BkSectionHead title="Lines" sum={String(invoice.lines.length)} />
+      <table className="bkt k-lines" aria-label="Lines">
+        <thead data-band="head">
+          <tr>
+            <th>Item</th>
+            <th className="r">Qty</th>
+            <th className="r">Price</th>
+            <th>Tax</th>
+            <th className="r">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoice.lines.map((line) => (
+            <tr key={line.id} data-band="row">
+              <td>
+                <span className="who">{line.description}</span>
+              </td>
+              <td className="r mono">{qty(line.quantity)}</td>
+              <td className="r">
+                <Amt value={line.unitPrice} currency={invoice.currency} />
+              </td>
+              <td>{line.tax ? <span className="mono k-tax">{line.tax}</span> : <None />}</td>
+              <td className="r">
+                <Amt value={line.amount} currency={invoice.currency} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="k-tf">
+          <tr>
+            <td colSpan={4}>Net</td>
+            <td className="r">
+              <Amt value={invoice.subTotal} currency={invoice.currency} />
+            </td>
+          </tr>
+          <tr>
+            <td colSpan={4}>{invoice.taxLabel === "VAT" ? "VAT" : `VAT at ${invoice.taxLabel.replace(/^VAT /, "")}`}</td>
+            <td className="r">
+              <Amt value={invoice.taxTotal} currency={invoice.currency} />
+            </td>
+          </tr>
+          <tr className="k-gt">
+            <td colSpan={4}>Total</td>
+            <td className="r">
+              <Amt value={invoice.total} currency={invoice.currency} />
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      {!draft ? (
+        <>
+          <BkSectionHead title="Payments and credits" sum={moved ? String(moved) : "Nothing yet"} />
+          {moved ? (
+            <table className="bkt" aria-label="Payments and credits">
+              <thead data-band="head">
                 <tr>
-                  <th>Item</th>
-                  <th>Quantity</th>
-                  <th className="num">Price</th>
-                  <th className="num">Amount</th>
+                  <th>Number</th>
+                  <th>Date</th>
+                  <th>How</th>
+                  <th>Bank line</th>
+                  <th className="r">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {invoice.lines.map((line) => (
-                  <tr key={line.id}>
+                {payments.map((payment) => (
+                  <tr key={payment.id} data-band="row">
                     <td>
-                      <span className="cell-lead">{line.description}</span>
+                      <Link className="bkw-ref" href={`/books/payments?payment=${payment.id}`}>
+                        {payment.number}
+                      </Link>
                     </td>
-                    <td>{qty(line.quantity)}</td>
-                    <td className="num">{money(line.unitPrice, invoice.currency)}</td>
-                    <td className="num">{money(line.quantity * line.unitPrice, invoice.currency)}</td>
+                    <td className="muted">{payment.date}</td>
+                    <td className="muted">{payment.how}</td>
+                    <td>
+                      <St tone={payment.bankLine === "Matched" ? "done" : payment.bankLine === "Void" ? "void" : payment.bankLine === "To match" ? "warn" : "draft"}>{payment.bankLine}</St>
+                    </td>
+                    <td className="r">
+                      <Amt value={payment.voided ? 0 : payment.amount} currency={invoice.currency} />
+                    </td>
+                  </tr>
+                ))}
+                {credits.map((note) => (
+                  <tr key={note.number} data-band="row">
+                    <td>
+                      <span className="bkw-ref">{note.number}</span>
+                    </td>
+                    <td className="muted">{note.date}</td>
+                    <td className="muted">{note.reason ?? "Credit note"}</td>
+                    <td>{note.voided ? <St tone="void">Void</St> : <None />}</td>
+                    <td className="r">
+                      <Amt value={note.voided ? 0 : note.total} currency={invoice.currency} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                {sums.map((row) => (
-                  <tr className={row.total ? "bk-sr t" : "bk-sr"} key={row.label}>
-                    <td colSpan={3} className="num">
-                      {row.label}
-                    </td>
-                    <td className="num">{money(row.amount, invoice.currency)}</td>
-                  </tr>
-                ))}
-              </tfoot>
             </table>
-          </Boxed>
-        </Section>
-
-        {board && board.payments.length > 0 ? (
-          <Section id="l2" title="Payments" sum={board.payments.length}>
-            <Boxed>
-              <table className="table" aria-label="Payments">
-                <colgroup>
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 80 }} />
-                  <col />
-                  <col style={{ width: 140 }} />
-                  <col style={{ width: 130 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Payment</th>
-                    <th>Date</th>
-                    <th>How</th>
-                    <th>Bank line</th>
-                    <th className="num">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {board.payments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td>
-                        <span className="ref">{payment.number}</span>
-                      </td>
-                      <td className="muted">{payment.date}</td>
-                      <td>
-                        <span className="cell-lead">{payment.how}</span>
-                      </td>
-                      <td>
-                        {payment.bankLine === "Matched" ? (
-                          <span className="status status-success">Matched</span>
-                        ) : payment.bankLine === "To match" ? (
-                          <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
-                            To match
-                          </span>
-                        ) : (
-                          <span className="muted">{payment.bankLine}</span>
-                        )}
-                      </td>
-                      <td className="num" style={payment.voided ? { textDecoration: "line-through", color: "var(--color-muted)" } : undefined}>
-                        {money(payment.amount, invoice.currency)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Boxed>
-          </Section>
-        ) : null}
-
-        {board && board.posting.length === 0 && !draft && invoice.status !== "VOIDED" ? (
-          <Section id="l4" title="Posting" sum="Not posted">
-            <p className="bk-note">
-              <Icon name="warn" />
-              <span>
-                Nothing has reached the ledger for {invoice.number} yet. <Link href="/books/needs-posting">Needs posting</Link> shows why, and posts it.
-              </span>
-            </p>
-          </Section>
-        ) : null}
-        {board && board.posting.length > 0 ? (
-          <Section id="l4" title="Posting" sum={board.entries === 1 ? "1 entry" : `${board.entries} entries`}>
-            <Boxed>
-              <table className="table" aria-label="Posting">
-                <colgroup>
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 80 }} />
-                  <col />
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 120 }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Entry</th>
-                    <th>Date</th>
-                    <th>Account</th>
-                    <th className="num">Debit</th>
-                    <th className="num">Credit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {board.posting.map((line, index) => (
-                    <tr key={index}>
-                      <td>{line.entry ? <span className="ref">{line.entry}</span> : null}</td>
-                      <td className="muted">{line.date}</td>
-                      <td>
-                        <span className="cell-lead">{line.account}</span>
-                      </td>
-                      <td className="num">{line.debit !== null ? plain(line.debit) : ""}</td>
-                      <td className="num">{line.credit !== null ? plain(line.credit) : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Boxed>
-          </Section>
-        ) : null}
-
-        {board && board.history.length > 0 ? (
-          <Section id="l5" title="History">
-            <div className="bk-bleed">
-              <ol className="bk-tl">
-                {board.history.map((item, index) => (
-                  <li key={index}>
-                    <span className={item.tone ? `d ${item.tone}` : "d"} />
-                    <span>
-                      <Said text={item.text} faces={board.faces} />
-                    </span>
-                    <time>{item.when}</time>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </Section>
-        ) : null}
-      </div>
-
-      <aside className="rail" aria-label={`About ${invoice.number}`}>
-        {!draft ? (
-          <section>
-            <div className="sec-title">
-              <Icon name="fiscal" /> Fiscal{" "}
-              <span className="end">
-                {board?.fiscal ? (
-                  <span className={`pill ${board.fiscal.status === "Valid" ? "pill-ok" : board.fiscal.status === "Failed" ? "pill-bad" : "pill-warn"}`}>{board.fiscal.status}</span>
-                ) : (
-                  <span className="pill pill-n">Not sent</span>
-                )}
-              </span>
-            </div>
-            <dl className="attrs" style={{ gridTemplateColumns: "minmax(0,1fr)", rowGap: 2 }}>
-              <dt>Verification code</dt>
-              <dd className="mono">{board?.fiscal?.code ?? "—"}</dd>
-              <dt style={{ marginTop: 8 }}>Fiscal day</dt>
-              <dd>{board?.fiscal?.day ?? "—"}</dd>
-              <dt style={{ marginTop: 8 }}>Signed</dt>
-              <dd>{board?.fiscal?.signed ?? (board?.fiscal?.error ? `Not signed: ${board.fiscal.error}` : board?.fiscal ? "Not yet" : "No fiscal device signs it")}</dd>
-            </dl>
-          </section>
-        ) : null}
-        <section>
-          <div className="sec-title">Details</div>
-          <dl className="attrs">
-            <dt>Issued</dt>
-            <dd>
-              {board?.issued ?? (draft ? "Not yet" : invoice.date)}
-              {!board?.issued && invoice.quote ? (
-                <>
-                  , from <Link href={`/books/quotes?q=${encodeURIComponent(invoice.quote.number)}`}>{invoice.quote.number}</Link>
-                </>
-              ) : null}
-            </dd>
-            <dt>Terms</dt>
-            <dd>{invoice.dueTerms}</dd>
-            <dt>Rate</dt>
-            <dd>{board?.rate ?? "—"}</dd>
-            <dt>Made by</dt>
-            <dd>
-              <Said text={invoice.madeBy} faces={invoice.faces} />
-            </dd>
-          </dl>
-        </section>
-      </aside>
-    </div>
-
-    {/* At phone width (BkInvoicePhone): the state, the total and who; the dates and the fiscal state; the lines. */}
-    <div className="bk-ph-only">
-      <div className="bk-ph-b" style={{ gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ alignSelf: "flex-start" }}>
-            <span className={`pill ${PILL[invoice.state.key]}`}>{phoneState}</span>
-          </span>
-          <div className="num" style={{ fontSize: 34, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "var(--tracking-display)", textAlign: "left" }}>
-            {money(invoice.total, invoice.currency)}
+          ) : (
+            <p className="k-empty">Nothing paid or credited yet.</p>
+          )}
+        </>
+      ) : null}
+      {plan ? (
+        <>
+          <BkSectionHead title="The chase" />
+          <div className="k-chase">
+            <ol className="k-steps">
+              {plan.steps.map((step, index) => (
+                <li key={step} className={index < plan.at ? "is-done" : index === plan.at ? "is-now" : undefined}>
+                  <Icon name={index < plan.at ? "done" : "clock"} />
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
           </div>
-          <span style={{ fontSize: 15, color: "var(--color-ink-2)" }}>
-            <Person name={invoice.customer.name} src={invoice.customer.image} />
-            {invoice.customer.contact ? ` · ${invoice.customer.contact}` : ""}
-          </span>
-        </div>
-        <div className="bk-ph-list">
-          <div className="bk-ph-row">
-            <span>Issued</span>
-            <span>{draft ? "Not yet" : invoice.date}</span>
-          </div>
-          <div className="bk-ph-row">
-            <span>Due</span>
-            <span>{invoice.due}</span>
-          </div>
-          {!draft ? (
-            <div className="bk-ph-row">
-              <span>FDMS</span>
-              <span>
-                {fiscal ? (
-                  <span className={`status ${fiscal.status === "Valid" ? "status-success" : fiscal.status === "Failed" ? "status-danger" : "status-warning"}`}>{fiscal.status}</span>
-                ) : (
-                  <span className="muted">Not sent</span>
-                )}
-              </span>
-            </div>
-          ) : null}
-          {invoice.paid > 0.005 && invoice.balance > 0.005 ? (
-            <div className="bk-ph-row">
-              <span>Left to pay</span>
-              <span className="num">{money(invoice.balance, invoice.currency)}</span>
-            </div>
-          ) : null}
-        </div>
-        <div className="bk-ph-list">
-          <b style={{ fontSize: 15, color: "var(--color-ink)" }}>{invoice.lines.length === 1 ? "1 line" : `${invoice.lines.length} lines`}</b>
-          {invoice.lines.map((line) => (
-            <div className="bk-ph-row" style={{ fontSize: 14 }} key={line.id}>
-              <span className="truncate">{line.quantity === 1 ? line.description : `${line.description}, ${qty(line.quantity)}`}</span>
-              <span className="num">{money(line.quantity * line.unitPrice, invoice.currency)}</span>
-            </div>
-          ))}
-          <div className="bk-ph-row" style={{ fontSize: 14 }}>
-            <span>{sums[1]!.label}</span>
-            <span className="num">{money(invoice.taxTotal, invoice.currency)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    </>
+        </>
+      ) : null}
+    </BkRecord>
   );
 }

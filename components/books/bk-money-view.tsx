@@ -1,211 +1,263 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
-import { Avatars, ButtonLink, Icon, type IconName } from "@/components/core";
-import { money } from "@/lib/books/format";
-import type { MoneyBoard, MoneyShare, Urgency } from "@/lib/books/money-board-view";
+import { CiIcon, type CiName } from "@/components/books/icons/ci-icon";
+import type {
+  MoneyAccountKind,
+  MoneyBoard,
+} from "@/lib/books/money-board-view";
 
-import { BooksFinding } from "./figures";
+import { MoneyPhone } from "./money/money-phone";
+import { NeedRow } from "./money/need-row";
+import "./money/money.css";
 
-/** Ink when money or a fine is held up today, plain when routine, quiet when it is only a look (calm rule 9). */
-const WEIGHT: Record<Urgency, "ink" | "default" | "quiet"> = { urgent: "ink", routine: "default", look: "quiet" };
+import { Amt, BkFinding, BkLine, BkSectionHead, BkShareRow, None } from "./ui";
 
-const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+/** A money account's icon by its kind (bk0.mjs, ACCI). */
+const ACCOUNT_ICON: Record<MoneyAccountKind, CiName> = {
+  BANK: "bank",
+  MOBILE: "mobile-money",
+  CASH: "banknote",
+};
 
-function Shares({ rows, currency, empty }: { rows: MoneyShare[]; currency: string; empty: string }) {
-  if (rows.length === 0) return <p className="muted" style={{ padding: "0 var(--space-24)", fontSize: "var(--text-14)" }}>{empty}</p>;
+/** A section's foot line (`.k-foot`): a pack icon and one fact. */
+function Foot({ icon, children }: { icon: CiName; children: React.ReactNode }) {
   return (
-    <div className="bk-shares">
-      {rows.map((row) => (
-        <div className="share" key={row.key}>
-          <span className="bk-ic">
-            <Icon name={row.icon as IconName} />
+    <p className="k-foot">
+      <CiIcon name={icon} className="ic" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/** "Owed to you, by age" (`.k-age`): the bar, then each age with its colour and amount. */
+function AgeBar({
+  ages,
+  currency,
+}: {
+  ages: MoneyBoard["owed"]["ages"];
+  currency: string;
+}) {
+  const label = ages
+    .filter((age) => age.amount > 0)
+    .map((age) => `${age.label} ${age.amount.toFixed(2)}`)
+    .join(", ");
+  return (
+    <div className="k-age">
+      <div className="k-bar" role="img" aria-label={label || "Nothing owed"}>
+        {ages.map((age, index) =>
+          age.amount > 0 ? (
+            <i
+              key={age.label}
+              className={`k-a${index}`}
+              style={{ flex: age.amount }}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="k-al">
+        {ages.map((age, index) => (
+          <span key={age.label}>
+            <i className={`k-a${index}`} />
+            {age.label}
+            <b>
+              {age.amount > 0 ? (
+                <Amt value={age.amount} currency={currency} />
+              ) : (
+                "—"
+              )}
+            </b>
           </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "var(--space-12)", minWidth: 0 }}>
-            <span className="sh-n">{row.label}</span>
-            <span className="grow">
-              <span className="bar" style={{ display: "block", width: `${row.bar}%` }} />
-            </span>
-          </span>
-          <span className="num pct">{row.share}%</span>
-          <span className="num">{money(row.amount, currency)}</span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 /**
- * Books → Money (design/core-modules/boards/view/BkMoney.html): the month in two
- * sentences, the tax coming due, what needs a person with its button weighted by
- * how urgent it is, where the money came from and went, every money account side
- * by side, and on the right what is owed either way. Pure: the page feeds it.
+ * Books → Money (bk-money): am I all right, and what needs me, inside 1440 x
+ * 900. The finding, then Needs you, Bank and cash and Coming up side by side,
+ * then Came in and Went out, then Owed to you by age and You owe. Every row
+ * opens its Books address. Pure: the page feeds it.
  */
 export function BkMoneyView({ data }: { data: MoneyBoard }) {
-  const { bank, currency } = data;
+  const { currency, bank, comingUp } = data;
   return (
-    <div className="mny">
-      <div className="mny-main">
-        <BooksFinding finding={data.finding} />
-        <div className="bk-strip" aria-label="Tax due">
-          <div className="kstrip" style={{ gridTemplateColumns: "repeat(4,minmax(0,1fr))" }}>
-            {data.tax.map((tile) => (
-              <div className="kt" key={tile.label}>
-                <span className="kt-l">{tile.label}</span>
-                <span className="kt-v">{tile.value}</span>
-                <span className="kt-n">{tile.note}</span>
-              </div>
-            ))}
-          </div>
+    <>
+      <MoneyPhone data={data} />
+      <div className="k-desk">
+        <BkFinding fact={data.finding.fact} rest={data.finding.rest} />
+        <div className="k-grid3 k-band k-mtop">
+          <section aria-label="Needs you">
+            <BkSectionHead title="Needs you" sum={String(data.needs.length)} />
+            <div>
+              {data.needs.length ? (
+                data.needs.map((need) => (
+                  <NeedRow key={need.key} need={need} currency={currency} />
+                ))
+              ) : (
+                <p className="k-foot">Nothing needs you.</p>
+              )}
+            </div>
+          </section>
+          <section aria-label="Bank and cash">
+            <BkSectionHead
+              title="Bank and cash"
+              sum={
+                bank.total != null ? (
+                  <Amt value={bank.total} currency={currency} />
+                ) : null
+              }
+            />
+            {bank.accounts.length ? (
+              <table className="bkt dense k-acc" aria-label="Bank and cash">
+                <thead data-band="head">
+                  <tr>
+                    <th>Account</th>
+                    <th>Reconciled</th>
+                    <th className="r">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bank.accounts.map((account) => (
+                    <tr key={account.id} data-band="row">
+                      <td>
+                        <Link className="who" href={`/books/accounts/${account.id}`}>
+                          <CiIcon
+                            name={ACCOUNT_ICON[account.kind]}
+                            className="ic k-ai"
+                          />
+                          {account.name}
+                        </Link>
+                        {account.currency !== currency ? (
+                          <span className="mono k-cur">
+                            {" "}
+                            {account.currency}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className={account.reconciled ? "muted" : "k-warnt"}>
+                        {account.reconciled ?? "Never"}
+                      </td>
+                      <td className="r">
+                        {account.balance != null ? (
+                          <Amt value={account.balance} currency={currency} />
+                        ) : (
+                          <None />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="k-foot">No money accounts yet.</p>
+            )}
+            {bank.rate ? (
+              <Foot icon="exchange">
+                {bank.rate.code} at{" "}
+                <b className="mono">{bank.rate.rate.toFixed(2)}</b>,{" "}
+                {bank.rate.source}, {bank.rate.when}
+              </Foot>
+            ) : null}
+          </section>
+          <section aria-label="Coming up">
+            <BkSectionHead title="Coming up" sum={`to ${comingUp.until}`} />
+            <div>
+              {comingUp.lines.map((line, index) => (
+                <BkLine
+                  key={`${line.day}-${index}`}
+                  when={line.when}
+                  label={line.label}
+                  amount={
+                    line.amount != null ? (
+                      <Amt value={line.amount} currency={currency} />
+                    ) : (
+                      <None />
+                    )
+                  }
+                />
+              ))}
+            </div>
+            {comingUp.payers ? (
+              <Foot icon="bank">
+                {comingUp.payers.names} hold{" "}
+                <b>
+                  <Amt value={comingUp.payers.now} currency={currency} />
+                </b>{" "}
+                now
+                {comingUp.lines.length ? (
+                  <>
+                    , and{" "}
+                    <b>
+                      <Amt value={comingUp.payers.after} currency={currency} />
+                    </b>{" "}
+                    after all of this lands on {comingUp.until}.
+                  </>
+                ) : (
+                  ". Nothing falls due before " + comingUp.until + "."
+                )}
+              </Foot>
+            ) : null}
+          </section>
         </div>
-
-        <section aria-labelledby="m1">
-          <div className="group-head">
-            <h2 id="m1">Needs you</h2>
-            <span className="sum">{data.needs.length}</span>
-          </div>
-          <div className="list">
-            {data.needs.map((need) => (
-              <div className="row need" key={need.key}>
-                <span className="bk-ic">
-                  <Icon name={need.icon as IconName} />
-                </span>
-                <div className="t">
-                  <span className="lead">{need.lead}</span>
-                  <span className="d">
-                    {need.people?.length ? (
-                      <span style={{ marginRight: 8 }}>
-                        <Avatars people={need.people} />
-                      </span>
-                    ) : null}
-                    {need.detail}
-                  </span>
-                </div>
-                <div className="a">
-                  <ButtonLink href={need.action.href} icon={need.action.icon as IconName} variant={WEIGHT[need.urgency]}>
-                    {need.action.label}
-                  </ButtonLink>
-                </div>
-              </div>
+        <div className="k-grid2 k-band">
+          <section aria-label="Came in">
+            <BkSectionHead title="Came in" sum={data.period} />
+            {data.cameIn.rows.map((row) => (
+              <BkShareRow
+                key={row.key}
+                label={row.label}
+                fact={row.fact}
+                amount={<Amt value={row.amount} currency={currency} />}
+                share={
+                  data.cameIn.total > 0 ? row.amount / data.cameIn.total : 0
+                }
+              />
             ))}
-          </div>
-        </section>
-
-        <section aria-labelledby="m2">
-          <div className="group-head">
-            <h2 id="m2">Where it came from</h2>
-            <span className="sum">
-              {data.period} · {money(data.cameIn.total, currency)}
-            </span>
-          </div>
-          <Shares rows={data.cameIn.rows} currency={currency} empty="Nothing has come in this month yet." />
-        </section>
-
-        <section aria-labelledby="m3">
-          <div className="group-head">
-            <h2 id="m3">Where it went</h2>
-            <span className="sum">
-              {data.period} · {money(data.wentOut.total, currency)}
-            </span>
-          </div>
-          <Shares rows={data.wentOut.rows} currency={currency} empty="Nothing has gone out this month yet." />
-        </section>
-
-        <section aria-labelledby="m4">
-          <div className="group-head">
-            <h2 id="m4">Bank and cash</h2>
-            <span className="sum">{bank.accounts.length === 1 ? "1 account" : `${bank.accounts.length} accounts`}</span>
-          </div>
-          {bank.accounts.length === 0 ? (
-            <p className="muted" style={{ padding: "0 var(--space-24)", fontSize: "var(--text-14)" }}>
-              No money accounts yet. Add the bank, mobile money and cash accounts in Accounts.
-            </p>
-          ) : (
-            <>
-              <div className="bk-bleed">
-                <table className="table" aria-label="Bank and cash">
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th>Kind</th>
-                      {bank.currencies.map((code) => (
-                        <th className="num" key={code}>
-                          {code === "USD" ? "$" : code}
-                        </th>
-                      ))}
-                      <th>Reconciled</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bank.accounts.map((account) => (
-                      <tr key={account.id}>
-                        <td>
-                          <span className="cell-lead">{account.name}</span>
-                        </td>
-                        <td className="muted">{account.kind}</td>
-                        {bank.currencies.map((code) => (
-                          <td className="num" key={code}>
-                            {account.currency === code ? plain(account.amount) : ""}
-                          </td>
-                        ))}
-                        <td className="muted">{account.reconciled ?? "Not yet"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="tot">
-                      <td>In all</td>
-                      <td />
-                      {bank.currencies.map((code) => (
-                        <td className="num" key={code}>
-                          {plain(bank.totals[code] ?? 0)}
-                        </td>
-                      ))}
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              {bank.inBase !== null && bank.rateNote ? (
-                <p className="bk-note">
-                  <Icon name="bank" />
-                  <span>
-                    <b style={{ fontWeight: 600, color: "var(--color-ink)" }}>{money(bank.inBase, bank.currencies[0])}</b> in all, with {bank.rateNote}.
-                  </span>
-                </p>
-              ) : null}
-            </>
-          )}
-        </section>
+          </section>
+          <section aria-label="Went out">
+            <BkSectionHead title="Went out" sum={data.period} />
+            {data.wentOut.rows.map((row) => (
+              <BkShareRow
+                key={row.key}
+                label={row.label}
+                fact={row.fact}
+                amount={<Amt value={row.amount} currency={currency} />}
+                share={
+                  data.wentOut.total > 0 ? row.amount / data.wentOut.total : 0
+                }
+              />
+            ))}
+          </section>
+        </div>
+        <div className="k-grid2 k-band">
+          <section aria-label="Owed to you, by age">
+            <BkSectionHead
+              title="Owed to you, by age"
+              sum={<Amt value={data.owed.total} currency={currency} />}
+            />
+            <AgeBar ages={data.owed.ages} currency={currency} />
+          </section>
+          <section aria-label="You owe">
+            <BkSectionHead
+              title="You owe"
+              sum={<Amt value={data.owe.total} currency={currency} />}
+            />
+            <div>
+              {data.owe.rows.map((row) => (
+                <BkLine
+                  key={row.label}
+                  label={row.label}
+                  amount={<Amt value={row.amount} currency={currency} />}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
-
-      <aside className="rail mny-side" aria-label="Position">
-        <section>
-          <div className="sec-title">Owed to you</div>
-          <div className="figure">{money(data.owed.total, currency)}</div>
-          <dl className="attrs">
-            <dt>Not yet due</dt>
-            <dd className="num">{money(data.owed.notDue, currency)}</dd>
-            <dt>Overdue</dt>
-            <dd className="num">{money(data.owed.overdue, currency)}</dd>
-            <dt>On account</dt>
-            <dd className="num">{money(data.owed.onAccount, currency)}</dd>
-          </dl>
-        </section>
-        <section>
-          <div className="sec-title">You owe</div>
-          <div className="figure">{money(data.owe.total, currency)}</div>
-          <dl className="attrs">
-            <dt>Suppliers</dt>
-            <dd className="num">{money(data.owe.suppliers, currency)}</dd>
-            <dt>Staff claims</dt>
-            <dd className="num">{money(data.owe.claims, currency)}</dd>
-            <dt>{data.owe.vatLabel}</dt>
-            <dd className="num">{money(data.owe.vat, currency)}</dd>
-          </dl>
-        </section>
-      </aside>
-    </div>
+    </>
   );
 }

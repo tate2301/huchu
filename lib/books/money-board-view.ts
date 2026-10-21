@@ -1,105 +1,107 @@
 /**
- * Books → Money as the board draws it (design/core-modules/boards/view/BkMoney.html):
- * the shape the page renders, and the pure parts of reading it. No database here,
+ * Books → Money as the board draws it (design/books/html/bk-money.html): the
+ * shape the page renders, and the pure parts of reading it. No database here,
  * so the page's client code can import it.
  */
 import { money, shortDay } from "./format";
 
-/** How hard a Needs you row's button pulls: ink when money or a fine is held up today, plain when routine, quiet when it is only a look. */
-export type Urgency = "urgent" | "routine" | "look";
-
+/** A "Needs you" row: what waits, how many, its amount or one fact, and its Books address. */
 export type MoneyNeed = {
-  key: string;
-  icon: string;
-  lead: string;
-  detail: string;
-  /** Who it is about (the people asking, the customer), their avatars before the detail. */
-  people?: Array<{ name: string; image: string | null }>;
-  urgency: Urgency;
-  action: { label: string; icon: string; href: string };
+  key: "overdue" | "approve" | "bill-limit" | "bank" | "posting" | "fdms" | "itf263" | "cash" | "claims";
+  label: string;
+  count: number;
+  /** The money waiting, when it is money. */
+  amount: number | null;
+  /** Otherwise one fact: an invoice number, a supplier, a reason. */
+  fact: string | null;
+  tone: "warn" | "bad" | null;
+  href: string;
 };
 
-export type MoneyShare = { key: string; icon: string; label: string; amount: number; share: number; bar: number };
+export type MoneyAccountKind = "BANK" | "MOBILE" | "CASH";
 
-export type MoneyAccountRow = { id: string; name: string; kind: string; currency: string; amount: number; reconciled: string | null };
+export type MoneyAccountRow = {
+  id: string;
+  name: string;
+  kind: MoneyAccountKind;
+  currency: string;
+  /** "30 Sep", or null when it was never reconciled. */
+  reconciled: string | null;
+  /** In the base currency at today's rate; null when a rate is missing. */
+  balance: number | null;
+  /** In the account's own currency (the phone shows ZWG as ZWG). */
+  native: number;
+};
 
-export type MoneyTaxTile = { label: string; value: string; note: string };
+/** A dated line in Coming up: money due in (+) or out (−) on a day. */
+export type MoneyUpcoming = { day: string; when: string; label: string; amount: number | null; state: string | null };
+
+export type MoneyShare = { key: string; label: string; fact: string | null; amount: number };
 
 export type MoneyBoard = {
   currency: string;
-  finding: { fact: string; rest: string | null };
-  tax: MoneyTaxTile[];
+  finding: { fact: string; rest: string };
   needs: MoneyNeed[];
-  /** "1 to 18 October". */
+  bank: {
+    total: number | null;
+    accounts: MoneyAccountRow[];
+    /** "ZWG at 26.80, RBZ interbank, today 06:00", when another currency is held. */
+    rate: { code: string; rate: number; source: string; when: string } | null;
+  };
+  comingUp: {
+    /** "20 Oct". */
+    until: string;
+    /** The last day of the coming week (`YYYY-MM-DD`): the phone's "This week". */
+    weekEnd: string;
+    lines: MoneyUpcoming[];
+    /** The accounts that pay bills ("CBZ and EcoCash"), what they hold now and after every line lands. */
+    payers: { names: string; now: number; after: number } | null;
+  };
+  /** "1 to 6 Oct". */
   period: string;
   cameIn: { total: number; rows: MoneyShare[] };
   wentOut: { total: number; rows: MoneyShare[] };
-  bank: {
-    accounts: MoneyAccountRow[];
-    /** The currencies the accounts are in, the base first: the table's money columns. */
-    currencies: string[];
-    totals: Record<string, number>;
-    /** Every account in the base currency at today's rate; null when a rate is missing. */
-    inBase: number | null;
-    /** "ZWG at 27.00 to $1 (RBZ interbank, today 06:00)", when another currency is held. */
-    rateNote: string | null;
-  };
-  owed: { total: number; notDue: number; overdue: number; onAccount: number };
-  owe: { total: number; suppliers: number; claims: number; vat: number; vatLabel: string };
+  owed: { total: number; overdue: number; ages: Array<{ label: string; amount: number }> };
+  owe: { total: number; rows: Array<{ label: string; amount: number }> };
 };
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** "$20,522.40 came in this month and $6,716.86 went out. $2,480.00 is overdue." */
-export function moneyBoardFinding(cameIn: number, wentOut: number, overdue: number, currency: string): { fact: string; rest: string | null } {
-  const fact =
-    cameIn > 0 || wentOut > 0
-      ? `${money(cameIn, currency)} came in this month and ${money(wentOut, currency)} went out.`
-      : "Nothing has come in or gone out this month yet.";
-  return { fact, rest: overdue > 0 ? `${money(overdue, currency)} is overdue.` : "Nothing is overdue." };
+/**
+ * "$10,228.40 came in this month and $2,088.50 went out." then
+ * "$5,724.22 is owed to you, $2,480.00 of it late. You owe $6,703.49."
+ */
+export function moneyBoardFinding(cameIn: number, wentOut: number, owed: number, late: number, youOwe: number, currency: string): MoneyBoard["finding"] {
+  const fact = cameIn > 0 || wentOut > 0 ? `${money(cameIn, currency)} came in this month and ${money(wentOut, currency)} went out.` : "Nothing has come in or gone out this month yet.";
+  const owedPart = owed > 0 ? `${money(owed, currency)} is owed to you${late > 0 ? `, ${money(late, currency)} of it late` : ", none of it late"}.` : "Nobody owes you anything.";
+  const owePart = youOwe > 0 ? ` You owe ${money(youOwe, currency)}.` : " You owe nothing.";
+  return { fact, rest: `${owedPart}${owePart}` };
 }
 
-/** Each source's share of the whole, and its bar against the largest. */
-export function shares(rows: Array<Omit<MoneyShare, "share" | "bar">>): MoneyShare[] {
-  const total = rows.reduce((sum, row) => sum + Math.max(0, row.amount), 0);
-  const largest = Math.max(0, ...rows.map((row) => row.amount));
-  return rows.map((row) => ({
-    ...row,
-    amount: round(row.amount),
-    share: total > 0 ? Math.round((Math.max(0, row.amount) / total) * 100) : 0,
-    bar: largest > 0 ? (Math.max(0, row.amount) / largest) * 100 : 0,
-  }));
+/** "1 to 6 Oct", "1 Oct" on the first. */
+export function shortMonthSoFar(today: string): string {
+  const day = Number(today.slice(8, 10));
+  return day === 1 ? shortDay(today) : `1 to ${shortDay(today)}`;
 }
 
-/** The day a monthly tax is due in the month after `today`'s: "15 Nov". */
-export function dueNextMonth(today: string, day: number): string {
-  const [year, month] = today.split("-").map(Number);
-  const next = new Date(Date.UTC(year, month, day));
-  return shortDay(next.toISOString().slice(0, 10));
+/** The age buckets the board draws: not due, 1 to 7 days, 8 to 30 days, over 30. */
+export const MONEY_AGES = ["Not due", "1 to 7 days", "8 to 30 days", "Over 30"] as const;
+
+export function moneyAge(daysOverdue: number): number {
+  if (daysOverdue <= 0) return 0;
+  if (daysOverdue <= 7) return 1;
+  if (daysOverdue <= 30) return 2;
+  return 3;
 }
 
-/** Zimbabwe's provisional tax (QPD) dates: 25 Mar, 25 Jun, 25 Sep, 20 Dec. The next one on or after today, and which it is. */
-export function nextQpd(today: string): { day: string; ordinal: string } {
-  const year = Number(today.slice(0, 4));
-  const dates = [
-    [`${year}-03-25`, "1st"],
-    [`${year}-06-25`, "2nd"],
-    [`${year}-09-25`, "3rd"],
-    [`${year}-12-20`, "4th"],
-    [`${year + 1}-03-25`, "1st"],
-  ] as const;
-  const [day, ordinal] = dates.find(([date]) => date >= today) ?? dates[4];
-  return { day, ordinal };
+/** What the paying accounts hold once every line has landed. */
+export function afterComingUp(now: number, lines: readonly MoneyUpcoming[]): number {
+  return round(lines.reduce((sum, line) => sum + (line.amount ?? 0), now));
 }
 
-/** The next tax date of the month: PAYE and withholding returns on the 5th, VAT on the 15th (books-final §3.3, What's due). */
-export function nextTaxDate(today: string): { day: string; what: string } {
-  const dayOfMonth = Number(today.slice(8, 10));
-  const month = today.slice(0, 8);
-  if (dayOfMonth <= 5) return { day: `${month}05`, what: "PAYE and withholding returns" };
-  if (dayOfMonth <= 15) return { day: `${month}15`, what: "VAT return and payment" };
-  const [year, m] = today.split("-").map(Number);
-  const next = new Date(Date.UTC(year, m, 5)).toISOString().slice(0, 10);
-  return { day: next, what: "PAYE and withholding returns" };
+/** "CBZ and EcoCash", "CBZ, EcoCash and Steward". */
+export function names(list: readonly string[]): string {
+  const unique = [...new Set(list)];
+  if (unique.length <= 1) return unique[0] ?? "";
+  return `${unique.slice(0, -1).join(", ")} and ${unique.at(-1)}`;
 }
-

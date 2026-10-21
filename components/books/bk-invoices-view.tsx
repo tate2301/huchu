@@ -3,46 +3,42 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { money } from "@/lib/books/format";
+import { Button, useSelection } from "@/components/core";
+import { MenuButton, type MenuEntry, type MenuItem } from "@/components/core/menu";
 import {
-  INVOICE_PERIOD_LABEL,
-  INVOICE_PERIODS,
+  INVOICE_DUE_LABEL,
+  INVOICE_DUES,
+  INVOICE_SOURCE_LABEL,
+  INVOICE_SOURCES,
   INVOICE_TAB_LABEL,
   INVOICE_VIEWS,
+  PAGE_SIZE,
   type InvoiceQuery,
   type InvoiceRow,
   type InvoicesView,
 } from "@/lib/books/invoices";
 import type { InvoiceState } from "@/lib/books/invoice-state";
 
-import { BkChip, BkQuietTools, BkState, BkTabs, BkTools } from "./bk-list";
-import { BooksFinding } from "./figures";
+import { Amt, BkFilter, BkPager, BkScroll, BkSelectionBar, BkTabs, BkTools, None, St, Worksheet, type BkTone, type WsColumn } from "./ui";
 
-const TONE: Record<InvoiceState, Parameters<typeof BkState>[0]["tone"]> = {
-  draft: "plain",
-  sent: "info",
-  "part-paid": "info",
-  paid: "success",
-  overdue: "warning",
-  void: "void",
-};
+const STATE_TONE: Record<InvoiceState, BkTone> = { draft: "draft", sent: "info", "part-paid": "info", paid: "done", overdue: "warn", void: "void" };
+const FDMS_TONE: Record<NonNullable<InvoiceRow["fdms"]>, BkTone> = { Valid: "done", Pending: "warn", Failed: "bad" };
 
-/** What the selection bar can do with the rows, each through an endpoint that exists today (the full bulk set is P4). */
+/** What a selection can do, each row through its own route; the server checks every row. */
 export type InvoiceBulk = {
   remind: (rows: InvoiceRow[]) => void;
   statements: (rows: InvoiceRow[]) => void;
-  issue: (rows: InvoiceRow[]) => void;
   exportRows: (rows: InvoiceRow[]) => void;
+  issue: (rows: InvoiceRow[]) => void;
   deleteDrafts: (rows: InvoiceRow[]) => void;
 };
 
 /**
- * Books → Sales → Invoices (design/core-modules/boards/view/BkInvoices.html, and
- * BkInvoicesBulk with rows selected): the finding, the tabs with their counts,
- * the search and filters, six columns, and the footer's sums. Selecting rows
- * raises the selection bar: Send reminders, and More for the rest.
+ * Books → Sales → Invoices (bk-invoices): the tabs on their own row, the
+ * filters on the row below, then one worksheet: the number, the customer,
+ * issued, due, the state, FDMS, the total, the balance and the note, with the
+ * page's totals. On the Books screens a selection sends reminders, prints
+ * statements, exports or voids (`bulk`); without them a row only opens.
  */
 export function BkInvoicesView({
   data,
@@ -57,181 +53,153 @@ export function BkInvoicesView({
   data: InvoicesView;
   onQuery: (next: Partial<InvoiceQuery>) => void;
   exportHref: string;
-  bulk: InvoiceBulk;
+  /** Null without the Books screens: no selection. */
+  bulk: InvoiceBulk | null;
   busy?: boolean;
   canIssue: boolean;
   canDeleteDrafts: boolean;
-  /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
-  undoEntries?: (rows: InvoiceRow[]) => MenuEntry[];
+  /** Void and Delete permanently over the selection, as the person's role allows. */
+  undoEntries: (rows: InvoiceRow[]) => MenuEntry[];
 }) {
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
   const selection = useSelection(ids);
   const query = data.query;
-  const selected = data.rows.filter((row) => selection.isSelected(row.id));
+  const selected = bulk ? data.rows.filter((row) => selection.isSelected(row.id)) : [];
   const drafts = selected.filter((row) => row.state === "draft");
-  const total = selected.reduce((sum, row) => sum + row.total, 0);
   const customer = data.customers.find((option) => option.id === query.customer);
-  const { from, to, of } = data.range;
-  const filtered = Boolean(query.q || query.customer || query.currency || query.period !== "any");
+  const filtered = Boolean(query.q || query.customer || query.due !== "any" || query.source);
+  const currency = data.currency;
 
+  const undo = undoEntries(selected);
+  const voidEntry = undo.find((entry): entry is MenuItem => "key" in entry && entry.action === "void");
   const more: MenuEntry[] = [
-    { key: "statements", icon: "print", label: "Print statements", onSelect: () => bulk.statements(selected) },
-    ...(canIssue && drafts.length > 0
-      ? [{ key: "issue", icon: "send" as const, label: drafts.length === 1 ? "Issue 1 draft" : `Issue ${drafts.length} drafts`, onSelect: () => bulk.issue(drafts) }]
-      : []),
-    { key: "export", icon: "export", label: selected.length === 1 ? "Export 1 row" : `Export ${selected.length} rows`, onSelect: () => bulk.exportRows(selected) },
-    ...(canDeleteDrafts && drafts.length > 0
-      ? [
-          { separator: true as const },
-          {
-            key: "delete",
-            icon: "x" as const,
-            danger: true,
-            label: drafts.length === 1 ? "Delete 1 draft" : `Delete ${drafts.length} drafts`,
-            onSelect: () => bulk.deleteDrafts(drafts),
-          },
-        ]
-      : []),
+    ...(canIssue && drafts.length ? [{ key: "issue", icon: "send" as const, label: drafts.length === 1 ? "Issue 1 draft" : `Issue ${drafts.length} drafts`, onSelect: () => bulk?.issue(drafts) }] : []),
+    ...(canDeleteDrafts && drafts.length ? [{ key: "delete-drafts", icon: "x" as const, danger: true, label: drafts.length === 1 ? "Delete 1 draft" : `Delete ${drafts.length} drafts`, onSelect: () => bulk?.deleteDrafts(drafts) }] : []),
+    ...undo.filter((entry) => entry !== voidEntry),
   ];
-  const undo = undoEntries?.(selected) ?? [];
-  if (undo.length) {
-    if (!more.some((entry) => "separator" in entry)) more.push({ separator: true });
-    more.push(...undo);
-  }
+
+  const columns: Array<WsColumn<InvoiceRow>> = [
+    {
+      key: "number",
+      head: "Number",
+      cell: (row) =>
+        row.state === "draft" ? (
+          <Link className="none" href={`/books/invoices/${row.id}`}>
+            {row.number}
+          </Link>
+        ) : (
+          <Link className="bkw-ref" href={`/books/invoices/${row.id}`}>
+            {row.number}
+          </Link>
+        ),
+    },
+    { key: "customer", head: "Customer", cell: (row) => <span className="who">{row.customer.name}</span> },
+    { key: "issued", head: "Issued", className: "muted", cell: (row) => row.issued ?? "—" },
+    { key: "due", head: "Due", className: "muted", cell: (row) => row.due ?? "—" },
+    { key: "state", head: "State", cell: (row) => <St tone={STATE_TONE[row.state]}>{row.stateLabel}</St> },
+    { key: "fdms", head: "FDMS", cell: (row) => (row.fdms ? <St tone={FDMS_TONE[row.fdms]}>{row.fdms}</St> : <None />) },
+    { key: "total", head: `Total, ${currency}`, right: true, cell: (row) => <Amt value={row.total} currency={row.currency} /> },
+    {
+      key: "balance",
+      head: "Balance",
+      right: true,
+      cell: (row) => (row.balance > 0.005 && row.state !== "draft" && row.state !== "void" ? <Amt value={row.balance} currency={row.currency} /> : <None />),
+    },
+    { key: "note", head: "Note", className: "muted k-nt", cell: (row) => row.note },
+  ];
+  const totals = columns.map((column, index) =>
+    index === 0 ? (
+      <>
+        <span className="mono">{data.rows.length}</span> of {data.range.of.toLocaleString("en-GB")}
+      </>
+    ) : column.key === "total" ? (
+      <Amt value={data.sums.total} currency={currency} />
+    ) : column.key === "balance" ? (
+      <Amt value={data.sums.balance} currency={currency} />
+    ) : null,
+  );
 
   return (
-    <div className="bk">
-      <BooksFinding finding={data.finding} />
-      <BkTabs
-        label="Invoice views"
-        value={query.view}
-        onChange={(view) => onQuery({ view, page: 1 })}
-        items={INVOICE_VIEWS.map((view) => ({ value: view, label: INVOICE_TAB_LABEL[view], count: data.counts[view] }))}
-      />
+    <>
+      <BkTabs label="Invoices" value={query.view} onChange={(view) => onQuery({ view, page: 1 })} items={INVOICE_VIEWS.map((view) => ({ value: view, label: INVOICE_TAB_LABEL[view], count: data.counts[view] }))} />
       <BkTools
         find="Search invoices"
         query={query.q}
         onFind={(q) => onQuery({ q, page: 1 })}
-        count={`${data.rows.length} of ${of}`}
-        chips={
+        count={data.range.of}
+        filters={
           <>
-            <BkChip
+            <BkFilter
               label="Customer"
               value={customer?.name ?? "Any"}
-              set={Boolean(customer)}
               items={[
                 { key: "any", label: "Any customer", checked: !query.customer, onSelect: () => onQuery({ customer: null, page: 1 }) },
                 { separator: true },
-                ...data.customers.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
+                ...data.customers.map((option) => ({ key: option.id, label: option.name, checked: query.customer === option.id, onSelect: () => onQuery({ customer: option.id, page: 1 }) })),
               ]}
             />
-            <BkChip
-              label="Currency"
-              value={query.currency ?? "Any"}
-              set={Boolean(query.currency)}
+            <BkFilter
+              label="Due"
+              value={INVOICE_DUE_LABEL[query.due]}
+              items={INVOICE_DUES.map((due) => ({ key: due, label: INVOICE_DUE_LABEL[due], checked: query.due === due, onSelect: () => onQuery({ due, page: 1 }) }))}
+            />
+            <BkFilter
+              label="Source"
+              value={query.source ? INVOICE_SOURCE_LABEL[query.source] : "Books, CRM"}
               items={[
-                { key: "any", label: "Any currency", checked: !query.currency, onSelect: () => onQuery({ currency: null, page: 1 }) },
-                { separator: true },
-                ...data.currencies.map((code) => ({ key: code, label: code, checked: query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
+                { key: "any", label: "Books, CRM", checked: !query.source, onSelect: () => onQuery({ source: null, page: 1 }) },
+                ...INVOICE_SOURCES.map((source) => ({ key: source, label: INVOICE_SOURCE_LABEL[source], checked: query.source === source, onSelect: () => onQuery({ source, page: 1 }) })),
               ]}
             />
           </>
         }
-        filters={INVOICE_PERIODS.map((period) => ({ key: period, label: INVOICE_PERIOD_LABEL[period], checked: query.period === period, onSelect: () => onQuery({ period, page: 1 }) }))}
-        end={<BkQuietTools onSort={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={query.sort === "newest" ? "Sort" : "Oldest first"} exportHref={exportHref} />}
-      />
-      <TableShell
-        label="Invoices"
-        foot={
-          <TableFoot
-            range={of === 0 ? "None" : `${from} to ${to} of ${of}`}
-            sums={[
-              { label: "Owed", value: money(data.owed, data.currency) },
-              { label: "Overdue", value: money(data.overdue, data.currency) },
-            ]}
-            page={{
-              onPrevious: query.page > 1 ? () => onQuery({ page: query.page - 1 }) : undefined,
-              onNext: to < of ? () => onQuery({ page: query.page + 1 }) : undefined,
-            }}
-            selection={{
-              count: selected.length,
-              sum: { label: "Total", value: money(total, data.currency) },
-              onClear: selection.clear,
-              actions: (
-                <>
-                  <Button icon="whatsapp" busy={busy} disabled={busy} onClick={() => bulk.remind(selected)}>
-                    Send reminders
-                  </Button>
-                  <MenuButton label="More" items={more}>
-                    More
-                  </MenuButton>
-                </>
-              ),
-            }}
-          />
+        end={
+          <>
+            <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: query.sort === "newest" ? "oldest" : "newest", page: 1 })}>
+              {query.sort === "newest" ? "Sort" : "Oldest first"}
+            </Button>
+            <a className="btn" href={exportHref}>
+              Export
+            </a>
+          </>
         }
-      >
-        {data.rows.length === 0 ? (
-          <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-            <b>{filtered || query.view !== "all" ? "No invoice matches" : "No invoices yet"}</b>
-            <p className="muted">{filtered || query.view !== "all" ? "Clear the search or the filters to see the rest." : "Write one with New invoice."}</p>
-          </div>
-        ) : (
-          <table className="table" aria-label="Invoices">
-            <colgroup>
-              <col style={{ width: 44 }} />
-              <col style={{ width: 120 }} />
-              <col />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 220 }} />
-              <col style={{ width: 160 }} />
-              <col style={{ width: 150 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
-                <th>Invoice</th>
-                <th>Customer</th>
-                <th>State</th>
-                <th>When</th>
-                <th className="num">Total</th>
-                <th className="num">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
-                  <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
-                  <td>
-                    <Link className={row.state === "draft" ? "muted" : "ref"} href={`/books/invoices/${row.id}`}>
-                      {row.number}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="cell-lead">
-                      <Person name={row.customer.name} src={row.customer.image} />
-                    </span>
-                  </td>
-                  <td>
-                    <BkState tone={TONE[row.state]}>{row.stateLabel}</BkState>
-                  </td>
-                  <td>
-                    {row.fiscalFailed ? <span style={{ color: "var(--color-danger)" }}>Not signed by FDMS</span> : <span className="muted">{row.when}</span>}
-                  </td>
-                  <td className="num muted">{money(row.total, row.currency)}</td>
-                  {row.balance > 0 && row.state !== "draft" ? (
-                    <td className="num" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
-                      {money(row.balance, row.currency)}
-                    </td>
-                  ) : (
-                    <td className="num muted">—</td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableShell>
-    </div>
+      />
+      <BkScroll>
+        <Worksheet
+          label="invoices"
+          rows={data.rows}
+          rowKey={(row) => row.id}
+          columns={columns}
+          openHref={(row) => `/books/invoices/${row.id}`}
+          selection={bulk ? { ...selection, selected: selection.selected, labelOf: (row) => row.number } : undefined}
+          totals={totals}
+          empty={filtered ? "No invoice matches. Clear the search or the filters." : query.view === "all" ? "No invoices yet." : `No ${INVOICE_TAB_LABEL[query.view].toLowerCase()} invoices.`}
+        />
+      </BkScroll>
+      <BkPager page={query.page} size={PAGE_SIZE} total={data.range.of} onPage={(page) => onQuery({ page })} />
+      {bulk ? (
+        <BkSelectionBar count={selected.length} sum={<>Owing <Amt value={selected.reduce((total, row) => total + row.balance, 0)} currency={currency} /></>} onClear={selection.clear}>
+          <Button icon="whatsapp" shortcut="S" busy={busy} disabled={busy} onClick={() => bulk.remind(selected)}>
+            Send reminders
+          </Button>
+          <Button icon="print" onClick={() => bulk.statements(selected)}>
+            Print statements
+          </Button>
+          <Button icon="export" onClick={() => bulk.exportRows(selected)}>
+            Export
+          </Button>
+          {voidEntry ? (
+            <Button icon="history" data-action="void" disabled={voidEntry.disabled} title={voidEntry.title} onClick={voidEntry.onSelect}>
+              Void
+            </Button>
+          ) : null}
+          {more.length ? (
+            <MenuButton label="More" items={more}>
+              More
+            </MenuButton>
+          ) : null}
+        </BkSelectionBar>
+      ) : null}
+    </>
   );
 }
