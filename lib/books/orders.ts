@@ -34,25 +34,14 @@ export const ORDER_STATUS: Record<OrderView, RetailPurchaseOrderStatus> = {
   cancelled: "CANCELLED",
 };
 
-/** The word a state is shown with (the tab it sits under). */
-export const ORDER_STATE_LABEL: Record<RetailPurchaseOrderStatus, string> = {
-  DRAFT: "Draft",
-  TO_APPROVE: "To approve",
-  SENT: "Sent",
-  PARTIAL: "Part received",
-  RECEIVED: "Received",
-  CLOSED: "Closed",
-  CANCELLED: "Cancelled",
-};
-
 export const ORDERS_PAGE_SIZE = 50;
 
 export const orderQuerySchema = z.object({
   view: z.enum(ORDER_VIEWS).catch("sent"),
   q: z.string().trim().max(100).catch(""),
   supplier: z.string().uuid().nullable().catch(null),
-  /** The shop the order is for. */
-  site: z.string().uuid().nullable().catch(null),
+  /** Whose: the shop's orders, or Books' own. */
+  source: z.enum(["retail", "books"]).nullable().catch(null),
   period: z.enum(PERIODS).catch("any"),
   sort: z.enum(["newest", "oldest"]).catch("newest"),
   page: z.coerce.number().int().min(1).catch(1),
@@ -64,7 +53,7 @@ export function readOrderQuery(params: URLSearchParams): OrderQuery {
     view: params.get("view") ?? undefined,
     q: params.get("q") ?? undefined,
     supplier: params.get("supplier") || null,
-    site: params.get("site") || null,
+    source: params.get("source") || null,
     period: params.get("period") ?? undefined,
     sort: params.get("sort") ?? undefined,
     page: params.get("page") ?? undefined,
@@ -78,17 +67,8 @@ export type OrderRow = {
   /** The shop it is for, else the requisition behind it, else its note. */
   forWhat: string | null;
   expected: string | null;
-  /** The shop it is for; null for an order raised in Books. */
-  site: string | null;
-  /** The day it was sent, else the day it was made. */
-  ordered: string;
   /** Of what was ordered, how much has come in, 0 to 100. */
   received: number;
-  /** The latest goods receipt, and how many of the order's lines it and the earlier ones filled. */
-  receipt: { number: string; lines: number; of: number } | null;
-  /** The latest bill with a number, and how many more are still drafts. */
-  bill: string | null;
-  draftBills: number;
   amount: number;
   status: RetailPurchaseOrderStatus;
   retail: boolean;
@@ -103,7 +83,6 @@ export type OrdersView = {
   onOrder: number;
   currency: string;
   suppliers: Array<{ id: string; name: string }>;
-  sites: Array<{ id: string; name: string }>;
   query: OrderQuery;
 };
 
@@ -146,7 +125,8 @@ export function orderWhere(companyId: string, query: OrderQuery, today = dayOf(n
   const range = periodRange(query.period, today);
   if (range) where.createdAt = range;
   if (query.supplier) where.vendorId = query.supplier;
-  if (query.site) where.siteId = query.site;
+  if (query.source === "books") where.siteId = null;
+  if (query.source === "retail") where.siteId = { not: null };
   if (query.q) {
     const q = { contains: query.q, mode: "insensitive" as const };
     where.OR = [{ poNo: q }, { vendor: { name: q } }, { noteToSupplier: q }, { lines: { some: { itemName: q } } }];
@@ -160,39 +140,24 @@ const rowSelect = {
   status: true,
   siteId: true,
   expectedDate: true,
-  sentAt: true,
-  createdAt: true,
   noteToSupplier: true,
   createdById: true,
   vendor: { select: { id: true, name: true } },
   site: { select: { name: true } },
   requisitions: { select: { purpose: true }, take: 1 },
-  receipts: { where: { reversedAt: null }, orderBy: { createdAt: "desc" as const }, select: { receiptNo: true }, take: 1 },
-  bills: { where: { status: { not: "VOIDED" as const } }, orderBy: { createdAt: "desc" as const }, select: { billNumber: true, status: true } },
   lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, lineTotal: true, vatRate: true, itemName: true } },
 } satisfies Prisma.RetailPurchaseOrderSelect;
 
 type RowRecord = Prisma.RetailPurchaseOrderGetPayload<{ select: typeof rowSelect }>;
 
-/** How many of an order's lines have come in whole. */
-export function linesIn(lines: Array<Pick<Line, "quantity" | "receivedQuantity">>): number {
-  return lines.filter((line) => Number(line.quantity) > 0 && Number(line.receivedQuantity) >= Number(line.quantity)).length;
-}
-
 export function toOrderRow(record: RowRecord): OrderRow {
-  const issued = record.bills.filter((bill) => bill.billNumber);
   return {
     id: record.id,
     number: record.poNo,
     supplier: record.vendor,
     forWhat: record.site?.name ?? record.requisitions[0]?.purpose ?? record.noteToSupplier ?? null,
     expected: record.expectedDate ? shortDay(storedDay(record.expectedDate)) : null,
-    site: record.site?.name ?? null,
-    ordered: shortDay(dayOf(record.sentAt ?? record.createdAt)),
     received: receivedShare(record.lines),
-    receipt: record.receipts[0] ? { number: record.receipts[0].receiptNo, lines: linesIn(record.lines), of: record.lines.length } : null,
-    bill: issued[0]?.billNumber ?? null,
-    draftBills: record.bills.length - issued.length,
     amount: orderTotal(record.lines),
     status: record.status,
     retail: Boolean(record.siteId),
@@ -203,14 +168,13 @@ export function toOrderRow(record: RowRecord): OrderRow {
 export async function readOrders(db: Db, companyId: string, query: OrderQuery, base = "USD"): Promise<OrdersView> {
   const where = orderWhere(companyId, query);
   const live = { companyId, archivedAt: null };
-  const [records, matching, grouped, open, waiting, vendors, shops] = await Promise.all([
+  const [records, matching, grouped, open, waiting, vendors] = await Promise.all([
     db.retailPurchaseOrder.findMany({ where, select: rowSelect, orderBy: [{ createdAt: query.sort === "oldest" ? "asc" : "desc" }], skip: (query.page - 1) * ORDERS_PAGE_SIZE, take: ORDERS_PAGE_SIZE }),
     db.retailPurchaseOrder.count({ where }),
     db.retailPurchaseOrder.groupBy({ by: ["status"], where: live, _count: true }),
     db.retailPurchaseOrder.findMany({ where: { ...live, status: { in: ["SENT", "PARTIAL"] } }, select: { lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, lineTotal: true, vatRate: true } } } }),
     db.retailPurchaseOrder.findMany({ where: { ...live, status: "TO_APPROVE" }, select: { poNo: true, lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, lineTotal: true, vatRate: true, itemName: true } } } }),
     db.retailPurchaseOrder.findMany({ where: live, select: { vendor: { select: { id: true, name: true } } }, distinct: ["vendorId"] }),
-    db.retailPurchaseOrder.findMany({ where: { ...live, siteId: { not: null } }, select: { site: { select: { id: true, name: true } } }, distinct: ["siteId"] }),
   ]);
   const byStatus = new Map(grouped.map((row) => [row.status, row._count]));
   const counts = Object.fromEntries(ORDER_VIEWS.map((view) => [view, byStatus.get(ORDER_STATUS[view]) ?? 0])) as Record<OrderView, number>;
@@ -225,7 +189,6 @@ export async function readOrders(db: Db, companyId: string, query: OrderQuery, b
     onOrder,
     currency: base,
     suppliers: vendors.map((row) => row.vendor).sort((a, b) => a.name.localeCompare(b.name)),
-    sites: shops.flatMap((row) => (row.site ? [row.site] : [])).sort((a, b) => a.name.localeCompare(b.name)),
     query,
   };
 }
@@ -240,10 +203,10 @@ export async function ordersCsv(db: Db, companyId: string, query: OrderQuery): P
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const lines = [["Number", "Supplier", "Site", "Ordered", "Received", "Billed", "State", "Amount"].join(",")];
+  const lines = [["Order", "Supplier", "For", "Expected", "Received", "Amount"].join(",")];
   for (const record of records) {
     const row = toOrderRow(record);
-    lines.push([row.number, row.supplier.name, row.site ?? "", row.ordered, row.receipt ? `${row.receipt.number}, ${row.receipt.lines} of ${row.receipt.of} lines` : "", row.bill ?? "", ORDER_STATE_LABEL[row.status], row.amount.toFixed(2)].map(cell).join(","));
+    lines.push([row.number, row.supplier.name, row.forWhat ?? "", row.expected ?? "", `${row.received}%`, row.amount.toFixed(2)].map(cell).join(","));
   }
   return `${lines.join("\n")}\n`;
 }

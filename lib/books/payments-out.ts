@@ -1,13 +1,9 @@
 import type { Prisma, PrismaClient, PurchasePaymentStatus } from "@prisma/client";
 import { z } from "zod";
 
-import { imttOn } from "./core/bank";
 import { MONEY_OUT_WHERE } from "./core/money-out-where";
-import { taxSettings } from "./core/tax-settings";
-import { quoteWithholding } from "./core/withholding";
 import { docLabel } from "./doc-number";
 import { count, dayOf, money, monthName, monthStart, shortDay, storedDay } from "./format";
-import { itf263State } from "./itf263";
 import { periodRange, PERIODS } from "./period";
 
 /**
@@ -60,14 +56,7 @@ export type PaymentOutRow = {
   from: string | null;
   status: PurchasePaymentStatus;
   state: string;
-  /** Gross: what the bills are cleared by. */
   amount: number;
-  /** Withheld for ZIMRA (D17): what it did once paid; what it will while it waits. */
-  withheld: number;
-  /** What the supplier is paid: gross less withheld. */
-  paid: number;
-  /** One short fact: the missing ITF263 on one still to pay, the IMTT on one paid, the reason on a void. */
-  note: { text: string; warn: boolean } | null;
   currency: string;
   createdById: string | null;
   voided: { on: string; reason: string | null } | null;
@@ -131,33 +120,15 @@ const rowSelect = {
   createdById: true,
   voidedAt: true,
   voidReason: true,
-  exchangeRate: true,
-  withholdingAmount: true,
-  vendor: { select: { id: true, name: true, itf263Number: true, itf263ExpiresAt: true } },
+  vendor: { select: { id: true, name: true } },
   bankAccount: { select: { name: true, bankName: true, currency: true } },
-  bill: { select: { id: true, billNumber: true, currency: true, vendor: { select: { id: true, name: true, itf263Number: true, itf263ExpiresAt: true } } } },
+  bill: { select: { id: true, billNumber: true, currency: true, vendor: { select: { id: true, name: true } } } },
 } satisfies Prisma.PurchasePaymentSelect;
 
 type RowRecord = Prisma.PurchasePaymentGetPayload<{ select: typeof rowSelect }>;
 
-/** What is worked out beside the stored row: the tax withheld and the IMTT, in money. */
-type Worked = { withheld: number; imtt: number };
-
-export function toPaymentOutRow(record: RowRecord, base: string, worked: Worked, now = new Date()): PaymentOutRow {
-  const found = record.vendor ?? record.bill?.vendor ?? null;
-  const supplier = found ? { id: found.id, name: found.name } : null;
-  const currency = record.bill?.currency ?? record.bankAccount?.currency ?? base;
-  const unpaid = record.status !== "PAID" && record.status !== "VOIDED";
-  const clearance = found && unpaid ? itf263State(found, now) : null;
-  const note: PaymentOutRow["note"] = record.status === "VOIDED"
-    ? record.voidReason
-      ? { text: record.voidReason, warn: false }
-      : null
-    : clearance && clearance.state !== "Valid"
-      ? { text: clearance.state === "None" ? "No ITF263" : "ITF263 expired", warn: true }
-      : record.status === "PAID" && worked.imtt > 0.004
-        ? { text: `IMTT ${money(worked.imtt, currency)}`, warn: false }
-        : null;
+export function toPaymentOutRow(record: RowRecord, base: string): PaymentOutRow {
+  const supplier = record.vendor ?? record.bill?.vendor ?? null;
   return {
     id: record.id,
     // A number is given when it is paid: a draft says so, one approved or waiting has none yet.
@@ -166,36 +137,14 @@ export function toPaymentOutRow(record: RowRecord, base: string, worked: Worked,
     supplier,
     bill: record.bill ? { id: record.bill.id, number: docLabel(record.bill.billNumber, "bill") } : null,
     forWhat: record.bill ? docLabel(record.bill.billNumber, "bill") : (record.reference ?? "On account"),
-    from: record.bankAccount?.name ?? null,
+    from: record.bankAccount ? `${record.bankAccount.bankName || record.bankAccount.name}, ${record.bankAccount.currency}` : null,
     status: record.status,
     state: PAYMENT_OUT_STATE[record.status],
     amount: round(record.amount),
-    withheld: round(worked.withheld),
-    paid: round(record.amount - worked.withheld),
-    note,
-    currency,
+    currency: record.bill?.currency ?? record.bankAccount?.currency ?? base,
     createdById: record.createdById,
     voided: record.voidedAt ? { on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
   };
-}
-
-/**
- * The rows with what each withholds (D17) and the IMTT on it (§5.8.3): the
- * stored figure once paid, the core's quote while it waits.
- */
-async function rowsOf(companyId: string, records: RowRecord[], base: string, now: Date): Promise<PaymentOutRow[]> {
-  const settings = await taxSettings(companyId);
-  return Promise.all(
-    records.map(async (record) => {
-      const currency = record.bill?.currency ?? record.bankAccount?.currency ?? base;
-      const settled = record.status === "PAID" || record.status === "VOIDED";
-      const withheld = settled
-        ? round(record.withholdingAmount)
-        : (await quoteWithholding(companyId, { vendorId: (record.vendor ?? record.bill?.vendor)?.id ?? null, billId: record.bill?.id ?? null, amount: record.amount, currency, date: now, exceptPaymentId: record.id })).total;
-      const imtt = record.status === "PAID" ? imttOn(round(record.amount - withheld), currency, settings, base, record.exchangeRate) : 0;
-      return toPaymentOutRow(record, base, { withheld, imtt }, now);
-    }),
-  );
 }
 
 export async function readPaymentsOut(db: Db, companyId: string, query: PaymentOutQuery, base = "USD", now = new Date()): Promise<PaymentsOutView> {
@@ -222,7 +171,7 @@ export async function readPaymentsOut(db: Db, companyId: string, query: PaymentO
     // §5.8.3: the IMTT the banks took this month, as bank entries to 5465.
     db.journalLine.aggregate({ where: { account: { code: "5465" }, entry: { companyId, status: "POSTED", voidedAt: null, entryDate: { gte: harareStart(monthStart(today)) } } }, _sum: { debit: true, credit: true } }),
   ]);
-  const rows = await rowsOf(companyId, records, base, now);
+  const rows = records.map((record) => toPaymentOutRow(record, base));
   const from = matching === 0 ? 0 : (query.page - 1) * PAYMENTS_OUT_PAGE_SIZE + 1;
   const paidThisMonth = round(Number(month._sum.amount ?? 0));
   const waitingRows = waiting.map((row) => ({ supplier: row.vendor?.name ?? row.bill?.vendor.name ?? null, amount: row.amount }));
@@ -247,9 +196,10 @@ export async function paymentsOutCsv(db: Db, companyId: string, query: PaymentOu
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const lines = [["Number", "To", "State", "Date", "From", "Currency", "Gross", "Withheld", "Paid", "Note"].join(",")];
-  for (const row of await rowsOf(companyId, records, base, new Date())) {
-    lines.push([row.number, row.supplier?.name ?? "", row.state, row.date, row.from ?? "", row.currency, row.amount.toFixed(2), row.withheld.toFixed(2), row.paid.toFixed(2), row.note?.text ?? ""].map(cell).join(","));
+  const lines = [["Payment", "Date", "Paid to", "For", "From", "State", "Currency", "Amount"].join(",")];
+  for (const record of records) {
+    const row = toPaymentOutRow(record, base);
+    lines.push([row.number, row.date, row.supplier?.name ?? "", row.forWhat, row.from ?? "", row.state, row.currency, row.amount.toFixed(2)].map(cell).join(","));
   }
   return `${lines.join("\n")}\n`;
 }

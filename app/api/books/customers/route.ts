@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { guardBooks } from "@/lib/books/core";
 import { readCustomers } from "@/lib/books/customers";
-import { CUSTOMER_AGES, CUSTOMER_AGE_LABEL, readCustomerQuery } from "@/lib/books/customers-view";
+import { readCustomerQuery } from "@/lib/books/customers-view";
 import { partyData, partySchema } from "@/lib/books/party-form";
 import { prisma } from "@/lib/prisma";
 
@@ -17,9 +17,8 @@ export async function GET(request: NextRequest) {
     const view = await readCustomers(prisma, sessionResult.session.user.companyId, readCustomerQuery(params));
     if (params.get("format") === "csv") {
       const cell = (value: string | number) => (/[",\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : String(value));
-      const ages = CUSTOMER_AGES;
-      const lines = [["Code", "Customer", "Rep", ...ages.map((age) => CUSTOMER_AGE_LABEL[age]), "On account", `Owes, ${view.currency}`, "Last paid"].join(",")];
-      for (const row of view.rows) lines.push([row.code ?? "", row.name, row.rep?.name ?? "", ...ages.map((age) => row.age[age].toFixed(2)), row.onAccount.toFixed(2), row.balance.toFixed(2), row.lastPaid ?? ""].map(cell).join(","));
+      const lines = [["Customer", "Accounts contact", "Currency", "Owes", "Overdue", "On account", "Last paid"].join(",")];
+      for (const row of view.rows) lines.push([row.name, row.contact ?? "", view.currency, row.owes.toFixed(2), row.overdue.toFixed(2), row.onAccount.toFixed(2), row.lastPaid ?? ""].map(cell).join(","));
       return new NextResponse(`${lines.join("\n")}\n`, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="customers.csv"' } });
     }
     return successResponse(view);

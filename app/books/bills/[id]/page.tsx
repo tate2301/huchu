@@ -62,6 +62,7 @@ export default function BooksBillPage() {
       url: `/api/books/bills/${id}`,
       body: { action: "check", status },
       done: status === "VALID" ? "Valid on FDMS" : "Not valid on FDMS",
+      description: status === "VALID" ? "Its VAT counts as input VAT now." : "Its VAT is not claimed until a valid invoice comes.",
     });
 
   const upload = async (file: File) => {
@@ -84,7 +85,7 @@ export default function BooksBillPage() {
   if (bill && can) {
     if (draft && can.approve) {
       primary = (
-        <Button variant="primary" icon="check" shortcut="A" busy={act.isPending} onClick={() => act.mutate({ url: `/api/books/bills/${id}`, body: { action: "approve" }, done: "Approved" })}>
+        <Button variant="primary" icon="check" shortcut="A" busy={act.isPending} onClick={() => act.mutate({ url: `/api/books/bills/${id}`, body: { action: "approve" }, done: "Approved", description: "It can be recorded now." })}>
           Approve the bill
         </Button>
       );
@@ -103,7 +104,7 @@ export default function BooksBillPage() {
           busy={act.isPending}
           disabled={!can.approvePayment.allowed}
           title={can.approvePayment.allowed ? undefined : `${bill.owner ?? "The owner"} approves it.`}
-          onClick={() => act.mutate({ url: `/api/books/payments-made/${can.approvePayment!.id}`, body: { action: "approve" }, done: "The payment is approved" })}
+          onClick={() => act.mutate({ url: `/api/books/payments-made/${can.approvePayment!.id}`, body: { action: "approve" }, done: "The payment is approved", description: "It can be paid now." })}
         >
           Approve the payment
         </Button>
@@ -116,7 +117,7 @@ export default function BooksBillPage() {
           shortcut="P"
           busy={act.isPending}
           disabled={!can.payApproved.allowed}
-          onClick={() => act.mutate({ url: `/api/books/payments-made/${can.payApproved!.id}`, body: { action: "pay" }, done: "Paid" })}
+          onClick={() => act.mutate({ url: `/api/books/payments-made/${can.payApproved!.id}`, body: { action: "pay" }, done: "Paid", description: "The money has left, and the bill shows it." })}
         >
           Pay
         </Button>
@@ -136,16 +137,16 @@ export default function BooksBillPage() {
   const undo = useUndoMenu("bill", bill?.id, {
     initial,
     onVoided: async (done) => {
-      toast({ title: `${done.label} is void`, description: done.detail ?? undefined, variant: "success" });
+      toast({ title: `${done.label} is void`, description: done.detail ?? "Its posting is reversed; payments on it stay as credit with the supplier.", variant: "success" });
       await refresh();
     },
     onRevised: async (done) => {
-      toast({ title: `${done.label} is void`, variant: "success" });
+      toast({ title: `${done.label} is void`, description: "The new draft is open: put it right, then record it. Payments left on account move to it then.", variant: "success" });
       await refresh();
       router.push(`/books/bills/${done.draft.id}`);
     },
     onDeleted: async (done) => {
-      toast({ title: `${done.label} is deleted`, variant: "success" });
+      toast({ title: `${done.label} is deleted`, description: draft ? undefined : "Payments on it stay on account; its snapshot is in the audit trail.", variant: "success" });
       await client.invalidateQueries({ queryKey: ["books"] });
       router.push(draft ? "/books/bills?view=drafts" : "/books/bills");
     },
@@ -196,7 +197,7 @@ export default function BooksBillPage() {
           <BkBillView bill={bill} />
         ) : notFound ? (
           <Empty icon="docs" title="There is no such bill here">
-            It may have been deleted.
+            It may have been deleted, or it belongs to another workspace. Bills lists every one this workspace has.
           </Empty>
         ) : query.isError ? (
           <BooksError what="This bill" onRetry={() => query.refetch()} />

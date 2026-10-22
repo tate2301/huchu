@@ -3,14 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, Kit, TableShell } from "@/components/core";
+import { Button, Icon, Segmented, TableFoot, TableShell } from "@/components/core";
 import type { MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import type { FinancialsPage, FinancialsQuery, LedgerPage, LedgerQuery, TrialBalancePage, TrialBalanceQuery } from "@/lib/books/ledger-pages";
 
-import { BkChip, BkState, BkTabs } from "./bk-list";
-import { BooksFinding, Cents } from "./figures";
+import { Lead, n2, TableEmpty } from "./bk-b";
+import { BkChip, BkTabs } from "./bk-list";
+import { BooksFinding } from "./figures";
 
+const cell = (n: number) => (Math.abs(n) < 0.005 ? "" : n2(n));
+/** "45.2%", "−1.3%", never "-0.0%". */
+const pct = (share: number) => (Math.abs(share) < 0.05 ? "0.0%" : `${share < 0 ? "−" : ""}${Math.abs(share).toFixed(1)}%`);
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 
 /** Ranges a person picks most, as of today: this month, last month, this year, since the books started. */
@@ -44,122 +48,113 @@ function centreChip(costCentres: Array<{ id: string; label: string }>, value: st
   );
 }
 
-/** The page's Export (X): the file for what is on screen. Goes in the page header beside the search. */
-export function ExportAction({ href }: { href: string }) {
-  return (
-    <Kit contents>
-      <Button icon="export" shortcut="X" onClick={() => window.location.assign(href)}>
-        Export
-      </Button>
-    </Kit>
-  );
-}
-
-/** The toolbar band of a worksheet: chips, a count, and what sits at the end. */
-function Band({ children, count, end }: { children: React.ReactNode; count?: React.ReactNode; end?: React.ReactNode }) {
-  return (
-    <div className="ws-tools">
-      {children}
-      {count ? <span className="ws-n">{count}</span> : null}
-      {end ? <div className="end">{end}</div> : null}
-    </div>
-  );
-}
-
-const Empty = ({ title }: { title: string }) => (
-  <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-    <b>{title}</b>
-  </div>
-);
-
-/** An amount in a worksheet cell: blank when nothing is there. */
-const Amount = ({ value, currency }: { value: number; currency: string }) => (Math.abs(value) < 0.005 ? null : <Cents value={value} currency={currency} />);
-
 /* ── Trial balance ───────────────────────────────────────────────────── */
-
-const TYPE_GROUP: Record<string, string> = { Asset: "Assets", Liability: "Liabilities", Equity: "Equity", Income: "Income", Expense: "Expenses" };
 
 /**
  * Books → Ledger → Trial balance (design/core-modules/boards/view/BkTrialBalance.html):
- * every account by its type, debit and credit, as at a month's end or over a
- * range; each account opens its general ledger. The totals row closes the table.
+ * by month (as at its last day) or over a range, in the base currency; each
+ * account opens its general ledger.
  */
-export function BkTrialBalanceView({ data, onQuery, today }: { data: TrialBalancePage; onQuery: (next: Partial<TrialBalanceQuery>) => void; today: string }) {
+export function BkTrialBalanceView({ data, onQuery, accountantHref, today }: { data: TrialBalancePage; onQuery: (next: Partial<TrialBalanceQuery>) => void; accountantHref: string; today: string }) {
   const q = data.query;
   const c = data.baseCurrency;
   const ranges = presets(today, data.booksStart, data.fyStartMonth);
   const ledgerHref = (accountId: string) => `/books/ledger?account=${accountId}${q.view === "range" ? `&from=${q.from}&to=${q.to}` : `&to=${q.to}`}`;
-  const balanced = Math.abs(data.difference) < 0.005;
-  const period: MenuEntry[] = [
-    ...data.months.map((month) => ({ key: month.value, label: month.label, checked: q.view === "month" && month.value === q.month, onSelect: () => onQuery({ view: "month", month: month.value }) })),
-    { separator: true } as MenuEntry,
-    ...ranges.map((range) => ({ key: range.key, label: range.label, checked: q.view === "range" && range.from === q.from && range.to === q.to, onSelect: () => onQuery({ view: "range", from: range.from, to: range.to }) })),
-  ];
   return (
-    <div className="bk bk-dense">
-      <Band
-        count={`${c}, base · ${data.rows.length} ${data.rows.length === 1 ? "account" : "accounts"}`}
-        end={data.rows.length ? <BkState tone={balanced ? "success" : "danger"}>{balanced ? "Balanced" : `Out by ${money(Math.abs(data.difference), c)}`}</BkState> : null}
-      >
-        <BkChip label="Period" value={q.view === "month" ? (data.months.find((month) => month.value === q.month)?.label ?? q.month) : data.when} set items={period} />
+    <div className="bk">
+      <BooksFinding finding={data.finding} />
+      <div className="tools">
+        <Segmented
+          label="View"
+          value={q.view}
+          onChange={(view) => onQuery({ view })}
+          items={[
+            { value: "month", label: "By month" },
+            { value: "range", label: "Range" },
+          ]}
+        />
+        {q.view === "month" ? (
+          <BkChip label="As at" value={data.when.replace(/^As at /, "")} set items={data.months.map((month) => ({ key: month.value, label: month.label, checked: month.value === q.month, onSelect: () => onQuery({ month: month.value }) }))} />
+        ) : (
+          <BkChip label="Dates" value={data.when} set items={ranges.map((range) => ({ key: range.key, label: range.label, checked: range.from === q.from && range.to === q.to, onSelect: () => onQuery({ from: range.from, to: range.to }) }))} />
+        )}
         {centreChip(data.costCentres, q.cc, (cc) => onQuery({ cc }))}
-      </Band>
-      <TableShell label="Trial balance">
+        <div className="end">
+          <Button icon="print" onClick={() => window.print()}>
+            Print
+          </Button>
+          <Button variant="quiet" iconOnly icon="eye" label="Hide zero balances" title={q.zero === "hide" ? "Zero balances are hidden: show them" : "Hide zero balances"} aria-pressed={q.zero === "hide"} onClick={() => onQuery({ zero: q.zero === "hide" ? "show" : "hide" })} />
+        </div>
+      </div>
+      <TableShell
+        label="Trial balance"
+        foot={
+          <TableFoot
+            range={`${data.withBalance} ${data.withBalance === 1 ? "account" : "accounts"} with a balance`}
+            sums={[
+              { label: "Debit", value: money(data.debit, c) },
+              { label: "Credit", value: money(data.credit, c) },
+              { label: "Difference", value: n2(data.difference) },
+            ]}
+            end={
+              <a className="btn" href={accountantHref} download>
+                <Icon name="export" />
+                Export for your accountant
+              </a>
+            }
+          />
+        }
+      >
         {data.rows.length === 0 ? (
-          <Empty title="Nothing has posted yet" />
+          <TableEmpty title="Nothing has posted yet">The trial balance fills as invoices, bills and payments post.</TableEmpty>
         ) : (
           <table className="table" aria-label="Trial balance">
             <colgroup>
-              <col style={{ width: 96 }} />
+              <col style={{ width: 90 }} />
               <col />
-              <col style={{ width: 168 }} />
-              <col style={{ width: 168 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 56 }} />
             </colgroup>
             <thead>
               <tr>
                 <th>Code</th>
                 <th className="fill">Account</th>
+                <th>Type</th>
                 <th className="num">Debit</th>
                 <th className="num">Credit</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row, index) => (
-                <React.Fragment key={row.accountId}>
-                  {index === 0 || data.rows[index - 1]!.type !== row.type ? (
-                    <tr className="grp">
-                      <td colSpan={4}>{TYPE_GROUP[row.type] ?? row.type}</td>
-                    </tr>
-                  ) : null}
-                  <tr>
-                    <td>
-                      <span className="bk-code">{row.code}</span>
-                    </td>
-                    <td className="fill truncate">
-                      <Link className="bk-lnk" href={ledgerHref(row.accountId)}>
-                        {row.name}
-                      </Link>
-                    </td>
-                    <td className="num">
-                      <Amount value={row.debit} currency={c} />
-                    </td>
-                    <td className="num">
-                      <Amount value={row.credit} currency={c} />
-                    </td>
-                  </tr>
-                </React.Fragment>
+              {data.rows.map((row) => (
+                <tr key={row.accountId}>
+                  <td>
+                    <span className="ref">{row.code}</span>
+                  </td>
+                  <td className="fill truncate">{row.name}</td>
+                  <td>
+                    <span className="muted">{row.type}</span>
+                  </td>
+                  <td className="num">{cell(row.debit)}</td>
+                  <td className="num">{cell(row.credit)}</td>
+                  <td>
+                    <Link className="btn btn-quiet btn-icon" href={ledgerHref(row.accountId)} aria-label={`Open the general ledger for ${row.code} ${row.name}`}>
+                      <Icon name="chev" />
+                    </Link>
+                  </td>
+                </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="tot">
                 <td />
-                <td className="fill">Total</td>
-                <td className="num">
-                  <Cents value={data.debit} currency={c} />
-                </td>
-                <td className="num">
-                  <Cents value={data.credit} currency={c} />
-                </td>
+                <td className="fill">{data.rows.length} accounts</td>
+                <td />
+                <td className="num">{n2(data.debit)}</td>
+                <td className="num">{n2(data.credit)}</td>
+                <td />
               </tr>
             </tfoot>
           </table>
@@ -179,89 +174,93 @@ const FIN_TABS: Array<{ value: FinancialsQuery["tab"]; label: string }> = [
 
 /**
  * Books → Ledger → Financial statements (design/core-modules/boards/view/BkFinancials.html):
- * the profit and loss, the balance sheet and the cash flow for a month, beside
- * the month before and the year so far, by cost centre. The last line of the
- * statement (Profit) closes the table.
+ * the profit and loss, the balance sheet and the cash flow for a month,
+ * beside the year so far or the month before, by cost centre.
  */
-export function BkFinancialsView({ data, onQuery }: { data: FinancialsPage; onQuery: (next: Partial<FinancialsQuery>) => void }) {
+export function BkFinancialsView({ data, onQuery, exportHref }: { data: FinancialsPage; onQuery: (next: Partial<FinancialsQuery>) => void; exportHref: string }) {
   const q = data.query;
-  const c = data.baseCurrency;
-  const bs = q.tab === "bs";
+  const share = q.tab === "pl" && data.shareHead;
   const compare: Array<{ value: FinancialsQuery["compare"]; label: string }> = [
-    { value: "both", label: bs ? "The month before and the start of the year" : "The month before and the year so far" },
+    { value: "since", label: q.tab === "bs" ? "The start of the year" : "The year so far" },
     { value: "previous", label: "The month before" },
-    { value: "since", label: bs ? "The start of the year" : "The year so far" },
-    { value: "none", label: "Off" },
+    { value: "none", label: "Nothing" },
   ];
-  const label = FIN_TABS.find((tab) => tab.value === q.tab)!.label;
-  const foot = data.rows.at(-1)?.kind === "total" ? data.rows.at(-1)! : null;
-  const body = foot ? data.rows.slice(0, -1) : data.rows;
-  const figures = (amounts: number[]) =>
-    data.columns.map((_, at) => (
-      <td key={at} className="num">
-        {amounts[at] === undefined ? null : <Cents value={amounts[at]!} currency={c} />}
-      </td>
-    ));
   return (
-    <div className="bk bk-dense">
+    <div className="bk">
+      <BooksFinding finding={data.finding} />
       <BkTabs label="Statements" value={q.tab} onChange={(tab) => onQuery({ tab })} items={FIN_TABS} />
-      <Band>
+      <div className="tools">
         <BkChip label="Period" value={data.months.find((month) => month.value === q.month)?.label ?? q.month} set items={data.months.map((month) => ({ key: month.value, label: month.label, checked: month.value === q.month, onSelect: () => onQuery({ month: month.value }) }))} />
         <BkChip label="Compare" value={data.compareLabel} set={q.compare !== "none"} items={compare.map((option) => ({ key: option.value, label: option.label, checked: option.value === q.compare, onSelect: () => onQuery({ compare: option.value }) }))} />
         {centreChip(data.costCentres, q.cc, (cc) => onQuery({ cc }))}
-      </Band>
-      <BooksFinding finding={data.finding} />
-      <TableShell label={label}>
+      </div>
+      <TableShell
+        label={FIN_TABS.find((tab) => tab.value === q.tab)!.label}
+        foot={
+          <TableFoot
+            range={data.foot.label}
+            sums={data.foot.sums}
+            end={
+              <>
+                <a className="btn" href={exportHref} download>
+                  <Icon name="export" />
+                  Export
+                </a>
+                <Button variant="quiet" iconOnly icon="print" label="Print" onClick={() => window.print()} />
+              </>
+            }
+          />
+        }
+      >
         {data.rows.length <= 1 ? (
-          <Empty title="Nothing in this month yet" />
+          <TableEmpty title="Nothing in this month yet">The statements fill as invoices, bills and payments post.</TableEmpty>
         ) : (
-          <table className="table" aria-label={label}>
+          <table className="table" aria-label={FIN_TABS.find((tab) => tab.value === q.tab)!.label}>
             <colgroup>
               <col />
               {data.columns.map((column) => (
-                <col key={column} style={{ width: 176 }} />
+                <col key={column} style={{ width: 170 }} />
               ))}
+              {share ? <col style={{ width: 170 }} /> : null}
             </colgroup>
             <thead>
               <tr>
-                <th className="fill">Line</th>
+                <th className="fill" />
                 {data.columns.map((column) => (
                   <th key={column} className="num">
                     {column}
                   </th>
                 ))}
+                {share ? <th className="num">{data.shareHead}</th> : null}
               </tr>
             </thead>
             <tbody>
-              {body.map((row, index) =>
+              {data.rows.map((row, index) =>
                 row.kind === "group" ? (
                   <tr key={index} className="grp">
-                    <td colSpan={data.columns.length + 1}>{row.label}</td>
+                    <td colSpan={data.columns.length + 1 + (share ? 1 : 0)}>{row.label}</td>
                   </tr>
                 ) : (
-                  <tr key={index} className={row.kind === "line" ? undefined : "subtotal"}>
+                  <tr key={index} className={row.kind === "total" ? "tot" : undefined}>
                     <td className="fill truncate">
                       {row.kind === "line" && row.accountId ? (
-                        <Link className="bk-lnk" href={`/books/ledger?account=${row.accountId}`}>
+                        <Link href={`/books/ledger?account=${row.accountId}`} style={{ color: "inherit" }}>
                           {row.label}
                         </Link>
                       ) : (
                         row.label
                       )}
                     </td>
-                    {figures(row.amounts)}
+                    {row.amounts.map((amount, at) => (
+                      <td key={at} className="num">
+                        {n2(amount)}
+                      </td>
+                    ))}
+                    {share ? <td className="num">{row.share === null || row.share === undefined ? "" : <span className={row.kind === "line" ? "muted" : undefined}>{pct(row.share)}</span>}</td> : null}
                   </tr>
                 ),
               )}
             </tbody>
-            {foot ? (
-              <tfoot>
-                <tr className="tot">
-                  <td className="fill">{foot.label}</td>
-                  {figures(foot.amounts)}
-                </tr>
-              </tfoot>
-            ) : null}
           </table>
         )}
       </TableShell>
@@ -273,55 +272,64 @@ export function BkFinancialsView({ data, onQuery }: { data: FinancialsPage; onQu
 
 /**
  * Books → Ledger → General ledger (design/core-modules/boards/view/BkLedger.html):
- * one account's lines from its opening balance, with the running balance; the
- * document opens from its number, the journal from its entry.
+ * one account's lines with the running balance, opening and closing; each
+ * line opens its source document, or its journal.
  */
-export function BkLedgerView({ data, onQuery, today }: { data: LedgerPage; onQuery: (next: Partial<LedgerQuery>) => void; today: string }) {
+export function BkLedgerView({ data, onQuery, exportHref, today }: { data: LedgerPage; onQuery: (next: Partial<LedgerQuery>) => void; exportHref: string; today: string }) {
   const q = data.query;
   const c = data.baseCurrency;
   const ranges = presets(today, data.booksStart, data.fyStartMonth);
-  const [party, setParty] = React.useState("");
-  const rows = party ? data.rows.filter((row) => row.party === party) : data.rows;
-  const debit = party ? rows.reduce((sum, row) => sum + row.debit, 0) : data.debit;
-  const credit = party ? rows.reduce((sum, row) => sum + row.credit, 0) : data.credit;
   return (
-    <div className="bk bk-dense">
-      <Band count={<>Opening <Cents value={data.opening} currency={c} /></>}>
+    <div className="bk">
+      <BooksFinding finding={data.finding} />
+      <div className="tools">
         <BkChip
           label="Account"
           value={data.account ? `${data.account.code} ${data.account.name}` : "None"}
           set
           items={data.accounts.map((account) => ({ key: account.id, label: account.label, checked: account.id === data.account?.id, onSelect: () => onQuery({ account: account.id }) }))}
         />
-        <BkChip label="Period" value={data.dates} set items={ranges.map((range) => ({ key: range.key, label: range.label, checked: range.from === q.from && range.to === q.to, onSelect: () => onQuery({ from: range.from, to: range.to }) }))} />
-        <BkChip
-          label="Party"
-          value={party || "Any"}
-          set={Boolean(party)}
-          items={[
-            { key: "any", label: "Any party", checked: !party, onSelect: () => setParty("") },
-            ...(data.parties.length ? [{ separator: true } as MenuEntry] : []),
-            ...data.parties.map((name) => ({ key: name, label: name, checked: party === name, onSelect: () => setParty(name) })),
-          ]}
-        />
-      </Band>
-      <TableShell label="General ledger">
+        <BkChip label="Dates" value={data.dates} set items={ranges.map((range) => ({ key: range.key, label: range.label, checked: range.from === q.from && range.to === q.to, onSelect: () => onQuery({ from: range.from, to: range.to }) }))} />
+        {centreChip(data.costCentres, q.cc, (cc) => onQuery({ cc }))}
+        <div className="end">
+          <Button icon="print" onClick={() => window.print()}>
+            Print
+          </Button>
+        </div>
+      </div>
+      <TableShell
+        label="General ledger"
+        foot={
+          <TableFoot
+            range={`${data.rows.length} ${data.rows.length === 1 ? "entry" : "entries"}`}
+            sums={[
+              { label: "Debit", value: money(data.debit, c) },
+              { label: "Credit", value: money(data.credit, c) },
+              { label: "Balance", value: money(data.closing, c) },
+            ]}
+            end={
+              <a className="btn" href={exportHref} download>
+                <Icon name="export" />
+                Export
+              </a>
+            }
+          />
+        }
+      >
         <table className="table" aria-label="General ledger">
           <colgroup>
-            <col style={{ width: 80 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 110 }} />
             <col />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 112 }} />
-            <col style={{ width: 144 }} />
-            <col style={{ width: 144 }} />
-            <col style={{ width: 160 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 140 }} />
           </colgroup>
           <thead>
             <tr>
               <th>Date</th>
-              <th className="fill">What</th>
-              <th>Document</th>
               <th>Entry</th>
+              <th className="fill">Memo</th>
               <th className="num">Debit</th>
               <th className="num">Credit</th>
               <th className="num">Balance</th>
@@ -329,55 +337,42 @@ export function BkLedgerView({ data, onQuery, today }: { data: LedgerPage; onQue
           </thead>
           <tbody>
             <tr>
-              <td className="muted">{q.from ? `${Number(q.from.slice(8, 10))} ${data.dates.split(" ")[1]}` : ""}</td>
+              <td>
+                <span className="muted">{q.from ? `${Number(q.from.slice(8, 10))} ${data.dates.split(" ")[1]}` : ""}</span>
+              </td>
+              <td />
               <td className="fill">
-                <span className="muted">Opening balance</span>
+                <span className="cell-lead">Opening balance</span>
               </td>
-              <td />
-              <td />
               <td className="num" />
               <td className="num" />
-              <td className="num">
-                <Cents value={data.opening} currency={c} />
-              </td>
+              <td className="num">{n2(data.opening)}</td>
             </tr>
-            {rows.map((row, index) => (
+            {data.rows.map((row, index) => (
               <tr key={`${row.entryId}-${index}`}>
-                <td className="muted">{row.date}</td>
-                <td className="fill truncate" title={row.what}>
-                  <span className="cell-lead">{row.what}</span>
+                <td>
+                  <span className="muted">{row.date}</span>
                 </td>
                 <td>
-                  {row.document ? (
-                    <Link className="ref" href={row.href}>
-                      {row.document}
-                    </Link>
-                  ) : null}
-                </td>
-                <td>
-                  <Link className="bk-code" href={`/books/journals?journal=${row.entryId}`}>
+                  <Link className="ref" href={row.href}>
                     {row.number}
                   </Link>
                 </td>
-                <td className="num">
-                  <Amount value={row.debit} currency={c} />
+                <td className="fill truncate" title={row.memo}>
+                  <Lead sub={row.source}>{row.memo}</Lead>
                 </td>
-                <td className="num">
-                  <Amount value={row.credit} currency={c} />
-                </td>
-                <td className="num">
-                  <Cents value={row.balance} currency={c} />
-                </td>
+                <td className="num">{cell(row.debit)}</td>
+                <td className="num">{cell(row.credit)}</td>
+                <td className="num">{n2(row.balance)}</td>
               </tr>
             ))}
-            {rows.length === 0 ? (
+            {data.rows.length === 0 ? (
               <tr>
                 <td />
+                <td />
                 <td className="fill">
-                  <span className="muted">No lines in this period</span>
+                  <span className="muted">Nothing posted to this account in these dates.</span>
                 </td>
-                <td />
-                <td />
                 <td />
                 <td />
                 <td />
@@ -386,17 +381,12 @@ export function BkLedgerView({ data, onQuery, today }: { data: LedgerPage; onQue
           </tbody>
           <tfoot>
             <tr className="tot">
+              <td>{data.rows.at(-1)?.date ?? ""}</td>
               <td />
-              <td className="fill">{party ? `${rows.length} of ${data.rows.length} lines` : `${rows.length} ${rows.length === 1 ? "line" : "lines"}`}</td>
-              <td />
-              <td />
-              <td className="num">
-                <Cents value={debit} currency={c} />
-              </td>
-              <td className="num">
-                <Cents value={credit} currency={c} />
-              </td>
-              <td className="num">{party ? null : <Cents value={data.closing} currency={c} />}</td>
+              <td className="fill">Closing balance</td>
+              <td className="num">{n2(data.debit)}</td>
+              <td className="num">{n2(data.credit)}</td>
+              <td className="num">{n2(data.closing)}</td>
             </tr>
           </tfoot>
         </table>
