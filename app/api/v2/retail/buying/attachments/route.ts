@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { attachmentPath, checkAttachment } from "@/lib/retail/buying/attachments";
 import { canRetailSessionDo } from "@/lib/retail/permission-matrix";
+import { isBlobStorageConfigured } from "@/lib/uploads/storage";
 
 import { requireRetailSession } from "../../_helpers";
 
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     canRetailSessionDo(session, "retail.bills", "create");
   if (!allowed) return errorResponse("Your role cannot add files to buying records", 403);
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+  if (!isBlobStorageConfigured()) {
     return errorResponse("File storage is not configured for this deployment", 503);
   }
 

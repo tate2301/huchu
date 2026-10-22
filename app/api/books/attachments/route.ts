@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { booksActor } from "@/lib/books/core";
 import { attachmentPath, checkAttachment } from "@/lib/retail/buying/attachments";
+import { isBlobStorageConfigured } from "@/lib/uploads/storage";
 
 /**
  * A file for a Books record: a supplier's invoice as a photo or PDF, a slip
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const actor = await booksActor(sessionResult.session);
     if (actor.signInAs?.mode === "LOOK") return errorResponse("You signed in to look only, so nothing can be added.", 403);
-    if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) return errorResponse("Files cannot be kept on this server yet: file storage is not set up.", 503);
+    if (!isBlobStorageConfigured()) return errorResponse("Files cannot be kept on this server yet: file storage is not set up.", 503);
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return errorResponse("No file was attached", 400);
