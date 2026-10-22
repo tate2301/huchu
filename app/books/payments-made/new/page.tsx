@@ -2,10 +2,9 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { BkBox, BkField, BkFormPage, FormSec, RailFigure, todayHarare, WideSec } from "@/components/books/bk-form";
+import { BkBox, BkField, BkFormPage, FormSec, RailSteps, todayHarare, WideSec } from "@/components/books/bk-form";
 import { PartyDrawer } from "@/components/books/bk-party-drawer";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -68,6 +67,7 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
   const withheld = q && total > 0 ? q.withheld : 0;
   const net = total - withheld;
   const imtt = q && total > 0 ? q.imtt : 0;
+  const askHref = q ? `https://wa.me/${(q.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(`Good day. Please send us your current ITF263 tax clearance. Without it we must withhold ${Math.round(q.rate * 100)}% of each payment for ZIMRA.`)}` : "#";
 
   React.useEffect(() => setPicked([]), [vendorId]);
   // Pay from Bills: the bills ticked there are ticked here, once they load.
@@ -121,13 +121,10 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
   };
   const toggle = (bill: OpenBill, on: boolean) => setPicked((current) => (on ? [...current.filter((row) => row.invoiceId !== bill.id), { invoiceId: bill.id, amount: bill.balance }] : current.filter((row) => row.invoiceId !== bill.id)));
 
-  const ratePct = q ? Math.round(q.rate * 100) : 30;
-  const unclear = Boolean(vendorId && q && q.itf263.state !== "Valid" && withheld > 0);
-
   return (
     <>
       <PageChrome
-        title={supplier ? `Pay ${supplier.name}` : "Pay bills"}
+        title="New payment"
         backHref="/books/payments-made"
         backLabel="Payments made"
         primary={{ label: "Send for approval", icon: "send", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: pay.isPending ? "Saving it" : undefined }}
@@ -140,30 +137,38 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
       </PageChrome>
       <BkFormPage
         rail={
-          <RailFigure
-            title="Approval"
-            rows={[
-              ["Approves", over ? (options.approval?.owner ?? "The owner") : options.approval ? `Not needed, within ${money(options.approval.limit, currency)}` : "Not needed"],
-              ["Pays", options.approval?.youPay ? "You, not the approver" : "Whoever pays, not the approver"],
-            ]}
-          />
+          <>
+            <section>
+              <div className="sec-title">Approval</div>
+              <div className="figure">{money(net, currency)}</div>
+              <dl className="attrs">
+                <dt>Withheld</dt>
+                <dd className="num">{money(withheld, currency)}</dd>
+                <dt>Approves</dt>
+                <dd>{over ? (options.approval?.owner ?? "The owner") : "Not needed"}</dd>
+                <dt>Why</dt>
+                <dd>{options.approval ? `${over ? "Over" : "Under"} ${money(options.approval.limit, currency)}` : "No limit set"}</dd>
+                <dt>Then pays</dt>
+                <dd>{options.approval?.youPay ? "You, from Payments made" : "Whoever pays, from Payments made"}</dd>
+              </dl>
+            </section>
+            <RailSteps
+              title="When it is paid"
+              steps={[
+                ["It gets a number", options.nextNumber],
+                ["The money leaves", account ? `${account.bank}, ${money(net + imtt, currency)} with IMTT` : "the account you choose"],
+                ...(withheld > 0
+                  ? ([
+                      ["A certificate is drafted", `for ${supplier?.name ?? "the supplier"}`],
+                      ["The withholding return", `lists it, due ${q ? shortDay(q.dueBy) : "the 5th"}`],
+                    ] as Array<[string, string]>)
+                  : ([["The bills", picked.length === 1 ? "show it as paid" : "each show their payment"]] as Array<[string, string]>)),
+              ]}
+            />
+          </>
         }
       >
-        {unclear && q ? (
-          <BkBox
-            tone="warn"
-            icon="warn"
-            action={
-              <Link className="btn btn-sm" href={`/books/suppliers/${vendorId}`}>
-                Add their ITF263
-              </Link>
-            }
-          >
-            <b>{supplier?.name ?? "The supplier"} has {q.itf263.state === "Expired" ? "no valid" : "no"} ITF263 on file.</b> {ratePct}% is withheld and paid to ZIMRA by {shortDay(q.dueBy)}.
-          </BkBox>
-        ) : null}
-
-        <FormSec title="Pay">
+        <FormSec title="Pay" text="Who you are paying.">
           <BkField label="Supplier" htmlFor="pay-supplier" error={errors.vendorId}>
             <div style={{ display: "flex", gap: 8 }}>
               <Select id="pay-supplier" value={vendorId} onChange={(event) => setVendorId(event.target.value)} style={{ flex: 1, minWidth: 0 }}>
@@ -179,88 +184,72 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
               </Button>
             </div>
           </BkField>
-          <div className="field-row">
-            <BkField label="From" htmlFor="pay-from" error={errors.bankAccountId}>
-              <Select id="pay-from" aria-label="From" value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}>
-                {bankAccountId ? null : <option value="">Choose an account</option>}
-                {options.accounts.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </Select>
-            </BkField>
-            <BkField label="Pay on" htmlFor="pay-date">
-              <Input id="pay-date" type="date" aria-label="Pay on" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
-            </BkField>
-          </div>
-          <BkField label="Reference on their statement" htmlFor="pay-ref">
-            <Input id="pay-ref" aria-label="Reference" value={reference} onChange={(event) => setReference(event.target.value)} />
-          </BkField>
         </FormSec>
 
-        <WideSec title="Bills" className={vendorId && bills.length && !errors.bills ? "bk-wt" : undefined}>
-          {vendorId && bills.length ? (
-            <table className="table bk-le">
-              <thead>
-                <tr>
-                  <th className="sel" style={{ width: 60 }} />
-                  <th>Bill</th>
-                  <th>Their FTI</th>
-                  <th>Due</th>
-                  <th className="num">Owing</th>
-                  <th className="num">Paying</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bills.map((bill) => {
-                  const row = picked.find((candidate) => candidate.invoiceId === bill.id);
-                  return (
-                    <tr key={bill.id} aria-selected={row ? true : undefined}>
-                      <td className="sel">
-                        <label className="check">
-                          <input type="checkbox" aria-label={`Pay ${bill.number}`} checked={Boolean(row)} onChange={(event) => toggle(bill, event.target.checked)} />
-                        </label>
-                      </td>
-                      <td>
-                        <span className="ref">{bill.number}</span>
-                      </td>
-                      <td className="mono">{theirInvoice(bill)}</td>
-                      <td className={bill.daysLate > 0 ? undefined : "muted"}>
-                        {bill.daysLate > 0 ? (
-                          <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
-                            {lateWords(bill)}
-                          </span>
-                        ) : (
-                          lateWords(bill)
-                        )}
-                      </td>
-                      <td className="num">{money(bill.balance, bill.currency)}</td>
-                      <td className="num">
-                        {row ? (
-                          <Input
-                            className="num"
-                            aria-label={`Amount for ${bill.number}`}
-                            inputMode="decimal"
-                            value={row.amount.toFixed(2)}
-                            onChange={(event) => {
-                              const value = readAmount(event.target.value);
-                              setPicked((current) => current.map((entry) => (entry.invoiceId === bill.id ? { ...entry, amount: Number.isFinite(value) ? value : 0 } : entry)));
-                            }}
-                            style={{ width: 120, marginLeft: "auto" }}
-                          />
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : vendorId && !open.isLoading ? (
-            <p className="bk-hint bk-pad">Nothing is owed to {supplier?.name ?? "them"}.</p>
-          ) : null}
+        <WideSec title="Bills" text="One payment can clear several." className={vendorId && bills.length && !errors.bills ? "bk-wt" : undefined}>
+          {vendorId ? (
+            bills.length ? (
+              <table className="table bk-le">
+                <thead>
+                  <tr>
+                    <th className="sel" style={{ width: 60 }} />
+                    <th>Bill</th>
+                    <th>Their invoice</th>
+                    <th>Due</th>
+                    <th className="num">Owing</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.map((bill) => {
+                    const row = picked.find((candidate) => candidate.invoiceId === bill.id);
+                    return (
+                      <tr key={bill.id}>
+                        <td className="sel">
+                          <label className="check">
+                            <input type="checkbox" aria-label={`Pay ${bill.number}`} checked={Boolean(row)} onChange={(event) => toggle(bill, event.target.checked)} />
+                          </label>
+                        </td>
+                        <td>
+                          <span className="ref">{bill.number}</span>
+                        </td>
+                        <td className="mono">{theirInvoice(bill)}</td>
+                        <td className={bill.daysLate > 0 ? undefined : "muted"}>
+                          {bill.daysLate > 0 ? (
+                            <span className="status status-warning" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
+                              {lateWords(bill)}
+                            </span>
+                          ) : (
+                            lateWords(bill)
+                          )}
+                        </td>
+                        <td className="num">
+                          {row ? (
+                            <Input
+                              className="num"
+                              aria-label={`Amount for ${bill.number}`}
+                              inputMode="decimal"
+                              value={row.amount.toFixed(2)}
+                              onChange={(event) => {
+                                const value = readAmount(event.target.value);
+                                setPicked((current) => current.map((entry) => (entry.invoiceId === bill.id ? { ...entry, amount: Number.isFinite(value) ? value : 0 } : entry)));
+                              }}
+                              style={{ width: 120, marginLeft: "auto" }}
+                            />
+                          ) : (
+                            money(bill.balance, bill.currency)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : open.isLoading ? null : (
+              <p className="bk-hint bk-pad">Nothing is owed to {supplier?.name ?? "them"}: every bill of theirs is paid.</p>
+            )
+          ) : (
+            <p className="bk-hint bk-pad">Choose a supplier to see what you owe them.</p>
+          )}
           {errors.bills ? (
             <p className="error bk-pad" role="alert">
               <Icon name="warn" />
@@ -269,39 +258,98 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
           ) : null}
         </WideSec>
 
-        <WideSec title="What leaves the bank">
+        <FormSec title="ITF263" text="Checked before every payment.">
+          {!vendorId || !q ? (
+            <BkBox icon="file">
+              Choose the supplier: their tax clearance is checked here.
+            </BkBox>
+          ) : q.itf263.state === "Valid" ? (
+            <BkBox tone="ok" icon="check">
+              <b>{q.itf263.label}.</b> Nothing is withheld.
+            </BkBox>
+          ) : (
+            <BkBox
+              tone="warn"
+              icon="warn"
+              action={
+                <a className="btn btn-sm" href={askHref} target="_blank" rel="noreferrer">
+                  Ask for it
+                </a>
+              }
+            >
+              <b>{q.itf263.state === "Expired" ? `No valid ITF263 since ${q.itf263.expires?.replace(/ \d{4}$/, "")}.` : "No ITF263 on file."}</b>{" "}
+              {withheld > 0 ? `${Math.round(q.rate * 100)}% of this payment is withheld for ZIMRA.` : `${Math.round(q.rate * 100)}% is withheld once this year’s payments to them reach the threshold.`}
+            </BkBox>
+          )}
+        </FormSec>
+
+        <FormSec title="From" text="The bank takes IMTT on top.">
+          <div className="field-row">
+            <BkField label="Pay from" htmlFor="pay-from" error={errors.bankAccountId}>
+              <Select id="pay-from" aria-label="Pay from" value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)}>
+                {bankAccountId ? null : <option value="">Choose an account</option>}
+                {options.accounts.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.label}
+                  </option>
+                ))}
+              </Select>
+            </BkField>
+            <BkField label="Date" htmlFor="pay-date">
+              <Input id="pay-date" type="date" aria-label="Date" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
+            </BkField>
+          </div>
+          <BkField label="Reference on their statement" htmlFor="pay-ref">
+            <Input id="pay-ref" aria-label="Reference" value={reference} onChange={(event) => setReference(event.target.value)} />
+          </BkField>
+        </FormSec>
+
+        <WideSec title="What moves">
           <div className="bk-bleed">
-            <table className="table" aria-label="What leaves the bank">
+            <table className="table" aria-label="What moves">
               <colgroup>
                 <col />
-                <col style={{ width: 160 }} />
+                <col style={{ width: 140 }} />
+                <col style={{ width: 200 }} />
               </colgroup>
-              <tbody>
+              <thead>
                 <tr>
-                  <td>Bills paid</td>
-                  <td className="num">{money(total, currency)}</td>
+                  <th />
+                  <th className="num">Amount</th>
+                  <th />
                 </tr>
+              </thead>
+              <tbody>
+                {picked.map((row) => (
+                  <tr key={row.invoiceId}>
+                    <td>Bill {bills.find((bill) => bill.id === row.invoiceId)?.number}</td>
+                    <td className="num">{money(row.amount, currency)}</td>
+                    <td />
+                  </tr>
+                ))}
                 {withheld > 0 ? (
                   <tr>
-                    <td>
-                      Withholding, {ratePct}% <span className="muted">to ZIMRA by {q ? shortDay(q.dueBy) : "the 10th"}</span>
-                    </td>
+                    <td>Withheld, {Math.round((q?.rate ?? 0.3) * 100)}%</td>
                     <td className="num">−{money(withheld, currency)}</td>
+                    <td className="muted">to ZIMRA by {q ? shortDay(q.dueBy) : "the 10th"}</td>
                   </tr>
                 ) : null}
-                <tr className="tot">
+                <tr>
                   <td>Paid to {supplier?.name ?? "the supplier"}</td>
                   <td className="num">{money(net, currency)}</td>
+                  <td />
                 </tr>
                 <tr>
-                  <td>IMTT, {Math.round((q?.imttRate ?? 0.02) * 1000) / 10}% on the transfer</td>
+                  <td>IMTT, {Math.round((q?.imttRate ?? 0.02) * 1000) / 10}% ({account?.bank ?? "the bank"} takes it)</td>
                   <td className="num">{money(imtt, currency)}</td>
+                  <td className="muted">a bank charge</td>
                 </tr>
               </tbody>
               <tfoot>
                 <tr className="tot">
-                  <td>Leaves {account ? account.label : "the account"}</td>
+                  <td>Leaves {account ? `${account.bank}, ${account.currency}` : "the account"}</td>
                   <td className="num">{money(net + imtt, currency)}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -328,7 +376,7 @@ function PaySupplier() {
   if (options.data) return <PayForm options={options.data} initialSupplier={params.get("supplier") ?? ""} initialBills={(params.get("bills") ?? "").split(",").filter(Boolean)} />;
   return (
     <>
-      <PageChrome title="Pay bills" backHref="/books/payments-made" backLabel="Payments made" />
+      <PageChrome title="New payment" backHref="/books/payments-made" backLabel="Payments made" />
       {options.isError ? <BooksError what="The payment form" onRetry={() => options.refetch()} /> : <BooksLoading />}
     </>
   );

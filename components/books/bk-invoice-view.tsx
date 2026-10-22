@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { ButtonLink, Icon, Person, type IconName } from "@/components/core";
+import { Icon, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 import type { InvoiceState } from "@/lib/books/invoice-state";
 
-import { Callout, Said } from "./bk-record";
+import { Said } from "./bk-record";
 
 const PILL: Record<InvoiceState, string> = { draft: "pill-n", sent: "pill-info", "part-paid": "pill-info", paid: "pill-ok", overdue: "pill-warn", void: "pill-plain" };
 const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -23,35 +23,6 @@ function Section({ id, title, sum, children }: { id: string; title: string; sum?
       </div>
       {children}
     </section>
-  );
-}
-
-/**
- * The chase: where an overdue invoice has got to and what is next. Told from
- * the invoice itself (issued, fell due, how late); no reminder log is kept yet
- * (NOTES, model proposal), so nothing here claims a message was sent or read.
- */
-function Chase({ invoice }: { invoice: InvoiceRecordPage }) {
-  const steps: Array<{ key: string; label: string; when: string; state: "done" | "next" | "later"; icon: IconName }> = [
-    { key: "issued", label: "Issued", when: invoice.date, state: "done", icon: "check" },
-    { key: "due", label: "Fell due", when: invoice.due, state: "done", icon: "calendar" },
-    { key: "remind", label: "Remind on WhatsApp", when: "Today", state: "next", icon: "whatsapp" },
-    { key: "call", label: "Call the customer", when: "After the reminder", state: "later", icon: "clock" },
-  ];
-  return (
-    <Section id="l3" title="The chase" sum={<span className="bk-late">{invoice.daysOverdue} {invoice.daysOverdue === 1 ? "day" : "days"} late</span>}>
-      <ol className="bk-chase">
-        {steps.map((step) => (
-          <li className={step.state} key={step.key}>
-            <span className="node">
-              <Icon name={step.icon} />
-            </span>
-            <span className="what">{step.label}</span>
-            <span className="when">{step.when}</span>
-          </li>
-        ))}
-      </ol>
-    </Section>
   );
 }
 
@@ -80,8 +51,7 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
     ...(writtenOff > 0.005 ? [{ label: "Written off", amount: -writtenOff }] : []),
     ...(!draft && invoice.status !== "VOIDED" ? [{ label: "Left to pay", amount: invoice.balance, total: true }] : []),
   ];
-  const overdue = invoice.state.key === "overdue" && invoice.daysOverdue > 0;
-  const due = draft ? `Due ${invoice.due}` : overdue ? `${invoice.daysOverdue} ${invoice.daysOverdue === 1 ? "day" : "days"} late` : invoice.due === "No due date" ? invoice.due : `Due ${invoice.due}`;
+  const due = draft ? `Due ${invoice.due}` : invoice.state.key === "overdue" ? `Was due ${invoice.due}` : invoice.due === "No due date" ? invoice.due : `Due ${invoice.due}`;
   const phoneState = invoice.state.key === "overdue" && invoice.daysOverdue > 0 ? `Overdue, ${invoice.daysOverdue} ${invoice.daysOverdue === 1 ? "day" : "days"}` : invoice.stateLabel;
   const fiscal = board?.fiscal;
   return (
@@ -172,8 +142,6 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
           </Boxed>
         </Section>
 
-        {overdue && invoice.balance > 0.005 ? <Chase invoice={invoice} /> : null}
-
         {board && board.payments.length > 0 ? (
           <Section id="l2" title="Payments" sum={board.payments.length}>
             <Boxed>
@@ -227,9 +195,14 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
         ) : null}
 
         {board && board.posting.length === 0 && !draft && invoice.status !== "VOIDED" ? (
-          <Callout icon="warn" action={<ButtonLink href="/books/needs-posting" icon="list">Needs posting</ButtonLink>}>
-            <b>Not posted yet.</b>
-          </Callout>
+          <Section id="l4" title="Posting" sum="Not posted">
+            <p className="bk-note">
+              <Icon name="warn" />
+              <span>
+                Nothing has reached the ledger for {invoice.number} yet. <Link href="/books/needs-posting">Needs posting</Link> shows why, and posts it.
+              </span>
+            </p>
+          </Section>
         ) : null}
         {board && board.posting.length > 0 ? (
           <Section id="l4" title="Posting" sum={board.entries === 1 ? "1 entry" : `${board.entries} entries`}>
@@ -311,6 +284,28 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             </dl>
           </section>
         ) : null}
+        <section>
+          <div className="sec-title">Details</div>
+          <dl className="attrs">
+            <dt>Issued</dt>
+            <dd>
+              {board?.issued ?? (draft ? "Not yet" : invoice.date)}
+              {!board?.issued && invoice.quote ? (
+                <>
+                  , from <Link href={`/books/quotes?q=${encodeURIComponent(invoice.quote.number)}`}>{invoice.quote.number}</Link>
+                </>
+              ) : null}
+            </dd>
+            <dt>Terms</dt>
+            <dd>{invoice.dueTerms}</dd>
+            <dt>Rate</dt>
+            <dd>{board?.rate ?? "—"}</dd>
+            <dt>Made by</dt>
+            <dd>
+              <Said text={invoice.madeBy} faces={invoice.faces} />
+            </dd>
+          </dl>
+        </section>
       </aside>
     </div>
 

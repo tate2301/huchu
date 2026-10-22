@@ -10,47 +10,23 @@ import { Icon, type IconName } from "@/components/core";
  * what they are for, the summary on the right. Pure markup.
  */
 
-export function BkFormPage({ children, rail }: { children: React.ReactNode; rail?: React.ReactNode }) {
+export function BkFormPage({ children, rail }: { children: React.ReactNode; rail: React.ReactNode }) {
   return (
-    <div className={rail ? "bk bk-fm" : "bk bk-fm bk-fm-wide"}>
+    <div className="bk bk-fm">
       <div className="bk-fl">{children}</div>
-      {rail ? (
-        <aside className="rail" aria-label="Summary">
-          {rail}
-        </aside>
-      ) : null}
+      <aside className="rail" aria-label="Summary">
+        {rail}
+      </aside>
     </div>
   );
 }
 
-/** What the lines add up to, under them: rows, then the total in ink. Cents muted. */
-export function BkTotals({ rows, total }: { rows: Array<[React.ReactNode, string]>; total: [React.ReactNode, string] }) {
-  const split = (text: string) => {
-    const cut = text.lastIndexOf(".");
-    return cut < 0 ? text : (<>{text.slice(0, cut)}<i>{text.slice(cut)}</i></>);
-  };
-  return (
-    <dl className="bk-tot" aria-label="Totals">
-      {rows.map(([label, value], index) => (
-        <div key={index}>
-          <dt>{label}</dt>
-          <dd className="num">{split(value)}</dd>
-        </div>
-      ))}
-      <div className="tot">
-        <dt>{total[0]}</dt>
-        <dd className="num">{split(total[1])}</dd>
-      </div>
-    </dl>
-  );
-}
-
-export function FormSec({ title, text, children }: { title: string; text?: string; children: React.ReactNode }) {
+export function FormSec({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
   return (
     <section className="form-sec">
       <header>
         <h2>{title}</h2>
-        {text ? <p>{text}</p> : null}
+        <p>{text}</p>
       </header>
       <div className="body">{children}</div>
     </section>

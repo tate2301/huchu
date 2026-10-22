@@ -4,17 +4,14 @@ import { resolveBaseCurrency } from "@/lib/money";
 
 import { moneyInOut } from "./core/money-in-out";
 import { customerFace, customerImage } from "./faces";
-import { asOf, dayOf, money, monthName, monthSoFar, monthStart, shortDay, storedDay } from "./format";
+import { asOf, count, dayOf, money, monthName, monthSoFar, monthStart, shortDay, storedDay } from "./format";
 import { owedAndOverdue } from "./invoices";
 import { itf263State } from "./itf263";
 import { blockingWhere } from "./needs-posting";
 import { cameIn, isMoneyIn } from "./money";
 import {
   dueNextMonth,
-  ageBuckets,
-  lowestPoint,
-  moneyFinding,
-  type MoneyUpcoming,
+  moneyBoardFinding,
   nextQpd,
   nextTaxDate,
   shares,
@@ -83,7 +80,6 @@ async function accounts(db: Db, companyId: string, base: string, now: Date): Pro
       kind: KIND_LABEL[row.kind] ?? row.kind,
       currency: row.currency.toUpperCase(),
       amount: round(amount),
-      inBase: row.currency.toUpperCase() === base ? round(amount) : (() => { const rate = rates.find((entry) => entry.quoteCurrency === row.currency.toUpperCase()); return rate ? round(amount / rate.rate) : null; })(),
       reconciled: end ? shortDay(storedDay(end)) : null,
     };
   });
@@ -132,9 +128,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "approve",
       icon: "hand",
-      lead: "Requisitions to approve",
-      count: approvals._count,
-      detail: money(Number(approvals._sum.amount ?? 0), currency),
+      lead: approvals._count === 1 ? "1 requisition to approve" : `${approvals._count} requisitions to approve`,
+      detail: `${money(Number(approvals._sum.amount ?? 0), currency)} in all`,
       people: askers.map((row) => ({ name: row.requestedBy.name, image: row.requestedBy.image })),
       urgency: "urgent",
       action: { label: "Review", icon: "eye", href: "/crm/requisitions" },
@@ -145,9 +140,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "fdms",
       icon: "fiscal",
-      lead: "Not signed by FDMS",
-      count: unsigned.length,
-      detail: unsigned.length === 1 ? (first.invoiceNumber ?? first.customer.name) : money(unsigned.reduce((sum, row) => sum + row.total, 0), first.currency),
+      lead: unsigned.length === 1 ? `${first.invoiceNumber ?? "An invoice"} is not signed by FDMS` : `${unsigned.length} invoices are not signed by FDMS`,
+      detail: `${first.customer.name}, ${money(first.total, first.currency)}`,
       people: [{ name: first.customer.name, image: customerImage(first.customer) }],
       urgency: "urgent",
       action: { label: "Retry", icon: "history", href: "/books/fiscal?tab=failed" },
@@ -157,9 +151,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "posting",
       icon: "warn",
-      lead: "Failed to post",
-      count: unposted,
-      detail: "",
+      lead: unposted === 1 ? "A money event did not post" : `${unposted} money events did not post`,
+      detail: "They wait in Needs posting",
       urgency: "routine",
       action: { label: "Fix it", icon: "posting", href: "/books/needs-posting" },
     });
@@ -169,9 +162,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "bank",
       icon: "bank",
-      lead: "Bank lines to match",
-      count: lines,
-      detail: "",
+      lead: `${count(lines, "bank line")} to match`,
+      detail: `${bank.bankName || bank.name} ${bank.currency}`,
       urgency: "routine",
       action: { label: "Match", icon: "check", href: "/books/bank" },
     });
@@ -186,9 +178,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "itf263",
       icon: "store",
-      lead: "Suppliers without an ITF263",
-      count: missing,
-      detail: "",
+      lead: missing === 1 ? "1 supplier has no valid ITF263" : `${missing} suppliers have no valid ITF263`,
+      detail: "Payments to them withhold 30%",
       urgency: "routine",
       action: { label: "Ask for it", icon: "send", href: "/books/suppliers?view=missing-itf263" },
     });
@@ -197,9 +188,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
     list.push({
       key: "overdue",
       icon: "invoice",
-      lead: "Overdue invoices",
-      count: overdue.invoices,
-      detail: money(overdue.amount, currency),
+      lead: overdue.invoices === 1 ? "1 invoice is overdue" : `${overdue.invoices} invoices are overdue`,
+      detail: `${money(overdue.amount, currency)} in all`,
       urgency: "routine",
       action: { label: "Remind", icon: "whatsapp", href: "/books/invoices?view=overdue" },
     });
@@ -208,9 +198,8 @@ async function needs(db: Db, companyId: string, today: string, now: Date, curren
   list.push({
     key: "tax",
     icon: "calendar",
-    lead: "Next tax date",
-    count: 0,
-    detail: `${shortDay(tax.day)}, ${tax.what}`,
+    lead: `Next tax date: ${shortDay(tax.day)}`,
+    detail: tax.what,
     urgency: "look",
     action: { label: "What's due", icon: "chev", href: "/books/tax" },
   });
@@ -226,36 +215,6 @@ async function vatSoFar(db: Db, companyId: string, today: string, currency: stri
   return round((output._sum.taxTotal ?? 0) - (input._sum.taxTotal ?? 0));
 }
 
-
-const FORTNIGHT = 14;
-
-/** Bills due, invoices due and the next tax date in the coming fortnight, in date order. Money in is positive. */
-async function comingUp(db: Db, companyId: string, today: string, currency: string): Promise<{ until: string; rows: MoneyUpcoming[] }> {
-  const start = new Date(`${today}T00:00:00.000Z`);
-  const end = new Date(start.getTime() + FORTNIGHT * 86_400_000);
-  const [bills, invoices] = await Promise.all([
-    db.purchaseBill.findMany({
-      where: { companyId, status: "RECEIVED", currency, dueDate: { gte: start, lt: end } },
-      select: { billNumber: true, dueDate: true, total: true, amountPaid: true, debitNoteTotal: true, writeOffTotal: true, vendor: { select: { name: true } } },
-    }),
-    db.salesInvoice.findMany({
-      where: { companyId, status: "ISSUED", currency, dueDate: { gte: start, lt: end } },
-      select: { invoiceNumber: true, dueDate: true, total: true, amountPaid: true, creditTotal: true, writeOffTotal: true, customer: { select: { name: true } } },
-    }),
-  ]);
-  const rows: MoneyUpcoming[] = [];
-  for (const bill of bills) {
-    const left = Math.max(0, bill.total - bill.amountPaid - bill.debitNoteTotal - bill.writeOffTotal);
-    if (left > 0.005 && bill.dueDate) rows.push({ day: storedDay(bill.dueDate), label: `${bill.vendor.name}, ${bill.billNumber ?? "bill"}`, amount: -round(left) });
-  }
-  for (const invoice of invoices) {
-    const left = Math.max(0, invoice.total - invoice.amountPaid - invoice.creditTotal - invoice.writeOffTotal);
-    if (left > 0.005 && invoice.dueDate) rows.push({ day: storedDay(invoice.dueDate), label: `${invoice.customer.name}, ${invoice.invoiceNumber ?? "invoice"}`, amount: round(left) });
-  }
-  rows.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.amount - b.amount));
-  return { until: shortDay(storedDay(new Date(end.getTime() - 86_400_000))), rows };
-}
-
 async function weOwe(db: Db, companyId: string, currency: string): Promise<number> {
   const bills = await db.purchaseBill.findMany({
     where: { companyId, status: "RECEIVED", currency },
@@ -269,7 +228,7 @@ export async function readMoneyBoard(db: Db, companyId: string, now = new Date()
   const base = (await resolveBaseCurrency(companyId)).toUpperCase();
   const totals = await owedAndOverdue(db, companyId, today);
   const currency = totals.currency;
-  const [flows, sources, bank, needList, vat, suppliers, onAccount, upcoming] = await Promise.all([
+  const [flows, sources, bank, needList, vat, suppliers, onAccount] = await Promise.all([
     moneyInOut(db, companyId, { from: harareStart(monthStart(today)) }, currency, base),
     cameIn(db, companyId, today, currency),
     accounts(db, companyId, base, now),
@@ -277,7 +236,6 @@ export async function readMoneyBoard(db: Db, companyId: string, now = new Date()
     vatSoFar(db, companyId, today, currency),
     weOwe(db, companyId, currency),
     db.salesReceipt.aggregate({ where: { companyId, invoiceId: null, voidedAt: null, OR: [{ currency }, { currency: null }] }, _sum: { amount: true } }),
-    comingUp(db, companyId, today, currency),
   ]);
   const month = monthName(today);
   const qpd = nextQpd(today);
@@ -289,7 +247,7 @@ export async function readMoneyBoard(db: Db, companyId: string, now = new Date()
   const vatOwed = Math.max(0, vat);
   return {
     currency,
-    finding: moneyFinding(round(flows.totalIn - flows.totalOut), bank.inBase === null ? null : lowestPoint(bank.inBase, upcoming.rows), upcoming.until, currency),
+    finding: moneyBoardFinding(flows.totalIn, flows.totalOut, totals.overdue.amount, currency),
     tax: [
       { label: `VAT, ${month} so far`, value: money(vat, currency), note: `Due ${dueNextMonth(today, 15)}` },
       { label: `PAYE, ${month}`, value: `After 25 ${month.slice(0, 3)}`, note: `Due ${dueNextMonth(today, 10)}` },
@@ -301,8 +259,6 @@ export async function readMoneyBoard(db: Db, companyId: string, now = new Date()
     cameIn: { total: flows.totalIn, rows: cameRows },
     wentOut: { total: flows.totalOut, rows: wentRows },
     bank,
-    age: ageBuckets(totals.ages),
-    upcoming,
     owed: { total: totals.owed.amount, notDue: round(totals.owed.amount - totals.overdue.amount), overdue: totals.overdue.amount, onAccount: onAccountSum },
     owe: { total: round(suppliers + vatOwed), suppliers, claims: 0, vat: vatOwed, vatLabel: `VAT, ${month}` },
   };
