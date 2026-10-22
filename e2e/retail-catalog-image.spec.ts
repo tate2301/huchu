@@ -47,7 +47,7 @@ import { settle, shooter, VIEWPORT } from "./_support/shots";
  * The origin and the browser channel come from `.env.e2e` via
  * `playwright.config.ts`, and the `setup` project signs both people in first.
  *
- * Needs `BLOB_READ_WRITE_TOKEN` set, or the endpoint answers 503 by design and
+ * Needs `BLOB_STORE_ID` or `BLOB_READ_WRITE_TOKEN` set, or the endpoint answers 503 by design and
  * this fails with that message rather than something cryptic.
  *
  * ## It writes

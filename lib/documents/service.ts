@@ -14,6 +14,7 @@ import { resolveTemplate } from "@/lib/documents/template-resolver";
 import { applyPayslipLayout } from "@/lib/documents/payslip-rows";
 import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
+import { isBlobStorageConfigured } from "@/lib/uploads/storage";
 import { renderXlsx } from "@/lib/documents/xlsx-renderer";
 
 export type RenderFormat = "pdf" | "csv" | "xlsx";
@@ -267,8 +268,8 @@ function calcRetryDate(attemptCount: number): Date {
 }
 
 async function uploadArtifact(companyId: string, fileName: string, data: Buffer, contentType: string) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is not configured");
+  if (!isBlobStorageConfigured()) {
+    throw new Error("Blob storage is not configured (BLOB_STORE_ID or BLOB_READ_WRITE_TOKEN)");
   }
 
   const now = new Date();
@@ -437,7 +438,7 @@ export async function purgeExpiredArtifacts(limit = 50) {
   if (expired.length === 0) return { purged: 0 };
 
   const purgeable: string[] = [];
-  const canDelete = Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+  const canDelete = isBlobStorageConfigured();
   for (const artifact of expired) {
     if (!canDelete) break;
     try {

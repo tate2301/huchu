@@ -31,6 +31,9 @@ PLATFORM_ROOT_HOSTS="app.your-domain.com"
 `PLATFORM_ROOT_DOMAIN` enables strict tenant host enforcement. In production, users must sign in on `tenant-slug.app.your-domain.com`.
 
 ### Blob Storage
+Connect a **public** Vercel Blob store to the project (Storage tab) for Production and Preview, without an environment variable prefix. The connection sets `BLOB_STORE_ID`, and `@vercel/blob` signs in with the deployment's OIDC token, so no read-write token is needed on Vercel.
+
+Off Vercel (local dev, scripts), set the store's read-write token instead:
 ```
 BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
 ```
