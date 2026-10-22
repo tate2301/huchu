@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { Button, Drawer, Field, Input, Select } from "@/components/core";
+import { Button, Drawer, Field, Icon, Input, Select } from "@/components/core";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { money } from "@/lib/books/format";
 import type { JournalFormOptions } from "@/lib/books/journals";
 import { uploadBooksFile, type BooksFile } from "@/lib/books/upload-client";
 
@@ -20,7 +21,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const plain = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
- * New journal (BkJournalNew, J on Journals): the date and the memo, the
+ * New journal (BkJournalNew, N on Journals): the date and the memo, the
  * currency and the slip, then two or more lines with their cost centres that
  * balance. Save as draft, or Post this journal (Ctrl ↵); over the limit it
  * goes to a second person instead, and a closed month asks why.
@@ -122,7 +123,7 @@ export function NewJournalDrawer({ open, onOpenChange, onSaved }: { open: boolea
             <Input id="journal-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </Field>
           <Field label="Memo" htmlFor="journal-memo">
-            <Input id="journal-memo" value={memo} onChange={(event) => setMemo(event.target.value)} />
+            <Input id="journal-memo" value={memo} placeholder="What it moves, and why" onChange={(event) => setMemo(event.target.value)} />
           </Field>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "150px minmax(0,1fr)", gap: 12, padding: "0 24px" }}>
@@ -213,6 +214,10 @@ export function NewJournalDrawer({ open, onOpenChange, onSaved }: { open: boolea
           </tfoot>
         </table>
         </div>
+        <span className="muted" style={{ padding: "0 24px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <Icon name="person" />
+          {options && options.secondOver > 0 ? `Over ${money(options.secondOver, options.baseCurrency)}, a second person approves it.` : "It posts as soon as you press Post."}
+        </span>
         {needsReason ? (
           <div style={{ padding: "0 24px" }}>
             <Field label="Why it posts into a closed month" htmlFor="journal-override">

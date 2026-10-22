@@ -100,16 +100,14 @@ export function BkTools({
 }
 
 /** Sort and Export, quiet, at the end of the tools. */
-export function BkQuietTools({ onSort, sortLabel = "Sort", exportHref, extra, middle }: { onSort?: () => void; sortLabel?: string; exportHref?: string; extra?: React.ReactNode; /** Group and Columns, between Sort and Export. */ middle?: React.ReactNode }) {
+export function BkQuietTools({ onSort, sortLabel = "Sort", exportHref }: { onSort?: () => void; sortLabel?: string; exportHref?: string }) {
   return (
     <>
-      {extra}
       {onSort ? (
         <Button variant="quiet" icon="sort" onClick={onSort}>
           {sortLabel}
         </Button>
       ) : null}
-      {middle}
       {exportHref ? (
         <a className="btn btn-quiet" href={exportHref} download>
           <Icon name="export" />
@@ -170,83 +168,4 @@ export function useListQuery<Q extends object>(defaults: Partial<Record<keyof Q,
   );
   const exportHref = (api: string) => `${api}?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`;
   return { search, params, onQuery, exportHref };
-}
-
-export type BkCol = { key: string; label: string; /** Its place in the table, counting the select cell: the first column is never listed. */ nth: number };
-export type BkGroup<T> = { key: string; label: string; by: (row: T) => string };
-
-/**
- * Group and Columns for a list. What is hidden is remembered per person, per list;
- * grouping works on the rows of the page. `rows` draws the body, with a heading row
- * before each group; `wrap` scopes the hidden columns to this list's table.
- */
-export function useBkLayout<T>(id: string, cols: BkCol[], groups: Array<BkGroup<T>>, source: T[]) {
-  const storeKey = `bk.columns.${id}`;
-  const [hidden, setHidden] = React.useState<string[]>([]);
-  const [group, setGroup] = React.useState("none");
-  React.useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storeKey);
-      if (saved) setHidden((JSON.parse(saved) as string[]).filter((key) => cols.some((col) => col.key === key)));
-    } catch {
-      /* A private window keeps nothing; the list still works. */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeKey]);
-  const toggle = (key: string) =>
-    setHidden((now) => {
-      const next = now.includes(key) ? now.filter((item) => item !== key) : [...now, key];
-      try {
-        window.localStorage.setItem(storeKey, JSON.stringify(next));
-      } catch {
-        /* Not remembered. */
-      }
-      return next;
-    });
-  const active = groups.find((option) => option.key === group);
-  const entries = React.useMemo(() => {
-    if (!active) return source.map((row) => ({ row }) as { row: T } | { group: string; n: number });
-    const names = [...new Set(source.map(active.by))].sort((a, b) => a.localeCompare(b, "en-GB"));
-    return names.flatMap((name) => {
-      const inside = source.filter((row) => active.by(row) === name);
-      return [{ group: name, n: inside.length }, ...inside.map((row) => ({ row }))] as Array<{ row: T } | { group: string; n: number }>;
-    });
-  }, [source, active]);
-  const hide = cols.filter((col) => hidden.includes(col.key));
-  const css = hide.length
-    ? `.bk-v-${id} :is(th,td,col):is(${hide.map((col) => `:nth-child(${col.nth})`).join(",")}){display:none}`
-    : "";
-  const total = Math.max(...cols.map((col) => col.nth), 1) + 1;
-  const span = total - hide.length;
-  const tools = (
-    <>
-      {groups.length ? (
-        <MenuButton
-          variant="quiet"
-          icon="sections"
-          label="Group"
-          items={[{ key: "none", label: "No grouping", checked: group === "none", onSelect: () => setGroup("none") }, ...groups.map((option) => ({ key: option.key, label: option.label, checked: group === option.key, onSelect: () => setGroup(option.key) }))]}
-        >
-          Group
-        </MenuButton>
-      ) : null}
-      <MenuButton variant="quiet" icon="eye" label="Columns" items={cols.map((col) => ({ key: col.key, label: col.label, checked: !hidden.includes(col.key), onSelect: () => toggle(col.key) }))}>
-        Columns
-      </MenuButton>
-    </>
-  );
-  const rows = (render: (row: T) => React.ReactNode) =>
-    entries.map((entry) =>
-      "group" in entry ? (
-        <tr key={`group-${entry.group}`} className="group">
-          <td colSpan={span}>
-            <b>{entry.group}</b> <span className="muted">{entry.n}</span>
-          </td>
-        </tr>
-      ) : (
-        render(entry.row)
-      ),
-    );
-  const style = css ? <style>{css}</style> : null;
-  return { tools, rows, style, wrap: `bk-v-${id}`, grouped: Boolean(active) };
 }

@@ -18,7 +18,6 @@ import "./themes/workspace.css";
 import "@/components/core/kit.css";
 import "@/components/core/parts.css";
 import "@/components/core/books.css";
-import "@/components/core/books-screens.css";
 import "@/components/books/books-type.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";

@@ -243,10 +243,10 @@ function matches(row: NeedsPostingRow, q: string) {
 }
 
 export function needsPostingFinding(failed: number, waiting: number, heldUp: string | null): { fact: string; rest: string | null } {
-  if (failed + waiting === 0) return { fact: "Every money event reached the ledger.", rest: null };
-  const shown = failed > 0 ? failed : waiting;
-  const fact = failed > 0 ? `${count(failed, "money event")} failed to post.` : `${count(waiting, "money event")} waiting to post.`;
-  return { fact, rest: heldUp ? `${shown === 1 ? "It blocks" : "They block"} ${heldUp}’s close.` : null };
+  const all = failed + waiting;
+  if (all === 0) return { fact: "Every money event reached the ledger.", rest: null };
+  const fact = `${count(all, "money event")} didn’t reach the ledger.`;
+  return { fact, rest: heldUp ? `${all === 1 ? "It holds" : "They hold"} up ${heldUp}’s close.` : null };
 }
 
 export async function readNeedsPosting(db: Db, companyId: string, query: NeedsPostingQuery, now = new Date()): Promise<NeedsPostingView> {

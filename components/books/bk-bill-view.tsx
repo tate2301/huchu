@@ -3,14 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { ButtonLink } from "@/components/core";
-import type { BillRecordPage } from "@/lib/books/bill-record";
+import type { BillRecord } from "@/lib/books/bill-record";
 import { FDMS_LABEL } from "@/lib/books/bills";
 import type { ExpenseState } from "@/lib/books/expenses";
-import { money, weekdayDay } from "@/lib/books/format";
+import { money, shortDay } from "@/lib/books/format";
 
 import { BkState } from "./bk-list";
-import { Bleed, Callout, History, Named, PostingTable, RailSection, RecordHead, Section, Strip } from "./bk-record";
+import { Bleed, Callout, History, PostingTable, RailSection, RecordHead, Section } from "./bk-record";
 
 const PILL: Record<ExpenseState, string> = { draft: "pill-n", "to-pay": "pill-info", "part-paid": "pill-info", paid: "pill-ok", overdue: "pill-warn", void: "pill-plain" };
 const FDMS_TONE = { VALID: "success", NOT_CHECKED: "warning", NOT_VALID: "danger" } as const;
@@ -19,91 +18,68 @@ const qty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).repla
 
 /**
  * One bill (design/core-modules/boards/view/BkBill.html): the total and its
- * state; the limit warning on a bill waiting for the owner; the facts row (their
- * invoice, FDMS, date, cost centre); its lines and sums; the order and goods
- * receipt it matches; the payments on it; one Posting section (none until
- * something posted; a warning with Needs posting when a recorded bill has not);
- * its history. On the right, who approves. Pure.
+ * state, who and when; the FDMS check that holds its VAT; its lines and sums;
+ * the order and goods receipt it matches; the payments on it; what it posted;
+ * its history. On the right, their fiscal invoice and the details. Pure.
  */
-export function BkBillView({ bill }: { bill: BillRecordPage }) {
+export function BkBillView({ bill }: { bill: BillRecord }) {
   const draft = bill.status === "DRAFT";
-  // Over the limit, a draft waits for the owner; the page's `can.approve` only says whether this person is that owner.
-  const toApprove = draft && bill.total > bill.limit + 0.004 && !bill.details.approvedBy;
-  const stateLabel = toApprove ? "To approve" : bill.stateLabel;
-  const vatNote = bill.fti.fdms === "NOT_CHECKED" && bill.taxTotal > 0.005 ? ", waiting for FDMS" : bill.fti.fdms === "NOT_VALID" && bill.taxTotal > 0.005 ? ", not claimed" : "";
   const sums: Array<{ label: string; amount: number; total?: boolean }> = [
-    { label: "Net", amount: bill.subTotal },
-    { label: `VAT input${vatNote}`, amount: bill.taxTotal },
+    { label: "Before VAT", amount: bill.subTotal },
+    { label: bill.taxLabel, amount: bill.taxTotal },
     { label: "Total", amount: bill.total, total: true },
     ...(!draft && bill.status !== "VOIDED" ? [{ label: "Paid", amount: bill.paid }] : []),
     ...(bill.debitNotes > 0.005 ? [{ label: "Debit notes", amount: -bill.debitNotes }] : []),
     ...(bill.writtenOff > 0.005 ? [{ label: "Written off", amount: -bill.writtenOff }] : []),
     ...(!draft && bill.status !== "VOIDED" ? [{ label: "Left to pay", amount: bill.balance, total: true }] : []),
   ];
-  const paymentsWaiting = bill.payments.filter((payment) => payment.status === "TO_APPROVE").length;
+  const waiting = bill.payments.filter((payment) => payment.status === "TO_APPROVE").length;
   const vatWaits = bill.taxTotal > 0.005 && bill.status !== "VOIDED";
-  const unposted = !draft && bill.status !== "VOIDED" && bill.posting.length === 0;
-  const what = bill.lines[0]?.description ?? null;
   return (
     <div className="bk bk-rec">
       <div className="bk-main">
-        <RecordHead
-          title={money(bill.total, bill.currency)}
-          pill={<span className={`pill ${toApprove ? "pill-warn" : PILL[bill.state]}`}>{stateLabel}</span>}
-          line={[bill.supplier.name, what, bill.supplier.vatNumber ? `VAT ${bill.supplier.vatNumber}` : null, bill.dueLine]}
-        />
+        <RecordHead title={money(bill.total, bill.currency)} pill={<span className={`pill ${PILL[bill.state]}`}>{bill.stateLabel}</span>} line={[bill.supplier.name, bill.dueLine]} />
 
-        {toApprove ? (
-          <Callout icon="warn">
-            <b>Over the {money(bill.limit, bill.currency)} limit for bills.</b> The owner approves.{bill.details.madeBy ? ` ${bill.details.madeBy} recorded it and can't approve their own bill.` : ""}
+        {vatWaits && bill.fti.fdms === "NOT_CHECKED" ? (
+          <Callout icon="fiscal">
+            <b>Not checked on FDMS yet.</b> Its {money(bill.taxTotal, bill.currency)} of VAT waits until it shows Valid.
           </Callout>
-        ) : null}
-        {vatWaits && bill.fti.fdms === "NOT_VALID" ? (
+        ) : vatWaits && bill.fti.fdms === "NOT_VALID" ? (
           <Callout icon="warn">
-            <b>Not valid on FDMS.</b> Its {money(bill.taxTotal, bill.currency)} of VAT is not claimed.
+            <b>Not valid on FDMS.</b> Its {money(bill.taxTotal, bill.currency)} of VAT is not claimed. Ask {bill.supplier.name} for a valid fiscal invoice.
           </Callout>
         ) : null}
         {bill.needsReview ? (
           <Callout tone="plain" icon="list">
-            <b>Made from a goods receipt.</b> Check it against their invoice.
+            <b>Made from a goods receipt.</b> Check it against their invoice, then record it.
           </Callout>
         ) : null}
-
-        <Strip
-          tiles={[
-            { label: "Their FTI", value: bill.fti.number ? <span className="mono">{bill.fti.number}</span> : "—" },
-            { label: "FDMS", value: <BkState tone={FDMS_TONE[bill.fti.fdms]}>{FDMS_LABEL[bill.fti.fdms]}</BkState> },
-            { label: "Dated", value: `${weekdayDay(bill.fti.dated)} ${bill.fti.dated.slice(0, 4)}` },
-            { label: "Cost centre", value: bill.details.for ?? "—" },
-          ]}
-        />
 
         <Section id="b1" title="Lines" sum={bill.lines.length === 1 ? "1 line" : `${bill.lines.length} lines`}>
           <Bleed>
             <table className="table" aria-label="Lines">
               <colgroup>
                 <col />
-                <col style={{ width: 160 }} />
+                <col style={{ width: 120 }} />
                 <col style={{ width: 120 }} />
                 <col style={{ width: 140 }} />
               </colgroup>
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Account</th>
-                  <th>Tax</th>
+                  <th>Quantity</th>
+                  <th className="num">Price</th>
                   <th className="num">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {bill.lines.map((line) => (
                   <tr key={line.id}>
-                    <td className="truncate">
+                    <td>
                       <span className="cell-lead">{line.description}</span>
-                      {Math.abs(line.quantity - 1) > 0.0001 ? <span className="muted"> · {qty(line.quantity)} at {money(line.unitPrice, bill.currency)}</span> : null}
                     </td>
-                    <td className="muted">—</td>
-                    <td>{line.taxRate > 0 ? <span className="mono">{line.taxRate}%</span> : <span className="muted">—</span>}</td>
+                    <td>{qty(line.quantity)}</td>
+                    <td className="num">{money(line.unitPrice, bill.currency)}</td>
                     <td className="num">{money(line.amount, bill.currency)}</td>
                   </tr>
                 ))}
@@ -158,7 +134,7 @@ export function BkBillView({ bill }: { bill: BillRecordPage }) {
         ) : null}
 
         {bill.payments.length ? (
-          <Section id="b4" title="Payments" sum={paymentsWaiting ? `${paymentsWaiting} to approve` : bill.payments.length}>
+          <Section id="b4" title="Payments" sum={waiting ? `${waiting} to approve` : bill.payments.length}>
             <Bleed>
               <table className="table" aria-label="Payments">
                 <colgroup>
@@ -210,18 +186,14 @@ export function BkBillView({ bill }: { bill: BillRecordPage }) {
           <Section id="b5" title="Posting" sum={bill.entries === 1 ? "1 entry" : `${bill.entries} entries`}>
             <PostingTable rows={bill.posting} />
           </Section>
-        ) : null}
-        {unposted ? (
-          <Callout
-            icon="warn"
-            action={
-              <ButtonLink href="/books/needs-posting" icon="list">
-                Needs posting
-              </ButtonLink>
-            }
-          >
-            <b>Not posted yet.</b>
-          </Callout>
+        ) : !draft && bill.status !== "VOIDED" ? (
+          <Section id="b5" title="Posting" sum="Not posted">
+            <p className="bk-note">
+              <span>
+                Nothing has reached the ledger for {bill.number} yet. <Link href="/books/needs-posting">Needs posting</Link> shows why, and posts it.
+              </span>
+            </p>
+          </Section>
         ) : null}
 
         {bill.history.length ? (
@@ -233,10 +205,12 @@ export function BkBillView({ bill }: { bill: BillRecordPage }) {
 
       <aside className="rail" aria-label={`About ${bill.number}`}>
         <RailSection
-          title="Approval"
+          title="Their fiscal invoice"
           rows={[
-            ["Recorded by", <Named key="m" name={bill.details.madeBy} faces={bill.faces} />],
-            ...(toApprove || bill.details.approvedBy ? ([[toApprove ? "Approves" : "Approved by", <Named key="a" name={bill.details.approvedBy ?? bill.owner} faces={bill.faces} />]] as Array<[string, React.ReactNode]>) : []),
+            ["Number", bill.fti.number ? <span className="mono">{bill.fti.number}</span> : "Not entered yet"],
+            ["Dated", `${shortDay(bill.fti.dated)} ${bill.fti.dated.slice(0, 4)}`],
+            ["FDMS", <BkState key="fdms" tone={FDMS_TONE[bill.fti.fdms]}>{FDMS_LABEL[bill.fti.fdms]}</BkState>],
+            ["Their VAT no.", bill.supplier.vatNumber ?? "Not registered"],
           ]}
         />
         <RailSection
@@ -244,6 +218,8 @@ export function BkBillView({ bill }: { bill: BillRecordPage }) {
           rows={[
             ["Supplier", <Link key="s" href={`/books/suppliers/${bill.supplier.id}`}>{bill.supplier.name}</Link>],
             ["Terms", bill.supplier.terms],
+            ["For", bill.details.for ?? "—"],
+            ["Order", bill.match?.order ? <Link key="o" href={`/books/orders?q=${encodeURIComponent(bill.match.order.number)}`}>{bill.match.order.number}</Link> : "None"],
           ]}
         />
       </aside>

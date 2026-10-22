@@ -32,10 +32,10 @@ const VIEW_STATUS: Record<Exclude<RequisitionView, "all">, CrmRequisitionStatus>
 export const REQUISITION_STATE: Record<CrmRequisitionStatus, string> = {
   DRAFT: "Draft",
   SUBMITTED: "To approve",
-  APPROVED: "Approved",
+  APPROVED: "To pay",
   REJECTED: "Rejected",
-  DISBURSED: "Disbursed",
-  ACQUITTED: "Acquitted",
+  DISBURSED: "Paid out",
+  ACQUITTED: "Accounted for",
   CANCELLED: "Cancelled",
 };
 
@@ -70,8 +70,6 @@ export type RequisitionRow = {
   askedBy: { id: string; name: string; image: string | null };
   source: "CRM" | "Retail";
   purpose: string;
-  /** The job it is for: the CRM deal's project, or the shop; null for fuel, airtime and the like. */
-  job: string | null;
   asked: string;
   amount: number;
   currency: string;
@@ -140,8 +138,6 @@ const rowSelect = {
   currency: true,
   submittedAt: true,
   createdAt: true,
-  project: { select: { name: true } },
-  site: { select: { name: true } },
   requestedBy: { select: { id: true, name: true, image: true } },
 } satisfies Prisma.CrmRequisitionSelect;
 
@@ -155,7 +151,6 @@ export function toRequisitionRow(record: RowRecord): RequisitionRow {
     askedBy: record.requestedBy,
     source: record.siteId ? "Retail" : "CRM",
     purpose: record.purpose,
-    job: record.project?.name ?? record.site?.name ?? null,
     asked: shortDay(dayOf(record.submittedAt ?? record.createdAt)),
     amount,
     currency: record.currency,
@@ -214,10 +209,10 @@ const csvCell = (value: string | number) => {
 /** The list as filtered, every page, for Export. */
 export async function requisitionsCsv(db: Db, companyId: string, query: RequisitionQuery): Promise<string> {
   const records = await db.crmRequisition.findMany({ where: requisitionWhere(companyId, query), select: rowSelect, orderBy: [{ createdAt: "desc" }], take: 10_000 });
-  const lines = [["Number", "Who", "For", "Job", "Source", "State", "Currency", "Amount"].join(",")];
+  const lines = [["Requisition", "Asked by", "From", "For", "Asked", "State", "Currency", "Amount"].join(",")];
   for (const record of records) {
     const row = toRequisitionRow(record);
-    lines.push([row.number, row.askedBy.name, row.purpose, row.job ?? "", row.source, row.state, row.currency, row.amount.toFixed(2)].map(csvCell).join(","));
+    lines.push([row.number, row.askedBy.name, row.source, row.purpose, row.asked, row.state, row.currency, row.amount.toFixed(2)].map(csvCell).join(","));
   }
   return `${lines.join("\n")}\n`;
 }

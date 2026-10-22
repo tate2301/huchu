@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { BkLedgerView, ExportAction } from "@/components/books/bk-ledger-views";
+import { BkLedgerView } from "@/components/books/bk-ledger-views";
 import { useListQuery } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -19,12 +19,10 @@ function Page() {
   const today = dayOf(new Date());
   return (
     <>
-      <PageChrome title={query.data?.account ? `${query.data.account.code} ${query.data.account.name}` : "General ledger"}>
-        <ExportAction href={exportHref("/api/books/ledger")} />
-      </PageChrome>
+      <PageChrome title="General ledger" />
       <BooksPage screen="bk-b">
         {query.data ? (
-          <BkLedgerView data={query.data} onQuery={onQuery} today={today} />
+          <BkLedgerView data={query.data} onQuery={onQuery} today={today} exportHref={exportHref("/api/books/ledger")} />
         ) : query.isError ? (
           <BooksError what="The general ledger" error={query.error} onRetry={() => query.refetch()} />
         ) : (

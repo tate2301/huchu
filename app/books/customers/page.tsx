@@ -5,19 +5,19 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { BkChip, BkQuietTools, BkTabs, BkTools, useBkLayout } from "@/components/books/bk-list";
+import { BkChip, BkQuietTools, BkTabs, BkTools } from "@/components/books/bk-list";
 import { PartyDrawer } from "@/components/books/bk-party-drawer";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
-import { BooksFinding, BooksPage, Cents } from "@/components/books/figures";
-import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
+import { BooksFinding, BooksPage } from "@/components/books/figures";
+import { Button, Kit, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson } from "@/lib/api-client";
-import { CUSTOMER_AGES, CUSTOMER_AGE_LABEL, CUSTOMER_TAB_LABEL, CUSTOMER_VIEWS, type CustomerAge, type CustomerQuery, type CustomersView } from "@/lib/books/customers-view";
-import { count, money } from "@/lib/books/format";
+import { CUSTOMER_TAB_LABEL, CUSTOMER_VIEWS, type CustomerQuery, type CustomersView } from "@/lib/books/customers-view";
+import { money } from "@/lib/books/format";
+import { AGE_BUCKETS } from "@/lib/books/invoices";
 
-/** An amount in a column: cents muted, a dash for nothing. */
-const amount = (n: number, currency: string) => (Math.abs(n) > 0.005 ? <Cents value={n} currency={currency} /> : <span className="muted">—</span>);
+const owing = (n: number, currency: string) => (n > 0.005 ? money(n, currency) : "—");
 
 /** Books → Sales → Customers (design/core-modules/boards/view/BkCustomers.html). By age is the receivables aging (`/accounting/receivables` lands here). */
 function BooksCustomers() {
@@ -36,8 +36,6 @@ function BooksCustomers() {
   });
   const data = customers.data;
   const ids = React.useMemo(() => data?.rows.map((row) => row.id) ?? [], [data?.rows]);
-  const source = React.useMemo(() => data?.rows ?? [], [data?.rows]);
-  const layout = useBkLayout("customers", [{ key: "rep", label: "Rep", nth: 3 }, { key: "notdue", label: "Not due", nth: 4 }, { key: "d1", label: "1–7 days", nth: 5 }, { key: "d8", label: "8–30 days", nth: 6 }, { key: "over30", label: "Over 30", nth: 7 }, { key: "account", label: "On account", nth: 8 }], [{ key: "rep", label: "Rep", by: (row) => row.rep?.name ?? "No rep" }], source);
   const selection = useSelection(ids);
 
   // The old Receivables address asked for New customer with ?action=new-customer.
@@ -63,15 +61,18 @@ function BooksCustomers() {
   );
 
   const statements = (customerIds: string[]) => window.open(`/books/statements${customerIds.length ? `?customers=${customerIds.join(",")}` : ""}`, "_blank", "noopener");
+  const byAge = data?.query.view === "by-age";
   const selected = data?.rows.filter((row) => selection.isSelected(row.id)) ?? [];
-  const owingIds = data?.rows.filter((row) => row.owes > 0.005).map((row) => row.id) ?? [];
-  const sumAge = (age: CustomerAge) => data?.rows.reduce((sum, row) => sum + row.age[age], 0) ?? 0;
-  const rep = data?.reps.find((option) => option.id === data.query.rep);
-  const countLabel = !data ? "" : data.query.view === "owing" || data.query.view === "by-age" ? `${data.range.of.toLocaleString("en-GB")} owing` : data.query.view === "on-account" ? `${data.range.of.toLocaleString("en-GB")} on account` : count(data.range.of, "customer");
 
   return (
     <>
-      <PageChrome title="Customers" primary={{ label: "New customer", icon: "plus", shortcut: "N", onClick: () => setAdding(true) }} />
+      <PageChrome title="Customers" primary={{ label: "New customer", icon: "plus", shortcut: "N", onClick: () => setAdding(true) }}>
+        <Kit contents>
+          <Button icon="send" onClick={() => statements(selected.length ? selected.map((row) => row.id) : (data?.rows.filter((row) => row.owes > 0.005).map((row) => row.id) ?? []))}>
+            Send statements
+          </Button>
+        </Kit>
+      </PageChrome>
       <BooksPage screen="bk-a">
         {data ? (
           <div className="bk">
@@ -86,19 +87,8 @@ function BooksCustomers() {
               find="Search customers"
               query={data.query.q}
               onFind={(q) => onQuery({ q, page: 1 })}
-              count={countLabel}
+              count={`${data.rows.length} of ${data.range.of}`}
               chips={
-                <>
-                <BkChip
-                  label="Rep"
-                  value={rep?.name ?? "Any"}
-                  set={Boolean(data.query.rep)}
-                  items={[
-                    { key: "any", label: "Any rep", checked: !data.query.rep, onSelect: () => onQuery({ rep: null, page: 1 }) },
-                    { separator: true },
-                    ...data.reps.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: data.query.rep === option.id, onSelect: () => onQuery({ rep: option.id, page: 1 }) })),
-                  ]}
-                />
                 <BkChip
                   label="Currency"
                   value={data.query.currency ?? "Any"}
@@ -109,7 +99,6 @@ function BooksCustomers() {
                     ...data.currencies.map((code) => ({ key: code, label: code, checked: data.query.currency === code, onSelect: () => onQuery({ currency: code, page: 1 }) })),
                   ]}
                 />
-                </>
               }
               filters={[
                 { key: "any", label: "With or without a VAT number", checked: data.query.vat === "any", onSelect: () => onQuery({ vat: "any", page: 1 }) },
@@ -118,42 +107,34 @@ function BooksCustomers() {
               ]}
               end={
                 <BkQuietTools
-                  middle={layout.tools}
                   onSort={() => onQuery({ sort: data.query.sort === "name" ? "owes" : "name", page: 1 })}
                   sortLabel={data.query.sort === "name" ? "Sort" : "Owes most first"}
                   exportHref={`/api/books/customers?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
-                  extra={
-                    <Button variant="quiet" icon="print" onClick={() => statements(selected.length ? selected.map((row) => row.id) : owingIds)}>
-                      Statements
-                    </Button>
-                  }
                 />
               }
             />
-            <div className={layout.wrap} style={{ display: "contents" }}>
-{layout.style}
-<TableShell
+            <TableShell
               label="Customers"
               foot={
                 <TableFoot
                   range={data.range.of === 0 ? "None" : `${data.range.from} to ${data.range.to} of ${data.range.of}`}
+                  sums={[
+                    { label: "Owed", value: money(data.totals.owed, data.currency) },
+                    { label: "Overdue", value: money(data.totals.overdue, data.currency) },
+                    { label: "On account", value: money(data.totals.onAccount, data.currency) },
+                  ]}
                   page={{
                     onPrevious: data.query.page > 1 ? () => onQuery({ page: data.query.page - 1 }) : undefined,
                     onNext: data.range.to < data.range.of ? () => onQuery({ page: data.query.page + 1 }) : undefined,
                   }}
                   selection={{
                     count: selected.length,
-                    sum: { label: "Owes", value: money(selected.reduce((sum, row) => sum + row.balance, 0), data.currency) },
+                    sum: { label: "Owes", value: money(selected.reduce((sum, row) => sum + row.owes, 0), data.currency) },
                     onClear: selection.clear,
                     actions: (
-                      <>
-                        <Button icon="whatsapp" onClick={() => statements(selected.map((row) => row.id))}>
-                          Send statements
-                        </Button>
-                        <Button icon="print" onClick={() => statements(selected.map((row) => row.id))}>
-                          Print statements
-                        </Button>
-                      </>
+                      <Button icon="print" onClick={() => statements(selected.map((row) => row.id))}>
+                        Print statements
+                      </Button>
                     ),
                   }}
                 />
@@ -166,76 +147,59 @@ function BooksCustomers() {
                 </div>
               ) : (
                 <table className="table" aria-label="Customers">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col />
-                    <col style={{ width: 168 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 128 }} />
-                  </colgroup>
                   <thead>
                     <tr>
-                      <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every customer" />
+                      <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
                       <th>Customer</th>
-                      <th>Rep</th>
-                      {CUSTOMER_AGES.map((age) => (
-                        <th className="num" key={age}>
-                          {CUSTOMER_AGE_LABEL[age]}
-                        </th>
-                      ))}
-                      <th className="num">On account</th>
-                      <th className="num">Owes, {data.currency}</th>
+                      {byAge ? (
+                        AGE_BUCKETS.map((bucket) => (
+                          <th className="num" key={bucket}>
+                            {bucket}
+                          </th>
+                        ))
+                      ) : (
+                        <>
+                          <th>Accounts contact</th>
+                          <th className="num">Owes</th>
+                          <th className="num">Overdue</th>
+                          <th className="num">On account</th>
+                          <th>Last paid</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {layout.rows((row) => (
+                    {data.rows.map((row) => (
                       <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                         <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.name}`} />
-                        <td className="fill">
+                        <td>
                           <Link className="cell-lead" href={`/books/customers/${row.id}`}>
-                            {row.code ? (
-                              <>
-                                <span className="ref">{row.code}</span>{" "}
-                              </>
-                            ) : null}
-                            {row.name}
+                            <Person name={row.name} src={row.image} />
                           </Link>
                         </td>
-                        <td>{row.rep ? <Person name={row.rep.name} src={row.rep.image} /> : <span className="muted">—</span>}</td>
-                        {CUSTOMER_AGES.map((age) => (
-                          <td className="num" key={age}>
-                            {amount(row.age[age], data.currency)}
-                          </td>
-                        ))}
-                        <td className="num">{amount(-row.onAccount, data.currency)}</td>
-                        <td className="num" style={{ color: "var(--color-ink)", fontWeight: 500 }}>
-                          {amount(row.balance, data.currency)}
-                        </td>
+                        {byAge ? (
+                          AGE_BUCKETS.map((bucket) => (
+                            <td className={row.ages[bucket] > 0.005 && bucket !== "Not yet due" ? "num" : "num muted"} key={bucket}>
+                              {owing(row.ages[bucket], data.currency)}
+                            </td>
+                          ))
+                        ) : (
+                          <>
+                            <td className="muted">{row.contact ?? "—"}</td>
+                            <td className="num" style={row.owes > 0.005 ? { color: "var(--color-ink)", fontWeight: 500 } : undefined}>
+                              {owing(row.owes, data.currency)}
+                            </td>
+                            <td className="num">{owing(row.overdue, data.currency)}</td>
+                            <td className="num muted">{owing(row.onAccount, data.currency)}</td>
+                            <td className="muted">{row.lastPaid ?? "—"}</td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr className="tot">
-                      <td />
-                      <td>{data.range.of > data.rows.length ? `${data.rows.length.toLocaleString("en-GB")} of ${data.range.of.toLocaleString("en-GB")}` : countLabel}</td>
-                      <td />
-                      {CUSTOMER_AGES.map((age) => (
-                        <td className="num" key={age}>
-                          {amount(sumAge(age), data.currency)}
-                        </td>
-                      ))}
-                      <td className="num">{amount(-data.rows.reduce((sum, row) => sum + row.onAccount, 0), data.currency)}</td>
-                      <td className="num">{amount(data.rows.reduce((sum, row) => sum + row.balance, 0), data.currency)}</td>
-                    </tr>
-                  </tfoot>
                 </table>
               )}
             </TableShell>
-</div>
           </div>
         ) : customers.isError ? (
           <BooksError what="Customers" onRetry={() => customers.refetch()} />

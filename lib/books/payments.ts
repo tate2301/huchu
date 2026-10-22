@@ -53,10 +53,6 @@ export function readPaymentQuery(params: URLSearchParams): PaymentQuery {
   });
 }
 
-export type PaymentBank = "matched" | "to-match" | "not-banked";
-
-export const PAYMENT_BANK_LABEL: Record<PaymentBank, string> = { matched: "Matched", "to-match": "To match", "not-banked": "Not banked" };
-
 export type PaymentRow = {
   id: string;
   number: string;
@@ -67,12 +63,10 @@ export type PaymentRow = {
   invoice: string | null;
   /** The invoice's id, for its link. */
   invoiceId: string | null;
-  /** The money account it went into: "CBZ current", "EcoCash merchant". */
+  /** The money account it went into: "CBZ, USD", "EcoCash". */
   into: string | null;
   received: string;
   method: string;
-  /** Where it stands with the bank: matched to a statement line, still to match, or never through a bank (cash on hand). Null once void. */
-  bank: PaymentBank | null;
   amount: number;
   currency: string;
   /** Voided by the owner: who, when and why. It counts in no sum. */
@@ -92,14 +86,12 @@ export type PaymentsView = {
   customers: Array<{ id: string; name: string; image?: string | null }>;
   accounts: Array<{ id: string; name: string }>;
   query: PaymentQuery;
-  /** The newest payment on no invoice whose customer has an open invoice: the one thing to put right. */
-  allocate: { customer: string; amount: number; currency: string; invoice: { id: string; number: string; owed: number } } | null;
 };
 
 /** What the person may do from a row (the route adds it): Void is the owner's. */
 export type PaymentsPage = PaymentsView & { can: { void: boolean } };
 
-type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent" | "bankAccount" | "bankTransaction" | "salesInvoice">;
+type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent" | "bankAccount">;
 
 /**
  * Whose a payment on no invoice is: the customer its receivables line names.
@@ -184,9 +176,8 @@ const rowSelect = {
   voidReason: true,
   voidedBy: { select: { name: true, image: true } },
   customer: { select: customerFace },
-  customerId: true,
   currency: true,
-  bankAccount: { select: { name: true, bankName: true, currency: true, kind: true } },
+  bankAccount: { select: { name: true, bankName: true, currency: true } },
   invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true, ...customerFace } } } },
 } satisfies Prisma.SalesReceiptSelect;
 
@@ -198,14 +189,7 @@ function methodLabel(method: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-/** Banked money is matched once its bank side is reconciled or linked to a statement line; cash on hand never goes through a bank. */
-export function bankState(record: RowRecord, bankSide: { reconciledAt: Date | null; reconciliationId: string | null; matchedStatementLines: Array<{ id: string }> } | undefined): PaymentBank | null {
-  if (record.voidedAt) return null;
-  if (!record.bankAccount || record.bankAccount.kind === "CASH") return "not-banked";
-  return bankSide && (bankSide.reconciledAt || bankSide.matchedStatementLines.length > 0) ? "matched" : "to-match";
-}
-
-export function toPaymentRow(record: RowRecord, onAccount: string | null = null, bankSide?: Parameters<typeof bankState>[1]): PaymentRow {
+export function toPaymentRow(record: RowRecord, onAccount: string | null = null): PaymentRow {
   return {
     id: record.id,
     number: record.receiptNumber,
@@ -213,10 +197,9 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null,
     customerImage: customerImage(record.invoice?.customer ?? record.customer),
     invoice: record.invoice?.invoiceNumber ?? null,
     invoiceId: record.invoice?.id ?? null,
-    into: record.bankAccount ? record.bankAccount.name : methodLabel(record.method),
+    into: record.bankAccount ? `${record.bankAccount.bankName || record.bankAccount.name}, ${record.bankAccount.currency}` : methodLabel(record.method),
     received: shortDay(storedDay(record.receivedAt)),
     method: methodLabel(record.method),
-    bank: bankState(record, bankSide),
     amount: Math.round(record.amount * 100) / 100,
     currency: record.currency ?? record.invoice?.currency ?? "USD",
     voided: record.voidedAt ? { by: record.voidedBy?.name ?? null, byImage: record.voidedBy?.image ?? null, on: shortDay(dayOf(record.voidedAt)), reason: record.voidReason } : null,
@@ -253,39 +236,6 @@ function sumInMainCurrency(rows: Array<{ amount: number; currency?: string | nul
   return { currency, amount: Math.round(entry.amount * 100) / 100, payments: entry.payments };
 }
 
-/** The bank side each receipt wrote (`recordBankTransaction`), by receipt id. */
-async function bankSidesOf(db: Db, companyId: string, ids: string[]) {
-  if (ids.length === 0) return new Map<string, { reconciledAt: Date | null; reconciliationId: string | null; matchedStatementLines: Array<{ id: string }> }>();
-  const sides = await db.bankTransaction.findMany({
-    where: { companyId, sourceType: "SALES_RECEIPT", sourceId: { in: ids } },
-    select: { sourceId: true, reconciledAt: true, reconciliationId: true, matchedStatementLines: { select: { id: true }, take: 1 } },
-  });
-  return new Map(sides.flatMap((side) => (side.sourceId ? [[side.sourceId, side] as const] : [])));
-}
-
-/** The newest live payment on no invoice whose customer owes on an issued invoice, and the oldest such invoice. */
-async function toAllocate(db: Db, companyId: string, records: RowRecord[], owners: Map<string, string>): Promise<PaymentsView["allocate"]> {
-  for (const record of records) {
-    if (record.voidedAt || record.invoice || !record.customerId) continue;
-    const currency = record.currency ?? "USD";
-    const invoices = await db.salesInvoice.findMany({
-      where: { companyId, customerId: record.customerId, status: "ISSUED", currency },
-      select: { id: true, invoiceNumber: true, total: true, amountPaid: true, creditTotal: true, writeOffTotal: true },
-      orderBy: [{ dueDate: "asc" }, { invoiceNumber: "asc" }],
-      take: 50,
-    });
-    const open = invoices.map((invoice) => ({ ...invoice, owed: Math.round((invoice.total - invoice.amountPaid - invoice.creditTotal - invoice.writeOffTotal) * 100) / 100 })).find((invoice) => invoice.owed > 0.005);
-    if (!open) continue;
-    return {
-      customer: owners.get(record.id) ?? "The customer",
-      amount: Math.round(record.amount * 100) / 100,
-      currency,
-      invoice: { id: open.id, number: open.invoiceNumber, owed: open.owed },
-    };
-  }
-  return null;
-}
-
 export async function readPayments(db: Db, companyId: string, query: PaymentQuery, now = new Date()): Promise<PaymentsView> {
   const today = dayOf(now);
   const where = paymentWhere(companyId, query, today);
@@ -311,9 +261,7 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
     ...PAYMENT_VIEWS.map(tabCount),
   ]);
   const owners = await onAccountCustomers(db, companyId, records);
-  const bankSides = await bankSidesOf(db, companyId, records.map((record) => record.id));
-  const rows = records.map((record) => toPaymentRow(record, owners.get(record.id) ?? null, bankSides.get(record.id)));
-  const allocate = await toAllocate(db, companyId, records, owners);
+  const rows = records.map((record) => toPaymentRow(record, owners.get(record.id) ?? null));
   const from = matching === 0 ? 0 : (query.page - 1) * PAYMENTS_PAGE_SIZE + 1;
   const total = sumInMainCurrency(sums);
   const thisMonth = sumInMainCurrency(month);
@@ -327,9 +275,8 @@ export async function readPayments(db: Db, companyId: string, query: PaymentQuer
     month: { amount: thisMonth.amount, payments: thisMonth.payments, onAccount: onAccount.amount, name: new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(midnight(today)) },
     counts: Object.fromEntries(PAYMENT_VIEWS.map((view, index) => [view, tabCounts[index] ?? 0])) as Record<PaymentView, number>,
     customers: customerRows.map((customer) => ({ id: customer.id, name: customer.name, image: customerImage(customer) })),
-    accounts: accountRows.map((account) => ({ id: account.id, name: account.name })),
+    accounts: accountRows.map((account) => ({ id: account.id, name: `${account.bankName || account.name}, ${account.currency}` })),
     query,
-    allocate,
   };
 }
 
