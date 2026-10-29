@@ -5,16 +5,15 @@ type StoresPageProps = {
 };
 
 const viewToRoute: Record<string, string> = {
-  dashboard: "/stores/dashboard",
-  inventory: "/stores/inventory",
-  locations: "/stores/locations",
-  movements: "/stores/movements",
-  catalogue: "/stores/catalogue",
-  "price-lists": "/stores/price-lists",
-  fuel: "/stores/fuel",
-  // Both are dialogs now; the movement log is where they open.
-  issue: "/stores/movements?record=issue",
-  receive: "/stores/movements?record=receive",
+  dashboard: "/retail/stock",
+  inventory: "/retail/stock",
+  locations: "/retail/stock",
+  movements: "/retail/stock/movements",
+  catalogue: "/retail/products",
+  "price-lists": "/retail/products/price-lists",
+  fuel: "/retail/stock",
+  issue: "/retail/stock/movements",
+  receive: "/retail/buying/deliveries",
 };
 
 export default async function StoresIndexPage({ searchParams }: StoresPageProps) {
@@ -23,5 +22,5 @@ export default async function StoresIndexPage({ searchParams }: StoresPageProps)
   if (view && viewToRoute[view]) {
     redirect(viewToRoute[view]);
   }
-  redirect("/stores/dashboard");
+  redirect("/retail/stock");
 }
