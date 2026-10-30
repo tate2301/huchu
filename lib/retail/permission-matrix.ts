@@ -286,9 +286,18 @@ const GRANTS: Record<RetailRoleKey, Grants> = {
   FINANCE_OFFICER: BOOKKEEPER,
 };
 
+const NON_RETAIL_ROLE_ALIASES: Record<string, RetailRoleKey> = {
+  ADMIN: "SUPERADMIN",
+  OWNER: "SUPERADMIN",
+  AUTO_MANAGER: "MANAGER",
+  SALES_EXEC: "MANAGER",
+  SALES_REP: "MANAGER",
+};
+
 function grantsFor(role: string | null | undefined): Grants | null {
   if (!role) return null;
-  const key = role.trim().toUpperCase();
+  const rawKey = role.trim().toUpperCase();
+  const key = NON_RETAIL_ROLE_ALIASES[rawKey] ?? rawKey;
   return (RETAIL_ROLE_KEYS as readonly string[]).includes(key) ? GRANTS[key as RetailRoleKey] : null;
 }
 

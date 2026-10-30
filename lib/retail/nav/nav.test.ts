@@ -118,6 +118,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Posting to the books",
       "Staff and PINs",
       "Approvals",
+      "Loyalty",
       "Bin",
     ]);
   });
@@ -144,6 +145,7 @@ describe("the Setup module per role (ADM-01)", () => {
       "Fiscal device",
       "Staff and PINs",
       "Approvals",
+      "Loyalty",
       "Bin",
     ]);
   });

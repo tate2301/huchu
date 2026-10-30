@@ -1057,6 +1057,8 @@ function scopeModulesToWorkspace(
     const scopedModules = new Map<WorkspaceModuleId, NavItem[]>(items ? [[active.moduleId, items]] : []);
     const reports = visibleModules.get("reporting");
     if (items && reports) scopedModules.set("reporting", reports);
+    const stores = visibleModules.get("stores");
+    if (stores) scopedModules.set("stores", stores);
     return scopedModules;
   }
   for (const moduleId of WORKSPACE_OWNER_MODULES) {
