@@ -10,7 +10,6 @@ import {
   movements,
   profitAndLoss,
   trialBalanceOf,
-  type StatementLine,
   type StatementSection,
 } from "./core/ledger";
 import { dayOf, money, monthName, shortDay } from "./format";
@@ -143,32 +142,33 @@ export async function readTrialBalance(db: Db, companyId: string, query: TrialBa
 export const financialsQuery = z.object({
   tab: z.enum(["pl", "bs", "cf"]).catch("pl"),
   month: z.string().regex(MONTH).optional().catch(undefined),
-  /** both: the month before and the year so far, as the design draws it. */
-  compare: z.enum(["both", "since", "previous", "none"]).catch("both"),
+  compare: z.enum(["since", "previous", "none"]).catch("since"),
   cc: z.string().max(60).catch(""),
 });
 export type FinancialsQuery = z.infer<typeof financialsQuery>;
 
-/** A "sub" row is a running figure inside a group (Gross profit); a "total" closes the statement. */
-export type FinancialsRow = { kind: "group" | "line" | "sub" | "total"; label: string; accountId?: string | null; amounts: number[] };
+export type FinancialsRow = { kind: "group" | "line" | "total"; label: string; accountId?: string | null; amounts: number[]; share?: number | null };
 
 export type FinancialsPage = Shared & {
   finding: { fact: string; rest: string | null };
   query: FinancialsQuery & { month: string };
   columns: string[];
+  /** The share column's head on the profit and loss: "Of September’s income". */
+  shareHead: string | null;
   rows: FinancialsRow[];
-  /** The compare chip's words: "August, year to date", "Year to date", "August", "Off". */
+  foot: { label: string; sums: Array<{ label: string; value: string }> };
+  /** The compare chip's words: "Since 1 Mar", "August", "None". */
   compareLabel: string;
 };
 
-const sectionRows = (sections: StatementSection[]): FinancialsRow[] =>
+const sectionRows = (sections: StatementSection[], income: number | null, totals = true): FinancialsRow[] =>
   sections.flatMap((section) =>
     section.lines.length === 0
       ? []
       : [
           { kind: "group" as const, label: section.title, amounts: [] },
-          ...section.lines.map((line) => ({ kind: "line" as const, label: line.label, accountId: line.accountId, amounts: line.amounts })),
-          { kind: "total" as const, label: section.title, amounts: section.total },
+          ...section.lines.map((line) => ({ kind: "line" as const, label: line.label, accountId: line.accountId, amounts: line.amounts, share: income ? round2((line.amounts[0] / income) * 1000) / 10 : null })),
+          ...(totals ? [{ kind: "total" as const, label: section.title, amounts: section.total, share: income ? round2((section.total[0] / income) * 1000) / 10 : null }] : []),
         ],
   );
 
@@ -183,17 +183,14 @@ export async function readFinancials(db: Db, companyId: string, query: Financial
   const previous = prevMonth(month);
   const cc = query.cc || null;
   const accounts = await ledgerAccounts(db, companyId);
-  const withPrevious = query.compare === "both" || query.compare === "previous";
-  const withYear = query.compare === "both" || query.compare === "since";
-  /** "August", or "August 2025" when the month before is in another year. */
-  const word = (m: string) => (m.slice(0, 4) === month.slice(0, 4) ? monthName(`${m}-01`) : monthLabel(m));
-  const compareLabel = query.compare === "none" ? "Off" : [withPrevious ? word(previous) : null, withYear ? (query.tab === "bs" ? "start of the year" : "year to date") : null].filter(Boolean).join(", ").replace(/^./, (ch) => ch.toUpperCase());
+  const compareLabel = query.compare === "since" ? `Since ${shortDay(since)}` : query.compare === "previous" ? monthName(`${previous}-01`) : "None";
   const monthWord = monthName(start);
 
   if (query.tab === "cf") {
-    const ranges = [{ from: start, to: end }, ...(withPrevious ? [{ from: `${previous}-01`, to: monthEnd(previous) }] : []), ...(withYear ? [{ from: since, to: end }] : [])];
-    const flows = await Promise.all(ranges.map((range) => cashFlow(companyId, { ...range, costCentreId: cc }, db)));
-    const columns = [word(month), ...(withPrevious ? [word(previous)] : []), ...(withYear ? ["Year to date"] : [])];
+    const flows = [await cashFlow(companyId, { from: start, to: end, costCentreId: cc }, db)];
+    if (query.compare === "since") flows.push(await cashFlow(companyId, { from: since, to: end, costCentreId: cc }, db));
+    if (query.compare === "previous") flows.push(await cashFlow(companyId, { from: `${previous}-01`, to: monthEnd(previous), costCentreId: cc }, db));
+    const columns = [monthLabel(month), ...(query.compare === "since" ? [`${shortDay(since)} to ${shortDay(end)}`] : query.compare === "previous" ? [monthLabel(previous)] : [])];
     const keys = new Set(flows.flatMap((flow) => flow.sections.flatMap((section) => section.lines.map((line) => `${section.key}|${line.accountId}|${line.label}`))));
     const rows: FinancialsRow[] = [{ kind: "line", label: "Cash at the start", amounts: flows.map((flow) => flow.opening) }];
     for (const section of flows[0].sections) {
@@ -202,7 +199,7 @@ export async function readFinancials(db: Db, companyId: string, query: Financial
         return { kind: "line" as const, label, accountId, amounts: flows.map((flow) => flow.sections.find((s) => s.key === section.key)?.lines.find((line) => line.accountId === accountId)?.amounts[0] ?? 0) };
       });
       if (lines.length === 0) continue;
-      rows.push({ kind: "group", label: section.title, amounts: [] }, ...lines, { kind: "sub", label: section.title, amounts: flows.map((flow) => flow.sections.find((s) => s.key === section.key)!.total) });
+      rows.push({ kind: "group", label: section.title, amounts: [] }, ...lines, { kind: "total", label: section.title, amounts: flows.map((flow) => flow.sections.find((s) => s.key === section.key)!.total) });
     }
     rows.push({ kind: "total", label: "Cash at the end", amounts: flows.map((flow) => flow.closing) });
     const net = flows[0].net;
@@ -211,17 +208,19 @@ export async function readFinancials(db: Db, companyId: string, query: Financial
       finding: { fact: `${monthWord} ${net >= 0 ? "brought in" : "paid out"} ${money(Math.abs(net), c)} more than it ${net >= 0 ? "paid out" : "brought in"}.`, rest: `Cash stood at ${money(flows[0].closing, c)} on ${shortDay(end)}.` },
       query: { ...query, month },
       columns,
+      shareHead: null,
       rows,
+      foot: { label: `Cash flow, ${c}`, sums: [{ label: "Net", value: money(net, c) }, { label: "Cash at the end", value: money(flows[0].closing, c) }] },
       compareLabel,
     };
   }
 
   if (query.tab === "bs") {
-    const days = [end, ...(withPrevious ? [monthEnd(previous)] : []), ...(withYear ? [addDays(since, -1)] : [])];
+    const days = [end, ...(query.compare === "since" ? [addDays(since, -1)] : query.compare === "previous" ? [monthEnd(previous)] : [])];
     const columns = days.map(dayLabel);
     const moved = await Promise.all(days.map((to) => movements(db, companyId, { to, costCentreId: cc })));
     const sheet = balanceSheet(accounts, moved);
-    const rows = sectionRows(sheet.sections);
+    const rows = sectionRows(sheet.sections, null);
     rows.push({ kind: "total", label: "Liabilities and equity", amounts: sheet.liabilitiesAndEquity });
     const agree = Math.abs(sheet.assets[0] - sheet.liabilitiesAndEquity[0]) < 0.005;
     return {
@@ -231,36 +230,36 @@ export async function readFinancials(db: Db, companyId: string, query: Financial
         : { fact: `The balance sheet is out by ${money(Math.abs(sheet.assets[0] - sheet.liabilitiesAndEquity[0]), c)}.`, rest: "A posting is missing a side: Needs posting lists it." },
       query: { ...query, month },
       columns,
+      shareHead: null,
       rows,
-      compareLabel,
+      foot: { label: `Balance sheet, ${c}`, sums: [{ label: "Assets", value: money(sheet.assets[0], c) }, { label: "Liabilities and equity", value: money(sheet.liabilitiesAndEquity[0], c) }] },
+      compareLabel: query.compare === "since" ? `At ${shortDay(addDays(since, -1))}` : compareLabel,
     };
   }
 
-  // Profit and loss, as drawn: income, the cost of sales taken off inside it, Gross profit, the running costs, Profit.
-  const ranges = [{ from: start, to: end }, ...(withPrevious ? [{ from: `${previous}-01`, to: monthEnd(previous) }] : []), ...(withYear ? [{ from: since, to: end }] : [])];
+  const ranges = [{ from: start, to: end }, ...(query.compare === "since" ? [{ from: since, to: end }] : query.compare === "previous" ? [{ from: `${previous}-01`, to: monthEnd(previous) }] : [])];
   const moved = await Promise.all(ranges.map((range) => movements(db, companyId, { ...range, costCentreId: cc })));
   const pl = profitAndLoss(accounts, moved);
-  const [income, cost, running] = pl.sections;
-  const taken = (lines: StatementLine[]) => lines.map((line) => ({ kind: "line" as const, label: line.label, accountId: line.accountId, amounts: line.amounts.map((amount) => round2(0 - amount)) }));
+  const income = pl.income[0] || null;
   const rows: FinancialsRow[] = [];
-  if (income!.lines.length || cost!.lines.length) {
-    rows.push({ kind: "group", label: "Income", amounts: [] }, ...income!.lines.map((line) => ({ kind: "line" as const, label: line.label, accountId: line.accountId, amounts: line.amounts })), ...taken(cost!.lines));
-    if (cost!.lines.length) rows.push({ kind: "sub", label: "Gross profit", amounts: pl.gross });
+  for (const section of pl.sections) {
+    rows.push(...sectionRows([section], income));
+    if (section.key === "cost" && section.lines.length) rows.push({ kind: "total", label: "Gross profit", amounts: pl.gross, share: income ? round2((pl.gross[0] / income) * 1000) / 10 : null });
   }
-  if (running!.lines.length) rows.push({ kind: "group", label: "Running costs", amounts: [] }, ...taken(running!.lines));
-  rows.push({ kind: "total", label: pl.profit[0]! < 0 ? "Loss" : "Profit", amounts: pl.profit });
-  const columns = [word(month), ...(withPrevious ? [word(previous)] : []), ...(withYear ? ["Year to date"] : [])];
-  const profit = pl.profit[0]!;
-  const yearProfit = withYear ? pl.profit[withPrevious ? 2 : 1] : undefined;
+  rows.push({ kind: "total", label: pl.profit[0] < 0 ? "Loss" : "Profit", amounts: pl.profit, share: income ? round2((pl.profit[0] / income) * 1000) / 10 : null });
+  const columns = [monthLabel(month), ...(query.compare === "since" ? [`${shortDay(since)} to ${shortDay(end)}`] : query.compare === "previous" ? [monthLabel(previous)] : [])];
+  const profit = pl.profit[0];
   return {
     ...base,
     finding: {
       fact: rows.length <= 1 ? `Nothing came in or went out in ${monthWord}.` : `${monthWord} made a ${profit < 0 ? "loss" : "profit"} of ${money(Math.abs(profit), c)}.`,
-      rest: yearProfit !== undefined ? `The year to date is ${money(yearProfit, c)}.` : null,
+      rest: query.compare === "since" && pl.profit[1] !== undefined ? `Since ${base.booksStart && since === base.booksStart ? "the books started on " : ""}${shortDay(since)}: ${money(pl.profit[1], c)}.` : null,
     },
     query: { ...query, month },
     columns,
+    shareHead: `Of ${monthWord}’s income`,
     rows,
+    foot: { label: `Profit and loss, ${c}`, sums: [{ label: monthWord, value: money(profit, c) }, ...(pl.profit[1] !== undefined ? [{ label: query.compare === "since" ? `Since ${shortDay(since)}` : monthName(`${previous}-01`), value: money(pl.profit[1], c) }] : [])] },
     compareLabel,
   };
 }
@@ -281,22 +280,7 @@ export const ledgerQuery = z.object({
 });
 export type LedgerQuery = z.infer<typeof ledgerQuery>;
 
-export type LedgerPageRow = {
-  entryId: string;
-  /** "JE-0418". */
-  number: string;
-  date: string;
-  /** "Invoice, Chisipite Dental": the kind and the party, or the memo when the line has no party. */
-  what: string;
-  party: string | null;
-  /** The document behind it ("INV-0131"), when Books has one. */
-  document: string | null;
-  source: string;
-  href: string;
-  debit: number;
-  credit: number;
-  balance: number;
-};
+export type LedgerPageRow = { entryId: string; number: string; date: string; memo: string; source: string; href: string; debit: number; credit: number; balance: number };
 
 export type LedgerPage = Shared & {
   finding: { fact: string; rest: string | null };
@@ -310,8 +294,6 @@ export type LedgerPage = Shared & {
   credit: number;
   /** "1 Sep to 18 Oct". */
   dates: string;
-  /** The parties on these lines, for the Party chip. */
-  parties: string[];
 };
 
 const SOURCE_PAGE: Record<string, string> = { SALES_INVOICE: "/books/invoices/", PURCHASE_BILL: "/books/bills/" };
@@ -341,7 +323,7 @@ export async function readLedger(db: Db, companyId: string, query: LedgerQuery, 
   const to = query.to ?? today;
   const dates = `${shortDay(from)} to ${shortDay(to)}`;
   if (!account) {
-    return { ...base, finding: { fact: "There are no accounts yet.", rest: "Set up the books first." }, query: { ...query, from, to }, account: null, accounts: [], opening: 0, closing: 0, rows: [], debit: 0, credit: 0, dates, parties: [] };
+    return { ...base, finding: { fact: "There are no accounts yet.", rest: "Set up the books first." }, query: { ...query, from, to }, account: null, accounts: [], opening: 0, closing: 0, rows: [], debit: 0, credit: 0, dates };
   }
   const book = await accountLedger(companyId, account.id, { from, to, costCentreId: query.cc || null }, db);
   // Credit-side accounts read as positive balances: what is owed, earned or put in.
@@ -350,7 +332,6 @@ export async function readLedger(db: Db, companyId: string, query: LedgerQuery, 
   const credit = round2(book.lines.reduce((sum, line) => sum + line.credit, 0));
   const name = `${account.code} ${account.name}`;
   const closingWord = to === today ? "today" : `on ${shortDay(to)}`;
-  const docs = await documentsOf(db, companyId, book.lines);
   return {
     ...base,
     finding: { fact: `${name} stands at ${money(sign * book.closing, c)} ${closingWord}.`, rest: `It opened ${monthName(from)} at ${money(sign * book.opening, c)}.` },
@@ -359,48 +340,21 @@ export async function readLedger(db: Db, companyId: string, query: LedgerQuery, 
     accounts: accounts.map((row) => ({ id: row.id, label: `${row.code} ${row.name}` })),
     opening: sign * book.opening,
     closing: sign * book.closing,
-    rows: book.lines.map((line) => {
-      const doc = docs.get(docKey(line));
-      const source = sourceWord(line.sourceType);
-      return {
-        entryId: line.entryId,
-        number: line.number > 0 ? `JE-${String(line.number).padStart(4, "0")}` : "—",
-        date: shortDay(line.date),
-        what: doc?.party ? `${source}, ${doc.party}` : line.memo,
-        party: doc?.party ?? null,
-        document: doc?.ref ?? null,
-        source,
-        href: sourceHref(line),
-        debit: line.debit,
-        credit: line.credit,
-        balance: sign * line.balance,
-      };
-    }),
+    rows: book.lines.map((line) => ({
+      entryId: line.entryId,
+      number: line.number > 0 ? `JE-${String(line.number).padStart(4, "0")}` : "—",
+      date: shortDay(line.date),
+      memo: line.memo,
+      source: sourceWord(line.sourceType),
+      href: sourceHref(line),
+      debit: line.debit,
+      credit: line.credit,
+      balance: sign * line.balance,
+    })),
     debit,
     credit,
     dates,
-    parties: [...new Set([...docs.values()].map((doc) => doc.party).filter((party): party is string => Boolean(party)))].sort((a, b) => a.localeCompare(b, "en-GB")),
   };
-}
-
-type SourceLine = { sourceType: string; sourceId: string | null };
-const docKey = (line: SourceLine) => `${line.sourceType}:${(line.sourceId ?? "").replace(/^void:/, "").split(":")[0]}`;
-
-/** The documents behind a page of lines: their numbers and their parties, one query per kind. */
-async function documentsOf(db: Db, companyId: string, lines: SourceLine[]): Promise<Map<string, { ref: string | null; party: string | null }>> {
-  const ids = (type: string) => [...new Set(lines.filter((line) => line.sourceType === type && line.sourceId).map((line) => (line.sourceId ?? "").replace(/^void:/, "").split(":")[0]!))];
-  const out = new Map<string, { ref: string | null; party: string | null }>();
-  const [invoices, receipts, bills, notes] = await Promise.all([
-    ids("SALES_INVOICE").length ? db.salesInvoice.findMany({ where: { companyId, id: { in: ids("SALES_INVOICE") } }, select: { id: true, invoiceNumber: true, customer: { select: { name: true } } } }) : [],
-    ids("SALES_RECEIPT").length ? db.salesReceipt.findMany({ where: { companyId, id: { in: ids("SALES_RECEIPT") } }, select: { id: true, receiptNumber: true, customer: { select: { name: true } } } }) : [],
-    ids("PURCHASE_BILL").length ? db.purchaseBill.findMany({ where: { companyId, id: { in: ids("PURCHASE_BILL") } }, select: { id: true, billNumber: true, vendor: { select: { name: true } } } }) : [],
-    ids("SALES_CREDIT_NOTE").length ? db.creditNote.findMany({ where: { companyId, id: { in: ids("SALES_CREDIT_NOTE") } }, select: { id: true, noteNumber: true, invoice: { select: { customer: { select: { name: true } } } } } }) : [],
-  ]);
-  for (const row of invoices) out.set(`SALES_INVOICE:${row.id}`, { ref: row.invoiceNumber, party: row.customer?.name ?? null });
-  for (const row of receipts) out.set(`SALES_RECEIPT:${row.id}`, { ref: row.receiptNumber, party: row.customer?.name ?? null });
-  for (const row of bills) out.set(`PURCHASE_BILL:${row.id}`, { ref: row.billNumber, party: row.vendor?.name ?? null });
-  for (const row of notes) out.set(`SALES_CREDIT_NOTE:${row.id}`, { ref: row.noteNumber, party: row.invoice?.customer?.name ?? null });
-  return out;
 }
 
 /** A month chip's label: "Sep 2026". */

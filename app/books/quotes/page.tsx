@@ -5,19 +5,16 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, downloadCsv, useBkLayout } from "@/components/books/bk-list";
+import { BkChip, BkTabs, BkTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
-import { BooksPage, Cents } from "@/components/books/figures";
+import { BooksFinding, BooksPage } from "@/components/books/figures";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
-import { count, money } from "@/lib/books/format";
-import { QUOTE_TAB_LABEL, QUOTE_VALIDITY, QUOTE_VALIDITY_LABEL, QUOTE_VIEWS, type QuoteQuery, type QuoteTab, type QuotesView } from "@/lib/books/quotes-view";
-
-const TONE: Record<QuoteTab, Parameters<typeof BkState>[0]["tone"]> = { draft: "plain", sent: "info", accepted: "success", expired: "plain", void: "void" };
-const CSV_HEAD = ["Number", "Customer", "Sent", "Valid until", "State", "Currency", "Total", "Next"];
+import { money } from "@/lib/books/format";
+import { QUOTE_TAB_LABEL, QUOTE_VIEWS, type QuoteQuery, type QuotesView } from "@/lib/books/quotes-view";
 
 type Listed = QuotesView & { crm: boolean };
 
@@ -38,15 +35,13 @@ function BooksQuotes() {
   });
   const data = quotes.data;
   const ids = React.useMemo(() => data?.rows.map((row) => row.id) ?? [], [data?.rows]);
-  const source = React.useMemo(() => data?.rows ?? [], [data?.rows]);
-  const layout = useBkLayout("quotes", [{ key: "customer", label: "Customer", nth: 3 }, { key: "sent", label: "Sent", nth: 4 }, { key: "valid", label: "Valid until", nth: 5 }, { key: "state", label: "State", nth: 6 }, { key: "next", label: "Next", nth: 8 }], [{ key: "customer", label: "Customer", by: (row) => row.customer }, { key: "state", label: "State", by: (row) => row.state }], source);
   const selection = useSelection(ids);
 
   const onQuery = React.useCallback(
     (next: Partial<QuoteQuery>) => {
       const merged = new URLSearchParams(params.toString());
       for (const [key, value] of Object.entries(next)) {
-        if (value === null || value === "" || (key === "view" && value === "sent") || (key === "invoiced" && value === "any") || (key === "validity" && value === "any") || (key === "sort" && value === "newest") || (key === "page" && value === 1)) merged.delete(key);
+        if (value === null || value === "" || (key === "view" && value === "sent") || (key === "invoiced" && value === "any") || (key === "sort" && value === "newest") || (key === "page" && value === 1)) merged.delete(key);
         else merged.set(key, String(value));
       }
       const query = merged.toString();
@@ -55,7 +50,6 @@ function BooksQuotes() {
     [params, pathname, router],
   );
 
-  const csvRow = (row: Listed["rows"][number]) => [row.number, row.customer, row.sent ?? "", row.validUntil ?? "", QUOTE_TAB_LABEL[row.state], row.currency, row.amount.toFixed(2), row.next ?? ""];
   const selected = data?.rows.filter((row) => selection.isSelected(row.id)) ?? [];
   const one = selected.length === 1 && !selected[0].invoiced ? selected[0] : null;
   // Void and Delete permanently over the selection (P4): as this person's role allows; the server skips a draft or a quote already invoiced, with why.
@@ -78,6 +72,7 @@ function BooksQuotes() {
       <BooksPage screen="bk-a">
         {data ? (
           <div className="bk">
+            <BooksFinding finding={data.finding} />
             <BkTabs
               label="Quote views"
               value={data.query.view}
@@ -88,7 +83,7 @@ function BooksQuotes() {
               find="Search quotes"
               query={data.query.q}
               onFind={(q) => onQuery({ q, page: 1 })}
-              count={String(data.range.of)}
+              count={data.range.of === 1 ? "1 quote" : `${data.range.of} quotes`}
               chips={
                 <>
                 <BkChip
@@ -111,12 +106,6 @@ function BooksQuotes() {
                     ...data.reps.map((option) => ({ key: option.id, label: <Person name={option.name} src={option.image} />, checked: data.query.rep === option.id, onSelect: () => onQuery({ rep: option.id, page: 1 }) })),
                   ]}
                 />
-                <BkChip
-                  label="Valid until"
-                  value={QUOTE_VALIDITY_LABEL[data.query.validity]}
-                  set={data.query.validity !== "any"}
-                  items={QUOTE_VALIDITY.map((option) => ({ key: option, label: QUOTE_VALIDITY_LABEL[option], checked: data.query.validity === option, onSelect: () => onQuery({ validity: option, page: 1 }) }))}
-                />
                 </>
               }
               filters={[
@@ -126,20 +115,31 @@ function BooksQuotes() {
               ]}
               end={
                 <>
-                  <BkQuietTools middle={layout.tools} onSort={() => onQuery({ sort: data.query.sort === "newest" ? "oldest" : "newest", page: 1 })} sortLabel={data.query.sort === "newest" ? "Sort" : "Oldest first"} />
-                  <Button icon="export" onClick={() => downloadCsv("quotes.csv", CSV_HEAD, data.rows.map(csvRow))}>
-                    Export
-                  </Button>
+                <Button variant="quiet" icon="sort" onClick={() => onQuery({ sort: data.query.sort === "newest" ? "oldest" : "newest", page: 1 })}>
+                  {data.query.sort === "newest" ? "Sort" : "Oldest first"}
+                </Button>
+                <Button
+                  variant="quiet"
+                  icon="export"
+                  onClick={() =>
+                    downloadCsv(
+                      "quotes.csv",
+                      ["Quote", "Customer", "For", "Valid until", "Currency", "Amount"],
+                      data.rows.map((row) => [row.number, row.customer, row.forWhat, row.validUntil ?? "", row.currency, row.amount.toFixed(2)]),
+                    )
+                  }
+                >
+                  Export
+                </Button>
                 </>
               }
             />
-            <div className={layout.wrap} style={{ display: "contents" }}>
-{layout.style}
-<TableShell
+            <TableShell
               label="Quotes"
               foot={
                 <TableFoot
-                  range={data.range.of === 0 ? "None" : `${data.range.from}–${data.range.to} of ${data.range.of} · Rows 50`}
+                  range={data.range.of === 0 ? "None" : `${data.range.from} to ${data.range.to} of ${data.range.of}`}
+                  sums={[{ label: "With customers", value: money(data.out, data.currency) }]}
                   page={{
                     onPrevious: data.query.page > 1 ? () => onQuery({ page: data.query.page - 1 }) : undefined,
                     onNext: data.range.to < data.range.of ? () => onQuery({ page: data.query.page + 1 }) : undefined,
@@ -157,7 +157,13 @@ function BooksQuotes() {
                         ) : null}
                         <Button
                           icon="export"
-                          onClick={() => downloadCsv("quotes.csv", CSV_HEAD, selected.map(csvRow))}
+                          onClick={() =>
+                            downloadCsv(
+                              "quotes.csv",
+                              ["Quote", "Customer", "For", "Valid until", "Currency", "Amount"],
+                              selected.map((row) => [row.number, row.customer, row.forWhat, row.validUntil ?? "", row.currency, row.amount.toFixed(2)]),
+                            )
+                          }
                         >
                           Export
                         </Button>
@@ -175,71 +181,52 @@ function BooksQuotes() {
               {data.rows.length === 0 ? (
                 <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
                   <b>{data.query.q || data.query.customer || data.query.rep ? "No quote matches" : `No ${QUOTE_TAB_LABEL[data.query.view].toLowerCase()} quotes`}</b>
+                  <p className="muted">{data.query.q || data.query.customer || data.query.rep ? "Clear the search or the filter." : "Quotes are written from a deal; they show here as they move."}</p>
                 </div>
               ) : (
                 <table className="table" aria-label="Quotes">
                   <colgroup>
                     <col style={{ width: 44 }} />
                     <col style={{ width: 120 }} />
-                    <col style={{ width: 240 }} />
-                    <col style={{ width: 96 }} />
-                    <col style={{ width: 110 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 140 }} />
+                    <col style={{ width: 220 }} />
                     <col />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 130 }} />
+                    <col style={{ width: 150 }} />
                   </colgroup>
                   <thead>
                     <tr>
-                      <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every quote" />
-                      <th>Number</th>
+                      <SelectCell head checked={selection.all} indeterminate={selection.some} onChange={selection.toggleAll} label="Select every row on this page" />
+                      <th>Quote</th>
                       <th>Customer</th>
-                      <th>Sent</th>
+                      <th>For</th>
                       <th>Valid until</th>
-                      <th>State</th>
-                      <th className="num">Total, {data.currency}</th>
-                      <th>Next</th>
+                      <th>On WhatsApp</th>
+                      <th className="num">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {layout.rows((row) => (
+                    {data.rows.map((row) => (
                       <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                         <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
+                        <td>{row.crmId && data.crm ? <Link className="ref" href={`/crm/quotes/${row.crmId}`}>{row.number}</Link> : <span className="ref">{row.number}</span>}</td>
                         <td>
-                          {row.state === "draft" ? (
-                            <span className="muted">No number</span>
-                          ) : row.crmId && data.crm ? (
-                            <Link className="ref" href={`/crm/quotes/${row.crmId}`}>{row.number}</Link>
-                          ) : (
-                            <span className="ref">{row.number}</span>
-                          )}
+                          <span className="cell-lead">
+                            <Person name={row.customer} src={row.customerImage} />
+                          </span>
                         </td>
-                        <td style={{ color: "var(--color-ink)" }}>{row.customer}</td>
-                        <td className="muted">{row.sent ?? "—"}</td>
-                        <td className={row.validSoon ? undefined : "muted"} style={row.validSoon ? { color: "var(--color-ink)", fontWeight: 500 } : undefined}>{row.validUntil ?? "—"}</td>
-                        <td>
-                          <BkState tone={TONE[row.state]}>{QUOTE_TAB_LABEL[row.state]}</BkState>
+                        <td className="fill">
+                          <span className="cell-lead muted">{row.invoiced ? `Invoiced. ${row.forWhat}` : row.forWhat}</span>
                         </td>
-                        <td className="num">
-                          <Cents value={row.amount} currency={row.currency} />
-                        </td>
-                        <td className="muted">{row.next ?? "—"}</td>
+                        <td className="muted">{row.validUntil ?? "—"}</td>
+                        <td className="muted">{row.whatsapp ?? "—"}</td>
+                        <td className="num">{money(row.amount, row.currency)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr className="bk-sr t">
-                      <td />
-                      <td colSpan={5}>{count(data.range.of, "quote")}</td>
-                      <td className="num">
-                        <Cents value={data.total} currency={data.currency} />
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
                 </table>
               )}
             </TableShell>
-</div>
           </div>
         ) : quotes.isError ? (
           <BooksError what="Quotes" onRetry={() => quotes.refetch()} />

@@ -6,6 +6,7 @@ import { errorResponse, successResponse } from "@/lib/api-response";
 import { checkCatalogImage } from "@/lib/retail/catalog-image";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { adjustmentPhotoFolder } from "@/lib/retail/stock/adjustments";
+import { isBlobStorageConfigured } from "@/lib/uploads/storage";
 
 import { requireRetailSession } from "../../../_helpers";
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.adjustments", "create");
   if (gate) return gate;
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+  if (!isBlobStorageConfigured()) {
     return errorResponse("Image storage is not configured for this deployment", 503);
   }
 

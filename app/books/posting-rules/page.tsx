@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { RuleDrawer } from "@/components/books/bk-ledger-setup-drawers";
 import { BkPostingRulesView } from "@/components/books/bk-ledger-setup-views";
-import { useListQuery } from "@/components/books/bk-list";
+import { downloadCsv, useListQuery } from "@/components/books/bk-list";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -47,6 +47,7 @@ function PostingRules() {
           <BkPostingRulesView
             data={data}
             onQuery={onQuery}
+            onExport={() => downloadCsv("posting-rules.csv", ["Rule", "When", "Debit", "Credit", "This month", "State"], data.rows.map((row) => [row.name, row.when, row.debit, row.credit, row.thisMonth, row.state]))}
             onEdit={(id) => {
               setRuleId(id);
               setOpen(true);

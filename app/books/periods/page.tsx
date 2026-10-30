@@ -4,14 +4,13 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BooksError, BooksLoading } from "@/components/books/books-state";
-import { ClosePageView } from "@/components/books/close-view";
+import { ClosePageView, type ClosingControls } from "@/components/books/close-view";
 import { BooksPage } from "@/components/books/figures";
-import { Button, Drawer, Field, Input, Kit, Select, TextArea } from "@/components/core";
+import { Button, Drawer, Field, Input, Kit, TextArea } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CloseView } from "@/lib/books/close";
-import { POLICY_LABEL } from "@/lib/books/close-labels";
 
 const AGAIN = "Check the connection and try again.";
 
@@ -69,7 +68,7 @@ function OpenPeriodDrawer({ open, onOpenChange, onDone }: { open: boolean; onOpe
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
-      title="Open a month"
+      title="Open a period"
       footer={
         <>
           <Button variant="quiet" onClick={() => onOpenChange(false)}>
@@ -95,6 +94,7 @@ function OpenPeriodDrawer({ open, onOpenChange, onDone }: { open: boolean; onOpe
           optional
           htmlFor="period-opening"
           error={error}
+          help='For the first period only: one line per account, as [{"accountId": "…", "debit": 0, "credit": 0}].'
         >
           <TextArea id="period-opening" rows={5} value={opening} onChange={(event) => setOpening(event.target.value)} />
         </Field>
@@ -135,7 +135,7 @@ function ReopenDrawer({ periodId, onOpenChange, onDone }: { periodId: string | n
       }
     >
       <div style={{ padding: "16px 24px" }}>
-        <Field label="Why it reopens" htmlFor="reopen-reason" error={error}>
+        <Field label="Why it reopens" htmlFor="reopen-reason" error={error} help="Reopening reverses the close voucher. The reason stays on the period.">
           <Input id="reopen-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
         </Field>
       </div>
@@ -143,81 +143,37 @@ function ReopenDrawer({ periodId, onOpenChange, onDone }: { periodId: string | n
   );
 }
 
-type Controls = { retainedEarningsAccountId: string; freezeBeforeDate: string; policy: CloseView["controls"]["policy"] };
-
-/** Freeze before a date: nothing posts before it; after a month closes, who may still post into it; and where the close sweeps profit. */
-function FreezeDrawer({ open, onOpenChange, controls, saving, onSave }: { open: boolean; onOpenChange: (open: boolean) => void; controls: CloseView["controls"]; saving: boolean; onSave: (controls: Controls) => void }) {
-  const [form, setForm] = React.useState<Controls>({ retainedEarningsAccountId: "", freezeBeforeDate: "", policy: controls.policy });
-  React.useEffect(() => {
-    if (open) setForm({ retainedEarningsAccountId: controls.retainedEarningsAccountId ?? "", freezeBeforeDate: controls.freezeBeforeDate ?? "", policy: controls.policy });
-  }, [open, controls]);
-  return (
-    <Drawer
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Freeze before a date"
-      footer={
-        <>
-          <Button variant="quiet" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant="primary" icon="check" shortcut="Ctrl ↵" busy={saving} disabled={saving} onClick={() => onSave(form)}>
-            Save
-          </Button>
-        </>
-      }
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 24px" }}>
-        <Field label="Freeze postings before" htmlFor="close-freeze">
-          <Input id="close-freeze" type="date" value={form.freezeBeforeDate} onChange={(event) => setForm((now) => ({ ...now, freezeBeforeDate: event.target.value }))} />
-        </Field>
-        <Field label="After a month closes" htmlFor="close-policy">
-          <Select id="close-policy" value={form.policy} onChange={(event) => setForm((now) => ({ ...now, policy: event.target.value as Controls["policy"] }))}>
-            {(Object.keys(POLICY_LABEL) as Array<keyof typeof POLICY_LABEL>).map((policy) => (
-              <option key={policy} value={policy}>
-                {POLICY_LABEL[policy]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Retained earnings account" htmlFor="close-re">
-          <Select id="close-re" value={form.retainedEarningsAccountId} onChange={(event) => setForm((now) => ({ ...now, retainedEarningsAccountId: event.target.value }))}>
-            <option value="">Choose an account</option>
-            {controls.equityAccounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.code} {account.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-    </Drawer>
-  );
-}
-
-/** Books → Close the month (design/books/html/bk-close.html). The route is /books/periods; the design draws /books/close/<month>. */
+/** Books → Periods and the close (design/core-modules/boards/view/PageBooksClose.html). */
 export default function PeriodsPage() {
   const client = useQueryClient();
   const { toast } = useToast();
   const [opening, setOpening] = React.useState(false);
-  const [freezing, setFreezing] = React.useState(false);
   const [reopening, setReopening] = React.useState<string | null>(null);
   const close = useQuery({ queryKey: ["books", "close"], queryFn: () => fetchJson<CloseView>("/api/books/close") });
   const refresh = () => client.invalidateQueries({ queryKey: ["books"] });
-  const data = close.data;
-  const closing = data?.closing ?? null;
-  const left = closing ? closing.checks.filter((check) => check.state !== "done").length : 0;
 
   const closeMonth = useMutation({
-    mutationFn: () => fetchJson("/api/accounting/closing/period-close", { method: "POST", body: JSON.stringify({ periodId: closing?.id }) }),
+    mutationFn: () =>
+      fetchJson("/api/accounting/closing/period-close", {
+        method: "POST",
+        body: JSON.stringify({ periodId: close.data?.closing?.id, notes: `Closed from Periods` }),
+      }),
     onSuccess: () => {
-      toast({ title: `${closing?.month} closed` });
+      toast({ title: `${close.data?.closing?.month} closed` });
       refresh();
     },
     onError: (error) => toast({ title: "The month did not close", description: getApiErrorMessage(error, AGAIN), variant: "destructive" }),
   });
+  const replay = useMutation({
+    mutationFn: () => fetchJson<{ posted?: number }>("/api/accounting/integration/replay", { method: "POST", body: "{}" }),
+    onSuccess: () => {
+      toast({ title: "Tried the failed postings again" });
+      refresh();
+    },
+    onError: (error) => toast({ title: "The postings did not go", description: getApiErrorMessage(error, AGAIN), variant: "destructive" }),
+  });
   const save = useMutation({
-    mutationFn: (controls: Controls) =>
+    mutationFn: (controls: ClosingControls) =>
       fetchJson("/api/accounting/closing/freeze", {
         method: "POST",
         body: JSON.stringify({
@@ -227,40 +183,37 @@ export default function PeriodsPage() {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Saved" });
-      setFreezing(false);
+      toast({ title: "Closing controls saved" });
       refresh();
     },
-    onError: (error) => toast({ title: "Not saved", description: getApiErrorMessage(error, AGAIN), variant: "destructive" }),
+    onError: (error) => toast({ title: "The controls were not saved", description: getApiErrorMessage(error, AGAIN), variant: "destructive" }),
   });
 
   return (
     <>
-      <PageChrome
-        title={closing ? `Close ${closing.title}` : "Close the month"}
-        primary={
-          closing
-            ? {
-                label: `Close ${closing.month}`,
-                icon: "lock",
-                shortcut: "Ctrl ↵",
-                disabled: left > 0 ? `${left} ${left === 1 ? "check blocks" : "checks block"} the close` : closeMonth.isPending ? "Closing" : undefined,
-                onClick: () => closeMonth.mutate(),
-              }
-            : null
-        }
-      >
+      <PageChrome title="Periods">
         <Kit contents>
-          <Button icon="lock" onClick={() => setFreezing(true)}>
-            Freeze before a date
-          </Button>
-          <Button onClick={() => setOpening(true)}>Open a month</Button>
+          <Button onClick={() => setOpening(true)}>Open a period</Button>
         </Kit>
       </PageChrome>
-      <BooksPage screen="bk-b">
-        {data ? <ClosePageView data={data} onReopen={setReopening} /> : close.isError ? <BooksError what="Close the month" onRetry={() => close.refetch()} /> : <BooksLoading />}
+      <BooksPage screen="books-close">
+        {close.data ? (
+          <ClosePageView
+            key={JSON.stringify(close.data.controls)}
+            data={close.data}
+            closing={closeMonth.isPending}
+            saving={save.isPending}
+            onClose={() => closeMonth.mutate()}
+            onReplay={() => replay.mutate()}
+            onReopen={setReopening}
+            onSaveControls={(controls) => save.mutate(controls)}
+          />
+        ) : close.isError ? (
+          <BooksError what="Periods" onRetry={() => close.refetch()} />
+        ) : (
+          <BooksLoading />
+        )}
       </BooksPage>
-      {data ? <FreezeDrawer open={freezing} onOpenChange={setFreezing} controls={data.controls} saving={save.isPending} onSave={(controls) => save.mutate(controls)} /> : null}
       <OpenPeriodDrawer open={opening} onOpenChange={setOpening} onDone={refresh} />
       <ReopenDrawer periodId={reopening} onOpenChange={(open) => !open && setReopening(null)} onDone={refresh} />
     </>

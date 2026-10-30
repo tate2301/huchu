@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const month = params.get("month");
     return successResponse(
       await readRates(prisma, sessionResult.session.user.companyId, {
-        tab: params.get("tab") === "rates" ? "rates" : "revaluation",
+        tab: params.get("tab") === "revaluation" ? "revaluation" : "rates",
         currency: (params.get("currency") ?? "ZWG").toUpperCase().slice(0, 6),
         page: Number(params.get("page")) || 1,
         month: month && /^\d{4}-\d{2}$/.test(month) ? month : null,

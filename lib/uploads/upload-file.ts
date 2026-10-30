@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto"
 import { put } from "@vercel/blob"
 import { getUploadPolicy, type UploadContext } from "@/lib/uploads/policies"
+import { isBlobStorageConfigured } from "@/lib/uploads/storage"
 
 const extensionByMimeType: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -34,10 +35,10 @@ export class UploadValidationError extends Error {
   }
 }
 
-/** No file storage on this server (no `BLOB_READ_WRITE_TOKEN`): nothing a retry would fix. */
+/** No file storage on this server (neither `BLOB_STORE_ID` nor `BLOB_READ_WRITE_TOKEN`): nothing a retry would fix. */
 export class UploadStorageMissing extends Error {
   constructor() {
-    super("BLOB_READ_WRITE_TOKEN is not configured")
+    super("Blob storage is not configured (BLOB_STORE_ID or BLOB_READ_WRITE_TOKEN)")
     this.name = "UploadStorageMissing"
   }
 }
@@ -73,7 +74,7 @@ export async function uploadFileToBlob(input: UploadInput): Promise<UploadResult
     throw new UploadValidationError("Unsupported file type")
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+  if (!isBlobStorageConfigured()) {
     throw new UploadStorageMissing()
   }
 

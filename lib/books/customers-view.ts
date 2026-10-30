@@ -15,8 +15,6 @@ export const customerQuerySchema = z.object({
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/).nullable().catch(null),
   vat: z.enum(["any", "yes", "no"]).catch("any"),
   sort: z.enum(["name", "owes"]).catch("name"),
-  /** The account owner (a user's id) the list is narrowed to. */
-  rep: z.string().trim().max(64).nullable().catch(null),
   page: z.coerce.number().int().min(1).catch(1),
 });
 export type CustomerQuery = z.infer<typeof customerQuerySchema>;
@@ -28,32 +26,13 @@ export function readCustomerQuery(params: URLSearchParams): CustomerQuery {
     currency: params.get("currency") || null,
     vat: params.get("vat") ?? undefined,
     sort: params.get("sort") ?? undefined,
-    rep: params.get("rep") || null,
     page: params.get("page") ?? undefined,
   });
 }
 
-/** The columns the Customers list ages an owed amount into: not due, 1 to 7, 8 to 30 and over 30 days late. */
-export const CUSTOMER_AGES = ["notDue", "d1to7", "d8to30", "over30"] as const;
-export type CustomerAge = (typeof CUSTOMER_AGES)[number];
-export const CUSTOMER_AGE_LABEL: Record<CustomerAge, string> = { notDue: "Not due", d1to7: "1–7 days", d8to30: "8–30 days", over30: "Over 30" };
-export function customerAge(daysLate: number): CustomerAge {
-  return daysLate <= 0 ? "notDue" : daysLate <= 7 ? "d1to7" : daysLate <= 30 ? "d8to30" : "over30";
-}
-
-export type CustomerRep = { id: string; name: string; image: string | null };
-
 export type CustomerRow = {
   id: string;
-  /** "C-0042": the customer's code, when it has one. */
-  code: string | null;
   name: string;
-  /** The CRM client's account owner, when the customer is linked to one that has an owner. */
-  rep: CustomerRep | null;
-  /** What they owe, by how late it is. */
-  age: Record<CustomerAge, number>;
-  /** What they owe less what sits on their account: the Owes column. */
-  balance: number;
   /** The photo of the CRM client it is linked to, when there is one. */
   image?: string | null;
   contact: string | null;
@@ -72,12 +51,10 @@ export type CustomersView = {
   totals: { owed: number; overdue: number; onAccount: number };
   currency: string;
   currencies: string[];
-  /** The people who own at least one customer's account, for the Rep filter. */
-  reps: CustomerRep[];
   query: CustomerQuery;
 };
 
-export type StatementLine = { date: string; /** "Invoice", "Payment, transfer", "Credit note", "Write-off". */ what: string; document: string; detail: string; href: string | null; invoiced: number | null; paid: number | null; balance: number };
+export type StatementLine = { date: string; document: string; detail: string; href: string | null; invoiced: number | null; paid: number | null; balance: number };
 
 export type CustomerPage = {
   id: string;
@@ -85,8 +62,6 @@ export type CustomerPage = {
   image?: string | null;
   /** At most two items: the accounts contact and how long they have been a customer. */
   line: string[];
-  code: string | null;
-  rep: CustomerRep | null;
   contact: { phone: string | null; email: string | null; address: string | null };
   tax: { vatNumber: string | null; tin: string | null };
   /** Their usual terms, from the invoices they have had. */

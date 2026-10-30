@@ -1,7 +1,5 @@
 import type { FdmsCheckStatus } from "@prisma/client";
 
-import type { ExpenseState } from "./expenses";
-
 /**
  * Bills' words for client components: no database behind them
  * (a client component must never reach `@/lib/prisma`).
@@ -26,23 +24,3 @@ export const FDMS_LABEL: Record<FdmsCheckStatus, string> = {
 };
 
 export const BILLS_PAGE_SIZE = 50;
-
-/** The Due chip: bills falling due in a window. */
-export const BILL_DUES = ["any", "this-week", "this-month", "next-30"] as const;
-export type BillDue = (typeof BILL_DUES)[number];
-export const BILL_DUE_LABEL: Record<BillDue, string> = {
-  any: "Any",
-  "this-week": "This week",
-  "this-month": "This month",
-  "next-30": "Next 30 days",
-};
-
-/** The State column's words: a bill that is recorded and not yet paid reads "Recorded"; a draft over the limit "To approve". */
-export const BILL_STATE_WORD: Record<ExpenseState, string> = {
-  overdue: "Overdue",
-  "part-paid": "Part paid",
-  "to-pay": "Recorded",
-  paid: "Paid",
-  draft: "Draft",
-  void: "Void",
-};

@@ -3,7 +3,7 @@ import { docLabel } from "@/lib/books/doc-number";
 import { z } from "zod";
 
 import { customerFace, customerImage } from "./faces";
-import { addDays, dayOf, monthStart, shortDay, storedDay } from "./format";
+import { addDays, dayOf, monthStart, storedDay } from "./format";
 import { INVOICE_STATE_LABEL, invoiceState, invoicesFinding, type InvoiceState } from "./invoice-state";
 
 /**
@@ -80,13 +80,8 @@ export type InvoiceRow = {
   balance: number;
   currency: string;
   daysOverdue: number;
-  /** FDMS refused or never signed it. */
+  /** FDMS refused or never signed it: the row says so in place of the date. */
   fiscalFailed: boolean;
-  /** The day it was issued and the day it falls due, as "10 Sep"; null when it has none yet. */
-  issued: string | null;
-  due: string | null;
-  /** What FDMS says of it: Valid, Pending or Failed; null on a draft. */
-  fiscal: "Valid" | "Pending" | "Failed" | null;
 };
 
 export type InvoicesView = {
@@ -186,9 +181,6 @@ export function toInvoiceRow(record: RowRecord, today: string): InvoiceRow {
     currency: record.currency,
     daysOverdue: read.daysOverdue,
     fiscalFailed: record.fiscalStatus === "FAILED" && record.status !== "DRAFT",
-    issued: record.status === "DRAFT" ? null : shortDay(storedDay(record.invoiceDate)),
-    due: record.status === "DRAFT" || !record.dueDate ? null : shortDay(storedDay(record.dueDate)),
-    fiscal: record.status === "DRAFT" ? null : record.fiscalStatus === "SUCCESS" ? "Valid" : record.fiscalStatus === "FAILED" ? "Failed" : record.fiscalStatus === "PENDING" ? "Pending" : null,
   };
 }
 
@@ -207,16 +199,12 @@ export async function owedAndOverdue(db: Db, companyId: string, today: string) {
   const currency = [...byCurrency.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "USD";
   const owed = { amount: 0, invoices: 0 };
   const overdue = { amount: 0, invoices: 0, latest: null as { customer: string; days: number } | null };
-  /** Not due, 1 to 7 days late, 8 to 30, over 30. */
-  const ages = [0, 0, 0, 0];
   for (const invoice of open) {
     if (invoice.currency !== currency) continue;
     const balance = Math.max(0, invoice.total - invoice.amountPaid - invoice.creditTotal - invoice.writeOffTotal);
     if (balance <= 0.005) continue;
     owed.amount += balance;
     owed.invoices += 1;
-    const late = invoice.dueDate ? Math.round((midnight(today).getTime() - midnight(storedDay(invoice.dueDate)).getTime()) / 86_400_000) : 0;
-    ages[late <= 0 ? 0 : late <= 7 ? 1 : late <= 30 ? 2 : 3] += balance;
     if (invoice.dueDate && storedDay(invoice.dueDate) < today) {
       overdue.amount += balance;
       overdue.invoices += 1;
@@ -229,7 +217,6 @@ export async function owedAndOverdue(db: Db, companyId: string, today: string) {
     currency,
     owed: { amount: round(owed.amount), invoices: owed.invoices },
     overdue: { amount: round(overdue.amount), invoices: overdue.invoices, latest: overdue.latest },
-    ages: ages.map(round),
   };
 }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor, canDo, guardBooks } from "@/lib/books/core";
+import { guardBooks } from "@/lib/books/core";
 import { JournalRefused, saveManualJournal } from "@/lib/books/core/manual-journals";
 import { journalQuerySchema, journalsCsv, readJournals } from "@/lib/books/journals";
 import { prisma } from "@/lib/prisma";
@@ -15,22 +15,14 @@ export async function GET(request: NextRequest) {
     const { refused } = await guardBooks(sessionResult.session, "view", { area: "ledger" });
     if (refused) return refused;
     const params = new URL(request.url).searchParams;
-    const query = journalQuerySchema.parse(Object.fromEntries(["tab", "q", "sort", "source", "period", "by", "page"].map((key) => [key, params.get(key) ?? undefined])));
+    const query = journalQuerySchema.parse(Object.fromEntries(["tab", "q", "sort", "source", "page"].map((key) => [key, params.get(key) ?? undefined])));
     const companyId = sessionResult.session.user.companyId;
     if (params.get("format") === "csv") {
       return new NextResponse(await journalsCsv(prisma, companyId, query), {
         headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="journals.csv"' },
       });
     }
-    // What the page offers this person, from the one matrix (books-final §2.2).
-    const actor = await booksActor(sessionResult.session);
-    const can = {
-      create: canDo(actor, "draft.create", { kind: "journal" }).allowed,
-      post: canDo(actor, "journal.post", { kind: "journal" }).allowed,
-      deleteDraft: canDo(actor, "draft.delete", { kind: "journal" }).allowed,
-      reverse: canDo(actor, "void", { kind: "journal" }).allowed,
-    };
-    return successResponse(await readJournals(prisma, companyId, query, can));
+    return successResponse(await readJournals(prisma, companyId, query));
   } catch (error) {
     console.error("[API] GET /api/books/journals error:", error);
     return errorResponse("Could not read the journals");

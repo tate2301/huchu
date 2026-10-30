@@ -28,6 +28,7 @@ import { put } from "@vercel/blob";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { catalogImagePath, checkCatalogImage } from "@/lib/retail/catalog-image";
+import { isBlobStorageConfigured } from "@/lib/uploads/storage";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.catalog", "update");
   if (gate) return gate;
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+  if (!isBlobStorageConfigured()) {
     // Said plainly rather than as a 500. This is a deployment gap, and the
     // person who hits it can do nothing but tell whoever configured the app.
     return errorResponse("Image storage is not configured for this deployment", 503);
