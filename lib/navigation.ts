@@ -14,7 +14,6 @@ import {
   Factory,
   FileCheck,
   FileText,
-  Fuel,
   Funnel,
   Grid3x3,
   History,
@@ -531,15 +530,15 @@ export const navSections: NavSection[] = [
       { id: "selling", label: "What we sell" },
     ],
     items: [
-      { href: "/stores/dashboard", icon: Dashboard, label: "Overview" },
+      { href: "/retail/stock", icon: Dashboard, label: "Overview" },
 
-      { href: "/stores/inventory", icon: Package, label: "On hand", group: "stock" },
-      { href: "/stores/locations", icon: MapPin, label: "Locations", group: "stock" },
-      { href: "/stores/movements", icon: History, label: "Movements", group: "stock" },
-      { href: "/stores/fuel", icon: Fuel, label: "Fuel log", group: "stock" },
+      { href: "/retail/stock", icon: Package, label: "On hand", group: "stock" },
+      { href: "/retail/stock/movements", icon: History, label: "Movements", group: "stock" },
+      { href: "/retail/stock/counts", icon: History, label: "Counts", group: "stock" },
+      { href: "/retail/stock/transfers", icon: History, label: "Transfers", group: "stock" },
 
-      { href: "/stores/catalogue", icon: TableRows, label: "Catalogue", group: "selling" },
-      { href: "/stores/price-lists", icon: Scale, label: "Price lists", group: "selling" },
+      { href: "/retail/products", icon: TableRows, label: "Products", group: "selling" },
+      { href: "/retail/products/price-lists", icon: Scale, label: "Price lists", group: "selling" },
     ],
   },
   // ONE sidebar, not two.

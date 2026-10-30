@@ -15,6 +15,11 @@ export type LookupOption = {
   sub: string | null;
   /** A stock line's cost, for someone who may see cost ("22.15"). */
   cost?: string | null;
+  /** The product's standard selling/retail price ("29.99"). */
+  price?: string | null;
+  /** Primary supplier id and name for this product. */
+  supplierId?: string | null;
+  supplier?: string | null;
   /** The record this option is of: a stock line's product. */
   of?: string | null;
   /** A stock line's site and on hand. */

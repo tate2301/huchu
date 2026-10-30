@@ -115,6 +115,9 @@ const productSelect = {
   name: true,
   barcode: true,
   costPrice: true,
+  standardPrice: true,
+  supplierId: true,
+  supplier: { select: { id: true, name: true } },
   retailCategory: { select: { name: true } },
 } satisfies Prisma.ProductSelect;
 
@@ -176,16 +179,23 @@ const product: LookupNoun = {
     const priced = context.priced ? await defaultPrices(prisma, ctx.companyId, rows.map((row) => row.id)) : null;
     return [...rows]
       .sort((a, b) => rank(a) - rank(b))
-      .map((row): LookupOption => ({
-        id: row.id,
-        label: row.name,
-        sub: productSub({ category: row.retailCategory?.name ?? null, barcode: row.barcode }),
-        ...(priced
-          ? { cost: (priced.get(row.id) ?? 0).toFixed(2) }
-          : seeCost
-            ? { cost: row.costPrice === null ? null : row.costPrice.toFixed(2) }
-            : {}),
-      }));
+      .map((row): LookupOption => {
+        const standardPrice = toNumberOrZero(row.standardPrice);
+        const sellPrice = priced ? (priced.get(row.id) ?? standardPrice) : standardPrice;
+        return {
+          id: row.id,
+          label: row.name,
+          sub: productSub({ category: row.retailCategory?.name ?? null, barcode: row.barcode }),
+          price: sellPrice > 0 ? sellPrice.toFixed(2) : null,
+          supplierId: row.supplierId ?? null,
+          supplier: row.supplier?.name ?? null,
+          ...(priced
+            ? { cost: (priced.get(row.id) ?? 0).toFixed(2) }
+            : seeCost
+              ? { cost: row.costPrice === null ? null : row.costPrice.toFixed(2) }
+              : {}),
+        };
+      });
   },
   async add(ctx, fields) {
     const parsed = productInput.safeParse({ name: fields.name ?? "", price: fields.price ?? "" });

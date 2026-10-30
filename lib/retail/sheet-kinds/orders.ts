@@ -17,6 +17,7 @@ import {
   type OrderChannel,
   type OwedLine,
 } from "@/lib/retail/buying/words";
+import { orderFinancials } from "@/components/sheet-form/model";
 import { formatMoney } from "@/lib/workspace/format";
 import type { PickedOption, SheetCtx, SheetKind, SheetLine, SheetRequest, SheetValues } from "@/lib/workspace/sheet-kind";
 
@@ -71,6 +72,8 @@ function fromSuggestion(suggestion: Suggestion): SheetValues {
         warn: line.warn,
         quantity: String(line.quantity),
         cost: line.cost.toFixed(2),
+        supplierId: suggestion.supplier.id,
+        supplierName: suggestion.supplier.name,
       }),
     ),
     pay: suggestion.supplier.payTermsDays === null ? PAYING_WORD.CASH_ON_DELIVERY : PAYING_WORD.ON_ACCOUNT,
@@ -151,9 +154,17 @@ const orderNew: SheetKind = {
           needed: "Choose who you are ordering from.",
           follow: async (value, values) => {
             const picked = value as PickedOption | null;
-            if (!picked) return { lines: [], _terms: null, _lead: null, _channel: null, _suggested: 0 };
+            if (!picked) return { _terms: null, _lead: null, _channel: null };
             const suggestion = await readJson<Suggestion>(suggestionUrl(picked.id, { siteId: one(values, "site")?.id ?? null }));
-            return { ...fromSuggestion(suggestion), sup: picked };
+            const fromSup = fromSuggestion(suggestion);
+            const currentLines = linesOf(values);
+            const existingProductIds = new Set(currentLines.map((l) => l.productId));
+            const newSuggestedLines = (fromSup.lines as SheetLine[]).filter((l) => !existingProductIds.has(l.productId));
+            return {
+              ...fromSup,
+              lines: [...currentLines, ...newSuggestedLines],
+              sup: picked,
+            };
           },
         },
         {
@@ -181,7 +192,11 @@ const orderNew: SheetKind = {
             const site = value as PickedOption | null;
             if (!supplier || !site) return null;
             const suggestion = await readJson<Suggestion>(suggestionUrl(supplier.id, { siteId: site.id }));
-            return { lines: fromSuggestion(suggestion).lines, _suggested: suggestion.lines.length };
+            const fromSup = fromSuggestion(suggestion);
+            const currentLines = linesOf(values);
+            const existingProductIds = new Set(currentLines.map((l) => l.productId));
+            const newSuggestedLines = (fromSup.lines as SheetLine[]).filter((l) => !existingProductIds.has(l.productId));
+            return { lines: [...currentLines, ...newSuggestedLines], _suggested: suggestion.lines.length };
           },
         },
       ],
@@ -195,18 +210,20 @@ const orderNew: SheetKind = {
           l: "Lines",
           noun: "product",
           ql: "Quantity",
-          cl: "Cost",
+          cl: "Buying price",
+          editableCost: true,
+          showFinancials: true,
           p: "Add a product: search, scan, or add a new one",
           opt: true,
           optQuiet: true,
           nolabel: true,
           h: (values) => {
             const supplier = one(values, "sup");
-            if (!supplier) return "";
+            if (!supplier) return "Add products to buy from any supplier. You can edit the buying price per item.";
             const short = firstWord(supplier.label);
             return Number(values._suggested ?? 0) > 0
-              ? `Suggested from what is low and what you usually buy from ${short}. Change any quantity.`
-              : `Nothing is low. Add what you want from ${short}.`;
+              ? `Suggested from ${short}. You can add items from other suppliers and edit buying prices.`
+              : `Add products to buy. Sourcing across suppliers is supported on this order.`;
           },
         },
       ],
@@ -229,8 +246,18 @@ const orderNew: SheetKind = {
   ],
   note: (values) => {
     const terms = values._terms as { name: string; payTermsDays: number | null; minimum: number | null } | null | undefined;
-    if (!terms) return "";
-    return termsNote({ supplier: terms.name, payTermsDays: terms.payTermsDays, minimum: terms.minimum, totalWithVat: totalWithVat(values), money: formatMoney }).text;
+    const lines = linesOf(values);
+    const financials = orderFinancials(lines);
+    const termsInfo = terms
+      ? termsNote({ supplier: terms.name, payTermsDays: terms.payTermsDays, minimum: terms.minimum, totalWithVat: totalWithVat(values), money: formatMoney }).text
+      : "";
+    if (financials.retailValue > 0) {
+      const profitStr = formatMoney(financials.grossProfit, "USD");
+      const marginStr = financials.marginPercent !== null ? `${financials.marginPercent.toFixed(1)}% margin` : "";
+      const finSummary = `Total buy: ${formatMoney(financials.costValue, "USD")} · Est. retail: ${formatMoney(financials.retailValue, "USD")} · Est. profit: ${profitStr} (${marginStr})`;
+      return termsInfo ? `${termsInfo} · ${finSummary}` : finSummary;
+    }
+    return termsInfo;
   },
   primary: (values) => SEND_LABEL[(values._channel as OrderChannel | null | undefined) ?? "BY_HAND"],
   alt: {
@@ -330,12 +357,14 @@ const orderEdit: SheetKind = {
           l: "Lines",
           noun: "product",
           ql: "Ordered",
-          cl: "Cost",
+          cl: "Buying price",
+          editableCost: true,
+          showFinancials: true,
           p: "Add a product: search, scan, or add a new one",
           nolabel: true,
           opt: true,
           optQuiet: true,
-          h: "A line cannot go below what was delivered. To drop what is left, set it to what came.",
+          h: "A line cannot go below what was delivered. Edit quantities and buying prices as needed.",
         },
       ],
     },

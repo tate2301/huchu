@@ -373,7 +373,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     id: "stores",
     label: "Stores & Inventory",
     sectionId: "stores",
-    homeHref: "/stores/dashboard",
+    homeHref: "/retail/stock",
   }),
   maintenance: createSectionModule({
     id: "maintenance",

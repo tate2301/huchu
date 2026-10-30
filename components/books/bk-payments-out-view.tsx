@@ -7,7 +7,8 @@ import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/compo
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { money } from "@/lib/books/format";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
-import { PAYMENT_OUT_TAB_LABEL, PAYMENT_OUT_VIEWS, type PaymentOutQuery, type PaymentOutRow, type PaymentsOutPage } from "@/lib/books/payments-out";
+import { PAYMENT_OUT_TAB_LABEL, PAYMENT_OUT_VIEWS } from "@/lib/books/payments-out-labels";
+import type { PaymentOutQuery, PaymentOutRow, PaymentsOutPage } from "@/lib/books/payments-out";
 
 import { BkChip, BkQuietTools, BkState, BkTabs, BkTools } from "./bk-list";
 import { BooksFinding } from "./figures";

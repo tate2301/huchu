@@ -14,7 +14,8 @@ import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
+import { FDMS_LABEL } from "@/lib/books/bills-labels";
+import type { BillQuery, BillRow, BillsView } from "@/lib/books/bills";
 import { money } from "@/lib/books/format";
 
 const NEW_BILL = { label: "New bill", icon: "plus" as const, href: "/books/bills/new", shortcut: "N" };

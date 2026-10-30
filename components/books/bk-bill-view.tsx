@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import type { BillRecord } from "@/lib/books/bill-record";
-import { FDMS_LABEL } from "@/lib/books/bills";
+import { FDMS_LABEL } from "@/lib/books/bills-labels";
 import type { ExpenseState } from "@/lib/books/expenses";
 import { money, shortDay } from "@/lib/books/format";
 

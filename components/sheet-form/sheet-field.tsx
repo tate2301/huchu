@@ -468,6 +468,8 @@ export function SheetField({
                 context={context}
                 showCost={field.priced || ctx.can("retail.catalog", "view-cost")}
                 hideQuantity={field.noQuantity?.(values) ?? false}
+                editableCost={field.editableCost}
+                showFinancials={field.showFinancials}
                 lineErrors={lineErrors}
                 closed={field.closed}
                 droppable={field.drop}

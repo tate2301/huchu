@@ -214,6 +214,59 @@ export function lineTotals(lines: readonly SheetLine[]) {
   );
 }
 
+export type OrderFinancials = {
+  count: number;
+  quantity: number;
+  costValue: number;
+  retailValue: number;
+  grossProfit: number;
+  marginPercent: number | null;
+  markupPercent: number | null;
+  supplierCount: number;
+  suppliers: string[];
+};
+
+/** Financial variables across an order's lines: buying cost, projected retail revenue, profit, margin % and markup %. */
+export function orderFinancials(lines: readonly SheetLine[]): OrderFinancials {
+  let count = 0;
+  let quantity = 0;
+  let costValue = 0;
+  let retailValue = 0;
+  const supplierSet = new Set<string>();
+
+  for (const line of lines) {
+    count += 1;
+    const qty = amountOf(line.quantity);
+    const unitCost = amountOf(line.cost);
+    quantity += qty;
+    costValue += qty * unitCost;
+
+    if (line.price !== undefined && line.price !== null && line.price.trim() !== "") {
+      const unitPrice = amountOf(line.price);
+      retailValue += qty * unitPrice;
+    }
+    if (line.supplierName && line.supplierName.trim()) {
+      supplierSet.add(line.supplierName.trim());
+    }
+  }
+
+  const grossProfit = retailValue - costValue;
+  const marginPercent = retailValue > 0 ? (grossProfit / retailValue) * 100 : null;
+  const markupPercent = costValue > 0 ? (grossProfit / costValue) * 100 : null;
+
+  return {
+    count,
+    quantity,
+    costValue,
+    retailValue,
+    grossProfit,
+    marginPercent,
+    markupPercent,
+    supplierCount: supplierSet.size,
+    suppliers: Array.from(supplierSet),
+  };
+}
+
 /** A field's messages per line ("lines.2" → 2), from every message the sheet holds. */
 export function lineErrorsOf(fieldId: string, errors: Record<string, string>): Record<number, string> {
   const prefix = `${fieldId}.`;

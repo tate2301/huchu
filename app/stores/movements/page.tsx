@@ -1,17 +1,5 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-
-import { StoresShell } from "@/components/stores/stores-shell";
-import { StockMovementsFeed } from "@/components/stores/stock-movements-feed";
+import { redirect } from "next/navigation";
 
 export default function StoresMovementsPage() {
-  const searchParams = useSearchParams();
-  const siteId = searchParams.get("siteId") ?? undefined;
-
-  return (
-    <StoresShell activeTab="movements">
-      <StockMovementsFeed siteId={siteId} initialSearch={searchParams.get("q") ?? ""} />
-    </StoresShell>
-  );
+  redirect("/retail/stock/movements");
 }

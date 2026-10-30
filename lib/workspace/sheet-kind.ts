@@ -29,6 +29,9 @@ export type PickedOption = {
   label: string;
   sub?: string | null;
   cost?: string | null;
+  price?: string | null;
+  supplierId?: string | null;
+  supplier?: string | null;
   /** The record the option is of: a stock line's product. */
   of?: string | null;
 };
@@ -42,6 +45,9 @@ export type SheetLine = {
   warn?: boolean;
   quantity: string;
   cost: string;
+  price?: string | null;
+  supplierId?: string | null;
+  supplierName?: string | null;
   /** The record the picked option is of (a stock line's product). */
   of?: string | null;
   /** The person typed this line's figure: values worked out for the sheet leave it alone. */
@@ -166,6 +172,10 @@ export type FieldSpec = {
   cl?: string;
   /** `lines`: the cost column is each one's price, shown to everyone (a bundle's "Each"). */
   priced?: boolean;
+  /** `lines`: allow editing the buying price (cost) per line directly. */
+  editableCost?: boolean;
+  /** `lines`: display full-order financial variables (revenue, profit, margin, markup). */
+  showFinancials?: boolean;
   /** `lines`: no quantity column while this holds (a buy-more deal's products: any of them count). */
   noQuantity?: (values: SheetValues) => boolean;
   /** The money prefix: fixed, or as the values say (US$ or ZiG, from a currency segment). */

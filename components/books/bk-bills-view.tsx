@@ -5,7 +5,8 @@ import Link from "next/link";
 
 import { Button, useSelection } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
+import { BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL } from "@/lib/books/bills-labels";
+import type { BillQuery, BillRow, BillsView } from "@/lib/books/bills";
 import { PERIOD_LABEL, PERIODS } from "@/lib/books/period";
 
 import { Amt, BkFilter, BkNote, BkPager, BkScroll, BkSelectionBar, BkTabs, BkTools, None, St, Worksheet, type BkTone, type WsColumn } from "./ui";

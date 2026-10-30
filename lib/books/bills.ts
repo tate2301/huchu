@@ -5,30 +5,21 @@ import { docLabel } from "./doc-number";
 import { billState, EXPENSE_STATE_LABEL, type ExpenseState } from "./expenses";
 import { addDays, count, dayOf, money, shortDay, storedDay } from "./format";
 import { periodRange, PERIODS } from "./period";
+import {
+  BILL_TAB_LABEL,
+  BILL_VIEWS,
+  BILLS_PAGE_SIZE,
+  FDMS_LABEL,
+  type BillView,
+} from "./bills-labels";
 
-/**
- * Books → Bills & spending → Bills (BkBills): every supplier's bill, what is
- * left to pay on each, its FDMS check (D16) and what it matches (the order and
- * the goods receipt it came from, D12). The tabs are the bill's states, and
- * Debit notes lists the notes against bills. Reads only; the moves are the
- * core's (`lib/books/core/bills.ts`).
- */
-
-export const BILL_VIEWS = ["to-pay", "overdue", "paid", "drafts", "debit-notes", "void"] as const;
-export type BillView = (typeof BILL_VIEWS)[number];
-
-export const BILL_TAB_LABEL: Record<BillView, string> = {
-  "to-pay": "To pay",
-  overdue: "Overdue",
-  paid: "Paid",
-  drafts: "Drafts",
-  "debit-notes": "Debit notes",
-  void: "Void",
+export {
+  BILL_TAB_LABEL,
+  BILL_VIEWS,
+  BILLS_PAGE_SIZE,
+  FDMS_LABEL,
+  type BillView,
 };
-
-export const FDMS_LABEL: Record<FdmsCheckStatus, string> = { NOT_CHECKED: "Not checked", VALID: "Valid", NOT_VALID: "Not valid" };
-
-export const BILLS_PAGE_SIZE = 50;
 
 export const billQuerySchema = z.object({
   view: z.enum(BILL_VIEWS).catch("to-pay"),

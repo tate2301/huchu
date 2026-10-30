@@ -16,6 +16,7 @@ import {
   isDirty,
   lineTotals,
   neededMessage,
+  orderFinancials,
   sheetText,
   shownSections,
   submitFailure,
@@ -334,5 +335,46 @@ describe("a date field", () => {
 
   it("asks for a date and time when a required datetime is empty", () => {
     expect(neededMessage("Opens", { t: "datetime" })).toBe("Choose a date and time.");
+  });
+});
+
+describe("orderFinancials", () => {
+  it("calculates buying cost, retail revenue, profit, margin %, markup % and multi-supplier metrics", () => {
+    const lines = [
+      {
+        productId: "p1",
+        name: "Coca Cola 330ml Can",
+        sub: null,
+        quantity: "100",
+        cost: "0.50",
+        price: "0.80",
+        supplierName: "Delta Beverages",
+      },
+      {
+        productId: "p2",
+        name: "Bally House Milk 1L",
+        sub: null,
+        quantity: "50",
+        cost: "1.20",
+        price: "1.60",
+        supplierName: "Dairibord",
+      },
+    ];
+
+    const financials = orderFinancials(lines);
+
+    // Cost: 100 * 0.50 + 50 * 1.20 = 50 + 60 = 110
+    expect(financials.costValue).toBe(110);
+    // Retail Revenue: 100 * 0.80 + 50 * 1.60 = 80 + 80 = 160
+    expect(financials.retailValue).toBe(160);
+    // Gross Profit: 160 - 110 = 50
+    expect(financials.grossProfit).toBe(50);
+    // Margin %: (50 / 160) * 100 = 31.25%
+    expect(financials.marginPercent).toBeCloseTo(31.25, 2);
+    // Markup %: (50 / 110) * 100 = 45.45%
+    expect(financials.markupPercent).toBeCloseTo(45.45, 2);
+    // Multi-supplier breakdown
+    expect(financials.supplierCount).toBe(2);
+    expect(financials.suppliers).toEqual(["Delta Beverages", "Dairibord"]);
   });
 });

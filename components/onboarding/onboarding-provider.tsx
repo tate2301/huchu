@@ -19,7 +19,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   const user = session?.user as { role?: string } | undefined;
   // Only the workspace's owner and admins can set it up, so only they are asked to.
-  const isEligibleRole = user?.role === "SUPERADMIN" || user?.role === "MANAGER";
+  const isEligibleRole = user?.role === "SUPERADMIN" || user?.role === "MANAGER" || user?.role === "OWNER";
 
   const { data: onboardingStatus } = useQuery<OnboardingStatus>({
     queryKey: ["onboarding", "status"],
@@ -34,6 +34,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+
 
   // Open whenever the latest status says the workspace still needs setting up,
   // until that status is dismissed. Derived rather than copied into state by an
