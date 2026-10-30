@@ -53,8 +53,25 @@ const REP_BOOKS_PREFIXES = [
   "/api/books/attachments",
 ];
 
+const REP_STOCK_PREFIXES = [
+  "/retail/products",
+  "/retail/stock",
+  "/retail/buying",
+  "/api/v2/retail/products",
+  "/api/v2/retail/categories",
+  "/api/v2/retail/price-lists",
+  "/api/v2/retail/price-changes",
+  "/api/v2/retail/promotions",
+  "/api/v2/retail/bundles",
+  "/api/v2/retail/vouchers",
+  "/api/v2/retail/stock",
+  "/api/v2/retail/buying",
+  "/api/v2/retail/purchasing",
+  "/api/v2/retail/requisitions",
+];
+
 export const ROLE_ROUTE_ALLOWLIST: Record<string, string[]> = {
-  SALES_REP: ["/crm", "/api/v2/crm", ...REP_BOOKS_PREFIXES, ...SHARED_ALLOWED_PREFIXES],
+  SALES_REP: ["/crm", "/api/v2/crm", ...REP_BOOKS_PREFIXES, ...REP_STOCK_PREFIXES, ...SHARED_ALLOWED_PREFIXES],
 };
 
 /**

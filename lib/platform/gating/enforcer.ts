@@ -1,7 +1,11 @@
 import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { resolveFeatureKeyForCapability } from "@/lib/platform/gating/capability-registry";
 import { isFeatureBypassed } from "@/lib/platform/gating/break-glass";
-import { booksTierKeyForPath, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import {
+  booksTierKeyForPath,
+  resolveAlternativeFeatureKeysForPath,
+  resolveFeatureKeyForPath,
+} from "@/lib/platform/gating/route-registry";
 import { isAllowByDefaultFeaturePolicy } from "@/lib/platform/gating/policy";
 import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import type { FeatureGateDecision } from "@/lib/platform/gating/types";
@@ -84,6 +88,16 @@ export function canAccessRouteWithToken(pathname: string, enabledFeatures: strin
   const featureKey = resolveFeatureKeyForPath(pathname);
   if (!featureKey) return { allowed: true, path: pathname };
   const decision = evaluateFeature(featureKey, enabledFeatures);
+  if (decision.allowed) {
+    return { ...decision, path: pathname };
+  }
+  const altKeys = resolveAlternativeFeatureKeysForPath(pathname);
+  for (const altKey of altKeys) {
+    const altDecision = evaluateFeature(altKey, enabledFeatures);
+    if (altDecision.allowed) {
+      return { ...altDecision, path: pathname };
+    }
+  }
   return { ...decision, path: pathname };
 }
 

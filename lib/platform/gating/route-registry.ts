@@ -564,6 +564,36 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/compliance/training-records", featureKey: "compliance.training-records" },
 ];
 
+export const ALTERNATIVE_FEATURE_ROUTES: Array<{ scope: "page" | "api"; prefix: string; featureKeys: string[] }> = [
+  // Canonical stock, product, and buying pages accessible via stores.* and crm.* features
+  { scope: "page", prefix: "/retail/stock/movements", featureKeys: ["retail.core", "stores.movements"] },
+  { scope: "page", prefix: "/retail/stock", featureKeys: ["stores.inventory", "stores.dashboard"] },
+  { scope: "page", prefix: "/retail/products/price-lists", featureKeys: ["stores.price-lists", "stores.inventory"] },
+  { scope: "page", prefix: "/retail/products/promotions", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "page", prefix: "/retail/products/bundles", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "page", prefix: "/retail/products/vouchers", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "page", prefix: "/retail/products", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "page", prefix: "/retail/buying", featureKeys: ["stores.inventory", "stores.dashboard", "crm.core"] },
+
+  // API endpoints for stock, product, pricing, and purchasing
+  { scope: "api", prefix: "/api/v2/retail/stock", featureKeys: ["stores.inventory", "stores.dashboard", "stores.movements"] },
+  { scope: "api", prefix: "/api/v2/retail/price-lists", featureKeys: ["stores.price-lists", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/price-changes", featureKeys: ["stores.price-lists", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/products", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/categories", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/bin", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/packs", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/requisitions", featureKeys: ["stores.inventory", "stores.dashboard", "crm.core"] },
+  { scope: "api", prefix: "/api/v2/retail/purchasing", featureKeys: ["stores.inventory", "stores.dashboard"] },
+  { scope: "api", prefix: "/api/v2/retail/buying", featureKeys: ["stores.inventory", "stores.dashboard", "crm.core"] },
+  { scope: "api", prefix: "/api/v2/retail/promotions", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/bundles", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/v2/retail/vouchers", featureKeys: ["stores.price-lists", "stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/retail/catalog", featureKeys: ["stores.catalogue", "stores.inventory"] },
+  { scope: "api", prefix: "/api/retail/purchasing", featureKeys: ["stores.inventory", "stores.dashboard"] },
+  { scope: "api", prefix: "/api/retail/promotions", featureKeys: ["stores.price-lists", "stores.catalogue"] },
+];
+
 function normalizePath(pathname: string): string {
   const value = pathname.trim();
   if (!value) return "/";
@@ -576,6 +606,8 @@ function sortByPrefixLength<T extends { prefix: string }>(rows: T[]): T[] {
 
 const PAGE_PREFIX_SORTED = sortByPrefixLength(PAGE_FEATURE_ROUTES);
 const API_PREFIX_SORTED = sortByPrefixLength(API_FEATURE_ROUTES);
+const PAGE_ALT_PREFIX_SORTED = sortByPrefixLength(ALTERNATIVE_FEATURE_ROUTES.filter((r) => r.scope === "page"));
+const API_ALT_PREFIX_SORTED = sortByPrefixLength(ALTERNATIVE_FEATURE_ROUTES.filter((r) => r.scope === "api"));
 
 /**
  * The feature a path is gated on, or null for a path that is not a gated surface.
@@ -594,6 +626,18 @@ export function resolveFeatureKeyForPath(pathname: string): string | null {
   const prefixes = normalizedPath.startsWith("/api/") ? API_PREFIX_SORTED : PAGE_PREFIX_SORTED;
   const match = prefixes.find((row) => normalizedPath.startsWith(row.prefix.toLowerCase()));
   return match?.featureKey ?? null;
+}
+
+/**
+ * Alternative feature keys that can also grant access to a path when the primary
+ * feature key is not held. Enables unified canonical routes (e.g. /retail/stock,
+ * /retail/products) to be accessed by non-retail workspaces possessing stores.* features.
+ */
+export function resolveAlternativeFeatureKeysForPath(pathname: string): string[] {
+  const normalizedPath = normalizePath(pathname).toLowerCase();
+  const prefixes = normalizedPath.startsWith("/api/") ? API_ALT_PREFIX_SORTED : PAGE_ALT_PREFIX_SORTED;
+  const match = prefixes.find((row) => normalizedPath.startsWith(row.prefix.toLowerCase()));
+  return match?.featureKeys ?? [];
 }
 
 /**

@@ -62,6 +62,8 @@ import {
   Gem,
   ListBullets,
   ShoppingBag,
+  ShoppingCart,
+  Tag,
   type LucideIcon,
 } from "@/lib/icons";
 import { BOOKS_ROW_ICON } from "@/components/books/icons/books-nav-icons";
@@ -521,13 +523,14 @@ export const navSections: NavSection[] = [
   {
     id: "stores",
     title: "Stock",
-    description: "Inventory and fuel control",
-    featureKey: "stores.dashboard",
+    description: "Inventory, products, pricing, and purchasing",
+    featureKey: "stores.inventory",
     // Issuing and receiving left this list when they became dialogs — a write
     // action does not belong in a column of places to look.
     groups: [
       { id: "stock", label: "Stock" },
       { id: "selling", label: "What we sell" },
+      { id: "purchasing", label: "Buying" },
     ],
     items: [
       { href: "/retail/stock", icon: Dashboard, label: "Overview" },
@@ -536,9 +539,19 @@ export const navSections: NavSection[] = [
       { href: "/retail/stock/movements", icon: History, label: "Movements", group: "stock" },
       { href: "/retail/stock/counts", icon: History, label: "Counts", group: "stock" },
       { href: "/retail/stock/transfers", icon: History, label: "Transfers", group: "stock" },
+      { href: "/retail/stock/empties", icon: Package, label: "Empties", group: "stock" },
 
       { href: "/retail/products", icon: TableRows, label: "Products", group: "selling" },
       { href: "/retail/products/price-lists", icon: Scale, label: "Price lists", group: "selling" },
+      { href: "/retail/products/promotions", icon: Tag, label: "Promotions", group: "selling" },
+      { href: "/retail/products/bundles", icon: Layers, label: "Bundles and packs", group: "selling" },
+      { href: "/retail/products/vouchers", icon: ReceiptLong, label: "Vouchers", group: "selling" },
+      { href: "/retail/products/categories", icon: Tag, label: "Categories", group: "selling" },
+
+      { href: "/retail/buying/orders", icon: ShoppingCart, label: "Orders", group: "purchasing" },
+      { href: "/retail/buying/deliveries", icon: LocalShipping, label: "Deliveries", group: "purchasing" },
+      { href: "/retail/buying/requisitions", icon: ClipboardList, label: "Requisitions", group: "purchasing" },
+      { href: "/retail/buying/suppliers", icon: Users, label: "Suppliers", group: "purchasing" },
     ],
   },
   // ONE sidebar, not two.
