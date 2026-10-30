@@ -5,38 +5,29 @@ import { docLabel } from "./doc-number";
 import { billState, type ExpenseState } from "./expenses";
 import { addDays, count, dayOf, money, shortDay, storedDay } from "./format";
 import { moneyLimits } from "./core/approvals";
+import {
+  BILL_DUE_LABEL,
+  BILL_DUES,
+  BILL_STATE_WORD,
+  BILL_TAB_LABEL,
+  BILL_VIEWS,
+  BILLS_PAGE_SIZE,
+  FDMS_LABEL,
+  type BillDue,
+  type BillView,
+} from "./bills-labels";
 
-/**
- * Books → Bills & spending → Bills (BkBills): every supplier's bill, what is
- * left to pay on each, its FDMS check (D16) and what it matches (the order and
- * the goods receipt it came from, D12). The tabs are the bill's states, and
- * Debit notes lists the notes against bills. Reads only; the moves are the
- * core's (`lib/books/core/bills.ts`).
- */
-
-export const BILL_VIEWS = ["to-pay", "overdue", "paid", "drafts", "debit-notes", "void"] as const;
-export type BillView = (typeof BILL_VIEWS)[number];
-
-export const BILL_TAB_LABEL: Record<BillView, string> = {
-  "to-pay": "To pay",
-  overdue: "Overdue",
-  paid: "Paid",
-  drafts: "Drafts",
-  "debit-notes": "Debit notes",
-  void: "Void",
+export {
+  BILL_DUE_LABEL,
+  BILL_DUES,
+  BILL_STATE_WORD,
+  BILL_TAB_LABEL,
+  BILL_VIEWS,
+  BILLS_PAGE_SIZE,
+  FDMS_LABEL,
+  type BillDue,
+  type BillView,
 };
-
-export const FDMS_LABEL: Record<FdmsCheckStatus, string> = { NOT_CHECKED: "Not checked", VALID: "Valid", NOT_VALID: "Not valid" };
-
-export const BILLS_PAGE_SIZE = 50;
-
-/** The Due chip: bills falling due in a window. */
-export const BILL_DUES = ["any", "this-week", "this-month", "next-30"] as const;
-export type BillDue = (typeof BILL_DUES)[number];
-export const BILL_DUE_LABEL: Record<BillDue, string> = { any: "Any", "this-week": "This week", "this-month": "This month", "next-30": "Next 30 days" };
-
-/** The State column's words: a bill that is recorded and not yet paid reads "Recorded"; a draft over the limit "To approve". */
-export const BILL_STATE_WORD: Record<ExpenseState, string> = { overdue: "Overdue", "part-paid": "Part paid", "to-pay": "Recorded", paid: "Paid", draft: "Draft", void: "Void" };
 
 /** The days a Due choice covers, both ends included; null for any. */
 export function dueWindow(due: BillDue, today: string): { gte: string; lte: string } | null {

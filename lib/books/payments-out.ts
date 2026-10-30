@@ -9,22 +9,21 @@ import { docLabel } from "./doc-number";
 import { count, dayOf, money, monthName, monthStart, shortDay, storedDay } from "./format";
 import { itf263State } from "./itf263";
 import { periodRange, PERIODS } from "./period";
+import {
+  PAYMENT_OUT_STATE,
+  PAYMENT_OUT_TAB_LABEL,
+  PAYMENT_OUT_VIEWS,
+  PAYMENTS_OUT_PAGE_SIZE,
+  type PaymentOutView,
+} from "./payments-out-labels";
 
-/**
- * Books → Bills & spending → Payments made (BkPaymentsOut): every payment to
- * a supplier, Books' and the shop's, with its state (D5): a draft, one waiting
- * for approval, approved and not yet paid, paid, void. What was paid this
- * month is read by the same rule as Money's money out (`MONEY_OUT_WHERE`).
- */
-
-export const PAYMENT_OUT_VIEWS = ["all", "to-approve", "paid", "void"] as const;
-export type PaymentOutView = (typeof PAYMENT_OUT_VIEWS)[number];
-
-export const PAYMENT_OUT_TAB_LABEL: Record<PaymentOutView, string> = { all: "All", "to-approve": "To approve", paid: "Paid", void: "Void" };
-
-export const PAYMENT_OUT_STATE: Record<PurchasePaymentStatus, string> = { DRAFT: "Draft", TO_APPROVE: "To approve", APPROVED: "Approved", PAID: "Paid", VOIDED: "Void" };
-
-export const PAYMENTS_OUT_PAGE_SIZE = 50;
+export {
+  PAYMENT_OUT_STATE,
+  PAYMENT_OUT_TAB_LABEL,
+  PAYMENT_OUT_VIEWS,
+  PAYMENTS_OUT_PAGE_SIZE,
+  type PaymentOutView,
+};
 
 export const paymentOutQuerySchema = z.object({
   view: z.enum(PAYMENT_OUT_VIEWS).catch("all"),

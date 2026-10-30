@@ -5,7 +5,8 @@ import Link from "next/link";
 
 import { Button, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
-import { BILL_DUE_LABEL, BILL_DUES, BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL, type BillQuery, type BillRow, type BillsView } from "@/lib/books/bills";
+import { BILL_DUE_LABEL, BILL_DUES, BILL_TAB_LABEL, BILL_VIEWS, BILLS_PAGE_SIZE, FDMS_LABEL } from "@/lib/books/bills-labels";
+import type { BillQuery, BillRow, BillsView } from "@/lib/books/bills";
 import { count, money } from "@/lib/books/format";
 
 import { BkChip, BkQuietTools, BkState, BkTabs, BkTools, useBkLayout } from "./bk-list";

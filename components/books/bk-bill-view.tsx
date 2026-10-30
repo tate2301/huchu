@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { ButtonLink } from "@/components/core";
 import type { BillRecordPage } from "@/lib/books/bill-record";
-import { FDMS_LABEL } from "@/lib/books/bills";
+import { FDMS_LABEL } from "@/lib/books/bills-labels";
 import type { ExpenseState } from "@/lib/books/expenses";
 import { money, weekdayDay } from "@/lib/books/format";
 
