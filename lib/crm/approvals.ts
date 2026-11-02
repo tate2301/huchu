@@ -215,6 +215,17 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
               updatedAt: true,
             },
           },
+          receipt: {
+            select: {
+              receiptNumber: true,
+              receivedAt: true,
+              amount: true,
+              method: true,
+              reference: true,
+              customer: { select: { name: true } },
+              invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
+            },
+          },
           resources: DOCUMENT_RESOURCES_SELECT,
         },
       },
@@ -234,7 +245,11 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
 
   const doc = approval.leadDocument;
   const source = doc.quotation ?? doc.invoice;
-  const number = doc.quotation?.quotationNumber ?? doc.invoice?.invoiceNumber ?? "";
+  const number =
+    doc.quotation?.quotationNumber ??
+    doc.invoice?.invoiceNumber ??
+    doc.receipt?.receiptNumber ??
+    "";
   const expired = approval.status === "PENDING" && isExpired(approval.expiresAt);
   // An expired or withdrawn link no longer discloses pricing — the client must
   // ask the rep for a fresh one. Both are withheld the same way; only the
@@ -243,13 +258,27 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
 
   const lines = withheld
     ? []
-    : (source?.lines ?? []).map((l) => ({
-        description: l.description,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        taxRate: l.taxRate ?? 0,
-        lineTotal: l.lineTotal,
-      }));
+    : source
+      ? source.lines.map((l) => ({
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          taxRate: l.taxRate ?? 0,
+          lineTotal: l.lineTotal,
+        }))
+      : doc.receipt
+        ? [
+            {
+              description: doc.receipt.invoice?.invoiceNumber
+                ? `Payment received for ${doc.receipt.invoice.invoiceNumber} (${doc.receipt.method})`
+                : `Payment received on account (${doc.receipt.method})`,
+              quantity: 1,
+              unitPrice: doc.receipt.amount,
+              taxRate: 0,
+              lineTotal: doc.receipt.amount,
+            },
+          ]
+        : [];
 
   return {
     companyName: branding.displayName,
@@ -258,14 +287,21 @@ export async function getApprovalByToken(token: string): Promise<PublicApprovalV
     number,
     currency: doc.currency,
     total: withheld ? 0 : doc.amount,
-    subTotal: withheld ? 0 : (source?.subTotal ?? 0),
+    subTotal: withheld ? 0 : (source?.subTotal ?? doc.receipt?.amount ?? 0),
     taxTotal: withheld ? 0 : (source?.taxTotal ?? 0),
     issuedAt:
-      doc.quotation?.quotationDate?.toISOString() ?? doc.invoice?.invoiceDate?.toISOString() ?? null,
+      doc.quotation?.quotationDate?.toISOString() ??
+      doc.invoice?.invoiceDate?.toISOString() ??
+      doc.receipt?.receivedAt?.toISOString() ??
+      null,
     validUntil: doc.quotation?.validUntil?.toISOString() ?? null,
     dueDate: doc.invoice?.dueDate?.toISOString() ?? null,
-    notes: withheld ? null : (source?.notes ?? null),
-    billedTo: source?.customer?.name ?? null,
+    notes: withheld ? null : (source?.notes ?? doc.receipt?.reference ?? null),
+    billedTo:
+      source?.customer?.name ??
+      doc.receipt?.customer?.name ??
+      doc.receipt?.invoice?.customer?.name ??
+      null,
     lines,
     branding: {
       logoUrl: branding.logoUrl ?? null,

@@ -34,6 +34,7 @@ export function readQuoteQuery(params: URLSearchParams): QuoteQuery {
 export type QuoteRow = {
   id: string;
   number: string;
+  customerId: string;
   customer: string;
   customerImage?: string | null;
   /** What it is for: its first line. */

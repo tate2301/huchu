@@ -46,6 +46,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
         total: true,
         currency: true,
         issuedAt: true,
+        customerId: true,
         customer: { select: { name: true, ...customerFace } },
         lines: { orderBy: { createdAt: "asc" }, take: 1, select: { description: true } },
         crmLeadDocuments: { take: 1, select: { id: true, approval: { select: { firstViewedAt: true } } } },
@@ -71,6 +72,7 @@ export async function readQuotes(db: Db, companyId: string, query: QuoteQuery, n
     return {
       id: record.id,
       number: record.quotationNumber,
+      customerId: record.customerId,
       customer: record.customer.name,
       customerImage: customerImage(record.customer),
       forWhat: record.lines[0]?.description ?? "",

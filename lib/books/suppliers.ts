@@ -223,7 +223,7 @@ export async function readSuppliers(db: Db, companyId: string, query: SupplierQu
 
 /* ── One supplier ──────────────────────────────────────────────────────── */
 
-export const SUPPLIER_TABS = ["activity", "bills", "payments", "statement", "tax"] as const;
+export const SUPPLIER_TABS = ["activity", "bills", "orders", "payments", "statement", "tax"] as const;
 export type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 export type SupplierStatementLine = { date: string; document: string; detail: string; href: string | null; billed: number | null; paid: number | null; balance: number };
@@ -249,6 +249,7 @@ export type SupplierRecord = {
   vatAgent: boolean;
   withholding: Array<{ id: string; number: string; bill: { id: string; number: string } | null; gross: number; withheld: number; certificate: string | null; state: string; date: string }>;
   bills: Array<{ id: string; number: string; date: string; fti: string | null; fdms: string; state: string; total: number; balance: number }>;
+  orders: Array<{ id: string; number: string; date: string; expected: string | null; state: string; total: number }>;
   payments: Array<{ id: string; number: string; date: string; bill: { id: string; number: string } | null; from: string | null; state: string; amount: number; voided: boolean }>;
   statement: { from: string; to: string; opening: number; lines: SupplierStatementLine[]; closing: number };
 };
@@ -256,6 +257,7 @@ export type SupplierRecord = {
 type RecordDb = Pick<PrismaClient, "vendor" | "purchaseBill" | "purchasePayment" | "retailPurchaseOrder">;
 
 const PAYMENT_STATE: Record<string, string> = { DRAFT: "Draft", TO_APPROVE: "To approve", APPROVED: "Approved", PAID: "Paid", VOIDED: "Void" };
+const ORDER_STATE: Record<string, string> = { DRAFT: "Draft", TO_APPROVE: "To approve", SENT: "Sent", PARTIAL: "Part received", RECEIVED: "Received", CANCELLED: "Cancelled" };
 const FDMS: Record<string, string> = { NOT_CHECKED: "Not checked", VALID: "Valid", NOT_VALID: "Not valid" };
 const BILL_STATE: Record<string, string> = { draft: "Draft", "to-pay": "To pay", "part-paid": "Part paid", overdue: "Overdue", paid: "Paid", void: "Void" };
 
@@ -321,8 +323,9 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
       orderBy: { paidAt: "desc" },
       select: { id: true, paymentNumber: true, groupNo: true, status: true, paidAt: true, amount: true, withholdingAmount: true, certificateNo: true, bill: { select: { id: true, billNumber: true } }, bankAccount: { select: { name: true, bankName: true, currency: true } } },
     }),
-    db.retailPurchaseOrder.findMany({ where: { companyId, vendorId: id, status: { in: ["SENT", "PARTIAL", "TO_APPROVE"] }, archivedAt: null }, orderBy: { createdAt: "asc" }, select: { poNo: true, lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, vatRate: true } } } }),
+    db.retailPurchaseOrder.findMany({ where: { companyId, vendorId: id, archivedAt: null }, orderBy: { createdAt: "desc" }, select: { id: true, poNo: true, status: true, expectedDate: true, createdAt: true, lines: { select: { quantity: true, receivedQuantity: true, unitCost: true, vatRate: true } } } }),
   ]);
+  const openOrders = [...orders].reverse().filter((order) => ["SENT", "PARTIAL", "TO_APPROVE"].includes(order.status));
   const currencies = new Map<string, number>();
   for (const bill of bills) currencies.set(bill.currency, (currencies.get(bill.currency) ?? 0) + 1);
   const currency = [...currencies.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? base;
@@ -341,7 +344,7 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
   }
   const year = yearStart(today);
   const paidYear = payments.filter((payment) => payment.status === "PAID" && payment.paidAt >= year);
-  const onOrder = round(orders.reduce((sum, order) => sum + order.lines.reduce((total, line) => total + Math.max(0, Number(line.quantity) - Number(line.receivedQuantity)) * Number(line.unitCost) * (1 + Number(line.vatRate) / 100), 0), 0));
+  const onOrder = round(openOrders.reduce((sum, order) => sum + order.lines.reduce((total, line) => total + Math.max(0, Number(line.quantity) - Number(line.receivedQuantity)) * Number(line.unitCost) * (1 + Number(line.vatRate) / 100), 0), 0));
 
   // The statement: the period's bills, debit notes, write-offs and payments, after what was owed before it.
   const to = period?.to ?? today;
@@ -384,7 +387,7 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
       paidYear: round(paidYear.reduce((sum, payment) => sum + payment.amount, 0)),
       payments: paidYear.length,
       onOrder,
-      firstOrder: orders[0]?.poNo ?? null,
+      firstOrder: openOrders[0]?.poNo ?? null,
       withheld: round(paidYear.reduce((sum, payment) => sum + payment.withholdingAmount, 0)),
       certificates: paidYear.filter((payment) => payment.certificateNo).length,
     },
@@ -410,6 +413,17 @@ export async function readSupplierRecord(db: RecordDb, companyId: string, id: st
     bills: bills.map((bill) => {
       const read = billState(bill, today);
       return { id: bill.id, number: docLabel(bill.billNumber, "bill"), date: shortDay(storedDay(bill.billDate)), fti: bill.supplierFtiNumber, fdms: FDMS[bill.fdmsStatus], state: BILL_STATE[read.state], total: round(bill.total), balance: read.balance };
+    }),
+    orders: orders.map((order) => {
+      const total = round(order.lines.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitCost) * (1 + Number(line.vatRate) / 100), 0));
+      return {
+        id: order.id,
+        number: docLabel(order.poNo, "order"),
+        date: shortDay(storedDay(order.createdAt)),
+        expected: order.expectedDate ? shortDay(storedDay(order.expectedDate)) : null,
+        state: ORDER_STATE[order.status] ?? order.status,
+        total,
+      };
     }),
     payments: payments.map((payment) => ({
       id: payment.id,

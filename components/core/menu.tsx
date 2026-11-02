@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { Button, type ButtonProps } from "./button";
 import { Icon, type IconName } from "./icon";
@@ -26,6 +27,10 @@ export type MenuEntry = MenuItem | { separator: true } | { heading: string };
  * A button that opens a menu under it (the kit's `.menu`): "All invoices ▾",
  * "CBZ, USD ▾", Columns. Arrow keys move, Enter picks, Esc and a click outside
  * close it, and focus goes back to the button.
+ *
+ * Portaled to `document.body` and positioned against the viewport so sticky
+ * bottom selection bars (`.foot-sel`, `.k-sel`) and overflow-hidden containers
+ * never clip the menu; when near the bottom of the screen it opens upward.
  */
 export function MenuButton({
   items,
@@ -40,8 +45,16 @@ export function MenuButton({
   label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [coords, setCoords] = React.useState<{
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+    maxHeight: number;
+  } | null>(null);
   const wrap = React.useRef<HTMLDivElement>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const menuId = React.useId();
 
   const close = React.useCallback((refocus = true) => {
@@ -49,13 +62,59 @@ export function MenuButton({
     if (refocus) trigger.current?.focus();
   }, []);
 
+  const updatePosition = React.useCallback(() => {
+    const btn = trigger.current;
+    if (!btn || typeof window === "undefined") return;
+    const rect = btn.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const estimatedHeight = Math.min(360, items.length * 36 + 16);
+    const spaceBelow = vh - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+    const horizontal =
+      align === "end"
+        ? { right: Math.max(8, vw - rect.right) }
+        : { left: Math.max(8, Math.min(rect.left, vw - 220)) };
+
+    if (openUpward) {
+      setCoords({
+        bottom: vh - rect.top + 4,
+        maxHeight: Math.min(360, Math.max(140, spaceAbove)),
+        ...horizontal,
+      });
+    } else {
+      setCoords({
+        top: rect.bottom + 4,
+        maxHeight: Math.min(360, Math.max(140, spaceBelow)),
+        ...horizontal,
+      });
+    }
+  }, [align, items.length]);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [open, updatePosition]);
+
   React.useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (!wrap.current?.contains(event.target as Node)) close(false);
+      const target = event.target as Node;
+      if (!wrap.current?.contains(target) && !menuRef.current?.contains(target)) {
+        close(false);
+      }
     };
     document.addEventListener("pointerdown", outside);
-    wrap.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
+    menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
     return () => document.removeEventListener("pointerdown", outside);
   }, [open, close]);
 
@@ -68,38 +127,31 @@ export function MenuButton({
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const options = [...(wrap.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+    const options = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+    if (options.length === 0) return;
     const at = options.indexOf(document.activeElement as HTMLElement);
     const next = event.key === "ArrowDown" ? (at + 1) % options.length : (at - 1 + options.length) % options.length;
     options[next]?.focus();
   };
 
-  return (
-    <div ref={wrap} className="menu-wrap" style={{ position: "relative", display: "inline-flex" }}>
-      <Button
-        ref={trigger}
-        iconEnd="down"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((value) => !value)}
-        {...button}
-      >
-        {children}
-      </Button>
-      {open ? (
+  const menuNode =
+    open && typeof document !== "undefined" ? (
+      <div className="ck" style={{ display: "contents" }}>
         <div
+          ref={menuRef}
           id={menuId}
           className="menu"
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
           style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            [align === "end" ? "right" : "left"]: 0,
-            zIndex: 30,
-            maxHeight: 360,
+            position: "fixed",
+            top: coords?.top,
+            bottom: coords?.bottom,
+            left: coords?.left,
+            right: coords?.right,
+            zIndex: 120,
+            maxHeight: coords?.maxHeight ?? 360,
             overflowY: "auto",
           }}
         >
@@ -131,7 +183,23 @@ export function MenuButton({
             );
           })}
         </div>
-      ) : null}
+      </div>
+    ) : null;
+
+  return (
+    <div ref={wrap} className="menu-wrap" style={{ position: "relative", display: "inline-flex" }}>
+      <Button
+        ref={trigger}
+        iconEnd="down"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((value) => !value)}
+        {...button}
+      >
+        {children}
+      </Button>
+      {menuNode ? createPortal(menuNode, document.body) : null}
     </div>
   );
 }

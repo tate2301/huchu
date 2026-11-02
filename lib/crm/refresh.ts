@@ -30,6 +30,7 @@ const DOCUMENT_KEYS: readonly unknown[][] = [
   ["crm", "rep"],
   ["crm", "collections"],
   ["crm-dashboard"],
+  ["books"],
 ];
 
 export function refreshAfterDocumentChange(queryClient: QueryClient): void {

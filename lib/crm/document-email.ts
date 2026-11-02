@@ -220,7 +220,13 @@ async function documentForEmail(params: DocumentRef) {
       renderTemplateId: true,
       quotation: { select: { quotationNumber: true, madeByVane: true, createdById: true, customer: { select: { email: true } } } },
       invoice: { select: { invoiceNumber: true, madeByVane: true, createdById: true, customer: { select: { email: true } } } },
-      receipt: { select: { receiptNumber: true } },
+      receipt: {
+        select: {
+          receiptNumber: true,
+          customer: { select: { email: true } },
+          invoice: { select: { customer: { select: { email: true } } } },
+        },
+      },
       lead: { select: { id: true, contactEmail: true, client: { select: { email: true } } } },
       deal: {
         select: {
@@ -238,7 +244,11 @@ async function documentForEmail(params: DocumentRef) {
   if (!recordId) throw new Error("Document has no underlying record");
 
   const to = resolveRecipient({
-    customerEmail: doc.quotation?.customer?.email ?? doc.invoice?.customer?.email,
+    customerEmail:
+      doc.quotation?.customer?.email ??
+      doc.invoice?.customer?.email ??
+      doc.receipt?.customer?.email ??
+      doc.receipt?.invoice?.customer?.email,
     clientEmail: doc.deal?.client?.email ?? doc.lead?.client?.email,
     primaryContactEmail: doc.deal?.primaryContact?.email,
     contactEmail: doc.lead?.contactEmail,

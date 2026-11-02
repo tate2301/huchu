@@ -58,6 +58,7 @@ export type PaymentRow = {
   number: string;
   /** Who paid: the invoice's customer, or null for a payment on no invoice. */
   customer: string | null;
+  customerId?: string | null;
   /** The customer's photo, from their CRM client, when there is one. */
   customerImage?: string | null;
   invoice: string | null;
@@ -175,10 +176,11 @@ const rowSelect = {
   voidedAt: true,
   voidReason: true,
   voidedBy: { select: { name: true, image: true } },
+  customerId: true,
   customer: { select: customerFace },
   currency: true,
   bankAccount: { select: { name: true, bankName: true, currency: true } },
-  invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { name: true, ...customerFace } } } },
+  invoice: { select: { id: true, invoiceNumber: true, currency: true, customer: { select: { id: true, name: true, ...customerFace } } } },
 } satisfies Prisma.SalesReceiptSelect;
 
 type RowRecord = Prisma.SalesReceiptGetPayload<{ select: typeof rowSelect }>;
@@ -194,6 +196,7 @@ export function toPaymentRow(record: RowRecord, onAccount: string | null = null)
     id: record.id,
     number: record.receiptNumber,
     customer: record.invoice?.customer.name ?? onAccount,
+    customerId: record.invoice?.customer.id ?? record.customerId ?? null,
     customerImage: customerImage(record.invoice?.customer ?? record.customer),
     invoice: record.invoice?.invoiceNumber ?? null,
     invoiceId: record.invoice?.id ?? null,

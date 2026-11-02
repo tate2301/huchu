@@ -4,6 +4,10 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { syncAccountingCustomer } from "@/lib/crm/accounting-bridge";
+import {
+  loadProfileMoneyDocuments,
+  loadProfileSupplierItems,
+} from "@/lib/books/crm-document-bridge";
 import { canEditRecord } from "@/lib/crm/permissions";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { extractDomain } from "@/lib/crm/duplicates";
@@ -82,7 +86,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return successResponse({ ...company, redirectTo: company.mergedIntoId });
     }
 
-    return successResponse(company);
+    const [documents, supplierItems] = await Promise.all([
+      loadProfileMoneyDocuments(session.user.companyId, {
+        clientId: company.id,
+        customerId: company.customerId,
+        name: company.name,
+        dealIds: company.deals.map((d) => d.id),
+      }),
+      loadProfileSupplierItems(session.user.companyId, {
+        name: company.name,
+      }),
+    ]);
+
+    return successResponse({ ...company, documents, supplierItems });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/companies/[id] error:", error);
     return errorResponse("Failed to fetch company");

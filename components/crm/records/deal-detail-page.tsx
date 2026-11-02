@@ -41,6 +41,7 @@ import type { LeadDocument } from "@/components/crm/documents/document-types";
 import {
   automationTab,
   historyTab,
+  moneyTab,
   paperworkTab,
   tasksTab,
   useRecordComments,
@@ -470,7 +471,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             ? []
             : [{ label: "Start the project", onSelect: () => setStartProjectOpen(true) }]),
           { label: "Raise a job", onSelect: jobs.raise },
-          { label: "Open documents", onSelect: () => setTab("documents") },
+          { label: "Open money", onSelect: () => setTab("documents") },
         ]}
         activeTab={tab}
         attributes={
@@ -639,8 +640,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </div>
             ),
           },
-          paperworkTab({
-            ref: { kind: "deal", id: dealId },
+          moneyTab({
             documentCount: deal.documents.length,
             documents: (
               <DocumentList
@@ -652,6 +652,9 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 onPrefillConsumed={() => setQuotationPrefill(undefined)}
               />
             ),
+          }),
+          paperworkTab({
+            ref: { kind: "deal", id: dealId },
           }),
           // A job follows the paperwork: it is what the quote turns into.
           jobs.tab,

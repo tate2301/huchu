@@ -55,6 +55,7 @@ export type LeadDocument = {
     receivedAt: string;
     amount: number;
     method: string;
+    voidedAt?: string | null;
   } | null;
 };
 
@@ -128,10 +129,16 @@ export function documentNumber(doc: LeadDocument): string {
  * the CRM document's id, an invoice by its invoice's, a receipt by its
  * receipt's. Without the Books id yet, the CRM's old address forwards there.
  */
-export function documentHref(doc: { id: string; type: CrmDocumentKind | string; invoiceId?: string | null; receiptId?: string | null }): string {
-  if (doc.type === "QUOTATION") return `/books/quotes/${doc.id}`;
-  if (doc.type === "INVOICE") return doc.invoiceId ? `/books/invoices/${doc.invoiceId}` : `/crm/invoices/${doc.id}`;
-  return doc.receiptId ? `/books/payments?payment=${doc.receiptId}` : `/crm/receipts/${doc.id}`;
+export function documentHref(doc: {
+  id: string;
+  type: CrmDocumentKind | string;
+  quotationId?: string | null;
+  invoiceId?: string | null;
+  receiptId?: string | null;
+}): string {
+  if (doc.type === "QUOTATION") return `/books/quotes/${doc.quotationId ?? doc.id}`;
+  if (doc.type === "INVOICE") return `/books/invoices/${doc.invoiceId ?? doc.id}`;
+  return `/books/payments/${doc.receiptId ?? doc.id}`;
 }
 
 export function documentRecordId(doc: LeadDocument): string | null {

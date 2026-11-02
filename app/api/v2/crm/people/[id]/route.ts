@@ -13,6 +13,10 @@ import {
 } from "@/lib/crm/custom-fields";
 import { recordFieldChanges } from "@/lib/crm/history";
 import { recordMarkFields } from "@/lib/crm/record-mark";
+import {
+  loadProfileMoneyDocuments,
+  loadProfileSupplierItems,
+} from "@/lib/books/crm-document-bridge";
 import { isCompanyUser } from "../../_helpers";
 import { recordFieldChanges as recordFieldDiff } from "@/lib/crm/field-history";
 
@@ -59,10 +63,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const person = await prisma.crmPerson.findFirst({
       where: { id, companyId: session.user.companyId },
       include: {
-        client: { select: { id: true, name: true, clientNo: true } },
+        client: { select: { id: true, name: true, clientNo: true, customerId: true } },
         assignedTo: { select: { id: true, name: true, image: true } },
         companyLinks: {
-          include: { client: { select: { id: true, name: true, clientNo: true } } },
+          include: { client: { select: { id: true, name: true, clientNo: true, customerId: true } } },
         },
         dealContacts: {
           include: {
@@ -95,7 +99,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return successResponse({ ...person, redirectTo: person.mergedIntoId });
     }
 
-    return successResponse(person);
+    const primaryDeals = await prisma.crmDeal.findMany({
+      where: { companyId: session.user.companyId, primaryContactId: person.id },
+      select: { id: true },
+    });
+    const dealIds = Array.from(
+      new Set([
+        ...person.dealContacts.map((dc) => dc.deal.id),
+        ...primaryDeals.map((d) => d.id),
+      ]),
+    );
+
+    const [documents, supplierItems] = await Promise.all([
+      loadProfileMoneyDocuments(session.user.companyId, {
+        clientId: person.client?.id ?? null,
+        customerId: person.client?.customerId ?? null,
+        name: person.client?.name ?? person.fullName,
+        dealIds,
+      }),
+      loadProfileSupplierItems(session.user.companyId, {
+        name: person.client?.name ?? person.fullName,
+      }),
+    ]);
+
+    return successResponse({ ...person, documents, supplierItems });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/people/[id] error:", error);
     return errorResponse("Failed to fetch person");

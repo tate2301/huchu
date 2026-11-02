@@ -119,7 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               },
             },
             receipt: {
-              select: { id: true, receiptNumber: true, receivedAt: true, amount: true, method: true },
+              select: { id: true, receiptNumber: true, receivedAt: true, amount: true, method: true, voidedAt: true },
             },
           },
         },

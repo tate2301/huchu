@@ -165,7 +165,7 @@ export async function readStatement(db: Db, companyId: string, customerId: strin
     if (invoice.status === "VOIDED") continue;
     events.push({ day: storedDay(invoice.invoiceDate), document: invoice.invoiceNumber ?? "Invoice", detail: invoice.lines[0]?.description ?? "", href: `/books/invoices/${invoice.id}`, invoiced: invoice.total, paid: 0 });
   }
-  for (const receipt of receipts) events.push({ day: storedDay(receipt.receivedAt), document: receipt.receiptNumber, detail: receipt.method, href: null, invoiced: 0, paid: receipt.amount });
+  for (const receipt of receipts) events.push({ day: storedDay(receipt.receivedAt), document: receipt.receiptNumber, detail: receipt.method, href: `/books/payments/${receipt.id}`, invoiced: 0, paid: receipt.amount });
   for (const note of credits) events.push({ day: storedDay(note.noteDate), document: note.noteNumber ?? "Credit note", detail: "Credit note", href: null, invoiced: 0, paid: note.total });
   for (const writeOff of writeOffs) events.push({ day: storedDay(writeOff.createdAt), document: writeOff.writeOffNumber ?? "Write-off", detail: "Written off", href: null, invoiced: 0, paid: writeOff.amount });
   events.sort((a, b) => a.day.localeCompare(b.day) || b.invoiced - a.invoiced);
@@ -200,8 +200,14 @@ export async function readCustomer(db: Db, companyId: string, id: string, period
   const yearStart = `${today.slice(0, 4)}-01-01`;
   const from = period.from && /^\d{4}-\d{2}-\d{2}$/.test(period.from) ? period.from : statementStart(today);
   const to = period.to && /^\d{4}-\d{2}-\d{2}$/.test(period.to) ? period.to : today;
-  const [map, invoices, receipts, paidYear, statement, terms] = await Promise.all([
+  const [map, quotes, invoices, receipts, paidYear, statement, terms] = await Promise.all([
     positions(db, companyId, currency, today),
+    db.salesQuotation.findMany({
+      where: { companyId, customerId: id },
+      orderBy: { quotationDate: "desc" },
+      take: 100,
+      select: { id: true, quotationNumber: true, quotationDate: true, validUntil: true, status: true, currency: true, total: true },
+    }),
     db.salesInvoice.findMany({
       where: { companyId, customerId: id },
       orderBy: { invoiceDate: "desc" },
@@ -241,6 +247,15 @@ export async function readCustomer(db: Db, companyId: string, id: string, period
       paymentsYear: paidYear._count,
     },
     onAccount: position?.onAccount ?? 0,
+    quotes: quotes.map((quote) => ({
+      id: quote.id,
+      number: quote.quotationNumber ?? "Draft",
+      date: shortDay(storedDay(quote.quotationDate)),
+      validUntil: quote.validUntil ? shortDay(storedDay(quote.validUntil)) : null,
+      status: quote.status,
+      total: quote.total,
+      currency: quote.currency,
+    })),
     invoices: invoices.map((invoice) => ({
       id: invoice.id,
       number: invoice.invoiceNumber ?? "Draft",

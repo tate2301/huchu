@@ -187,27 +187,31 @@ async function copyClientOntoCustomer(
 }
 
 /** Which record a document is being raised against. */
-export type DocumentOwnerRef = { leadId: string; dealId?: undefined } | { dealId: string; leadId?: undefined };
+export type DocumentOwnerRef =
+  | { leadId: string; dealId?: undefined; clientId?: undefined; customerId?: undefined }
+  | { dealId: string; leadId?: undefined; clientId?: undefined; customerId?: undefined }
+  | { clientId: string; leadId?: undefined; dealId?: undefined; customerId?: undefined }
+  | { customerId: string; leadId?: undefined; dealId?: undefined; clientId?: undefined };
 
 type DocumentOwner = {
-  kind: "lead" | "deal";
+  kind: "lead" | "deal" | "client" | "customer";
   id: string;
-  clientId: string;
+  clientId: string | null;
+  customerId?: string;
   stage: string;
   assignedToId: string | null;
 };
 
 /**
  * Resolve the record a document belongs to. A document hangs off a lead before
- * conversion and off the deal after it, and both need the same three things: a
- * company to bill, an owner to notify, and to not be closed-lost already.
+ * conversion, off the deal after it, or directly off a company/customer profile.
  */
 async function requireDocumentOwner(
   tx: Tx,
   companyId: string,
   ref: DocumentOwnerRef,
 ): Promise<DocumentOwner> {
-  if (ref.dealId) {
+  if ("dealId" in ref && ref.dealId) {
     const deal = await tx.crmDeal.findFirst({
       where: { id: ref.dealId, companyId },
       select: { id: true, clientId: true, status: true, assignedToId: true },
@@ -225,6 +229,53 @@ async function requireDocumentOwner(
       clientId: deal.clientId,
       stage: deal.status,
       assignedToId: deal.assignedToId,
+    };
+  }
+
+  if ("clientId" in ref && ref.clientId) {
+    const client = await tx.crmClient.findFirst({
+      where: { id: ref.clientId, companyId },
+      select: { id: true, customerId: true },
+    });
+    if (!client) throw new Error("Company not found");
+    return {
+      kind: "client",
+      id: client.id,
+      clientId: client.id,
+      customerId: client.customerId ?? undefined,
+      stage: "OPEN",
+      assignedToId: null,
+    };
+  }
+
+  if ("customerId" in ref && ref.customerId) {
+    const customer = await tx.customer.findFirst({
+      where: { id: ref.customerId, companyId },
+      select: { id: true, name: true },
+    });
+    if (!customer) throw new Error("Customer not found");
+    const linkedClient =
+      (await tx.crmClient.findFirst({
+        where: { companyId, customerId: customer.id },
+        select: { id: true },
+      })) ??
+      (await tx.crmClient.findFirst({
+        where: { companyId, name: customer.name },
+        select: { id: true },
+      }));
+    if (linkedClient) {
+      await tx.crmClient.updateMany({
+        where: { id: linkedClient.id, companyId, customerId: null },
+        data: { customerId: customer.id },
+      });
+    }
+    return {
+      kind: "customer",
+      id: customer.id,
+      clientId: linkedClient?.id ?? null,
+      customerId: customer.id,
+      stage: "OPEN",
+      assignedToId: null,
     };
   }
 
@@ -313,7 +364,18 @@ async function clientFromLeadContact(
 
 /** The foreign key to file a document under, given its owner. */
 function ownerKey(owner: DocumentOwner): { leadId?: string; dealId?: string } {
-  return owner.kind === "deal" ? { dealId: owner.id } : { leadId: owner.id };
+  if (owner.kind === "deal") return { dealId: owner.id };
+  if (owner.kind === "lead") return { leadId: owner.id };
+  return {};
+}
+
+async function resolveOwnerCustomerId(tx: Tx, companyId: string, owner: DocumentOwner): Promise<string> {
+  if (owner.customerId) {
+    if (owner.clientId) await syncAccountingCustomer(tx, { companyId, clientId: owner.clientId });
+    return owner.customerId;
+  }
+  if (!owner.clientId) throw new Error("No customer or company to bill");
+  return ensureAccountingCustomer(tx, { companyId, clientId: owner.clientId });
 }
 
 const STAGE_ORDER = [
@@ -370,7 +432,7 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
     // in the company be voided from here — and declined: until the client
     // answers, a quote is edited in place, and an accepted quote is an
     // agreement, so changing it is a new quote, not a new version.
-    let previous: { id: string; version: number; quotationId: string | null } | null = null;
+    let previous: { id: string; version: number; quotationId: string | null; leadId: string | null; dealId: string | null } | null = null;
     if (input.supersedesId) {
       const found = await tx.crmLeadDocument.findFirst({
         where: {
@@ -383,6 +445,8 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
           id: true,
           version: true,
           quotationId: true,
+          leadId: true,
+          dealId: true,
           quotation: { select: { quotationNumber: true, status: true } },
         },
       });
@@ -393,10 +457,14 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       previous = found;
     }
 
-    const customerId = await ensureAccountingCustomer(tx, {
-      companyId: input.companyId,
-      clientId: owner.clientId,
-    });
+    const customerId = await resolveOwnerCustomerId(tx, input.companyId, owner);
+    const effectiveOwnerKey =
+      owner.kind === "deal" || owner.kind === "lead"
+        ? ownerKey(owner)
+        : {
+            ...(previous?.dealId ? { dealId: previous.dealId } : {}),
+            ...(previous?.leadId ? { leadId: previous.leadId } : {}),
+          };
     const totals = computeTotals(input.lines);
     const quotationNumber = await reserveIdentifier(tx, {
       companyId: input.companyId,
@@ -431,7 +499,7 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
     const doc = await tx.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
-        ...ownerKey(owner),
+        ...effectiveOwnerKey,
         type: "QUOTATION",
         quotationId: quotation.id,
         amount: totals.total,
@@ -483,8 +551,8 @@ export async function createQuotationForLead(input: CreateQuotationInput) {
       data: {
         companyId: input.companyId,
         type: "DOCUMENT_CREATED",
-        ...ownerKey(owner),
-        clientId: owner.clientId,
+        ...effectiveOwnerKey,
+        clientId: owner.clientId ?? undefined,
         subject: previous
           ? `Quotation ${quotation.quotationNumber} issued as version ${previous.version + 1}`
           : input.madeByVane
@@ -552,12 +620,10 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
   const currency = input.currency ?? "USD";
   const result = await prisma.$transaction(async (tx) => {
     const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
-    const customerId = await ensureAccountingCustomer(tx, {
-      companyId: input.companyId,
-      clientId: owner.clientId,
-    });
+    const customerId = await resolveOwnerCustomerId(tx, input.companyId, owner);
 
     let lines = input.lines ?? [];
+    let inheritedOwnerKey: { leadId?: string; dealId?: string } = {};
     if (input.fromQuotationId) {
       // The quotation must have been issued from THIS lead — a bare company
       // check would let any quotation id in the tenant be converted here.
@@ -568,9 +634,13 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
           type: "QUOTATION",
           quotationId: input.fromQuotationId,
         },
-        select: { id: true },
+        select: { id: true, leadId: true, dealId: true },
       });
       if (!linkedDoc) throw new Error("Source quotation does not belong to this lead");
+      inheritedOwnerKey = {
+        ...(linkedDoc.dealId ? { dealId: linkedDoc.dealId } : {}),
+        ...(linkedDoc.leadId ? { leadId: linkedDoc.leadId } : {}),
+      };
       const quotation = await tx.salesQuotation.findFirst({
         where: { id: input.fromQuotationId, companyId: input.companyId },
         include: { lines: true },
@@ -589,6 +659,8 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
     }
     if (lines.length === 0) throw new Error("Invoice needs at least one line");
 
+    const effectiveOwnerKey =
+      owner.kind === "deal" || owner.kind === "lead" ? ownerKey(owner) : inheritedOwnerKey;
     const totals = computeTotals(lines);
     const invoiceNumber = await nextNumber(tx, input.companyId, "invoice");
     const invoiceDate = new Date();
@@ -624,7 +696,7 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
     const doc = await tx.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
-        ...ownerKey(owner),
+        ...effectiveOwnerKey,
         type: "INVOICE",
         invoiceId: invoice.id,
         amount: totals.total,
@@ -646,8 +718,8 @@ export async function createInvoiceForLead(input: CreateInvoiceInput) {
       data: {
         companyId: input.companyId,
         type: "DOCUMENT_CREATED",
-        ...ownerKey(owner),
-        clientId: owner.clientId,
+        ...effectiveOwnerKey,
+        clientId: owner.clientId ?? undefined,
         subject: `Invoice ${issuedNumber} issued`,
         metadata: { documentId: doc.id, invoiceId: invoice.id },
         createdById: input.userId,
@@ -768,7 +840,11 @@ export async function loadEditableDocument(input: DocumentOwnerRef & {
     where: {
       id: input.leadDocumentId,
       companyId: input.companyId,
-      ...(input.dealId ? { dealId: input.dealId } : { leadId: input.leadId }),
+      ...("dealId" in input && input.dealId
+        ? { dealId: input.dealId }
+        : "leadId" in input && input.leadId
+          ? { leadId: input.leadId }
+          : {}),
       type: { in: ["QUOTATION", "INVOICE"] },
     },
     select: {
@@ -881,9 +957,16 @@ export async function updateQuotationForDocument(input: UpdateQuotationInput) {
         ...ownerKey(owner),
         type: "QUOTATION",
       },
-      select: { id: true, quotationId: true },
+      select: { id: true, quotationId: true, leadId: true, dealId: true },
     });
     if (!doc?.quotationId) throw new Error("Quotation document not found for this record");
+    const effectiveOwnerKey =
+      owner.kind === "deal" || owner.kind === "lead"
+        ? ownerKey(owner)
+        : {
+            ...(doc.dealId ? { dealId: doc.dealId } : {}),
+            ...(doc.leadId ? { leadId: doc.leadId } : {}),
+          };
 
     // The answer first, then the quote: the order `respondToApproval` takes
     // them in, so the two never wait on each other.
@@ -941,8 +1024,8 @@ export async function updateQuotationForDocument(input: UpdateQuotationInput) {
       data: {
         companyId: input.companyId,
         type: "DOCUMENT_CREATED",
-        ...ownerKey(owner),
-        clientId: owner.clientId,
+        ...effectiveOwnerKey,
+        clientId: owner.clientId ?? undefined,
         subject: `Quotation ${quotation.quotationNumber} edited`,
         metadata: { documentId: doc.id, quotationId: quotation.id },
         createdById: input.userId,
@@ -1019,9 +1102,16 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
           ...ownerKey(owner),
           type: "INVOICE",
         },
-        select: { id: true, invoiceId: true },
+        select: { id: true, invoiceId: true, leadId: true, dealId: true },
       });
       if (!doc?.invoiceId) throw new Error("Invoice document not found for this record");
+      const effectiveOwnerKey =
+        owner.kind === "deal" || owner.kind === "lead"
+          ? ownerKey(owner)
+          : {
+              ...(doc.dealId ? { dealId: doc.dealId } : {}),
+              ...(doc.leadId ? { leadId: doc.leadId } : {}),
+            };
 
       const approvalStatus = await lockApproval(tx, doc.id);
       await tx.$queryRaw`
@@ -1134,8 +1224,8 @@ export async function updateInvoiceForDocument(input: UpdateInvoiceInput) {
         data: {
           companyId: input.companyId,
           type: "DOCUMENT_CREATED",
-          ...ownerKey(owner),
-          clientId: owner.clientId,
+          ...effectiveOwnerKey,
+          clientId: owner.clientId ?? undefined,
           subject: `Invoice ${invoice.invoiceNumber} edited`,
           metadata: {
             documentId: doc.id,
@@ -1196,9 +1286,16 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
     const owner = await requireDocumentOwner(tx, input.companyId, input as DocumentOwnerRef);
     const invoiceDoc = await tx.crmLeadDocument.findFirst({
       where: { id: input.invoiceDocumentId, companyId: input.companyId, ...ownerKey(owner), type: "INVOICE" },
-      select: { invoiceId: true },
+      select: { invoiceId: true, leadId: true, dealId: true },
     });
     if (!invoiceDoc?.invoiceId) throw new Error("Invoice document not found for this lead");
+    const effectiveOwnerKey =
+      owner.kind === "deal" || owner.kind === "lead"
+        ? ownerKey(owner)
+        : {
+            ...(invoiceDoc.dealId ? { dealId: invoiceDoc.dealId } : {}),
+            ...(invoiceDoc.leadId ? { leadId: invoiceDoc.leadId } : {}),
+          };
 
     const invoice = await tx.salesInvoice.findFirst({
       where: { id: invoiceDoc.invoiceId, companyId: input.companyId },
@@ -1258,7 +1355,7 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
     const doc = await tx.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
-        ...ownerKey(owner),
+        ...effectiveOwnerKey,
         type: "RECEIPT",
         receiptId: receipt.id,
         amount: input.amount,
@@ -1272,8 +1369,8 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
       data: {
         companyId: input.companyId,
         type: "PAYMENT_RECORDED",
-        ...ownerKey(owner),
-        clientId: owner.clientId,
+        ...effectiveOwnerKey,
+        clientId: owner.clientId ?? undefined,
         subject: `Payment ${receipt.receiptNumber} recorded`,
         metadata: { documentId: doc.id, receiptId: receipt.id, amount: input.amount },
         createdById: input.userId,
@@ -1299,7 +1396,7 @@ export async function recordReceiptForLead(input: RecordReceiptInput) {
       );
     }
 
-    return { leadDocumentId: doc.id, receiptId: receipt.id, invoiceId: invoice.id, ...ownerKey(owner), clientId: owner.clientId };
+    return { leadDocumentId: doc.id, receiptId: receipt.id, invoiceId: invoice.id, ...effectiveOwnerKey, clientId: owner.clientId };
   });
 
   // Recompute the invoice balance and, once settled in full, close the record

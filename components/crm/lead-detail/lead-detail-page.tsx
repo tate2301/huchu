@@ -56,6 +56,7 @@ import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet
 import {
   automationTab,
   historyTab,
+  moneyTab,
   paperworkTab,
   tasksTab,
   useRecordComments,
@@ -604,8 +605,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </div>
           ),
         },
-        paperworkTab({
-          ref: { kind: "lead", id: leadId },
+        moneyTab({
           documentCount: lead.documents.length,
           documents: (
             <DocumentList
@@ -619,6 +619,9 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               onPrefillConsumed={() => setQuotationPrefill(undefined)}
             />
           ),
+        }),
+        paperworkTab({
+          ref: { kind: "lead", id: leadId },
         }),
         {
           value: "visits",
