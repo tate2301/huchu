@@ -64,9 +64,9 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
             <span className={`pill ${PILL[invoice.state.key]}`}>{invoice.stateLabel}</span>
           </div>
           <div className="ml">
-            <span>
+            <Link href={`/books/customers/${invoice.customer.id}`} style={{ textDecoration: "none", color: "inherit" }}>
               <Person name={invoice.customer.name} src={invoice.customer.image} />
-            </span>
+            </Link>
             <i>·</i>
             <span>{due}</span>
           </div>
@@ -166,7 +166,9 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
                   {board.payments.map((payment) => (
                     <tr key={payment.id}>
                       <td>
-                        <span className="ref">{payment.number}</span>
+                        <Link href={`/books/payments/${payment.id}`} className="ref">
+                          {payment.number}
+                        </Link>
                       </td>
                       <td className="muted">{payment.date}</td>
                       <td>
@@ -287,15 +289,54 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
         <section>
           <div className="sec-title">Details</div>
           <dl className="attrs">
+            <dt>Customer</dt>
+            <dd>
+              <Link href={`/books/customers/${invoice.customer.id}`}>{invoice.customer.name}</Link>
+            </dd>
             <dt>Issued</dt>
             <dd>
               {board?.issued ?? (draft ? "Not yet" : invoice.date)}
               {!board?.issued && invoice.quote ? (
                 <>
-                  , from <Link href={`/books/quotes?q=${encodeURIComponent(invoice.quote.number)}`}>{invoice.quote.number}</Link>
+                  , from <Link href={`/books/quotes/${invoice.quote.id}`}>{invoice.quote.number}</Link>
                 </>
               ) : null}
             </dd>
+            {invoice.quote ? (
+              <>
+                <dt>Quote</dt>
+                <dd>
+                  <Link href={`/books/quotes/${invoice.quote.id}`} className="ref">
+                    {invoice.quote.number}
+                  </Link>
+                  {invoice.quote.accepted ? ` · accepted ${invoice.quote.accepted}` : ""}
+                </dd>
+              </>
+            ) : null}
+            {invoice.deal ? (
+              <>
+                <dt>Deal</dt>
+                <dd>
+                  {invoice.dealId ? <Link href={`/crm/deals/${invoice.dealId}`}>{invoice.deal}</Link> : invoice.deal}
+                </dd>
+              </>
+            ) : null}
+            {invoice.crmDocument?.approval ? (
+              <>
+                <dt>Client link</dt>
+                <dd>
+                  <Link href={`/a/${invoice.crmDocument.approval.token}`} target="_blank" rel="noreferrer">
+                    {invoice.crmDocument.approval.status === "APPROVED"
+                      ? "Approved"
+                      : invoice.crmDocument.approval.status === "DECLINED"
+                        ? "Declined"
+                        : invoice.crmDocument.approval.firstViewedAt
+                          ? "Viewed"
+                          : "Active"}
+                  </Link>
+                </dd>
+              </>
+            ) : null}
             <dt>Terms</dt>
             <dd>{invoice.dueTerms}</dd>
             <dt>Rate</dt>

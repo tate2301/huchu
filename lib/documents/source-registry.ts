@@ -349,6 +349,7 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
   const receipt = await prisma.salesReceipt.findUnique({
     where: { id: recordId },
     include: {
+      customer: true,
       invoice: {
         include: {
           customer: true,
@@ -362,6 +363,7 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
     throw new Error("Receipt not found");
   }
 
+  const partyCustomer = receipt.invoice?.customer ?? receipt.customer;
   const currency = receipt.invoice?.currency ?? "USD";
   const rows = [
     {
@@ -371,7 +373,7 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
       method: receipt.method,
       reference: receipt.reference ?? "",
       invoiceNumber: receipt.invoice?.invoiceNumber ?? "",
-      customer: receipt.invoice?.customer?.name ?? "",
+      customer: partyCustomer?.name ?? "",
     },
   ];
   const lineRows = [
@@ -401,8 +403,8 @@ async function resolveReceipt(companyId: string, recordId: string): Promise<Sour
         { label: "Method", value: receipt.method },
         ...(receipt.bankAccount?.name ? [{ label: "Bank", value: receipt.bankAccount.name }] : []),
       ],
-      parties: receipt.invoice?.customer
-        ? [customerParty("Received from", receipt.invoice.customer)]
+      parties: partyCustomer
+        ? [customerParty("Received from", partyCustomer)]
         : [],
       totals: [
         { label: "Amount received", value: `${currency} ${fmtMoney(receipt.amount)}`, emphasis: true },

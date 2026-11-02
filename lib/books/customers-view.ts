@@ -69,6 +69,7 @@ export type CustomerPage = {
   currency: string;
   tiles: { owes: number; nextDue: string | null; overdue: number; paidYear: number; paymentsYear: number };
   onAccount: number;
+  quotes: Array<{ id: string; number: string; date: string; validUntil: string | null; status: string; total: number; currency: string }>;
   invoices: Array<{ id: string; number: string; date: string; status: string; total: number; balance: number; currency: string }>;
   payments: Array<{ id: string; number: string; date: string; forWhat: string; invoiceId: string | null; into: string; amount: number; currency: string; voided: boolean }>;
   statement: { from: string; to: string; lines: StatementLine[]; opening: number; closing: number; invoiced: number; paid: number };

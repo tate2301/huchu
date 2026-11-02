@@ -1,5 +1,6 @@
 import type { InvoiceStatus, PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
+import type { EnsuredCrmDocument } from "@/lib/books/crm-document-bridge";
 
 import { customerFace, customerImage } from "./faces";
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
@@ -61,6 +62,7 @@ export type InvoiceRecord = {
   quote: { id: string; number: string; accepted: string | null } | null;
   /** The deal the quote won, when the CRM has one: "DL-0396, won 7 Oct". */
   deal: string | null;
+  dealId?: string | null;
   /** Each way the lines differ from the quote's: "Coved skirting: 64 m, not 60". Empty when they are as accepted. */
   changes: string[];
   /** Its lines as Reverse credits them: price, VAT rate and how many. */
@@ -96,6 +98,8 @@ export type InvoiceRecordPage = InvoiceRecord & {
   removal: InvoiceRemoval | null;
   /** What BkInvoice draws beyond the invoice: payments, posting, history, fiscal. */
   board?: InvoiceBoardExtras | null;
+  /** The CRM document row backing PDF, email, approval links, and in-place editing. */
+  crmDocument?: EnsuredCrmDocument | null;
 };
 
 /** The aside's Due on a draft: its terms, and whether they are the customer's usual. */
@@ -137,7 +141,7 @@ export function changesFromQuote(invoice: Line[], quote: Line[], currency: strin
 
 export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | "salesReceipt" | "crmLeadDocument" | "vaneItem" | "platformAuditEvent" | "user">, companyId: string, id: string, now = new Date()): Promise<InvoiceRecord | null> {
   const invoice = await db.salesInvoice.findFirst({
-    where: { id, companyId },
+    where: { companyId, OR: [{ id }, { crmLeadDocuments: { some: { id } } }] },
     select: {
       id: true,
       invoiceNumber: true,
@@ -178,12 +182,20 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
   if (!invoice) return null;
 
   const [doc, past, card, voidEvent] = await Promise.all([
-    invoice.quotationId
-      ? db.crmLeadDocument.findFirst({
-          where: { companyId, quotationId: invoice.quotationId, type: "QUOTATION" },
-          select: { approval: { select: { status: true, respondedAt: true } }, deal: { select: { dealNo: true, wonAt: true } } },
-        })
-      : null,
+    db.crmLeadDocument.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { invoiceId: invoice.id },
+          ...(invoice.quotationId ? [{ quotationId: invoice.quotationId, type: "QUOTATION" as const }] : []),
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        approval: { select: { status: true, respondedAt: true } },
+        deal: { select: { id: true, dealNo: true, wonAt: true } },
+      },
+    }),
     db.salesInvoice.findMany({
       where: { companyId, customerId: invoice.customer.id, status: { in: ["ISSUED", "PAID"] }, dueDate: { not: null }, id: { not: invoice.id } },
       orderBy: { invoiceDate: "desc" },
@@ -268,6 +280,7 @@ export async function readInvoiceRecord(db: Pick<PrismaClient, "salesInvoice" | 
     issuedBy: invoice.issuedAt ? `${invoice.issuedBy?.name ?? "Someone"}, ${shortDay(dayOf(invoice.issuedAt))}` : null,
     quote: quote ? { id: quote.id, number: quote.quotationNumber, accepted: acceptedOn ? shortDay(dayOf(acceptedOn)) : null } : null,
     deal: doc?.deal ? (doc.deal.wonAt ? `${doc.deal.dealNo}, won ${shortDay(dayOf(doc.deal.wonAt))}` : doc.deal.dealNo) : null,
+    dealId: doc?.deal?.id ?? null,
     changes,
     creditable: invoice.lines.map((line) => ({ id: line.id, description: line.description, quantity: line.quantity, unitPrice: line.unitPrice, taxRate: line.taxRate, taxCodeId: line.taxCodeId })),
     paid: round(invoice.amountPaid),

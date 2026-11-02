@@ -7,6 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import type { IconName } from "@/components/core/icon";
+import type { MenuEntry } from "@/components/core/menu";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { refreshAfterDocumentChange } from "@/lib/crm/refresh";
@@ -106,11 +108,13 @@ export function useDocumentActions({
   currency,
   prefillLines,
   onPrefillConsumed,
+  onChanged,
 }: {
   basePath: string;
   currency: string;
   prefillLines?: Parameters<typeof DocumentBuilderSheet>[0]["prefillLines"];
   onPrefillConsumed?: () => void;
+  onChanged?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -137,20 +141,21 @@ export function useDocumentActions({
       }),
     onSuccess: async (result) => {
       const url = approvalUrl(result);
-      const title = result.issued ? "New approval link copied" : "Approval link copied";
+      const title = result.issued ? "New client link copied" : "Client link copied";
       try {
         await navigator.clipboard?.writeText(url);
         toast({ title, description: url });
       } catch {
         // Clipboard is blocked in some browsers without a user gesture chain;
         // showing the link is still useful.
-        toast({ title: "Approval link ready", description: url });
+        toast({ title: "Client link ready", description: url });
       }
       refreshAfterDocumentChange(queryClient);
+      onChanged?.();
     },
     onError: (error) =>
       toast({
-        title: "Could not create the approval link",
+        title: "Could not create the client link",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -174,6 +179,7 @@ export function useDocumentActions({
       setEmailing(null);
       toast({ title: "Sent", description: `Emailed to ${sent.to}` });
       refreshAfterDocumentChange(queryClient);
+      onChanged?.();
     },
     onError: (error) =>
       toast({
@@ -198,6 +204,7 @@ export function useDocumentActions({
       // to the customer is a number changed in a database.
       toast({ title: "Invoice settled", description: "A receipt has been raised." });
       refreshAfterDocumentChange(queryClient);
+      onChanged?.();
     },
     onError: (error) =>
       toast({
@@ -207,16 +214,23 @@ export function useDocumentActions({
       }),
   });
 
+  const openEditor = (doc: LeadDocument) =>
+    setBuilder({
+      mode: doc.type === "INVOICE" ? "invoice" : "quotation",
+      editing: { documentId: doc.id, number: documentNumber(doc) },
+    });
+
+  const openReviser = (doc: LeadDocument) =>
+    setBuilder({
+      mode: "quotation",
+      revising: { documentId: doc.id, number: documentNumber(doc), version: doc.version },
+    });
+
   /** What may be done to this document, by whoever is looking, in the order it is drawn. */
   const verbsFor = (doc: LeadDocument): DocumentVerb[] => {
     const status = documentStatus(doc);
     const outstanding = doc.invoice ? invoiceOutstanding(doc.invoice) : 0;
     const editLock = documentEditLock(doc);
-    const openEditor = () =>
-      setBuilder({
-        mode: doc.type === "INVOICE" ? "invoice" : "quotation",
-        editing: { documentId: doc.id, number: documentNumber(doc) },
-      });
     const verbs: DocumentVerb[] = [
       {
         id: "view",
@@ -242,7 +256,7 @@ export function useDocumentActions({
     // verb and says why it is locked, because what to do instead — a credit
     // note in Accounting — is not obvious from here.
     if (doc.type === "QUOTATION" && !editLock) {
-      verbs.push({ id: "edit", label: "Edit", icon: Pencil, group: "change", onSelect: openEditor });
+      verbs.push({ id: "edit", label: "Edit", icon: Pencil, group: "change", onSelect: () => openEditor(doc) });
     }
     if (canReviseQuote(doc)) {
       verbs.push({
@@ -250,52 +264,54 @@ export function useDocumentActions({
         label: "Revise",
         icon: Pencil,
         group: "change",
-        onSelect: () =>
-          setBuilder({
-            mode: "quotation",
-            revising: { documentId: doc.id, number: documentNumber(doc), version: doc.version },
-          }),
+        onSelect: () => openReviser(doc),
       });
     }
     if (doc.type === "INVOICE") {
       verbs.push(
         editLock
           ? { id: "edit", label: "Edit", icon: Pencil, group: "change", refusal: editLock }
-          : { id: "edit", label: "Edit", icon: Pencil, group: "change", onSelect: openEditor },
+          : { id: "edit", label: "Edit", icon: Pencil, group: "change", onSelect: () => openEditor(doc) },
       );
     }
 
-    if (doc.type !== "RECEIPT") {
+    const shareLabel =
+      doc.type === "RECEIPT"
+        ? doc.approval
+          ? "Copy receipt link"
+          : "Send receipt link"
+        : doc.approval
+          ? "Copy approval link"
+          : "Send for approval";
+    verbs.push({
+      id: "share",
+      label: shareLabel,
+      icon: Send,
+      group: "send",
+      tone: "primary",
+      onSelect: () => shareApproval.mutate({ docId: doc.id }),
+    });
+    // Withdrawing a link is its own decision, and a destructive one:
+    // whatever the customer was sent stops working. It is not what copying
+    // does.
+    if (doc.approval) {
       verbs.push({
-        id: "share",
-        label: doc.approval ? "Copy approval link" : "Send for approval",
-        icon: Send,
+        id: "replace-link",
+        label: "Replace the link",
+        icon: RefreshCw,
         group: "send",
-        tone: "primary",
-        onSelect: () => shareApproval.mutate({ docId: doc.id }),
-      });
-      // Withdrawing a link is its own decision, and a destructive one:
-      // whatever the customer was sent stops working. It is not what copying
-      // does.
-      if (doc.approval) {
-        verbs.push({
-          id: "replace-link",
-          label: "Replace the link",
-          icon: RefreshCw,
-          group: "send",
-          tone: "destructive",
-          onSelect: () => shareApproval.mutate({ docId: doc.id, rotate: true }),
-        });
-      }
-      verbs.push({
-        id: "email",
-        label: emailToClient.isPending ? "Sending…" : "Email to the client",
-        icon: Mail,
-        group: "send",
-        tone: "primary",
-        onSelect: () => setEmailing(doc),
+        tone: "destructive",
+        onSelect: () => shareApproval.mutate({ docId: doc.id, rotate: true }),
       });
     }
+    verbs.push({
+      id: "email",
+      label: emailToClient.isPending ? "Sending…" : "Email to the client",
+      icon: Mail,
+      group: "send",
+      tone: "primary",
+      onSelect: () => setEmailing(doc),
+    });
 
     const canConvert =
       doc.type === "QUOTATION" &&
@@ -346,6 +362,54 @@ export function useDocumentActions({
     return verbs;
   };
 
+  /** Turns `verbsFor(doc)` into Corelith `MenuEntry[]` for Books' `MenuButton`. */
+  const menuEntriesFor = (
+    doc: LeadDocument,
+    opts?: { excludeIds?: DocumentVerb["id"][] },
+  ): MenuEntry[] => {
+    const exclude = new Set(opts?.excludeIds ?? []);
+    const verbs = verbsFor(doc).filter((v) => !exclude.has(v.id));
+    const iconMap: Record<DocumentVerb["id"], IconName> = {
+      view: "eye",
+      download: "export",
+      edit: "edit",
+      revise: "edit",
+      share: "link",
+      "replace-link": "link",
+      email: "at",
+      convert: "invoice",
+      deposit: "payments",
+      "part-payment": "payments",
+      settle: "check",
+    };
+    const entries: MenuEntry[] = [];
+    verbs.forEach((verb, index) => {
+      if (index > 0 && verbs[index - 1]!.group !== verb.group) {
+        entries.push({ separator: true });
+      }
+      entries.push({
+        key: verb.id,
+        label: verb.label,
+        icon: iconMap[verb.id],
+        danger: verb.tone === "destructive",
+        disabled: Boolean(verb.refusal),
+        title: verb.refusal,
+        onSelect: () => {
+          if (verb.href) {
+            if (verb.newTab) {
+              window.open(verb.href, "_blank", "noopener,noreferrer");
+            } else {
+              window.location.href = verb.href;
+            }
+            return;
+          }
+          verb.onSelect?.();
+        },
+      });
+    });
+    return entries;
+  };
+
   const surfaces = (
     <>
       <DocumentEmailDialog
@@ -371,6 +435,7 @@ export function useDocumentActions({
         isDeposit={builder?.deposit}
         editing={builder?.editing}
         revising={builder?.revising}
+        onCreated={onChanged}
         prefillLines={
           depositLine ??
           (builder?.fromQuotationId || builder?.editing || builder?.revising ? undefined : prefillLines)
@@ -400,8 +465,25 @@ export function useDocumentActions({
 
   return {
     verbsFor,
+    menuEntriesFor,
     /** Opens the builder on a new quote or invoice for the record. */
     create: (mode: "quotation" | "invoice") => setBuilder({ mode }),
+    openEditor,
+    openReviser,
+    openEmail: (doc: LeadDocument) => setEmailing(doc),
+    openConvert: (target: string | LeadDocument) =>
+      setBuilder({
+        mode: "invoice",
+        fromQuotationId: typeof target === "string" ? target : (target.quotationId ?? target.id),
+      }),
+    openDeposit: (doc: LeadDocument) => setDepositFor(doc),
+    openPayment: (doc: LeadDocument) => setPaymentFor(doc),
+    shareLink: (target: string | LeadDocument, rotate?: boolean) =>
+      shareApproval.mutate({ docId: typeof target === "string" ? target : target.id, rotate }),
+    settleInvoice: (doc: LeadDocument) => settle.mutate(doc),
+    isEmailing: emailToClient.isPending,
+    isSharing: shareApproval.isPending,
+    isSettling: settle.isPending,
     surfaces,
   };
 }

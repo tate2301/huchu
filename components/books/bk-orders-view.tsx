@@ -158,7 +158,9 @@ export function BkOrdersView({
                     )}
                   </td>
                   <td className="truncate">
-                    <span className="cell-lead">{row.supplier.name}</span>
+                    <Link className="cell-lead" href={`/books/suppliers/${row.supplier.id}`}>
+                      {row.supplier.name}
+                    </Link>
                   </td>
                   <td className="fill truncate">{row.forWhat ? <span className="cell-lead">{row.forWhat}</span> : <span className="muted">—</span>}</td>
                   <td>

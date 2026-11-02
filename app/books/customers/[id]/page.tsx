@@ -17,11 +17,16 @@ import { money, shortDay } from "@/lib/books/format";
 import { statementMessage, whatsappLink, whatsappNumber } from "@/lib/books/statement-message";
 
 type Page = CustomerView & { can: { invoice: boolean; pay: boolean } };
-type Tab = "activity" | "invoices" | "payments" | "statement" | "details";
+type Tab = "activity" | "quotes" | "invoices" | "payments" | "statement" | "details";
 
 const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-const STATUS: Record<string, { tone: "info" | "success" | "void" | "plain"; label: string }> = {
+const STATUS: Record<string, { tone: "info" | "success" | "void" | "plain" | "warning" | "danger"; label: string }> = {
   DRAFT: { tone: "plain", label: "Draft" },
+  SENT: { tone: "info", label: "Sent" },
+  ACCEPTED: { tone: "success", label: "Accepted" },
+  CONVERTED: { tone: "success", label: "Invoiced" },
+  REJECTED: { tone: "danger", label: "Declined" },
+  EXPIRED: { tone: "warning", label: "Expired" },
   ISSUED: { tone: "info", label: "Issued" },
   PAID: { tone: "success", label: "Paid" },
   VOIDED: { tone: "void", label: "Void" },
@@ -176,6 +181,7 @@ function CustomerRecord() {
               label="More actions"
               aria-label="More actions"
               items={[
+                ...(data.can.invoice ? [{ key: "quote", icon: "plus" as const, label: "New quote", onSelect: () => router.push(`/books/quotes/new?customer=${id}`) }] : []),
                 ...(data.can.pay ? [{ key: "pay", icon: "payments" as const, label: "Record a payment", onSelect: () => router.push(`/books/payments/new?customer=${id}`) }] : []),
                 { key: "statement", icon: "print", label: "Print the statement", onSelect: () => window.open(`/books/statements?customers=${id}`, "_blank", "noopener") },
                 { key: "crm", icon: "users", label: "Their payments", onSelect: () => router.push(`/books/payments?customer=${id}`) },
@@ -229,6 +235,7 @@ function CustomerRecord() {
                 onChange={setTab}
                 items={[
                   { value: "activity", label: "Activity" },
+                  { value: "quotes", label: "Quotes", count: data.quotes.length },
                   { value: "invoices", label: "Invoices", count: data.invoices.length },
                   { value: "payments", label: "Payments", count: data.payments.length },
                   { value: "statement", label: "Statement" },
@@ -243,7 +250,8 @@ function CustomerRecord() {
                     <li key={index}>
                       <span className={line.paid ? "d ok" : "d in"} />
                       <span>
-                        <b>{line.document}</b> {line.invoiced ? `invoiced ${money(line.invoiced, data.currency)}` : `${line.detail.toLowerCase()} ${money(line.paid ?? 0, data.currency)}`}
+                        {line.href ? <Link className="ref" href={line.href}><b>{line.document}</b></Link> : <b>{line.document}</b>}{" "}
+                        {line.invoiced ? `invoiced ${money(line.invoiced, data.currency)}` : `${line.detail.toLowerCase()} ${money(line.paid ?? 0, data.currency)}`}
                       </span>
                       <time>{line.date}</time>
                     </li>
@@ -258,6 +266,49 @@ function CustomerRecord() {
                 </ol>
               </Boxed>
             ) : null}
+            {tab === "quotes" ? (
+              <Boxed>
+                <table className="table" aria-label="Quotes">
+                  <thead>
+                    <tr>
+                      <th>Quote</th>
+                      <th>Date</th>
+                      <th>Valid until</th>
+                      <th>State</th>
+                      <th className="num">Total</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.quotes.map((quote) => (
+                      <tr key={quote.id}>
+                        <td>
+                          <Link className="ref" href={`/books/quotes/${quote.id}`}>
+                            {quote.number}
+                          </Link>
+                        </td>
+                        <td className="muted">{quote.date}</td>
+                        <td className="muted">{quote.validUntil ?? "—"}</td>
+                        <td>
+                          <BkState tone={STATUS[quote.status]?.tone ?? "plain"}>{STATUS[quote.status]?.label ?? quote.status}</BkState>
+                        </td>
+                        <td className="num">{money(quote.total, quote.currency)}</td>
+                        <td className="num">
+                          <a className="btn btn-quiet btn-sm" href={`/api/books/quotes/${quote.id}/pdf?download=1`} target="_blank" rel="noopener">
+                            PDF
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                    {data.quotes.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="muted">No quotes issued to {data.name} yet.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </Boxed>
+            ) : null}
             {tab === "invoices" ? (
               <Boxed>
                 <table className="table" aria-label="Invoices">
@@ -268,6 +319,7 @@ function CustomerRecord() {
                       <th>State</th>
                       <th className="num">Total</th>
                       <th className="num">Balance</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -284,6 +336,11 @@ function CustomerRecord() {
                         </td>
                         <td className="num muted">{money(invoice.total, invoice.currency)}</td>
                         <td className="num">{invoice.balance > 0.005 ? money(invoice.balance, invoice.currency) : "—"}</td>
+                        <td className="num">
+                          <a className="btn btn-quiet btn-sm" href={`/api/books/invoices/${invoice.id}/pdf?download=1`} target="_blank" rel="noopener">
+                            PDF
+                          </a>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -300,19 +357,27 @@ function CustomerRecord() {
                       <th>For</th>
                       <th>Into</th>
                       <th className="num">Amount</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {data.payments.map((payment) => (
                       <tr key={payment.id}>
                         <td>
-                          <span className="ref">{payment.number}</span>
+                          <Link className="ref" href={`/books/payments/${payment.id}`}>
+                            {payment.number}
+                          </Link>
                         </td>
                         <td className="muted">{payment.date}</td>
                         <td>{payment.invoiceId ? <Link href={`/books/invoices/${payment.invoiceId}`}>{payment.forWhat}</Link> : <span className="muted">{payment.forWhat}</span>}</td>
                         <td className="muted">{payment.into}</td>
                         <td className="num" style={payment.voided ? { textDecoration: "line-through", color: "var(--color-muted)" } : undefined}>
                           {money(payment.amount, payment.currency)}
+                        </td>
+                        <td className="num">
+                          <a className="btn btn-quiet btn-sm" href={`/api/books/payments/${payment.id}/pdf?download=1`} target="_blank" rel="noopener">
+                            PDF
+                          </a>
                         </td>
                       </tr>
                     ))}

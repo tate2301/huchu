@@ -30,7 +30,9 @@ import {
 import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
-import { formatMoney } from "@/components/crm/documents/document-types";
+import { DocumentList } from "@/components/crm/documents/document-list";
+import { formatMoney, type LeadDocument } from "@/components/crm/documents/document-types";
+import type { SupplierProfileItem } from "@/lib/books/crm-document-bridge";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import type { LeadActivity } from "@/components/crm/lead-detail/lead-types";
@@ -43,6 +45,7 @@ import { CompanyPeopleTab } from "./company-people-tab";
 import {
   automationTab,
   historyTab,
+  moneyTab,
   paperworkTab,
   tasksTab,
   useRecordComments,
@@ -117,6 +120,8 @@ type CompanyDetail = {
   }>;
   sites: Array<{ id: string; name: string; addressLine: string | null; city: string | null }>;
   activities: LeadActivity[];
+  documents?: LeadDocument[];
+  supplierItems?: SupplierProfileItem[];
   /** Present only when this company was merged away. */
   redirectTo?: string;
 };
@@ -396,6 +401,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
               <RecordStory
                 events={buildStory({
                   activities: company.activities,
+                  documents: company.documents,
                   comments,
                   createdLabel: "Company added",
                 })}
@@ -450,6 +456,18 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
           ),
         },
         tasksTab({ ref: { kind: "company", id: companyId }, currentUserId: session?.user?.id }),
+        moneyTab({
+          documentCount: (company.documents?.length ?? 0) + (company.supplierItems?.length ?? 0),
+          documents: (
+            <DocumentList
+              basePath={`/api/books/crm/${companyId}`}
+              currency={currency}
+              documents={company.documents ?? []}
+              supplierItems={company.supplierItems ?? []}
+              canCreate
+            />
+          ),
+        }),
         paperworkTab({ ref: { kind: "company", id: companyId } }),
         // A job follows the paperwork: it is what the quote turns into.
         jobs.tab,

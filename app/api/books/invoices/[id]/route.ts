@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { booksActor, canDo } from "@/lib/books/core";
+import { ensureCrmDocument } from "@/lib/books/crm-document-bridge";
 import { deleteInvoice, readInvoiceRemoval } from "@/lib/books/delete-invoice";
 import { readInvoiceExtras } from "@/lib/books/invoice-board";
 import { readInvoiceRecord, type InvoiceRecordPage } from "@/lib/books/invoice-record";
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       },
       removal: mayDelete ? await readInvoiceRemoval(session.user.companyId, record.id) : null,
       board: await readInvoiceExtras(prisma, session.user.companyId, record.id),
+      crmDocument: await ensureCrmDocument(session.user.companyId, record.id),
     };
     return successResponse(page);
   } catch (error) {

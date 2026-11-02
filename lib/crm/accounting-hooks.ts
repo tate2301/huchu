@@ -96,13 +96,50 @@ export async function settleCrmRecordIfPaid(
   return false;
 }
 
+async function resolveCrmClientForCustomer(
+  companyId: string,
+  customerId: string | null | undefined,
+): Promise<string | null> {
+  if (!customerId) return null;
+  const linked = await prisma.crmClient.findFirst({
+    where: { companyId, customerId, mergedIntoId: null },
+    select: { id: true },
+  });
+  if (linked) return linked.id;
+
+  const customer = await prisma.customer.findFirst({
+    where: { id: customerId, companyId },
+    select: { id: true, name: true, email: true },
+  });
+  if (!customer) return null;
+
+  const matched = await prisma.crmClient.findFirst({
+    where: {
+      companyId,
+      mergedIntoId: null,
+      OR: [
+        { name: { equals: customer.name, mode: "insensitive" } },
+        ...(customer.email ? [{ email: { equals: customer.email, mode: "insensitive" as const } }] : []),
+      ],
+    },
+    select: { id: true, customerId: true },
+  });
+  if (!matched) return null;
+  if (!matched.customerId) {
+    await prisma.crmClient
+      .update({ where: { id: matched.id }, data: { customerId: customer.id } })
+      .catch(() => {});
+  }
+  return matched.id;
+}
+
 /**
- * An invoice was raised in Accounting from a CRM quotation.
+ * An invoice was raised in Accounting (either from a CRM quotation or directly
+ * for a customer).
  *
- * Adopts it into the CRM: the document appears on the record, the timeline says
- * so, the lead moves to invoiced, and the owner is told. Only fires for
- * invoices that actually trace back to a CRM quote — an invoice typed straight
- * into Accounting for something the CRM never touched is left alone.
+ * Adopts it into the CRM: the document appears on the record and company
+ * profile, the timeline says so, the lead moves to invoiced, and the owner is
+ * told.
  */
 export async function onAccountingInvoiceCreated(input: {
   companyId: string;
@@ -114,6 +151,7 @@ export async function onAccountingInvoiceCreated(input: {
       where: { id: input.invoiceId, companyId: input.companyId },
       select: {
         id: true,
+        customerId: true,
         invoiceNumber: true,
         total: true,
         currency: true,
@@ -121,18 +159,7 @@ export async function onAccountingInvoiceCreated(input: {
         quotationId: true,
       },
     });
-    if (!invoice?.quotationId) return;
-
-    // The quote's CRM document is what tells us which record this belongs to.
-    const quoteDoc = await prisma.crmLeadDocument.findFirst({
-      where: {
-        companyId: input.companyId,
-        quotationId: invoice.quotationId,
-        type: "QUOTATION",
-      },
-      select: { id: true, leadId: true, dealId: true },
-    });
-    if (!quoteDoc) return;
+    if (!invoice) return;
 
     // Idempotent: the CRM's own invoice path already created this document, and
     // a retried accounting request must not produce a second one.
@@ -142,17 +169,31 @@ export async function onAccountingInvoiceCreated(input: {
     });
     if (existing) return;
 
+    // The quote's CRM document tells us which deal or lead this belongs to when converted.
+    const quoteDoc = invoice.quotationId
+      ? await prisma.crmLeadDocument.findFirst({
+          where: {
+            companyId: input.companyId,
+            quotationId: invoice.quotationId,
+            type: "QUOTATION",
+          },
+          select: { id: true, leadId: true, dealId: true },
+        })
+      : null;
+
+    const clientId = await resolveCrmClientForCustomer(input.companyId, invoice.customerId);
+
     const owner: CrmOwnerRef = {
-      leadId: quoteDoc.leadId,
-      dealId: quoteDoc.dealId,
-      clientId: null,
+      leadId: quoteDoc?.leadId ?? null,
+      dealId: quoteDoc?.dealId ?? null,
+      clientId,
     };
 
     await prisma.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
-        leadId: quoteDoc.leadId ?? undefined,
-        dealId: quoteDoc.dealId ?? undefined,
+        leadId: quoteDoc?.leadId ?? undefined,
+        dealId: quoteDoc?.dealId ?? undefined,
         type: "INVOICE",
         invoiceId: invoice.id,
         amount: invoice.total,
@@ -161,18 +202,23 @@ export async function onAccountingInvoiceCreated(input: {
       },
     });
 
-    await prisma.crmActivity.create({
-      data: {
-        companyId: input.companyId,
-        type: "SYSTEM",
-        leadId: quoteDoc.leadId ?? undefined,
-        dealId: quoteDoc.dealId ?? undefined,
-        subject: `Invoice ${invoice.invoiceNumber} raised in Accounting`,
-        metadata: { kind: "DOCUMENT_INVOICED", invoiceId: invoice.id, origin: "ACCOUNTING" },
-        createdById: input.userId,
-        occurredAt: new Date(),
-      },
-    });
+    if (quoteDoc?.leadId || quoteDoc?.dealId || clientId) {
+      await prisma.crmActivity.create({
+        data: {
+          companyId: input.companyId,
+          type: "SYSTEM",
+          leadId: quoteDoc?.leadId ?? undefined,
+          dealId: quoteDoc?.dealId ?? undefined,
+          clientId: clientId ?? undefined,
+          subject: `Invoice ${invoice.invoiceNumber ?? "Draft"} raised in Books`,
+          metadata: { kind: "DOCUMENT_INVOICED", invoiceId: invoice.id, origin: "ACCOUNTING" },
+          createdById: input.userId,
+          occurredAt: new Date(),
+        },
+      });
+    }
+
+    if (!quoteDoc) return;
 
     // A draft invoice isn't a commitment yet, so the stage only moves once it
     // has actually been issued.
@@ -201,25 +247,27 @@ export async function onAccountingInvoiceCreated(input: {
       });
     }
 
-    await runAutomations({
-      companyId: input.companyId,
-      trigger: "DOCUMENT_APPROVED",
-      entity: quoteDoc.dealId ? "DEAL" : "LEAD",
-      recordId: (quoteDoc.dealId ?? quoteDoc.leadId)!,
-      record: { invoiceId: invoice.id, amount: invoice.total, origin: "ACCOUNTING" },
-      actorId: input.userId,
-    });
+    if (quoteDoc.dealId || quoteDoc.leadId) {
+      await runAutomations({
+        companyId: input.companyId,
+        trigger: "DOCUMENT_APPROVED",
+        entity: quoteDoc.dealId ? "DEAL" : "LEAD",
+        recordId: (quoteDoc.dealId ?? quoteDoc.leadId)!,
+        record: { invoiceId: invoice.id, amount: invoice.total, origin: "ACCOUNTING" },
+        actorId: input.userId,
+      });
+    }
   } catch (error) {
     console.error("[CRM] onAccountingInvoiceCreated failed:", error);
   }
 }
 
 /**
- * A receipt was recorded in Accounting against an invoice the CRM owns.
+ * A receipt was recorded in Accounting.
  *
  * The same consequences as taking the payment in the CRM: the receipt shows on
- * the record, the timeline says so, and a fully-settled invoice closes the
- * record as won.
+ * the record and company profile, the timeline says so, and a fully-settled
+ * invoice closes the record as won.
  */
 export async function onAccountingReceiptCreated(input: {
   companyId: string;
@@ -228,18 +276,16 @@ export async function onAccountingReceiptCreated(input: {
   userId: string;
 }): Promise<void> {
   try {
-    if (!input.invoiceId) return;
-
-    const invoiceDoc = await prisma.crmLeadDocument.findFirst({
-      where: { companyId: input.companyId, invoiceId: input.invoiceId, type: "INVOICE" },
-      select: { id: true, leadId: true, dealId: true, currency: true },
-    });
-    // Not a CRM invoice — Accounting is free to take money for anything.
-    if (!invoiceDoc) return;
-
     const receipt = await prisma.salesReceipt.findFirst({
       where: { id: input.receiptId, companyId: input.companyId },
-      select: { id: true, receiptNumber: true, amount: true },
+      select: {
+        id: true,
+        receiptNumber: true,
+        amount: true,
+        currency: true,
+        customerId: true,
+        invoice: { select: { customerId: true, currency: true } },
+      },
     });
     if (!receipt) return;
 
@@ -249,42 +295,57 @@ export async function onAccountingReceiptCreated(input: {
     });
     if (existing) return;
 
+    const invoiceDoc = input.invoiceId
+      ? await prisma.crmLeadDocument.findFirst({
+          where: { companyId: input.companyId, invoiceId: input.invoiceId, type: "INVOICE" },
+          select: { id: true, leadId: true, dealId: true, currency: true },
+        })
+      : null;
+
+    const customerId = receipt.customerId ?? receipt.invoice?.customerId ?? null;
+    const clientId = await resolveCrmClientForCustomer(input.companyId, customerId);
+
     const owner: CrmOwnerRef = {
-      leadId: invoiceDoc.leadId,
-      dealId: invoiceDoc.dealId,
-      clientId: null,
+      leadId: invoiceDoc?.leadId ?? null,
+      dealId: invoiceDoc?.dealId ?? null,
+      clientId,
     };
 
     const doc = await prisma.crmLeadDocument.create({
       data: {
         companyId: input.companyId,
-        leadId: invoiceDoc.leadId ?? undefined,
-        dealId: invoiceDoc.dealId ?? undefined,
+        leadId: invoiceDoc?.leadId ?? undefined,
+        dealId: invoiceDoc?.dealId ?? undefined,
         type: "RECEIPT",
         receiptId: receipt.id,
         amount: receipt.amount,
-        currency: invoiceDoc.currency,
+        currency: invoiceDoc?.currency ?? receipt.invoice?.currency ?? receipt.currency ?? "USD",
         createdById: input.userId,
       },
       select: { id: true },
     });
 
-    await prisma.crmActivity.create({
-      data: {
-        companyId: input.companyId,
-        type: "PAYMENT_RECORDED",
-        leadId: invoiceDoc.leadId ?? undefined,
-        dealId: invoiceDoc.dealId ?? undefined,
-        subject: `Payment ${receipt.receiptNumber} recorded in Accounting`,
-        metadata: {
-          documentId: doc.id,
-          receiptId: receipt.id,
-          amount: receipt.amount,
-          origin: "ACCOUNTING",
+    if (invoiceDoc?.leadId || invoiceDoc?.dealId || clientId) {
+      await prisma.crmActivity.create({
+        data: {
+          companyId: input.companyId,
+          type: "PAYMENT_RECORDED",
+          leadId: invoiceDoc?.leadId ?? undefined,
+          dealId: invoiceDoc?.dealId ?? undefined,
+          clientId: clientId ?? undefined,
+          subject: `Payment ${receipt.receiptNumber} recorded in Books`,
+          metadata: {
+            documentId: doc.id,
+            receiptId: receipt.id,
+            amount: receipt.amount,
+            origin: "ACCOUNTING",
+          },
+          createdById: input.userId,
         },
-        createdById: input.userId,
-      },
-    });
+      });
+    }
+
+    if (!input.invoiceId || (!invoiceDoc?.leadId && !invoiceDoc?.dealId)) return;
 
     const settled = await settleCrmRecordIfPaid(input.companyId, owner, input.invoiceId);
 

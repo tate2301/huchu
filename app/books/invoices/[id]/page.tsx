@@ -9,6 +9,8 @@ import { BooksPage } from "@/components/books/figures";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
+import { useDocumentActions } from "@/components/crm/documents/document-actions";
+import type { LeadDocument } from "@/components/crm/documents/document-types";
 import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
@@ -69,6 +71,13 @@ export default function BooksInvoicePage() {
 
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
 
+  const docActions = useDocumentActions({
+    basePath: `/api/books/crm/${record?.customer.id ?? id}`,
+    currency: record?.currency ?? "USD",
+    onChanged: () => void refresh(),
+  });
+  const crmDoc = (record?.crmDocument ?? null) as unknown as LeadDocument | null;
+
   // Void, Revise and Delete permanently, as the core's undoChoices says (P4): faint with the reason when not allowed.
   const undo = useUndoMenu("invoice", record?.id, {
     initial,
@@ -110,8 +119,19 @@ export default function BooksInvoicePage() {
   // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
   const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
 
-  // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2).
+  // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2), plus CRM PDF/email/approval/edit actions.
   const menu: MenuEntry[] = [];
+  if (record) {
+    if (crmDoc) {
+      menu.push(...docActions.menuEntriesFor(crmDoc, { excludeIds: ["part-payment"] }));
+    } else {
+      menu.push(
+        { key: "view-pdf", icon: "eye", label: "View PDF", onSelect: () => window.open(`/api/books/invoices/${record.id}/pdf`, "_blank", "noopener,noreferrer") },
+        { key: "download-pdf", icon: "export", label: "Download PDF", onSelect: () => { window.location.href = `/api/books/invoices/${record.id}/pdf?download=1`; } },
+      );
+    }
+    menu.push({ separator: true });
+  }
   if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
     menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
@@ -147,6 +167,9 @@ export default function BooksInvoicePage() {
       <PageChrome title={record?.number ?? "Invoice"} backHref="/books/invoices" backLabel="Invoices" primary={primary} phoneMenu={phoneMenu}>
         {record ? (
           <Kit contents>
+            <ButtonLink icon="export" href={`/api/books/invoices/${record.id}/pdf?download=1`}>
+              PDF
+            </ButtonLink>
             {owing ? (
               <ButtonGroup aria-label="Record a payment, and more">
                 {can?.pay ? (
@@ -197,6 +220,7 @@ export default function BooksInvoicePage() {
       {record ? (
         <>
           {undo.node}
+          {docActions.surfaces}
           <CreditDrawer
             kind={crediting ?? "credit"}
             target={target}

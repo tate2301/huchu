@@ -10,7 +10,7 @@ import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksFinding, BooksPage } from "@/components/books/figures";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
-import { MenuButton } from "@/components/core/menu";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
@@ -56,6 +56,32 @@ function BooksQuotes() {
   const client = useQueryClient();
   const undo = useBulkUndo("quote", () => client.invalidateQueries({ queryKey: ["books"] }));
   const undoEntries = undo.entries(selected.map((row) => ({ id: row.id, label: row.number, posted: data?.query.view !== "draft", party: row.customer, amount: money(row.amount, row.currency) })));
+  const moreEntries: MenuEntry[] = [
+    ...(selected.length === 1
+      ? [
+          {
+            key: "open",
+            icon: "file" as const,
+            label: "Open quote",
+            onSelect: () => router.push(`/books/quotes/${selected[0]!.id}`),
+          },
+          {
+            key: "view-pdf",
+            icon: "eye" as const,
+            label: "View PDF",
+            onSelect: () => window.open(`/api/books/quotes/${selected[0]!.id}/pdf`, "_blank", "noopener,noreferrer"),
+          },
+          {
+            key: "download-pdf",
+            icon: "export" as const,
+            label: "Download PDF",
+            onSelect: () => window.open(`/api/books/quotes/${selected[0]!.id}/pdf?download=1`, "_blank", "noopener,noreferrer"),
+          },
+          ...(undoEntries.length ? [{ separator: true as const }] : []),
+        ]
+      : []),
+    ...undoEntries,
+  ];
   const customer = data?.customers.find((option) => option.id === data.query.customer);
   const rep = data?.reps.find((option) => option.id === data.query.rep);
 
@@ -167,8 +193,8 @@ function BooksQuotes() {
                         >
                           Export
                         </Button>
-                        {undoEntries.length ? (
-                          <MenuButton label="More" items={undoEntries}>
+                        {moreEntries.length ? (
+                          <MenuButton label="More" items={moreEntries}>
                             More
                           </MenuButton>
                         ) : null}
@@ -209,11 +235,15 @@ function BooksQuotes() {
                     {data.rows.map((row) => (
                       <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                         <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
-                        <td>{row.crmId && data.crm ? <Link className="ref" href={`/crm/quotes/${row.crmId}`}>{row.number}</Link> : <span className="ref">{row.number}</span>}</td>
                         <td>
-                          <span className="cell-lead">
+                          <Link className="ref" href={`/books/quotes/${row.id}`}>
+                            {row.number}
+                          </Link>
+                        </td>
+                        <td>
+                          <Link className="cell-lead" href={`/books/customers/${row.customerId}`}>
                             <Person name={row.customer} src={row.customerImage} />
-                          </span>
+                          </Link>
                         </td>
                         <td className="fill">
                           <span className="cell-lead muted">{row.invoiced ? `Invoiced. ${row.forWhat}` : row.forWhat}</span>

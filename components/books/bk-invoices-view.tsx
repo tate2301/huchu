@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
@@ -64,6 +65,7 @@ export function BkInvoicesView({
   /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
   undoEntries?: (rows: InvoiceRow[]) => MenuEntry[];
 }) {
+  const router = useRouter();
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
   const selection = useSelection(ids);
   const query = data.query;
@@ -75,6 +77,33 @@ export function BkInvoicesView({
   const filtered = Boolean(query.q || query.customer || query.currency || query.period !== "any");
 
   const more: MenuEntry[] = [
+    ...(selected.length === 1
+      ? [
+          {
+            key: "open",
+            icon: "invoice" as const,
+            label: "Open invoice",
+            onSelect: () => router.push(`/books/invoices/${selected[0]!.id}`),
+          },
+          {
+            key: "view-pdf",
+            icon: "eye" as const,
+            label: "View PDF",
+            onSelect: () => {
+              window.open(`/api/books/invoices/${selected[0]!.id}/pdf`, "_blank", "noopener,noreferrer");
+            },
+          },
+          {
+            key: "download-pdf",
+            icon: "export" as const,
+            label: "Download PDF",
+            onSelect: () => {
+              window.open(`/api/books/invoices/${selected[0]!.id}/pdf?download=1`, "_blank", "noopener,noreferrer");
+            },
+          },
+          { separator: true as const },
+        ]
+      : []),
     { key: "statements", icon: "print", label: "Print statements", onSelect: () => bulk.statements(selected) },
     ...(canIssue && drafts.length > 0
       ? [{ key: "issue", icon: "send" as const, label: drafts.length === 1 ? "Issue 1 draft" : `Issue ${drafts.length} drafts`, onSelect: () => bulk.issue(drafts) }]
@@ -208,9 +237,9 @@ export function BkInvoicesView({
                     </Link>
                   </td>
                   <td>
-                    <span className="cell-lead">
+                    <Link className="cell-lead" href={`/books/customers/${row.customer.id}`}>
                       <Person name={row.customer.name} src={row.customer.image} />
-                    </span>
+                    </Link>
                   </td>
                   <td>
                     <BkState tone={TONE[row.state]}>{row.stateLabel}</BkState>

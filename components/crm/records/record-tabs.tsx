@@ -19,7 +19,7 @@ import type { FileOwnerKind } from "@/lib/crm/record-files";
 import type { CollabEntity } from "@/lib/crm/collaboration";
 import { fetchCrmComments, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
 
-import { Checklist, Clock, FileText, FlowArrow, History } from "@/lib/icons";
+import { Checklist, Clock, FileText, FlowArrow, History, Payments } from "@/lib/icons";
 
 import type { RecordTab } from "@/components/records/record-page-shell";
 
@@ -244,16 +244,30 @@ export function automationTab({ ref }: { ref: RecordRef }): RecordTab {
 }
 
 /**
- * All the paperwork on a record, in one section.
+ * Money documents on a record — quotes, invoices, receipts, and supplier
+ * purchasing items — rendered with the Books UI and financial summary.
+ */
+export function moneyTab({
+  documents,
+  documentCount,
+}: {
+  documents: ReactNode;
+  documentCount?: number;
+}): RecordTab {
+  return {
+    value: "documents",
+    label: "Money",
+    icon: Payments,
+    count: documentCount,
+    content: documents,
+  };
+}
+
+/**
+ * Uploaded files and attachments on a record.
  *
- * A quotation and an uploaded contract are not the same object — only one of
- * them has a total, a status and a version chain — which is why the two lists
- * stay separate. But "what paperwork is on this record" is one question, and
- * it was two rows in the rail. The segmented control keeps the lists apart
- * without keeping the destinations apart.
- *
- * `documents` is the register the system raised and numbered; pass it where
- * the record has one. Files alone still render, without a control.
+ * Money documents (quotes, invoices, receipts) live in their own `moneyTab`
+ * ("Money"), while generic uploaded files live here ("Files").
  */
 export function paperworkTab({
   ref,
@@ -264,6 +278,14 @@ export function paperworkTab({
   documents?: ReactNode;
   documentCount?: number;
 }): RecordTab {
+  if (!documents) {
+    return {
+      value: "files",
+      label: "Files",
+      icon: FileText,
+      content: <FilesTab owner={FILE_OWNER[ref.kind]} ownerId={ref.id} />,
+    };
+  }
   return {
     value: "documents",
     label: "Documents",
@@ -273,16 +295,12 @@ export function paperworkTab({
       <SubSections
         label="Paperwork"
         sections={[
-          ...(documents
-            ? [
-                {
-                  value: "documents",
-                  label: "Issued",
-                  count: documentCount,
-                  content: documents,
-                },
-              ]
-            : []),
+          {
+            value: "documents",
+            label: "Issued",
+            count: documentCount,
+            content: documents,
+          },
           {
             value: "files",
             label: "Uploads",

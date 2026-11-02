@@ -18,8 +18,8 @@ import { money, shortDay } from "@/lib/books/format";
 import { SUPPLIER_TABS, type SupplierRecordPage, type SupplierTab } from "@/lib/books/suppliers";
 
 const PILL = { owed: ["pill-info", "Owed"], overdue: ["pill-warn", "Overdue"], "paid-up": ["pill-ok", "Paid up"] } as const;
-const STATE_TONE: Record<string, "info" | "success" | "warning" | "void" | "plain"> = { Draft: "plain", "To pay": "info", "Part paid": "info", Overdue: "warning", Paid: "success", Void: "void", "To approve": "warning", Approved: "info" };
-const TAB_LABEL: Record<SupplierTab, string> = { activity: "Activity", bills: "Bills", payments: "Payments", statement: "Statement", tax: "Tax" };
+const STATE_TONE: Record<string, "info" | "success" | "warning" | "void" | "plain"> = { Draft: "plain", "To pay": "info", "Part paid": "info", Overdue: "warning", Paid: "success", Void: "void", "To approve": "warning", Approved: "info", Sent: "info", "Part received": "info", Received: "success", Cancelled: "void" };
+const TAB_LABEL: Record<SupplierTab, string> = { activity: "Activity", bills: "Bills", orders: "Orders", payments: "Payments", statement: "Statement", tax: "Tax" };
 const plain = (n: number) => new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 /**
@@ -121,7 +121,18 @@ function SupplierRecord() {
               label="Supplier views"
               value={tab}
               onChange={setTab}
-              items={SUPPLIER_TABS.map((value) => ({ value, label: TAB_LABEL[value], count: value === "bills" ? data.bills.length : value === "payments" ? data.payments.length : undefined }))}
+              items={SUPPLIER_TABS.map((value) => ({
+                value,
+                label: TAB_LABEL[value],
+                count:
+                  value === "bills"
+                    ? data.bills.length
+                    : value === "orders"
+                      ? data.orders.length
+                      : value === "payments"
+                        ? data.payments.length
+                        : undefined,
+              }))}
             />
             {tab === "activity" ? (
               <History
@@ -172,6 +183,50 @@ function SupplierRecord() {
                         <td className="num">{bill.balance > 0.005 ? money(bill.balance, c) : <span className="muted">{money(bill.total, c)}</span>}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </Bleed>
+            ) : null}
+            {tab === "orders" ? (
+              <Bleed>
+                <table className="table" aria-label="Orders">
+                  <colgroup>
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 90 }} />
+                    <col />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 130 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Date</th>
+                      <th>Expected</th>
+                      <th>State</th>
+                      <th className="num">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.orders.map((order) => (
+                      <tr key={order.id}>
+                        <td>
+                          <Link className="ref" href={`/books/orders?q=${encodeURIComponent(order.number)}`}>
+                            {order.number}
+                          </Link>
+                        </td>
+                        <td className="muted">{order.date}</td>
+                        <td className="muted">{order.expected ?? "—"}</td>
+                        <td>
+                          <BkState tone={STATE_TONE[order.state] ?? "plain"}>{order.state}</BkState>
+                        </td>
+                        <td className="num">{money(order.total, c)}</td>
+                      </tr>
+                    ))}
+                    {data.orders.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="muted">No purchase orders issued to {data.name} yet.</td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </Bleed>

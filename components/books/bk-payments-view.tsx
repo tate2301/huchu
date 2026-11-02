@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button, SelectCell, TableFoot, TableShell, useSelection, Person } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
@@ -36,6 +37,7 @@ export function BkPaymentsView({
   /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
   undoEntries?: (rows: PaymentRow[]) => MenuEntry[];
 }) {
+  const router = useRouter();
   const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
   const selection = useSelection(ids);
   const query = data.query;
@@ -109,15 +111,39 @@ export function BkPaymentsView({
                   <Button icon="export" onClick={() => onExport(selected)}>
                     Export
                   </Button>
-                  {undoEntries && undoEntries(selected).length ? (
-                    <MenuButton label="More" items={undoEntries(selected)}>
-                      More
-                    </MenuButton>
-                  ) : canVoid && live.length === 1 ? (
-                    <Button variant="danger" icon="x" onClick={() => onVoid(live[0])}>
-                      Void {live[0].number}
-                    </Button>
-                  ) : null}
+                  {(() => {
+                    const undo = undoEntries ? undoEntries(selected) : [];
+                    const singleItems: MenuEntry[] =
+                      selected.length === 1
+                        ? [
+                            { key: "open", label: "Open payment", onSelect: () => router.push(`/books/payments/${selected[0].id}`) },
+                            {
+                              key: "pdf-view",
+                              label: "View PDF",
+                              onSelect: () => window.open(`/api/books/payments/${selected[0].id}/pdf`, "_blank", "noopener,noreferrer"),
+                            },
+                            {
+                              key: "pdf-download",
+                              label: "Download PDF",
+                              onSelect: () => window.open(`/api/books/payments/${selected[0].id}/pdf?download=1`, "_blank", "noopener,noreferrer"),
+                            },
+                          ]
+                        : [];
+                    const moreItems: MenuEntry[] = [
+                      ...singleItems,
+                      ...(singleItems.length && undo.length ? [{ separator: true as const }] : []),
+                      ...undo,
+                    ];
+                    return moreItems.length ? (
+                      <MenuButton label="More" items={moreItems}>
+                        More
+                      </MenuButton>
+                    ) : canVoid && live.length === 1 ? (
+                      <Button variant="danger" icon="x" onClick={() => onVoid(live[0])}>
+                        Void {live[0].number}
+                      </Button>
+                    ) : null;
+                  })()}
                 </>
               ),
             }}
@@ -156,11 +182,25 @@ export function BkPaymentsView({
                 <tr key={row.id} aria-selected={selection.isSelected(row.id) || undefined}>
                   <SelectCell checked={selection.isSelected(row.id)} onChange={() => selection.toggle(row.id)} label={`Select ${row.number}`} />
                   <td>
-                    <span className="ref">{row.number}</span>
+                    <Link className="ref" href={`/books/payments/${row.id}`}>
+                      {row.number}
+                    </Link>
                   </td>
                   <td className="muted">{row.received}</td>
                   <td>
-                    <span className="cell-lead">{row.customer ? <Person name={row.customer} src={row.customerImage} /> : "Not named"}</span>
+                    {row.customer ? (
+                      row.customerId ? (
+                        <Link className="cell-lead" href={`/books/customers/${row.customerId}`}>
+                          <Person name={row.customer} src={row.customerImage} />
+                        </Link>
+                      ) : (
+                        <span className="cell-lead">
+                          <Person name={row.customer} src={row.customerImage} />
+                        </span>
+                      )
+                    ) : (
+                      <span className="cell-lead">Not named</span>
+                    )}
                   </td>
                   <td className="fill">
                     {row.voided ? (

@@ -11,7 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 
-import { formatMoney } from "@/components/crm/documents/document-types";
+import { DocumentList } from "@/components/crm/documents/document-list";
+import { formatMoney, type LeadDocument } from "@/components/crm/documents/document-types";
+import type { SupplierProfileItem } from "@/lib/books/crm-document-bridge";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import type { LeadActivity } from "@/components/crm/lead-detail/lead-types";
@@ -22,6 +24,7 @@ import { RecordMark } from "@/components/records/record-mark";
 import {
   automationTab,
   historyTab,
+  moneyTab,
   paperworkTab,
   tasksTab,
   useRecordComments,
@@ -125,6 +128,8 @@ type PersonDetail = {
     };
   }>;
   activities: LeadActivity[];
+  documents?: LeadDocument[];
+  supplierItems?: SupplierProfileItem[];
   /** Present only when this person was merged away. */
   redirectTo?: string;
 };
@@ -472,6 +477,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
               <RecordStory
                 events={buildStory({
                   activities: person.activities,
+                  documents: person.documents,
                   comments,
                   createdLabel: "Person added",
                 })}
@@ -504,6 +510,20 @@ export function PersonDetailPage({ personId }: { personId: string }) {
           ),
         },
         tasksTab({ ref: { kind: "person", id: personId }, currentUserId: session?.user?.id }),
+        moneyTab({
+          documentCount: (person.documents?.length ?? 0) + (person.supplierItems?.length ?? 0),
+          documents: (
+            <DocumentList
+              basePath={
+                person.client ? `/api/books/crm/${person.client.id}` : `/api/books/crm/${personId}`
+              }
+              currency={person.dealContacts[0]?.deal.currency ?? "USD"}
+              documents={person.documents ?? []}
+              supplierItems={person.supplierItems ?? []}
+              canCreate={Boolean(person.client)}
+            />
+          ),
+        }),
         paperworkTab({ ref: { kind: "person", id: personId } }),
         automationTab({ ref: { kind: "person", id: personId } }),
         historyTab({
