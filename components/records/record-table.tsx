@@ -340,7 +340,7 @@ export function RecordTable<T extends { id: string }>({
 
   if (isLoading) {
     return (
-      <div className="space-y-1.5" aria-busy="true" aria-live="polite">
+      <div className="divide-y divide-[var(--color-line)] border-b border-[var(--color-line)] px-6 py-2" aria-busy="true" aria-live="polite">
         <Skeleton height={36} />
         <Skeleton height={36} />
         <Skeleton height={36} />
@@ -350,7 +350,11 @@ export function RecordTable<T extends { id: string }>({
   }
 
   if (rows.length === 0) {
-    return <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />;
+    return (
+      <div className="p-8">
+        <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />
+      </div>
+    );
   }
 
   const selectedIds = selection?.selectedIds ?? [];
@@ -384,13 +388,14 @@ export function RecordTable<T extends { id: string }>({
     return (
       <tr
         key={row.id}
+        data-selected={selected || undefined}
         className={cn(
-          "group/row",
-          selected ? "bg-[var(--brand-tint)]" : "hover:bg-[var(--canvas)]",
+          "group/row transition-colors",
+          selected ? "bg-[var(--color-fill,#f4f3ef)]" : "hover:bg-[var(--color-hover,#f8f7f4)]",
         )}
       >
         {selection ? (
-          <td className="border-b border-[var(--table-divider)] px-2">
+          <td className="border-b border-[var(--color-line)] pl-6 pr-2">
             <Checkbox
               checked={selected}
               onClick={(event) => {
@@ -406,17 +411,10 @@ export function RecordTable<T extends { id: string }>({
           <td
             key={column.id}
             className={cn(
-              // 36px on a mouse, 44 on a coarse pointer.
-              //
-              // The canvas runs these lists at 36px — four more rows
-              // per screen on a register somebody scans all day. A
-              // 36px row is still a comfortable mouse target and a
-              // poor thumb one, so the row grows back on touch,
-              // where the extra height buys a hit area rather than
-              // costing a row.
-              "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[13px] py-1.5 align-middle text-sm",
+              "min-h-[38px] border-b border-[var(--color-line)] px-3 py-1.5 align-middle text-[13.5px] text-[var(--color-ink)]",
+              !selection && index === 0 && "pl-6",
               "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5",
-              column.align === "end" && "text-right",
+              column.align === "end" && "text-right font-mono tabular-nums",
             )}
           >
             {index === 0 && href ? (
@@ -452,7 +450,7 @@ export function RecordTable<T extends { id: string }>({
             chevron, and it is a link to the same place rather than
             decoration, so a reader who has scanned across to the
             last column does not have to scan back. */}
-        <td className="border-b border-[var(--table-divider)] px-2 py-1.5 align-middle">
+        <td className="border-b border-[var(--color-line)] pl-2 pr-6 py-1.5 align-middle">
           {href ? (
             <Link
               href={href}
@@ -460,7 +458,7 @@ export function RecordTable<T extends { id: string }>({
               aria-hidden="true"
               className="flex items-center justify-center"
             >
-              <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
+              <ChevronRight className="size-3.5 text-[var(--color-faint)] group-hover/row:text-[var(--color-muted)]" />
             </Link>
           ) : null}
         </td>
@@ -523,7 +521,7 @@ export function RecordTable<T extends { id: string }>({
               {selection ? (
                 <th
                   scope="col"
-                  className="w-10 border-b border-[var(--border)] bg-[var(--table-header-bg)] px-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
+                  className="w-11 border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] pl-6 pr-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
                 >
                   <Checkbox
                     checked={allSelected}
@@ -533,8 +531,7 @@ export function RecordTable<T extends { id: string }>({
                 </th>
               ) : null}
 
-              {columns.map((column) => {
-                const Icon = column.icon;
+              {columns.map((column, colIdx) => {
                 const sorted = sort && column.sortKey && sort.key === column.sortKey ? sort.dir : null;
                 const SortArrow = sorted === "desc" ? ArrowDownward : ArrowUpward;
                 return (
@@ -544,23 +541,8 @@ export function RecordTable<T extends { id: string }>({
                     aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
-                      // Pinned at whatever offset the band stack has reached
-                      // rather than at a hard-coded toolbar height. On a page
-                      // with a band the stack publishes 44; inside a view
-                      // switcher, 88 — and the header lands under whichever is
-                      // actually above it instead of guessing.
-                      //
-                      // Only where the wrapper has dropped its overflow clamp.
-                      // Inside a scroll container that never scrolls
-                      // vertically, a `top` offset pins nothing — it just
-                      // pushes the header down the page and leaves a band of
-                      // nothing above it.
-                      "border-b border-[var(--border)] bg-[var(--table-header-bg)] px-[13px] py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]",
-                      // The canvas column head is a label strip, not a row of
-                      // prose: small, heavy, uppercase and letterspaced, so it
-                      // reads as the table's chrome rather than as its first
-                      // line of data.
-                      "acct-col-head group/head",
+                      "h-[34px] border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2] group/head",
+                      !selection && colIdx === 0 && "pl-6",
                       column.align === "end" && "text-right",
                     )}
                   >
@@ -570,12 +552,11 @@ export function RecordTable<T extends { id: string }>({
                           type="button"
                           onClick={() => sort.onSort(column.sortKey!)}
                           className={cn(
-                            "group/sort -mx-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-[var(--radius-sm)] px-1 uppercase hover:text-[var(--text-strong)]",
+                            "group/sort -mx-1 flex min-w-0 flex-1 items-center gap-1 rounded-[var(--radius-sm)] px-1 font-medium hover:text-[var(--color-ink)]",
                             column.align === "end" && "justify-end",
-                            sorted && "text-[var(--text-strong)]",
+                            sorted && "text-[var(--color-ink)] font-semibold",
                           )}
                         >
-                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                           {column.label}
                           <SortArrow
                             className={cn(
@@ -588,11 +569,10 @@ export function RecordTable<T extends { id: string }>({
                       ) : (
                         <span
                           className={cn(
-                            "flex min-w-0 flex-1 items-center gap-1.5",
+                            "flex min-w-0 flex-1 items-center gap-1",
                             column.align === "end" && "justify-end",
                           )}
                         >
-                          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                           {column.label}
                         </span>
                       )}
@@ -602,13 +582,9 @@ export function RecordTable<T extends { id: string }>({
                 );
               })}
 
-              {/* The chevron column. Unlabelled — it is an affordance, not a
-                  field — but it still needs a header cell, or the body rows
-                  carry one more cell than the head and every column below it
-                  shifts by one. */}
               <th
                 scope="col"
-                className="w-10 border-b border-[var(--border)] bg-[var(--table-header-bg)] px-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
+                className="w-10 border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] pl-2 pr-6 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
               >
                 <span className="sr-only">Open</span>
               </th>

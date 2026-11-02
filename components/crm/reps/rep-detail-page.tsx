@@ -243,6 +243,31 @@ export function RepDetailPage({ repId }: { repId: string }) {
       status={
         rep.isActive ? null : { label: "Deactivated", status: "inactive" as const }
       }
+      subtitle={`${ROLE_LABELS[rep.role] ?? rep.role}${rep.email ? ` · ${rep.email}` : ""}`}
+      kpis={[
+        {
+          label: "Open pipeline",
+          value: formatMoney(openPipeline, "USD"),
+          sub: `${detail.deals.length} deals · ${detail.leads.length} leads`,
+        },
+        {
+          label: "Won in period",
+          value: formatMoney(Number(achieved.wonValue), achieved.wonCurrency),
+          tone: Number(achieved.wonValue) > 0 ? "up" : "default",
+          sub: `${achieved.dealsWon} deal${achieved.dealsWon === 1 ? "" : "s"} won`,
+        },
+        {
+          label: "Field output",
+          value: `${achieved.visitsDone} visits · ${achieved.jobsCompleted} jobs`,
+          sub: "Completed in period",
+        },
+        {
+          label: "Outstanding",
+          value: String(outstanding.length),
+          tone: flagged > 0 ? "bad" : "default",
+          sub: flagged > 0 ? `${flagged} overdue / flagged` : "All up to date",
+        },
+      ]}
       activeTab={section}
       attributes={
         <RecordAttributes

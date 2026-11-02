@@ -66,20 +66,26 @@ export function ListDetailPage({ listId }: { listId: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="crm-bk-worksheet">
       <PageChrome title={list.name} />
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-sm text-[var(--text-muted)]">
-          Jobs · {list.recordIds.length} in this group
-        </span>
-        {list.isShared ? (
-          <span className="text-sm text-[var(--text-muted)]">Shared with the team</span>
-        ) : null}
+      <div className="crm-bk-tabs-bar">
+        <div className="crm-bk-tabs">
+          <span className="crm-bk-tab" data-active="true">
+            <span>Jobs in group</span>
+            <span className="cnt">{list.recordIds.length}</span>
+          </span>
+        </div>
+        <div className="ml-auto flex items-center gap-2 text-sm text-[var(--color-muted)]">
+          {list.isShared ? <span>Shared with the team</span> : <span>Private group</span>}
+        </div>
       </div>
 
       {list.description ? (
-        <p className="max-w-prose text-sm text-[var(--text-muted)]">{list.description}</p>
+        <div className="crm-bk-finding">
+          <span className="fl">Group</span>
+          <span>{list.description}</span>
+        </div>
       ) : null}
 
       <RecordList

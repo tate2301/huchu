@@ -1,7 +1,11 @@
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 import { navSections, schoolBandGrant, type SchoolNavGrant } from "@/lib/navigation";
 import { hasEnabledFeature } from "@/lib/platform/gating/enforcer";
-import { booksTierKeyForPath, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import {
+  booksTierKeyForPath,
+  resolveAlternativeFeatureKeysForPath,
+  resolveFeatureKeyForPath,
+} from "@/lib/platform/gating/route-registry";
 import type { ReportDefinition } from "@/lib/reports/types";
 import { schoolAccess } from "@/lib/schools/access";
 
@@ -45,7 +49,12 @@ export function canReadReport(
   access: ReportAccess,
 ): boolean {
   const featureKey = reportFeatureKey(source);
-  if (featureKey && !hasEnabledFeature(access.enabledFeatures, featureKey)) return false;
+  if (featureKey && !hasEnabledFeature(access.enabledFeatures, featureKey)) {
+    const altKeys = resolveAlternativeFeatureKeysForPath(source.href);
+    if (!altKeys.some((altKey) => hasEnabledFeature(access.enabledFeatures, altKey))) {
+      return false;
+    }
+  }
   // A report that opens in Books needs the screens (books-final §1.2).
   const screens = booksTierKeyForPath(source.href);
   if (screens && !hasEnabledFeature(access.enabledFeatures, screens)) return false;

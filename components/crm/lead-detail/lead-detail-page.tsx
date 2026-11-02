@@ -389,6 +389,50 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         </>
       }
       figure={formatLeadValue(lead.estimatedValue, lead.currency)}
+      finding={
+        nextStep
+          ? {
+              label: "Next step",
+              text: (
+                <>
+                  <strong>{nextStep.label}</strong> — {nextStep.reason}
+                </>
+              ),
+              action: (
+                <button type="button" className="fl-act" onClick={takeNextStep}>
+                  {nextStep.label} →
+                </button>
+              ),
+            }
+          : null
+      }
+      kpis={[
+        {
+          label: "Estimated value",
+          value: formatLeadValue(lead.estimatedValue, lead.currency),
+          sub: lead.probability != null ? `${lead.probability}% likelihood` : "Unscored likelihood",
+        },
+        {
+          label: "Latest quote",
+          value: latestQuote ? formatMoney(latestQuote.amount, latestQuote.currency) : "—",
+          sub: latestQuote ? latestQuote.quotation?.quotationNumber ?? "Quotation sent" : "No quotation yet",
+        },
+        {
+          label: "Site visits",
+          value: String(lead.appointments.length),
+          sub: nextVisit ? "1 scheduled" : "None scheduled",
+        },
+        {
+          label: "Follow-ups",
+          value: String(lead.followUps.filter((task) => task.status === "PENDING").length),
+          tone: lead.followUps.some(
+            (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
+          )
+            ? "warn"
+            : "default",
+          sub: `${lead.activities.length} touchpoints logged`,
+        },
+      ]}
       related={
         <RecordRelated
           items={[

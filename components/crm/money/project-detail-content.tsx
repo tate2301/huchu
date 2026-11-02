@@ -336,6 +336,96 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
   const openRequisitions = requisitions.filter(
     (requisition) => requisition.status === "SUBMITTED" || requisition.status === "DISBURSED",
   ).length;
+  const unreceiptedEntries = entries.filter(
+    (entry) => entry.direction === "SPENT" && !entry.receiptUrl,
+  ).length;
+  const overBudget = costs.budget !== null && Number(costs.remaining) < 0;
+  const completedJobs = detail.jobs.filter((j) => j.status === "COMPLETED").length;
+
+  const projectFinding = overBudget
+    ? {
+        tone: "bad" as const,
+        children: (
+          <>
+            <b>Over budget by {formatMoney(String(Math.abs(Number(costs.remaining))), costs.currency)}</b>{" "}
+            — {formatMoney(costs.spent, costs.currency)} spent against a{" "}
+            {formatMoney(costs.budget!, costs.currency)} budget.
+          </>
+        ),
+        action: {
+          label: "Review spend →",
+          onClick: () => setTab("spend"),
+        },
+      }
+    : openRequisitions > 0 || unreceiptedEntries > 0
+      ? {
+          tone: "warn" as const,
+          children: (
+            <>
+              {openRequisitions > 0 ? (
+                <>
+                  <b>
+                    {openRequisitions} {openRequisitions === 1 ? "requisition" : "requisitions"}
+                  </b>{" "}
+                  awaiting approval or acquittal
+                </>
+              ) : null}
+              {openRequisitions > 0 && unreceiptedEntries > 0 ? " · " : null}
+              {unreceiptedEntries > 0 ? (
+                <>
+                  <b>
+                    {unreceiptedEntries} {unreceiptedEntries === 1 ? "expense" : "expenses"}
+                  </b>{" "}
+                  missing a receipt photo
+                </>
+              ) : null}
+              .
+            </>
+          ),
+          action: {
+            label: openRequisitions > 0 ? "Open requisitions →" : "Open spend →",
+            onClick: () => setTab(openRequisitions > 0 ? "requisitions" : "spend"),
+          },
+        }
+      : null;
+
+  const projectKpis = [
+    {
+      label: "Budget",
+      value: costs.budget ? formatMoney(costs.budget, costs.currency) : "Not set",
+      sub:
+        project.deal.value != null
+          ? `Sold for ${formatMoney(project.deal.value, project.deal.currency)}`
+          : project.deal.title,
+    },
+    {
+      label: "Spent to date",
+      value: formatMoney(costs.spent, costs.currency),
+      sub: `${entries.length} ${entries.length === 1 ? "line" : "lines"} · ${formatMoney(costs.outstanding, costs.currency)} float out`,
+    },
+    {
+      label: overBudget ? "Over budget" : "Budget remaining",
+      value:
+        costs.budget === null
+          ? "—"
+          : overBudget
+            ? formatMoney(String(Math.abs(Number(costs.remaining))), costs.currency)
+            : formatMoney(costs.remaining!, costs.currency),
+      sub:
+        Number(costs.approved) > 0
+          ? `${formatMoney(costs.approved, costs.currency)} approved unpaid`
+          : "Committed & spent tracked",
+      tone: overBudget ? ("bad" as const) : ("ok" as const),
+    },
+    {
+      label: "Jobs",
+      value: `${completedJobs} / ${detail.jobs.length}`,
+      sub:
+        detail.jobs.length === 0
+          ? "No jobs raised yet"
+          : `${detail.jobs.length - completedJobs} active or scheduled`,
+    },
+  ];
 
   return (
     <>
@@ -346,6 +436,8 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
         title={project.name}
         onTitleCommit={canEdit ? edit.required("name", project.name).onCommit : undefined}
         reference={project.projectNo}
+        finding={projectFinding}
+        kpis={projectKpis}
         // Rule 5: the toolbar carries a state only when it is the exception —
         // a project parked or called off. Planning and under way are what a
         // project is, and the Status property already says which.

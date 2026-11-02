@@ -225,6 +225,40 @@ export function LeadsContent({ openCreate = false }: { openCreate?: boolean }) {
       </Button>
     ) : undefined;
 
+  const finding = useMemo(() => {
+    const allLeads =
+      layout === "BOARD"
+        ? (register.board.query.data?.columns ?? []).flatMap((col) => col.cards)
+        : leads;
+    if (allLeads.length === 0) return null;
+    const unassigned = allLeads.filter((l) => !l.assignedTo && l.stage !== "WON" && l.stage !== "LOST").length;
+    const overdueCount = allLeads.filter((l) => isOverdue(l.nextFollowUp?.dueAt)).length;
+    if (overdueCount > 0 || unassigned > 0) {
+      return {
+        label: "Intake signal",
+        text: (
+          <>
+            {overdueCount > 0 ? (
+              <>
+                <b>{overdueCount} lead{overdueCount === 1 ? "" : "s"}</b> with overdue follow-ups
+              </>
+            ) : null}
+            {overdueCount > 0 && unassigned > 0 ? " · " : null}
+            {unassigned > 0 ? (
+              <>
+                <span className="warn">
+                  {unassigned} unassigned enquiry{unassigned === 1 ? "" : "ies"}
+                </span>{" "}
+                waiting for an owner
+              </>
+            ) : null}
+          </>
+        ),
+      };
+    }
+    return null;
+  }, [layout, leads, register.board.query.data]);
+
   const list = register.groups ? (
     <GroupedRecordList
       sections={groupSections(register.groups, rows)}
@@ -249,6 +283,7 @@ export function LeadsContent({ openCreate = false }: { openCreate?: boolean }) {
       title="Leads"
       createLabel="New lead"
       onCreate={() => setCreateOpen(true)}
+      finding={finding}
       display={
         layout === "BOARD" ? (
           <ColumnPicker columns={LEAD_CARD_FIELDS} state={boardFields} label="Fields" size="sm" />

@@ -262,6 +262,56 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
               : null
       }
       figure={when(visit.scheduledStart)}
+      finding={
+        overdue
+          ? {
+              label: "Field report overdue",
+              text: (
+                <>
+                  <strong>This visit took place on {when(visit.scheduledStart)}</strong> — write up the report and measurements so a quotation can be raised.
+                </>
+              ),
+              action: mayEdit ? (
+                <button type="button" className="fl-act" onClick={() => setWriting(true)}>
+                  Write it up →
+                </button>
+              ) : null,
+            }
+          : unplaced.length > 0
+            ? {
+                label: "Geotag check",
+                text: (
+                  <>
+                    <strong>{unplaced.length} site photo{unplaced.length === 1 ? " has" : "s have"} no GPS coordinates</strong> — verify location metadata with the field rep.
+                  </>
+                ),
+              }
+            : null
+      }
+      kpis={[
+        {
+          label: "Scheduled for",
+          value: formatDate(visit.scheduledStart),
+          sub: visit.assignedTo.name ?? "Unassigned",
+        },
+        {
+          label: "Checklist",
+          value: checklist.length > 0 ? `${checklist.filter((i) => i.checked).length} / ${checklist.length}` : "—",
+          tone: checklist.length > 0 && checklist.every((i) => i.checked) ? "up" : "default",
+          sub: writtenUp ? "Report completed" : "Pending write-up",
+        },
+        {
+          label: "Measurements",
+          value: String(visit.visitItems.length),
+          sub: visit.visitItems.length > 0 ? "Ready for quotation" : "None captured yet",
+        },
+        {
+          label: "Site photos",
+          value: String(visit.visitPhotos.length),
+          tone: unplaced.length > 0 ? "warn" : "default",
+          sub: unplaced.length > 0 ? `${unplaced.length} missing GPS` : "Geotagged",
+        },
+      ]}
       primaryAction={
         mayEdit && visit.status !== "CANCELLED" ? (
           <Button variant={writtenUp ? "secondary" : "primary"} onClick={() => setWriting(true)}>

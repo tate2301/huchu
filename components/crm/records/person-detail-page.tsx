@@ -343,6 +343,34 @@ export function PersonDetailPage({ personId }: { personId: string }) {
       }}
       reference={person.personNo}
       subtitle={subtitle}
+      kpis={[
+        {
+          label: "Deals involved",
+          value: String(person.dealContacts.length),
+          sub:
+            person.dealContacts.length > 0
+              ? formatMoney(
+                  person.dealContacts.reduce((s, c) => s + (c.deal.value ?? 0), 0),
+                  person.dealContacts[0]?.deal.currency ?? "USD",
+                )
+              : "No deals linked",
+        },
+        {
+          label: "Preferred channel",
+          value: person.preferredChannel ? (CHANNEL_LABELS[person.preferredChannel] ?? person.preferredChannel) : "Phone / WhatsApp",
+          sub: person.phone ?? person.email ?? "No contact details",
+        },
+        {
+          label: "Companies",
+          value: String(Math.max(person.companyLinks.length, person.client ? 1 : 0)),
+          sub: person.client?.name ?? "Independent contact",
+        },
+        {
+          label: "Touchpoints",
+          value: String(person.activities.length),
+          sub: lastContactAt ? `${daysSince(lastContactAt) ?? 0}d since last contact` : "No contact logged",
+        },
+      ]}
       activeTab={tab}
       onTabChange={setTab}
       related={

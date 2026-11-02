@@ -30,7 +30,6 @@ import {
   ColumnList,
   ColumnName,
   ColumnText,
-  FactList,
   SectionHeading,
   StatusDot,
 } from "@/components/management/ui";
@@ -95,8 +94,8 @@ const NO_PROJECT = "none";
  * The measure the short lists share with their headings. The breakdown is a
  * comparison across six figures and takes the page's width instead.
  */
-const LIST_WIDTH = 560;
-const WIDE = 1200;
+const LIST_WIDTH = 1600;
+const WIDE = 1600;
 
 function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
@@ -204,14 +203,86 @@ export function FinanceContent() {
     to: searchParams.get("to") ?? data?.period.to ?? null,
   };
 
+  const activeAlerts = (data?.needsAction ?? []).filter((item) => item.count > 0);
+
   return (
-    <div className="pb-10">
-      {/* Which money — the period, a project, a person. Every figure on the
-          page follows it, so it heads the page rather than sitting between
-          the totals and the breakdown, where it read as the breakdown's own.
-          The period rides in the slot a phone keeps on screen: a total with
-          no period beside it is a number without a question. The rest fold
-          into the one button there. */}
+    <div className="crm-bk-worksheet pb-10">
+      {data && activeAlerts.length > 0 ? (
+        <div
+          className={`crm-bk-finding ${
+            activeAlerts.some((a) => a.kind === "not-receipted" || a.kind === "over-budget")
+              ? "bad"
+              : "warn"
+          }`}
+        >
+          <span className="crm-bk-fdot" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <b>Needs attention:</b>{" "}
+            {activeAlerts
+              .map((item) => {
+                if (item.kind === "awaiting-approval")
+                  return `${plural(item.count, "requisition", "requisitions")} waiting for approval`;
+                if (item.kind === "not-receipted")
+                  return `${plural(item.count, "invoice payment", "invoice payments")} not receipted`;
+                if (item.kind === "no-receipt")
+                  return `${plural(item.count, "expense line", "expense lines")} without receipt photo`;
+                return `${plural(item.count, "project", "projects")} over budget`;
+              })
+              .join(" · ")}
+          </div>
+        </div>
+      ) : null}
+
+      {data ? (
+        <div className="crm-bk-strip">
+          <div className="crm-bk-kstrip">
+            <div className="crm-bk-kt">
+              <div className="k">Money in ({data.currency})</div>
+              <div className="v ok">{formatMoney(data.moneyIn.total, data.currency)}</div>
+              <div className="s">{plural(data.moneyIn.receipts, "customer payment", "customer payments")}</div>
+            </div>
+            <div className="crm-bk-kt">
+              <div className="k">Money out ({data.currency})</div>
+              <div className="v">{formatMoney(data.moneyOut.total, data.currency)}</div>
+              <div className="s">
+                {formatMoney(data.moneyOut.requisitions, data.currency)} req ·{" "}
+                {formatMoney(data.moneyOut.direct, data.currency)} direct
+              </div>
+            </div>
+            <div className="crm-bk-kt">
+              <div className="k">Owed to us</div>
+              <div className="v">{formatMoney(data.owedToUs.total, data.currency)}</div>
+              <div className="s">
+                <Link href="/books/invoices?view=owed" className="underline decoration-dotted underline-offset-2">
+                  {plural(data.owedToUs.invoices, "open invoice", "open invoices")}
+                </Link>
+              </div>
+            </div>
+            <div className="crm-bk-kt">
+              <div className="k">Floats out &amp; committed</div>
+              <div className={`v${data.floatsOut.requisitions > 0 ? " warn" : ""}`}>
+                {formatMoney(data.floatsOut.total, data.currency)}
+              </div>
+              <div className="s">
+                {plural(data.floatsOut.requisitions, "float", "floats")} out ·{" "}
+                {formatMoney(data.committedUnpaid.total, data.currency)} approved unpaid
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="crm-bk-tabs-bar">
+        <SectionTabs label="Break the money down">
+          <SectionTab to={viewHref("project")} active={view === "project"}>
+            By project {data ? `(${data.byProject.length})` : ""}
+          </SectionTab>
+          <SectionTab to={viewHref("person")} active={view === "person"}>
+            By person {data ? `(${data.byPerson.length})` : ""}
+          </SectionTab>
+        </SectionTabs>
+      </div>
+
       <ViewToolbar
         filterCount={
           [chosen("project"), chosen("person"), chosen("currency")].filter((value) => value !== FILTER_ANY).length
@@ -243,8 +314,6 @@ export function FinanceContent() {
               options={personOptions}
               onChange={(next) => setParams({ person: next })}
             />
-            {/* Only when there is more than one: a total of dollars and
-                ZiG is not a figure, so the page adds up one at a time. */}
             {data && data.currencies.length > 1 ? (
               <ViewToolbarFilter
                 label="Currency"
@@ -259,49 +328,40 @@ export function FinanceContent() {
       />
 
       {financeQuery.error ? (
-        <Alert tone="danger" title="Money in and out would not load" className="mt-6">
-          {getApiErrorMessage(financeQuery.error)}
-        </Alert>
+        <div className="px-6 pt-4">
+          <Alert tone="danger" title="Money in and out would not load">
+            {getApiErrorMessage(financeQuery.error)}
+          </Alert>
+        </div>
       ) : null}
 
-      {data ? (
-        <>
-          <NeedsAction data={data} listScope={listScope} />
-          <MoneyInOut data={data} listScope={listScope} />
-          <Standing data={data} />
-        </>
-      ) : (
-        <div className="mt-6 space-y-3" aria-busy="true">
-          <Skeleton height={120} />
-          <Skeleton height={160} />
-          <Skeleton height={140} />
-        </div>
-      )}
-
-      <section aria-label="Where the money went" className="mt-10 space-y-3">
-        {/* Tabs on their own row: which way to break the money down is a
-            question of its own, asked after which money. */}
-        <SectionTabs label="Break the money down">
-          <SectionTab to={viewHref("project")} active={view === "project"}>
-            By project
-          </SectionTab>
-          <SectionTab to={viewHref("person")} active={view === "person"}>
-            By person
-          </SectionTab>
-        </SectionTabs>
-
-        {!data ? (
-          <div className="space-y-1.5" aria-busy="true">
-            <Skeleton height={36} />
-            <Skeleton height={36} />
-            <Skeleton height={36} />
+      <div className="px-6 pt-4 space-y-6">
+        {data ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <NeedsAction data={data} listScope={listScope} />
+            <Standing data={data} />
           </div>
-        ) : view === "project" ? (
-          <ProjectBreakdown rows={data.byProject} currency={data.currency} />
         ) : (
-          <PersonBreakdown rows={data.byPerson} currency={data.currency} listScope={listScope} />
+          <div className="space-y-3" aria-busy="true">
+            <Skeleton height={120} />
+            <Skeleton height={140} />
+          </div>
         )}
-      </section>
+
+        <section aria-label="Where the money went" className="space-y-3">
+          {!data ? (
+            <div className="space-y-1.5" aria-busy="true">
+              <Skeleton height={36} />
+              <Skeleton height={36} />
+              <Skeleton height={36} />
+            </div>
+          ) : view === "project" ? (
+            <ProjectBreakdown rows={data.byProject} currency={data.currency} />
+          ) : (
+            <PersonBreakdown rows={data.byPerson} currency={data.currency} listScope={listScope} />
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -384,59 +444,6 @@ function NeedsAction({ data, listScope }: { data: FinanceResponse; listScope: UR
         }))}
       />
     </section>
-  );
-}
-
-/**
- * Two figures of equal weight, side by side: what came in and what went out,
- * in the period the filters are set to. Under each, what it is made of.
- */
-function MoneyInOut({ data, listScope }: { data: FinanceResponse; listScope: URLSearchParams }) {
-  return (
-    <section aria-label="Money in and out" className="grid gap-x-12 md:grid-cols-2">
-      <Headline
-        heading="Money in"
-        value={formatMoney(data.moneyIn.total, data.currency)}
-        facts={[{ label: "Customer payments", value: String(data.moneyIn.receipts), mono: true }]}
-      />
-      <Headline
-        heading="Money out"
-        value={formatMoney(data.moneyOut.total, data.currency)}
-        facts={[
-          {
-            label: "Paid out on requisitions",
-            value: formatMoney(data.moneyOut.requisitions, data.currency),
-            mono: true,
-          },
-          {
-            label: "Spent directly",
-            value: formatMoney(data.moneyOut.direct, data.currency),
-            mono: true,
-            href: `/crm/cost-tracker?type=SPENT&requisition=none&${listScope.toString()}`,
-          },
-        ]}
-      />
-    </section>
-  );
-}
-
-function Headline({
-  heading,
-  value,
-  facts,
-}: {
-  heading: string;
-  value: string;
-  facts: Array<{ label: string; value: string; mono?: boolean; href?: string }>;
-}) {
-  return (
-    <div className="min-w-0">
-      <SectionHeading maxWidth={LIST_WIDTH}>{heading}</SectionHeading>
-      <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
-        {value}
-      </p>
-      <FactList items={facts} align="end" maxWidth={LIST_WIDTH} labelWidth={180} />
-    </div>
   );
 }
 

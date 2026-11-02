@@ -7,7 +7,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import { Stack } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
-import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
   DropdownMenu,
@@ -19,12 +18,12 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIsBelow, useIsMobile } from "@/hooks/use-mobile";
 import { EntityLink } from "@/components/records/entity-link";
-import { RecordToolbar } from "@/components/records/record-toolbar";
 import { useRecordTrail } from "@/components/records/record-trail";
 import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
 import { useShellIfAny } from "@/components/layout/shell-state";
+import type { RegisterKpi } from "@/components/crm/registers/register-shell";
 
 /** The query parameter that says which section of a record is open. */
 const SECTION_PARAM = "section";
@@ -111,6 +110,8 @@ export function RecordPageShell({
   attributes,
   stage,
   toolbar,
+  kpis,
+  finding,
   children,
 }: {
   backHref: string;
@@ -161,6 +162,12 @@ export function RecordPageShell({
    * member page's period, for one. On a phone they head the landing view.
    */
   toolbar?: ReactNode;
+  /** Optional Books KPI strip rendered below the record header. */
+  kpis?: RegisterKpi[];
+  /** Optional Books finding callout rendered above the record header. */
+  finding?:
+    | { label?: string; text?: ReactNode; children?: ReactNode; action?: ReactNode | { label: string; onClick: () => void }; tone?: string }
+    | null;
   /** Sheets and dialogs the page owns — mounted outside the tab content so
    *  they survive a tab change. */
   children?: ReactNode;
@@ -320,116 +327,42 @@ export function RecordPageShell({
    * foot of the landing view, and tapping a row opens that section full-width.
    * One component, one grammar, two placements.
    */
-  const sectionRail = (
-    <NavRail label={`${title} sections`}>
-      {visibleTabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <NavRailItem
-            key={tab.value}
-            to={tab.value === landingTab?.value ? recordHref : sectionHref(tab.value)}
-            active={tab.value === currentTab?.value}
-            icon={Icon ? <Icon className="size-4" aria-hidden="true" /> : undefined}
-            // A zero is not a count — it is a column of grey noise. Only a
-            // section with something in it says how much.
-            count={tab.count && tab.count > 0 ? tab.count : undefined}
-            trailing={
-              tab.attention ? (
-                <span
-                  aria-label="Needs attention"
-                  className="size-1.5 rounded-full bg-[var(--action-primary-bg)]"
-                />
-              ) : undefined
-            }
-          >
-            {tab.label}
-          </NavRailItem>
-        );
-      })}
-    </NavRail>
-  );
-
-  /**
-   * Everything the record *is*, in one column.
-   *
-   * The mark, the name, the reference, the status, the one line that says what
-   * this is, the properties, and whatever summary the page supplies. All of it
-   * used to be a band stretched across the top of the page, between the app bar
-   * and the columns — which meant the identity of the record scrolled away the
-   * moment you started reading a section, and the widest thing on the page was
-   * a status chip with three centimetres of nothing beside it.
-   *
-   * Gathered into the standing column it is in view the whole time, and the
-   * band is gone, so a section starts where the page starts.
-   */
   // Held lowercase and rendered through the binding, the way the sidebar does
   // it: a capitalised name assigned from a prop reads to the lint rule as a
   // component defined during render.
   const RecordIcon = icon;
 
-  /**
-   * The record's identity — mark, name, reference, status, standfirst.
-   *
-   * Phone only. Above `md` the name and reference are in the app bar and the
-   * status is in the record's toolbar, and the right rail starts at the
-   * Properties strip: repeating them at the top of the rail would say the same
-   * three things three times inside 200px of each other.
-   */
-  const identityBlock = (
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <div className="flex items-start gap-2.5">
-          {leading ? (
-            <span className="flex-none">{leading}</span>
-          ) : RecordIcon ? (
-            <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-muted)] text-[var(--text-muted)]">
-              <RecordIcon className="size-4" aria-hidden="true" />
-            </span>
-          ) : null}
-
-          <div className="min-w-0 flex-1">
-            {/* The name, editable in place like every other property. It was
-                the one fact on a record with no way to correct it: a lead
-                typed in wrong stayed wrong, and "rename" existed nowhere in
-                the module. Same grammar as the property list — press the thing
-                you are looking at, Enter or blur commits, Escape abandons. */}
-            {onTitleCommit ? (
-              <RecordTitleEditor title={title} onCommit={onTitleCommit} />
-            ) : (
-              <h2 className="text-base font-semibold leading-snug text-[var(--text-strong)]">
-                {title}
-              </h2>
-            )}
-            {reference ? (
-              <p className="font-mono text-sm text-[var(--text-muted)]">{reference}</p>
-            ) : null}
-          </div>
-        </div>
-
-        {status ? <StatusChip status={status.status} label={status.label} /> : null}
-
-        {subtitle ? (
-          <p className="text-sm text-[var(--text-muted)]">{subtitle}</p>
-        ) : null}
+  const sectionTabs = (
+    <div className="crm-bk-tabs-bar" role="tablist" aria-label={`${title} sections`}>
+      <div className="crm-bk-tabs">
+        {visibleTabs.map((tab) => {
+          const isCurrent = tab.value === currentTab?.value;
+          const href = tab.value === landingTab?.value ? recordHref : sectionHref(tab.value);
+          return (
+            <Link
+              key={tab.value}
+              href={href}
+              role="tab"
+              aria-selected={isCurrent}
+              className="crm-bk-tab no-underline hover:no-underline"
+              data-active={isCurrent || undefined}
+            >
+              <span>{tab.label}</span>
+              {tab.count && tab.count > 0 ? <span className="cnt">{tab.count}</span> : null}
+              {tab.attention ? (
+                <span
+                  aria-label="Needs attention"
+                  className="size-1.5 rounded-full bg-[var(--action-primary-bg)]"
+                />
+              ) : null}
+            </Link>
+          );
+        })}
       </div>
-
-      {/* Phone only — above `md` these are in the record's toolbar, and
-          rendering them twice would put two stage ladders on one page. */}
-      {stage ? (
-        <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">{stage}</div>
-      ) : null}
-      {toolbar ? <div className="flex flex-wrap items-center gap-2 md:hidden">{toolbar}</div> : null}
+      {!infoShown ? <div className="ml-auto flex items-center">{railToggle}</div> : null}
     </div>
   );
 
-  /**
-   * The rail's contents: banded sections, one after another, no cards.
-   *
-   * Properties always opens it, whether or not the page supplied any. The band
-   * is the pane's own heading — it says what this column is — and it is where
-   * the collapse control lives, so a rail with an empty property list still
-   * has a way to shut itself.
-   */
   const railSections = (
     <>
       <RailSection title="Properties" action={railToggle}>
@@ -437,55 +370,13 @@ export function RecordPageShell({
           <p className="text-sm text-[var(--text-muted)]">Nothing recorded on this one yet.</p>
         )}
       </RailSection>
+      {related ? <RailSection title="Related">{related}</RailSection> : null}
       {rail}
     </>
   );
 
   const hasSectionRail = visibleTabs.length > 1;
 
-  // Columns, and the dividers between them. No gap: the rule *is* the gap, and
-  // the padding either side of it is what keeps the columns off it.
-  //
-  // `min-h` because grid tracks are only as tall as their tallest child, and
-  // the rules are drawn on the columns. A section with little in it — an empty
-  // Documents list, a record with four tasks — left two vertical lines that
-  // stopped a third of the way down the screen and a page that looked cropped.
-  // The columns fill whatever the viewport has left after the app bar and
-  // `main`'s padding, which is what `--content-viewport` is; longer content
-  // still grows past it, since this is a floor and not a height.
-  /*
-    The panes row.
-
-    Not a grid any more. The artboard's three columns are not tracks on a
-    scrolling page — they are three scroll containers side by side inside a
-    shell that does not scroll at all, and a grid cell cannot be one without a
-    height to bound it. Flex gives each pane `min-h-0` against a parent that
-    already has the viewport's height, which is what makes `overflow-y: auto`
-    inside them mean anything.
-
-    The section rail is as wide as the app sidebar's panel beside it
-    (`--sidebar-panel-w`, 224): two navigation columns side by side at two
-    different widths read as a mistake. The properties pane is the
-    artboard's 340.
-  */
-  const panes = "min-w-0 md:flex md:min-h-0 md:flex-1 md:overflow-hidden";
-
-  /**
-   * The record's actions, in the top app bar.
-   *
-   * Two shapes, because the bar has two.
-   *
-   * On a desktop the bar renders whatever it is given, side by side, so the
-   * secondary actions are collected into a menu here — a row of five buttons
-   * beside the record's name is not a bar, it is a toolbar.
-   *
-   * On a phone the bar does its own collecting: it shows the first action and
-   * folds the rest behind a "More actions" button of its own. Handing it a
-   * menu, as this used to, meant the phone put a menu inside a menu — you
-   * pressed `···` and got a panel containing a single unlabelled `···` to
-   * press again, with two controls on screen both called "More actions". So
-   * the phone gets the actions flat and the bar folds them once.
-   */
   const barActions = useMemo(() => {
     if (!actions || actions.length === 0) return primaryAction;
 
@@ -539,23 +430,7 @@ export function RecordPageShell({
   }, [actions, narrow, primaryAction]);
 
   return (
-    // A page below `md`, a fixed shell above it — see `.record-shell`.
     <div className="record-shell space-y-4 md:space-y-0">
-      {/* Drilled into a section on a phone, "up" is the record — not the list
-          it came from. Getting that wrong is what makes a drilldown feel like
-          a trapdoor: you open Documents, press back, and you are in the leads
-          list with the record gone.
-
-          Only on a phone, though. A desktop never leaves the record — the
-          rail and the section sit side by side — so "up" stays the list, and
-          pointing it at the record would put the record's name in the bar
-          twice, once as the back link and once as the title.
-
-          Otherwise "up" is wherever the reader actually came from. Three hops
-          into a graph — a deal, its company, another deal there — the list
-          this record belongs to is not up, it is sideways, and an arrow
-          pointing at it throws away the path. The trail knows the path; the
-          list is what it falls back to when there isn't one. */}
       <PageChrome
         title={title}
         reference={reference}
@@ -569,108 +444,110 @@ export function RecordPageShell({
         {barActions}
       </PageChrome>
 
-      {/* The record's toolbar: where it is in its lifecycle and the move to
-          the next stage, the controls the page adds, and its headline figure
-          — the things you act on while working the record, in view the whole
-          time. A row of the shell rather than the first thing in a scroller,
-          so there is nothing for it to scroll away from. */}
-      <RecordToolbar status={status} stage={stage} figure={figure}>
-        {toolbar}
-      </RecordToolbar>
+      <div className="crm-bk-rec min-w-0 md:min-h-0 md:flex-1">
+        <div className="crm-bk-main md:overflow-y-auto">
+          {finding ? (
+            <div className="crm-bk-finding">
+              <span className="fl">{finding.label ?? "Finding"}</span>
+              <span className="min-w-0 flex-1">{finding.text ?? finding.children}</span>
+              {finding.action ? (
+                <div className="ml-auto shrink-0">
+                  {typeof finding.action === "object" && "label" in finding.action && "onClick" in finding.action ? (
+                    <button type="button" className="fl-act" onClick={finding.action.onClick}>
+                      {finding.action.label}
+                    </button>
+                  ) : (
+                    finding.action
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-      <div className={panes}>
-        {/* The sections, in a pane of their own. It scrolls independently, so a
-            record with thirteen sections keeps every one reachable without
-            scrolling the conversation back to the top to get at them. */}
-        {hasSectionRail ? (
-          // As wide as the app sidebar's panel, on 10/8 of padding, against the
-          // subtle hairline. White, because the pane beside it carries the
-          // canvas tint and the seam between them is what makes it a rail.
-          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 py-2.5 md:block md:w-[var(--sidebar-panel-w)]">
-            {sectionRail}
-            {/* Records this one points at. Under the sections rather than
-                beside them: these are places to go, the same as a section, and
-                a second rail on the other side of the page would be two lists
-                of destinations facing each other. */}
-            {related ? (
-              <div className="mt-4">
-                <p className="acct-rail-heading px-3 pb-1.5">Related</p>
-                {related}
+          <div className="crm-bk-hd">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              {leading ? (
+                <span className="mt-0.5 flex-none">{leading}</span>
+              ) : RecordIcon ? (
+                <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-muted)]">
+                  <RecordIcon className="size-4" aria-hidden="true" />
+                </span>
+              ) : null}
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {onTitleCommit ? (
+                    <RecordTitleEditor title={title} onCommit={onTitleCommit} />
+                  ) : (
+                    <h1>{title}</h1>
+                  )}
+                  {status ? <StatusChip status={status.status} label={status.label} /> : null}
+                </div>
+                {reference || subtitle ? (
+                  <div className="crm-bk-ml">
+                    {reference ? <span className="mono">{reference}</span> : null}
+                    {reference && subtitle ? <span>·</span> : null}
+                    {subtitle ? <span>{subtitle}</span> : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {figure || stage || toolbar ? (
+              <div className="flex flex-wrap items-center justify-end gap-2.5">
+                {stage}
+                {toolbar}
+                {figure ? (
+                  <span className="font-mono text-[18px] font-semibold tracking-[-0.02em] tabular-nums text-[var(--color-ink)]">
+                    {figure}
+                  </span>
+                ) : null}
               </div>
             ) : null}
-          </aside>
-        ) : null}
+          </div>
 
-        {/* The section being read. The canvas tint, so the cards inside it read
-            as raised off something; the rails either side stay white.
-
-            `scroll-padding-top` is the artboard's 130: a composer or a table
-            header pinned inside this pane must never be what keyboard focus
-            lands underneath. */}
-        <div
-          className={cn(
-            "min-w-0 space-y-4",
-            "md:flex-1 md:space-y-0 md:overflow-y-auto md:bg-[var(--canvas)] md:px-4 md:py-3 md:[scroll-padding-top:130px]",
-          )}
-        >
-          {/* The record, at the head of the landing view, where a phone has no
-              column to stand it in — identity first, then the same banded
-              sections the pane on a desktop carries. */}
-          {!openSection ? (
-            <div className="space-y-5 lg:hidden">
-              {identityBlock}
-              {railSections}
+          {kpis && kpis.length > 0 ? (
+            <div className="crm-bk-strip">
+              <div
+                className="crm-bk-kstrip"
+                style={{ gridTemplateColumns: `repeat(${Math.min(kpis.length, 4)}, minmax(0, 1fr))` }}
+              >
+                {kpis.map((kpi, idx) => (
+                  <div key={idx} className="crm-bk-kt">
+                    <div className="l">{kpi.label}</div>
+                    <div
+                      className={cn(
+                        "v",
+                        kpi.tone === "up" && "up",
+                        kpi.tone === "warn" && "warn",
+                        kpi.tone === "bad" && "bad",
+                      )}
+                    >
+                      {kpi.value}
+                    </div>
+                    {kpi.sub ? <div className="d">{kpi.sub}</div> : null}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
 
-          {/* Drilled in on a phone, the section names itself — the bar is
-              still carrying the record's name. */}
-          {openSection && !currentTab?.titled ? (
-            <h2 className="text-base font-semibold text-[var(--text-strong)] md:hidden">
-              {currentTab?.label}
-            </h2>
-          ) : null}
+          {hasSectionRail ? sectionTabs : null}
 
-          <div className="min-w-0">{currentTab?.content}</div>
+          <div className="crm-bk-body">
+            {!openSection ? (
+              <div className="mb-5 space-y-4 lg:hidden">{railSections}</div>
+            ) : null}
 
-          {/* The same rail, at the foot of the landing view, where a phone
-              has no column to put it in. One component either way, so a
-              section reads the same whichever width you meet it at. */}
-          {hasSectionRail && !openSection ? (
-            <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">
-              {sectionRail}
-            </div>
-          ) : null}
+            <div className="min-w-0">{currentTab?.content}</div>
+          </div>
         </div>
 
-        {/* The properties pane: what this record holds, beside whichever
-            section is being read. Banded sections rather than a stack of
-            cards — Properties, then whatever the page adds. Collapsible,
-            because a reader working through a long document list wants the
-            width.
-
-            Its own scrollport, which is what lets the headings inside it pin.
-            `RailSection` draws each heading as a band that sticks to the top of
-            this pane — the artboard's Properties / How warm / Up next / Contact
-            so far strips — and a sticky child only pins against the nearest
-            scrolling ancestor. Without the overflow here that ancestor is the
-            page, and the headings do nothing. */}
         {infoShown ? (
-          // 340 wide on 14 of padding, against the card hairline rather than
-          // the subtle one — this seam separates two panes, where the rail's
-          // only separates a rail from its content.
-          <aside className="hidden shrink-0 overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-base)] px-3.5 lg:block lg:w-[21.25rem]">
-            {/* No padding above the first band: it is the pane's own heading
-                and it pins to the top of the scrollport, so anything stacked
-                over it is a strip that slides underneath on the first
-                scroll. */}
-            <div className="pb-5">{railSections}</div>
+          <aside className="crm-bk-rail hidden shrink-0 overflow-y-auto lg:block">
+            {railSections}
           </aside>
-        ) : (
-          <aside className="hidden shrink-0 border-l border-[var(--border)] bg-[var(--surface-base)] px-2 pt-2 lg:block">
-            {railToggle}
-          </aside>
-        )}
+        ) : null}
       </div>
 
       {children}
@@ -703,7 +580,7 @@ function RecordTitleEditor({
         type="button"
         onClick={() => setDraft(title)}
         title="Rename"
-        className="-mx-1.5 block w-full rounded-[var(--radius-sm)] px-1.5 text-left text-base font-semibold leading-snug text-[var(--text-strong)] hover:bg-[var(--surface-subtle)]"
+        className="-mx-1.5 rounded-[var(--radius-sm)] px-1.5 text-left text-[19px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ink)] hover:bg-[var(--color-hover)]"
       >
         {title}
       </button>
@@ -722,7 +599,7 @@ function RecordTitleEditor({
       rows={Math.min(4, Math.max(1, Math.ceil(draft.length / 28)))}
       value={draft}
       aria-label="Record name"
-      className="-mx-1.5 block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-base)] px-1.5 py-0.5 text-base font-semibold leading-snug text-[var(--text-strong)] outline-none focus:border-[var(--action-primary-bg)]"
+      className="-mx-1.5 block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[19px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ink)] outline-none focus:border-[var(--color-ink)]"
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
@@ -738,15 +615,6 @@ function RecordTitleEditor({
 
 /**
  * A titled block in the record page's rail.
- *
- * No frame. A record has seven or eight of these — the value, the score, what
- * is next, the last email, what is owed — and a border around each turned the
- * rail into a column of boxes that all shout equally, which on a phone is the
- * first thing anybody sees. The heading already says where one section stops
- * and the next starts; a box around it says the same thing twice, louder.
- *
- * Headings are small and quiet on purpose. They are signposts for the figures
- * beneath them, and the figures are the content.
  */
 export function RailSection({
   title,
@@ -761,29 +629,19 @@ export function RailSection({
   children: ReactNode;
 }) {
   return (
-    <section>
-      {/* A band, not a line of text.
-
-          Uppercase and letter-spaced rather than merely small: at this size a
-          lowercase grey heading reads as another line of body text, which is
-          what left the rail looking like one undifferentiated column. The tint
-          and the hairlines are what make it a boundary, and it pins to the top
-          of the column so you can still see which block you are reading eight
-          properties down. Bleeds out by the column's padding so the rules reach
-          both edges instead of floating inside it. */}
-      <div className="sticky top-0 z-10 -mx-3.5 mb-2 flex h-[30px] items-center gap-2 border-y border-[var(--border-subtle)] bg-[var(--canvas)] px-3.5">
-        {/* `--text-muted`, not the subtle ink the rail headings elsewhere use.
-            This one sits on the canvas tint rather than on white, and at 10px
-            the lighter grey stopped reading as a heading and started reading as
-            a disabled label. */}
-        <h3 className="acct-rail-heading text-[var(--text-muted)]">{title}</h3>
-        {meta ? <span className="ml-auto font-mono text-sm font-bold">{meta}</span> : null}
+    <section className="crm-bk-rsec">
+      <div className="mb-2.5 flex items-center gap-2">
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-muted)]">
+          {title}
+        </h3>
+        {meta ? (
+          <span className="ml-auto font-mono text-[12px] font-semibold tabular-nums text-[var(--color-ink)]">
+            {meta}
+          </span>
+        ) : null}
         {action ? <span className={cn("flex items-center", meta ? "" : "ml-auto")}>{action}</span> : null}
       </div>
-      {/* The artboard's body inset. Without it the last row of one section and
-          the band opening the next are 8px apart, which reads as the row
-          belonging to the section below it. */}
-      <div className="pb-3">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }

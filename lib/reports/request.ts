@@ -110,12 +110,22 @@ export function paramsFromSearch(search: URLSearchParams): ReportParams {
 /** The caller as the list engine asks about them: the matrix, cost, the clock, the zone. */
 export function listContext(session: AuthenticatedSession, now = new Date()): ListContext {
   const role = session.user.role;
+  const enabledFeatures = session.user.enabledFeatures ?? [];
   return {
     role,
     userId: session.user.id,
     now,
     timeZone: DEFAULT_TIME_ZONE,
-    can: (grant) => grant[0] !== "admin" && canRetailSessionDo(session, grant[0], grant[1]),
+    can: (grant) => {
+      if (grant[0] === "admin") return false;
+      if (grant[0].startsWith("crm.")) {
+        return enabledFeatures.some((f) => f.startsWith("crm."));
+      }
+      if (grant[0].startsWith("stores.")) {
+        return enabledFeatures.some((f) => f.startsWith("stores."));
+      }
+      return canRetailSessionDo(session, grant[0], grant[1]);
+    },
     seeCost: canSeeRetailCostPrice(retailRoleKey(session)),
   };
 }

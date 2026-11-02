@@ -234,7 +234,10 @@ export type ReportView = {
 export type RetailListGrant = [RetailResource, RetailAction];
 /** A grant from the admin portal's operator roles (`lib/operators/roles`), for the admin's lists. */
 export type AdminListGrant = ["admin", OperatorAction];
-export type ListGrant = RetailListGrant | AdminListGrant;
+export type FeatureResource = "crm.core" | "crm.documents" | "stores.catalogue" | "stores.inventory";
+export type FeatureAction = "view" | "create" | "update" | "delete";
+export type FeatureListGrant = [FeatureResource, FeatureAction];
+export type ListGrant = RetailListGrant | AdminListGrant | FeatureListGrant;
 
 /** How a judgement is coloured. Colour always comes with a word. */
 export type Tone = "ok" | "warn" | "bad" | "info" | "neutral" | "hollow" | "pending" | "gold";

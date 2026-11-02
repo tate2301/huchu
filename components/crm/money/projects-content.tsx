@@ -61,8 +61,8 @@ const BUDGET_OPTIONS = new Map([
   ["within", "Within budget"],
 ]);
 
-/** A register's measure: wide enough for its figures, not the whole window. */
-const WIDTH = 1080;
+/** A register's measure: full worksheet width. */
+const WIDTH = 1600;
 
 /** What is left of the budget, or by how much it is over. Null when there is none. */
 function budgetLeft(costs: ProjectCosts): { text: string; over: boolean } | null {
@@ -125,10 +125,6 @@ export function ProjectsContent() {
   const rows = useMemo(() => projectsQuery.data?.data ?? [], [projectsQuery.data]);
   const total = projectsQuery.data?.pagination?.total ?? rows.length;
 
-  const statusOptions = useMemo(
-    () => new Map(PROJECT_STATUSES.map((value) => [value, PROJECT_STATUS_LABELS[value]])),
-    [],
-  );
   const ownerOptions = useMemo(() => {
     // A project nobody owns is the one most worth finding, so it is an answer
     // in its own right rather than folded into "Anyone".
@@ -141,8 +137,8 @@ export function ProjectsContent() {
     [companiesQuery.data],
   );
 
-  const filterCount = [status, owner, client, budget].filter((value) => value !== FILTER_ANY).length;
-  const narrowed = Boolean(debouncedSearch.trim()) || filterCount > 0;
+  const filterCount = [owner, client, budget].filter((value) => value !== FILTER_ANY).length;
+  const narrowed = Boolean(debouncedSearch.trim()) || filterCount > 0 || status !== FILTER_ANY;
 
   const empty = narrowed ? "No projects match." : "No projects yet.";
 
@@ -151,9 +147,89 @@ export function ProjectsContent() {
     setPage(1);
   };
 
+  const overBudgetCount = useMemo(
+    () => rows.filter((p) => p.costs.budget !== null && Number(p.costs.remaining) < 0).length,
+    [rows],
+  );
+  const unownedCount = useMemo(() => rows.filter((p) => !p.manager).length, [rows]);
+
+  const finding = useMemo(() => {
+    if (projectsQuery.isLoading || rows.length === 0) return null;
+    if (overBudgetCount > 0) {
+      return {
+        tone: "bad" as const,
+        children: (
+          <>
+            <b>
+              {overBudgetCount} {overBudgetCount === 1 ? "project is" : "projects are"} over budget
+            </b>{" "}
+            on this view
+            {unownedCount > 0 ? ` · ${unownedCount} without an assigned project owner.` : "."}
+          </>
+        ),
+        action:
+          budget !== "over"
+            ? {
+                label: "Filter over budget →",
+                onClick: () => {
+                  setBudget("over");
+                  setPage(1);
+                },
+              }
+            : {
+                label: "Show all budgets",
+                onClick: () => {
+                  setBudget(FILTER_ANY);
+                  setPage(1);
+                },
+              },
+      };
+    }
+    if (unownedCount > 0) {
+      return {
+        tone: "warn" as const,
+        children: (
+          <>
+            <b>
+              {unownedCount} {unownedCount === 1 ? "project has" : "projects have"} no owner
+            </b>{" "}
+            assigned to answer for the budget and schedule.
+          </>
+        ),
+        action:
+          owner !== NOBODY
+            ? {
+                label: "Show unowned →",
+                onClick: () => {
+                  setOwner(NOBODY);
+                  setPage(1);
+                },
+              }
+            : undefined,
+      };
+    }
+    return null;
+  }, [budget, overBudgetCount, owner, projectsQuery.isLoading, rows.length, unownedCount]);
+
+  const statusTabs = useMemo(
+    () => [
+      { value: FILTER_ANY, label: "All projects", count: status === FILTER_ANY ? total : undefined },
+      ...PROJECT_STATUSES.map((value) => ({
+        value,
+        label: PROJECT_STATUS_LABELS[value],
+        count: status === value ? total : undefined,
+      })),
+    ],
+    [status, total],
+  );
+
   return (
     <RecordListShell
       title="Projects"
+      finding={finding}
+      tabs={statusTabs}
+      activeTab={status}
+      onTabChange={resetPage(setStatus)}
       search={search}
       onSearchChange={resetPage(setSearch)}
       searchPlaceholder="Search by name or number"
@@ -165,13 +241,6 @@ export function ProjectsContent() {
       filterCount={filterCount}
       filters={
         <>
-          <ViewToolbarFilter
-            label="Status"
-            value={status}
-            anyLabel="Any"
-            options={statusOptions}
-            onChange={resetPage(setStatus)}
-          />
           <ViewToolbarFilter
             label="Owner"
             value={owner}

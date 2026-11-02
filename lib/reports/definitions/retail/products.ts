@@ -17,7 +17,13 @@ import { COVER_WARN_PCT } from "@/lib/retail/products/figures";
 
 const products: ListSpec = {
   noun: "products",
-  read: [["retail.catalog", "view"]],
+  read: [
+    ["retail.catalog", "view"],
+    ["stores.catalogue", "view"],
+    ["stores.inventory", "view"],
+    ["crm.core", "view"],
+    ["crm.documents", "view"],
+  ],
   search: { placeholder: "Name, code or barcode", keys: ["name", "code", "barcode"] },
   tabs: [
     { key: "selling", label: "Selling", where: [{ column: "state", op: "is", value: ["Selling"] }] },
@@ -260,7 +266,11 @@ const PRODUCT_PARENT: ListSpec["filters"][number] = { key: "product", type: "par
 /** Sales: every posted line of the product, a refund's negative, newest first. */
 const productSales: ListSpec = {
   noun: "sales",
-  read: [["retail.catalog", "view"]],
+  read: [
+    ["retail.catalog", "view"],
+    ["stores.catalogue", "view"],
+    ["crm.core", "view"],
+  ],
   search: { placeholder: "Sale, till or cashier", keys: ["saleNo", "till", "cashier"] },
   filters: [{ key: "when", label: "When", type: "period", any: "Any time", column: "date", default: "30d" }, PRODUCT_PARENT],
   sorts: [
@@ -291,7 +301,11 @@ const productSales: ListSpec = {
 /** Price history: every change of its price on any list, scheduled ones first by date. */
 const productPriceHistory: ListSpec = {
   noun: "price changes",
-  read: [["retail.prices", "view"]],
+  read: [
+    ["retail.prices", "view"],
+    ["stores.catalogue", "view"],
+    ["crm.core", "view"],
+  ],
   search: { placeholder: "List or person", keys: ["list", "by"] },
   filters: [PRODUCT_PARENT],
   sorts: [
@@ -332,7 +346,11 @@ const productPriceHistory: ListSpec = {
 /** Suppliers: who delivers it, and the one it is usually ordered from. */
 const productSuppliers: ListSpec = {
   noun: "suppliers",
-  read: [["retail.catalog", "view-cost"]],
+  read: [
+    ["retail.catalog", "view-cost"],
+    ["stores.catalogue", "view"],
+    ["crm.core", "view"],
+  ],
   search: { placeholder: "Supplier", keys: ["supplier"] },
   filters: [PRODUCT_PARENT],
   sorts: [

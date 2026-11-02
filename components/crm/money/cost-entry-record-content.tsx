@@ -158,6 +158,66 @@ export function CostEntryRecordContent({ entryId }: { entryId: string }) {
     },
   ];
 
+  const entryFinding = entry.notReceipted
+    ? {
+        tone: "bad" as const,
+        children: (
+          <>
+            <b>Cash received has not been receipted</b> by the office.
+          </>
+        ),
+      }
+    : noReceipt
+      ? {
+          tone: "warn" as const,
+          children: (
+            <>
+              <b>Missing receipt photo</b> — this expense line has no receipt uploaded.
+            </>
+          ),
+        }
+      : null;
+
+  const entryKpis = [
+    {
+      label: spent ? "Amount spent" : "Amount received",
+      value: formatMoney(entry.amount, entry.currency),
+      sub: CATEGORY_LABELS[entry.category],
+    },
+    {
+      label: "Logged by",
+      value: person,
+      sub: `Day: ${formatDate(day)}`,
+    },
+    {
+      label: "Allocated to",
+      value: entry.project ? entry.project.name : "General / Unallocated",
+      sub: entry.requisition
+        ? `Requisition ${entry.requisition.requisitionNo}`
+        : entry.invoiceDocument?.invoice?.invoiceNumber
+          ? `Invoice ${entry.invoiceDocument.invoice.invoiceNumber}`
+          : spent
+            ? "Direct expense"
+            : "Customer payment",
+    },
+    {
+      label: "Receipt status",
+      value: entry.notReceipted
+        ? "Not receipted"
+        : noReceipt
+          ? "Missing photo"
+          : entry.receiptUrl
+            ? "Attached"
+            : "Verified",
+      sub: entry.log.submittedAt ? `Closed ${formatDate(entry.log.submittedAt)}` : "Day still open",
+      tone: entry.notReceipted
+        ? ("bad" as const)
+        : noReceipt
+          ? ("warn" as const)
+          : ("ok" as const),
+    },
+  ];
+
   return (
     <RecordPageShell
       icon={Coins}
@@ -165,6 +225,8 @@ export function CostEntryRecordContent({ entryId }: { entryId: string }) {
       backLabel="Cost tracker"
       title={entry.description}
       subtitle={`${spent ? "Expense" : "Income"} · ${person}`}
+      finding={entryFinding}
+      kpis={entryKpis}
       // Rule 5: the toolbar speaks only for what is missing.
       status={
         entry.notReceipted

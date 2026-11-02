@@ -103,16 +103,20 @@ export function RecordList({
   useListSequence(rows.map((row) => row.href));
   if (isLoading) {
     return (
-      <div className="space-y-2" aria-busy="true" aria-live="polite">
-        <Skeleton height={64} />
-        <Skeleton height={64} />
-        <Skeleton height={64} />
+      <div className="divide-y divide-[var(--color-line)] border-b border-[var(--color-line)] px-6 py-2" aria-busy="true" aria-live="polite">
+        <Skeleton height={44} />
+        <Skeleton height={44} />
+        <Skeleton height={44} />
       </div>
     );
   }
 
   if (rows.length === 0) {
-    return <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />;
+    return (
+      <div className="p-8">
+        <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />
+      </div>
+    );
   }
 
   const selectedIds = selection?.selectedIds ?? [];
@@ -126,25 +130,26 @@ export function RecordList({
   return (
     <>
     <ul
-      // Space between rows, not rules. A divider draws a line the reader has
-      // to cross for every row; a gap does the same separating without adding
-      // anything to look at, and the rows stop reading as a ruled ledger.
-      className={cn("space-y-1", className)}
+      className={cn(
+        "divide-y divide-[var(--color-line)] border-b border-[var(--color-line)] bg-[var(--color-surface)]",
+        className,
+      )}
     >
       {rows.map((row) => {
         const primaryFact = row.facts?.find((fact) => fact.primary);
+        const isSelected = selectedIds.includes(row.id);
         return (
         <li
           key={row.id}
           className={cn(
-            "relative flex items-center gap-3 rounded-[var(--radius-md)] pr-3",
-            selectedIds.includes(row.id) && "bg-[var(--surface-subtle)]",
+            "relative flex items-center gap-3 pr-6 transition-colors hover:bg-[var(--color-hover)]",
+            isSelected && "bg-[var(--color-fill)]",
           )}
         >
           {selection ? (
-            <span className="flex-none pl-3">
+            <span className="flex-none pl-6">
               <Checkbox
-                checked={selectedIds.includes(row.id)}
+                checked={isSelected}
                 onCheckedChange={() => toggle(row.id)}
                 aria-label={`Select ${typeof row.title === "string" ? row.title : "this row"}`}
               />
@@ -153,11 +158,8 @@ export function RecordList({
           <Link
             href={row.href}
             className={cn(
-              // `min-h-11` is the 44px touch target. `py-2.5` alone gives a
-              // one-line row about 40px tall, which is under every platform's
-              // minimum and reads as a near-miss rather than a miss.
-              "group/row flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-md)] py-2.5 pr-3 hover:bg-[var(--surface-muted)]",
-              selection ? "pl-2" : "pl-3",
+              "group/row flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2.5 pr-3",
+              selection ? "pl-2" : "pl-6",
             )}
           >
             {row.leading ? <span className="flex-none">{row.leading}</span> : null}
@@ -278,35 +280,36 @@ export function RecordListPager({
   onPageChange: (page: number) => void;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  if (total <= pageSize) return null;
+  if (total === 0) return null;
 
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-[var(--text-muted)]">
-        Showing <span className="font-mono">{from}</span>–<span className="font-mono">{to}</span> of{" "}
-        <span className="font-mono">{total}</span>
+    <div className="crm-bk-pager">
+      <p className="crm-bk-pager-range">
+        {from} to {to} of {total.toLocaleString("en-US")}
       </p>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={page <= 1}
-          onClick={() => onPageChange(page - 1)}
-        >
-          Previous
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={page >= pages}
-          onClick={() => onPageChange(page + 1)}
-        >
-          Next
-        </Button>
-      </div>
+      {total > pageSize ? (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            Previous
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={page >= pages}
+            onClick={() => onPageChange(page + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

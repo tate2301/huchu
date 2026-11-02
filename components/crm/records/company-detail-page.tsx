@@ -284,6 +284,32 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       figure={wonValue > 0 ? formatMoney(wonValue, currency) : undefined}
       status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? null}
       subtitle={subtitle}
+      kpis={[
+        {
+          label: "Won revenue",
+          value: formatMoney(wonValue, currency),
+          tone: wonValue > 0 ? "up" : "default",
+          sub: `${company.deals.filter((d) => d.status === "WON").length} won deals`,
+        },
+        {
+          label: "Open pipeline",
+          value: formatMoney(
+            openDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
+            currency,
+          ),
+          sub: `${openDeals.length} active deal${openDeals.length === 1 ? "" : "s"}`,
+        },
+        {
+          label: "People",
+          value: String(company.people.length),
+          sub: company.people[0]?.fullName ?? "No contacts yet",
+        },
+        {
+          label: "Sites",
+          value: String(company.sites.length),
+          sub: company.city ?? "No primary city",
+        },
+      ]}
       activeTab={tab}
       attributes={
         <RecordAttributes

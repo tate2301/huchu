@@ -7,19 +7,24 @@ import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { cn } from "@/lib/utils";
 
 import { ListSearch } from "./list-search";
-import { ViewToolbar } from "@/components/records/view-toolbar";
+import type { RegisterFinding, RegisterKpi } from "@/components/crm/registers/register-shell";
 import { getApiErrorMessage } from "@/lib/api-client";
 
+export type RecordListTab = {
+  value: string;
+  label: string;
+  count?: number | null;
+};
+
+function isStructuredFinding(
+  finding: RegisterFinding,
+): finding is { fact: ReactNode; rest?: ReactNode; end?: ReactNode } {
+  return Boolean(finding && typeof finding === "object" && "fact" in finding);
+}
+
 /**
- * The frame every CRM record list shares: title, search box, filters, a
- * create button, and consistent error handling. Keeping it in one place is
- * what stops people, companies, deals and sites drifting into four
- * differently-shaped pages.
- *
- * The title and the create button are registered with the top app bar rather
- * than drawn here. A page that repeats its own name below a bar that already
- * says it is spending a band of vertical space on nothing, and the rule that
- * band drew was the seam between the bar and the content.
+ * The frame every CRM record list shares: title, Books finding banner, optional
+ * KPI strip, Books view tabs row, worksheet tools row, and full-bleed records.
  */
 export function RecordListShell({
   title,
@@ -30,12 +35,16 @@ export function RecordListShell({
   layout,
   filters,
   display,
-  filterCount,
   count,
   createLabel,
   onCreate,
   error,
   notice,
+  finding,
+  kpis,
+  tabs,
+  activeTab,
+  onTabChange,
   width = "full",
   children,
 }: {
@@ -43,58 +52,24 @@ export function RecordListShell({
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
-  /**
-   * What the phone's placeholder says after "Search". Defaults to the page's
-   * own title, which is the right noun on every list here — pass one only
-   * where the title is not what the rows are ("Collections" holding invoices).
-   */
   searchNoun?: string;
-  /**
-   * The layout switch — `LayoutSwitch`, on every list that has more than one
-   * arrangement. Separate from `filters` so the toolbar can put the rule in the
-   * right place without a page having to remember to.
-   */
   layout?: ReactNode;
   filters?: ReactNode;
-  /** Display controls — column picker, card fields — pushed right. */
   display?: ReactNode;
-  /**
-   * How many of `filters` are actually narrowing the list. Only reaches the
-   * phone, where the filters live behind one button and an active one would
-   * otherwise be invisible.
-   */
   filterCount?: number;
-  /**
-   * How many rows are showing, out of how many there are — "50 of 214".
-   *
-   * Sits in the toolbar beside the display controls, which is where the
-   * artboards put it: it answers whatever the filters just asked, and belongs
-   * next to the question rather than at the foot of the table.
-   */
   count?: ReactNode;
-  /** Omit both to get a list with no create button — quotes and invoices are
-   *  raised against a deal, never from a directory of them. */
   createLabel?: string;
   onCreate?: () => void;
   error?: unknown;
-  /**
-   * A standing instruction about the whole list — the site-visit list's "take
-   * geotagged photos". Drawn above the toolbar rather than between it and the
-   * rows, because the toolbar's hairline is the seam the rows hang off.
-   */
   notice?: ReactNode;
-  /**
-   * "narrow" caps the whole surface at max-w-3xl. A register of one-line
-   * items — tasks, receipts, work orders — reads as a column, and stretching
-   * it across a wide screen just puts air between the title and its facts.
-   */
+  finding?: RegisterFinding | null;
+  kpis?: RegisterKpi[];
+  tabs?: RecordListTab[];
+  activeTab?: string;
+  onTabChange?: (value: string) => void;
   width?: "full" | "narrow";
   children: ReactNode;
 }) {
-  // The create action is the page's one primary (00-foundations 5.3.5): the
-  // orange button at the right of the header, and the 44px plus on a phone.
-  // The handler is read through a ref so a page passing a fresh arrow each
-  // render does not re-register the header on every render.
   const onCreateRef = useRef(onCreate);
   useEffect(() => {
     onCreateRef.current = onCreate;
@@ -110,14 +85,7 @@ export function RecordListShell({
 
   return (
     <div
-      className={cn(width === "narrow" && "max-w-3xl")}
-      // The next rung of the sticky stack, handed down for the table header to
-      // pin at. It has to be published here rather than on the toolbar: the
-      // toolbar is the table's sibling, not its ancestor, so nothing it
-      // declares reaches the thead. And it cannot be written straight onto
-      // `--stack-top`, because a custom property defined in terms of itself is
-      // a cycle and resolves to nothing — hence the relay through
-      // `--stack-next`, the same one the accounting shells use.
+      className={cn("crm-bk-worksheet", width === "narrow" && "max-w-3xl")}
       style={
         {
           "--stack-next": "calc(var(--stack-top, 0px) + var(--list-toolbar-h))",
@@ -126,40 +94,120 @@ export function RecordListShell({
     >
       <PageChrome title={title} primary={primary} />
 
-      {notice ? <div className="mb-3">{notice}</div> : null}
+      {finding ? (
+        <div className="crm-bk-finding">
+          {isStructuredFinding(finding) ? (
+            <>
+              <div className="crm-bk-finding-text">
+                <span className="crm-bk-finding-fact">{finding.fact}</span>
+                {finding.rest ? <span className="crm-bk-finding-rest"> {finding.rest}</span> : null}
+              </div>
+              {finding.end ? <div className="crm-bk-finding-end">{finding.end}</div> : null}
+            </>
+          ) : finding && typeof finding === "object" && ("children" in finding || "text" in finding) ? (
+            <>
+              <div className="crm-bk-finding-text">
+                {"label" in finding && finding.label ? <strong className="crm-bk-finding-fact mr-2">{finding.label}</strong> : null}
+                {"text" in finding ? finding.text : "children" in finding ? finding.children : null}
+              </div>
+              {"action" in finding && finding.action ? (
+                <div className="crm-bk-finding-end">
+                  {typeof finding.action === "object" && finding.action && "label" in finding.action && "onClick" in finding.action ? (
+                    <button type="button" className="fl-act" onClick={finding.action.onClick}>
+                      {finding.action.label}
+                    </button>
+                  ) : (
+                    finding.action
+                  )}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="crm-bk-finding-text">{finding as ReactNode}</div>
+          )}
+        </div>
+      ) : null}
 
-      <ViewToolbar
-        layout={layout}
-        start={filters}
-        search={
+      {kpis && kpis.length > 0 ? (
+        <div className="crm-bk-strip">
+          <div
+            className="crm-bk-kstrip"
+            style={{ gridTemplateColumns: `repeat(${kpis.length}, minmax(0, 1fr))` }}
+          >
+            {kpis.map((kpi) => (
+              <div className="crm-bk-kt" key={kpi.label}>
+                <span className="crm-bk-kt-l">{kpi.label}</span>
+                <span className="crm-bk-kt-v">{kpi.value}</span>
+                {kpi.note ? <span className="crm-bk-kt-n">{kpi.note}</span> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className="px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-ground)] text-sm text-[var(--color-muted)]">
+          {notice}
+        </div>
+      ) : null}
+
+      {tabs && tabs.length > 0 ? (
+        <div className="crm-bk-tabs-bar">
+          <div className="crm-bk-tabs" role="tablist" aria-label={`${title} views`}>
+            {tabs.map((tab) => {
+              const selected = activeTab === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className="crm-bk-tab"
+                  onClick={() => onTabChange?.(tab.value)}
+                >
+                  <span>{tab.label}</span>
+                  {typeof tab.count === "number" ? (
+                    <span className="n">{tab.count.toLocaleString("en-US")}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          {layout ? <div className="crm-bk-tabs-end">{layout}</div> : null}
+        </div>
+      ) : null}
+
+      <div className="crm-bk-tools">
+        <div className="crm-bk-tools-start">
           <ListSearch
             value={search}
             onChange={onSearchChange}
             placeholder={searchPlaceholder}
             noun={searchNoun ?? title.toLowerCase()}
+            narrow
           />
-        }
-        count={count}
-        end={display}
-        filterCount={filterCount}
-      />
+          {filters}
+          {count ? <span className="crm-bk-count">{count}</span> : null}
+        </div>
+        {display || (!tabs?.length && layout) ? (
+          <div className="crm-bk-tools-end">
+            {!tabs?.length && layout ? layout : null}
+            {display}
+          </div>
+        ) : null}
+      </div>
 
       {error ? (
-        <Alert
-          tone="danger"
-          title={`The ${title.toLowerCase()} would not load`}
-          className="mt-4"
-        >
-          {getApiErrorMessage(error)}
-        </Alert>
+        <div className="p-6">
+          <Alert tone="danger" title={`The ${title.toLowerCase()} would not load`}>
+            {getApiErrorMessage(error)}
+          </Alert>
+        </div>
       ) : null}
 
-      {/* Flush against the toolbar, with no gap of its own.
-          The toolbar's hairline is the seam between the controls and the
-          records, and the artboards run the column header straight off the
-          underside of it. A gap here put a strip of page between two sticky
-          bands, and rows slid through it as they scrolled. */}
-      <div style={{ "--stack-top": "var(--stack-next)" } as CSSProperties}>{children}</div>
+      <div className="crm-bk-bleed-reset" style={{ "--stack-top": "var(--stack-next)" } as CSSProperties}>
+        {children}
+      </div>
     </div>
   );
 }

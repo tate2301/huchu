@@ -68,6 +68,8 @@ const REP_STOCK_PREFIXES = [
   "/api/v2/retail/buying",
   "/api/v2/retail/purchasing",
   "/api/v2/retail/requisitions",
+  "/api/v2/retail/lookup",
+  "/api/v2/inventory",
 ];
 
 export const ROLE_ROUTE_ALLOWLIST: Record<string, string[]> = {

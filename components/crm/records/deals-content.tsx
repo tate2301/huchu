@@ -272,12 +272,52 @@ export function DealsContent({ openCreate = false }: { openCreate?: boolean }) {
   // cards, so they can leave it with none at all.
   const noColumns = layout === "BOARD" && register.board.query.data?.columns.length === 0;
 
+  const finding = useMemo(() => {
+    const allDeals =
+      layout === "BOARD"
+        ? (register.board.query.data?.columns ?? []).flatMap((col) => col.cards)
+        : deals;
+    if (allDeals.length === 0) return null;
+    const staleCount = allDeals.filter((d) =>
+      isDealStale(
+        { stageEnteredAt: d.stageEnteredAt, status: d.status },
+        { inactivityDays: d.stage.inactivityDays, status: d.stage.status },
+      ),
+    ).length;
+    const noNextStep = allDeals.filter((d) => d.status === "OPEN" && !d.nextFollowUp).length;
+    if (staleCount > 0 || noNextStep > 0) {
+      return {
+        label: "Pipeline hygiene",
+        text: (
+          <>
+            {staleCount > 0 ? (
+              <>
+                <span className="warn">
+                  {staleCount} deal{staleCount === 1 ? " has" : "s have"} gone quiet
+                </span>{" "}
+                past stage SLA
+              </>
+            ) : null}
+            {staleCount > 0 && noNextStep > 0 ? " · " : null}
+            {noNextStep > 0 ? (
+              <>
+                <b>{noNextStep} open deal{noNextStep === 1 ? "" : "s"}</b> without a scheduled next step
+              </>
+            ) : null}
+          </>
+        ),
+      };
+    }
+    return null;
+  }, [deals, layout, register.board.query.data]);
+
   return (
     <RegisterShell
       register={register}
       title="Deals"
       createLabel="New deal"
       onCreate={() => setCreateOpen(true)}
+      finding={finding}
       display={
         layout === "BOARD" ? (
           <ColumnPicker columns={DEAL_CARD_FIELDS} state={boardFields} label="Fields" size="sm" />

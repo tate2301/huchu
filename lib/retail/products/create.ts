@@ -108,8 +108,29 @@ export async function stockSiteOf(tx: Tx, companyId: string, siteId: string | nu
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true },
   });
-  if (!open) throw new ProductRefusal(400, "This shop has no open site to keep stock at. Add one in Setup › Sites.", "siteId");
-  return open;
+  if (open) return open;
+
+  const existing = await tx.site.findFirst({
+    where: { companyId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, isActive: true },
+  });
+  if (existing) {
+    if (!existing.isActive) {
+      await tx.site.update({ where: { id: existing.id }, data: { isActive: true, closedAt: null, closedById: null } });
+    }
+    return { id: existing.id, name: existing.name };
+  }
+
+  return tx.site.create({
+    data: {
+      companyId,
+      name: "Main",
+      code: "MAIN",
+      isActive: true,
+    },
+    select: { id: true, name: true },
+  });
 }
 
 /** A code no product of the company has, nor any stock line at the site: the name's, then -2, -3… */
