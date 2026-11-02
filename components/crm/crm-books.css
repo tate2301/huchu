@@ -1,0 +1,871 @@
+/* ==========================================================================
+   CRM — Books Design Direction (`crm-books.css`)
+   Implements the Books ledger/worksheet/record/overview aesthetic across CRM:
+   - Atkinson Hyperlegible Next + IBM Plex Mono tabular numerals
+   - 1px hairline grid (`var(--color-line)`), zero floating card chrome on tables
+   - Finding banner (`.crm-bk-finding`) at the top of worksheets & boards
+   - Row 1: View Tabs strip (`.crm-bk-tabs`) on its own hairline row
+   - Row 2: Worksheet Tools row (`.crm-bk-tools`) with 220px search, `.chipsel`
+     filter pills, mono count, and quiet right-aligned Sort/Group/Columns/Export
+   - Selection bar (`.crm-bk-sel`) on `#f4f3ef` / `var(--color-fill)`
+   - Full-bleed 34px/40px worksheet tables with sticky ground header and footer pager
+   - Books Record layout (`.crm-bk-rec`): Main column + 350px right rail (`dl.attrs`),
+     Record Header (`.crm-bk-hd`), KPI Strip (`.crm-bk-strip > .kstrip`), and
+     horizontal section tabs (`.crm-bk-rtabs`).
+   ========================================================================== */
+
+/* 1. Worksheet / Register Shell Container */
+.crm-bk-worksheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
+  margin-top: calc(var(--content-lede, 1.25rem) * -1);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-ink, #141413);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+/* Cancel double negative margins on nested RecordList / ViewToolbar / RecordTable inside .crm-bk-worksheet */
+.crm-bk-worksheet .crm-bk-bleed-reset,
+.crm-bk-worksheet > .-mx-4,
+.crm-bk-worksheet [data-record-list-bleed],
+.crm-bk-worksheet .table-edge-to-edge {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
+}
+
+/* 2. Finding Banner (matches Books `.finding` / `.k-find`) */
+.crm-bk-finding {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 13px 24px;
+  background: var(--color-ground, #fbfbfa);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ink-2, #3d3d3a);
+}
+
+.crm-bk-finding-text {
+  min-width: 0;
+  max-width: 82ch;
+}
+
+.crm-bk-finding-fact {
+  font-weight: 600;
+  color: var(--color-ink, #141413);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-finding-rest {
+  color: var(--color-muted, #6b6a65);
+}
+
+.crm-bk-finding-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-finding-end b {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-ink, #141413);
+}
+
+/* 3. KPI Strip (matches Books `.bk-strip > .kstrip > .kt`) */
+.crm-bk-strip {
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-kstrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.crm-bk-kt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 24px;
+  min-width: 0;
+}
+
+.crm-bk-kt + .crm-bk-kt {
+  box-shadow: inset 1px 0 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-kt-l {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted, #6b6a65);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-bk-kt-v {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-ink, #141413);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-bk-kt-n {
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 759px) {
+  .crm-bk-kstrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .crm-bk-kt {
+    padding: 12px 16px;
+  }
+  .crm-bk-kt:nth-child(odd) {
+    box-shadow: none;
+  }
+  .crm-bk-kt:nth-child(n + 3) {
+    border-top: 1px solid var(--color-line, #e8e6e1);
+  }
+  .crm-bk-kt-v {
+    font-size: 17px;
+  }
+}
+
+/* 4. Row 1: Books View Tabs Strip (`.crm-bk-tabs`) */
+.crm-bk-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  min-height: 40px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  overflow-x: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+  scrollbar-width: none;
+}
+
+.crm-bk-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.crm-bk-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-muted, #6b6a65);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.crm-bk-tab:hover {
+  color: var(--color-ink, #141413);
+}
+
+.crm-bk-tab[aria-selected="true"] {
+  color: var(--color-ink, #141413);
+  font-weight: 600;
+}
+
+.crm-bk-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-ink, #141413);
+}
+
+.crm-bk-tab .n {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-tab[aria-selected="true"] .n {
+  color: var(--color-ink-2, #3d3d3a);
+}
+
+.crm-bk-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-warning, #b45309);
+}
+
+.crm-bk-tabs-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+  padding: 4px 0;
+}
+
+/* 5. Row 2: Books Worksheet Tools Strip (`.crm-bk-tools`) */
+.crm-bk-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 46px;
+  padding: 7px 24px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-tools-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.crm-bk-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.crm-bk-tools-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+}
+
+.crm-bk-sepv {
+  width: 1px;
+  height: 16px;
+  background: var(--color-line, #e8e6e1);
+  margin: 0 4px;
+  flex: none;
+}
+
+/* 6. Selection Bar (`.crm-bk-sel` matching `.k-sel` / `.bk-sel`) */
+.crm-bk-sel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 40px;
+  padding: 6px 24px;
+  background: var(--color-fill, #f4f3ef);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  font-size: 13px;
+  color: var(--color-ink, #141413);
+}
+
+.crm-bk-sel-count {
+  font-size: 13px;
+  color: var(--color-ink-2, #3d3d3a);
+}
+
+.crm-bk-sel-count b {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-ink, #141413);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 7. Books Worksheet Table & Pager (`.crm-bk-table-wrap`, `.crm-bk-pager`) */
+.crm-bk-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--color-surface, #ffffff);
+}
+
+.crm-bk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--color-ink, #141413);
+}
+
+.crm-bk-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--color-ground, #fbfbfa);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted, #6b6a65);
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.crm-bk-table thead th:first-child {
+  padding-left: 24px;
+}
+
+.crm-bk-table thead th:last-child {
+  padding-right: 24px;
+}
+
+.crm-bk-table tbody tr {
+  height: 40px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  transition: background-color 80ms ease;
+}
+
+.crm-bk-table tbody tr:hover {
+  background: var(--color-hover, #f8f7f4);
+}
+
+.crm-bk-table tbody tr[data-selected="true"] {
+  background: var(--color-fill, #f4f3ef);
+}
+
+.crm-bk-table tbody td {
+  padding: 6px 12px;
+  vertical-align: middle;
+  font-size: 13.5px;
+  color: var(--color-ink, #141413);
+}
+
+.crm-bk-table tbody td:first-child {
+  padding-left: 24px;
+}
+
+.crm-bk-table tbody td:last-child {
+  padding-right: 24px;
+}
+
+.crm-bk-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 6px 24px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 1px 0 var(--color-line, #e8e6e1);
+  font-size: 12.5px;
+  color: var(--color-muted, #6b6a65);
+}
+
+.crm-bk-pager-range {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 8. Books Record Detail Layout (`.crm-bk-rec` matching `.bk.bk-rec`) */
+.crm-bk-rec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  min-height: var(--content-viewport, calc(100vh - 56px));
+  margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
+  margin-top: calc(var(--content-lede, 1.25rem) * -1);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-ink, #141413);
+  font-family: var(--font-sans);
+}
+
+.crm-bk-rec.is-single-col {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.crm-bk-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-shadow: inset -1px 0 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-rec.is-single-col .crm-bk-main {
+  box-shadow: none;
+}
+
+.crm-bk-hd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 24px 16px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-hd-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.crm-bk-hd-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.crm-bk-title {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--color-ink, #141413);
+  margin: 0;
+}
+
+.crm-bk-hd-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: none;
+}
+
+.crm-bk-figure {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-ink, #141413);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-ml {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--color-muted, #6b6a65);
+}
+
+.crm-bk-ml .ref {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-ink-2, #3d3d3a);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-ml i {
+  font-style: normal;
+  color: var(--color-faint, #9c9a92);
+}
+
+.crm-bk-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 20px 24px 36px;
+}
+
+/* Books Right Rail (`aside.crm-bk-rail`) */
+.crm-bk-rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-surface, #ffffff);
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.crm-bk-rail-sec {
+  padding: 18px 22px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-rail-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted, #6b6a65);
+  margin-bottom: 10px;
+}
+
+.crm-bk-attrs {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  row-gap: 8px;
+  column-gap: 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.crm-bk-attrs dt {
+  color: var(--color-muted, #6b6a65);
+  font-weight: 400;
+  padding-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-bk-attrs dd {
+  margin: 0;
+  color: var(--color-ink, #141413);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Related links in right rail */
+.crm-bk-related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -8px;
+}
+
+.crm-bk-related-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-ink-2, #3d3d3a);
+  text-decoration: none;
+  transition: background-color 100ms ease;
+}
+
+.crm-bk-related-link:hover {
+  background: var(--color-hover, #f8f7f4);
+  color: var(--color-ink, #141413);
+}
+
+.crm-bk-related-link .n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1023px) {
+  .crm-bk-rec {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .crm-bk-main {
+    box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  }
+  .crm-bk-rail {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 759px) {
+  .crm-bk-finding,
+  .crm-bk-tabs-bar,
+  .crm-bk-tools,
+  .crm-bk-sel,
+  .crm-bk-pager,
+  .crm-bk-hd,
+  .crm-bk-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .crm-bk-table thead th:first-child,
+  .crm-bk-table tbody td:first-child {
+    padding-left: 16px;
+  }
+  .crm-bk-table thead th:last-child,
+  .crm-bk-table tbody td:last-child {
+    padding-right: 16px;
+  }
+}
+
+/* 9. Books Kanban Board inside CRM (`.crm-bk-board`) */
+.crm-bk-board {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  min-height: calc(100vh - 220px);
+  background: var(--color-ground, #fbfbfa);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-board-col {
+  display: flex;
+  flex-direction: column;
+  width: 296px;
+  flex: 0 0 296px;
+  min-height: 100%;
+  box-shadow: inset -1px 0 0 var(--color-line, #e8e6e1);
+  background: var(--color-ground, #fbfbfa);
+}
+
+.crm-bk-board-col-hd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.crm-bk-board-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  flex: 1 1 auto;
+}
+
+.crm-bk-board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 12px;
+  border-radius: 6px;
+  background: var(--color-surface, #ffffff);
+  box-shadow: inset 0 0 0 1px var(--color-line, #e8e6e1);
+  transition: box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.crm-bk-board-card:hover {
+  box-shadow: inset 0 0 0 1px var(--color-rule, #d4d1c8), 0 1px 2px rgba(20, 20, 19, 0.04);
+}
+
+/* 10. Books Overview / Home Sections (`.crm-bk-sec`, `.crm-bk-group-head`, `.crm-bk-shares`, `.crm-bk-needs`) */
+.crm-bk-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 28px 24px 10px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+}
+
+.crm-bk-group-head h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink, #141413);
+  margin: 0;
+}
+
+.crm-bk-group-head .sum {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  font-variant-numeric: tabular-nums;
+}
+
+.crm-bk-needs {
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-bk-need {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  transition: background-color 100ms ease;
+}
+
+.crm-bk-need:hover {
+  background: var(--color-hover, #f8f7f4);
+}
+
+.crm-bk-need-ic {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: var(--color-muted, #6b6a65);
+}
+
+.crm-bk-need-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crm-bk-need-lead {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-ink, #141413);
+  line-height: 1.35;
+}
+
+.crm-bk-need-sub {
+  font-size: 12.5px;
+  color: var(--color-muted, #6b6a65);
+  line-height: 1.4;
+}
+
+.crm-bk-need-act {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Books horizontal share / proportion bars (`.crm-bk-shares`) */
+.crm-bk-shares {
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-bk-share {
+  display: grid;
+  grid-template-columns: minmax(140px, 210px) minmax(80px, 1fr) 56px 64px 116px;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 6px 24px;
+  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  font-size: 13.5px;
+  color: var(--color-ink, #141413);
+  text-decoration: none;
+  transition: background-color 80ms ease;
+}
+
+a.crm-bk-share:hover {
+  background: var(--color-hover, #f8f7f4);
+}
+
+.crm-bk-share-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--color-ink, #141413);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-bk-share-track {
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--color-fill, #f4f3ef);
+  overflow: hidden;
+}
+
+.crm-bk-share-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-ink, #141413);
+}
+
+.crm-bk-share-bar.is-ok {
+  background: var(--color-success, #15803d);
+}
+
+.crm-bk-share-bar.is-warn {
+  background: var(--color-warning, #b45309);
+}
+
+.crm-bk-share-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.crm-bk-share-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink, #141413);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.crm-bk-kt-link {
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 100ms ease;
+}
+
+.crm-bk-kt-link:hover {
+  background: var(--color-hover, #f8f7f4);
+}
+
+@media (max-width: 759px) {
+  .crm-bk-group-head,
+  .crm-bk-need,
+  .crm-bk-share {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .crm-bk-share {
+    grid-template-columns: minmax(0, 1fr) 48px 96px;
+  }
+  .crm-bk-share-track,
+  .crm-bk-share-meta.is-count {
+    display: none;
+  }
+}

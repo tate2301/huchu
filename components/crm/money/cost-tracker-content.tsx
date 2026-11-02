@@ -23,8 +23,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, Button, Skeleton } from "@corelithzw/react";
-import { FactList, SectionHeading, StatusBadge, StatusDot } from "@/components/management/ui";
+import { Button } from "@corelithzw/react";
+import { FactList, StatusBadge } from "@/components/management/ui";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { RecordListPager } from "@/components/records/record-list";
@@ -40,9 +40,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CostEntryFormDialog } from "./cost-entry-form-dialog";
 import { CostEntryTable } from "./cost-entry-table";
 import { formatDay, formatMoney, todayKey, type CostEntryRow } from "./money";
-
-/** The day's measure. */
-const DAY_WIDTH = 560;
 
 type DayResponse = {
   log: { id: string; logDate: string; notes: string | null; submittedAt: string | null };
@@ -62,6 +59,7 @@ export function CostTrackerContent() {
   // written on Wednesday is a guess.
   const [day, setDay] = useState(todayKey);
   const [adding, setAdding] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const dayQuery = useQuery({
     queryKey: ["crm", "daily-log", day],
@@ -76,10 +74,24 @@ export function CostTrackerContent() {
   };
 
   return (
-    <div className="space-y-8">
-      <TheDay day={day} onDayChange={setDay} dayQuery={dayQuery} onChanged={refresh} />
-      {/* A closed day takes no more lines, so the verb is not offered on it. */}
-      <Register onAdd={dayQuery.data && !closed ? () => setAdding(true) : undefined} />
+    <>
+      <Register
+        day={day}
+        onDayChange={setDay}
+        dayQuery={dayQuery}
+        onCloseDay={() => setClosing(true)}
+        onAdd={dayQuery.data && !closed ? () => setAdding(true) : undefined}
+      />
+      {dayQuery.data ? (
+        <CloseDayDialog
+          open={closing}
+          onOpenChange={setClosing}
+          day={day}
+          log={dayQuery.data.log}
+          totals={dayQuery.data.totals}
+          onClosed={refresh}
+        />
+      ) : null}
       <CostEntryFormDialog
         open={adding}
         onOpenChange={setAdding}
@@ -87,121 +99,7 @@ export function CostTrackerContent() {
         day={day}
         onSaved={refresh}
       />
-    </div>
-  );
-}
-
-/**
- * The day on screen: what it has come to, and whether it has gone.
- *
- * The figure somebody counts the cash in their pocket against leads, then
- * what it is made of, then what is still wrong with the day and the verb that
- * ends it.
- */
-function TheDay({
-  day,
-  onDayChange,
-  dayQuery,
-  onChanged,
-}: {
-  day: string;
-  onDayChange: (day: string) => void;
-  dayQuery: { data?: DayResponse; error: unknown };
-  onChanged: () => void;
-}) {
-  const [closing, setClosing] = useState(false);
-  const log = dayQuery.data?.log;
-  const totals = dayQuery.data?.totals;
-  const closed = Boolean(log?.submittedAt);
-  const today = todayKey();
-  // An empty day can still be closed, with a note saying why nothing moved —
-  // the dialog asks for the note when it is.
-  const sentAt = log?.submittedAt
-    ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(log.submittedAt))
-    : null;
-
-  return (
-    <section aria-labelledby="cost-tracker-day" style={{ maxWidth: DAY_WIDTH }}>
-      {/* The day is the section, so the control that picks it sits on the
-          section's heading, where a section's own control goes. */}
-      <SectionHeading
-        maxWidth={DAY_WIDTH}
-        className="mt-0"
-        action={
-          <Input
-            id="cost-tracker-date"
-            aria-label="Day"
-            type="date"
-            className="h-8 w-auto font-mono"
-            value={day}
-            max={today}
-            onChange={(event) => {
-              if (event.target.value) onDayChange(event.target.value);
-            }}
-          />
-        }
-      >
-        <span id="cost-tracker-day">{day === today ? "Today" : formatDay(day)}</span>
-        {closed ? <StatusBadge tone="neutral">Closed</StatusBadge> : null}
-      </SectionHeading>
-
-      {dayQuery.error ? (
-        <Alert tone="danger" title="The day would not load" className="mb-4">
-          {getApiErrorMessage(dayQuery.error)}
-        </Alert>
-      ) : null}
-
-      {totals && log ? (
-        <>
-          <p className="text-sm text-[var(--text-muted)]">In hand</p>
-          <p className="mb-2 font-mono text-[28px] font-semibold leading-tight tracking-[-0.01em] tabular-nums text-[var(--text-strong)]">
-            {formatMoney(totals.balance)}
-          </p>
-          <FactList
-            align="end"
-            maxWidth={DAY_WIDTH}
-            labelWidth={140}
-            items={[
-              { label: "Received", value: formatMoney(totals.received), mono: true },
-              { label: "Spent", value: formatMoney(totals.spent), mono: true },
-              ...(log.notes ? [{ label: "Note", value: log.notes }] : []),
-              ...(closed ? [{ label: "Sent to management", value: sentAt ?? "Yes", mono: Boolean(sentAt) }] : []),
-            ]}
-          />
-
-          {closed ? null : (
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
-              {/* Closing is offered on any open day, empty or not: an empty
-                  day is closed with a note saying why nothing moved. */}
-              <Button variant="secondary" onClick={() => setClosing(true)}>
-                Close the day
-              </Button>
-              {totals.missingReceipts > 0 ? (
-                <StatusDot
-                  tone="warn"
-                  label={
-                    totals.missingReceipts === 1
-                      ? "1 expense without a receipt"
-                      : `${totals.missingReceipts} expenses without a receipt`
-                  }
-                />
-              ) : null}
-            </div>
-          )}
-
-          <CloseDayDialog
-            open={closing}
-            onOpenChange={setClosing}
-            day={day}
-            log={log}
-            totals={totals}
-            onClosed={onChanged}
-          />
-        </>
-      ) : dayQuery.error ? null : (
-        <Skeleton height={160} />
-      )}
-    </section>
+    </>
   );
 }
 
@@ -338,17 +236,6 @@ const PAGE_SIZE = 50;
 /** The query keys the register reads from the URL and hands to the API as they are. */
 const FILTER_KEYS = ["q", "from", "to", "person", "project", "requisition", "type", "flag"] as const;
 
-const TYPE_OPTIONS = new Map([
-  ["SPENT", "Expense"],
-  ["RECEIVED", "Income"],
-]);
-
-// The two things a manager scans this register for.
-const FLAG_OPTIONS = new Map([
-  ["no-receipt", "No receipt photo"],
-  ["not-receipted", "Not receipted"],
-]);
-
 /**
  * A chip's options, with whatever the URL already names kept in them — a
  * link to a requisition beyond the first hundred must still say the list is
@@ -363,7 +250,19 @@ function withCurrent(options: Map<string, string>, value: string, label: string)
  * Every line, narrowed from the toolbar. Its verb — a new line on the day on
  * screen — sits in the app bar with the page's name.
  */
-function Register({ onAdd }: { onAdd?: () => void }) {
+function Register({
+  day,
+  onDayChange,
+  dayQuery,
+  onCloseDay,
+  onAdd,
+}: {
+  day: string;
+  onDayChange: (day: string) => void;
+  dayQuery: { data?: DayResponse; error: unknown };
+  onCloseDay: () => void;
+  onAdd?: () => void;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -524,9 +423,109 @@ function Register({ onAdd }: { onAdd?: () => void }) {
       ? "No lines match these filters."
       : "No money logged yet.";
 
+  const log = dayQuery.data?.log;
+  const totals = dayQuery.data?.totals;
+  const closed = Boolean(log?.submittedAt);
+  const today = todayKey();
+  const sentAt = log?.submittedAt
+    ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(
+        new Date(log.submittedAt),
+      )
+    : null;
+
+  const activeTab =
+    flag === "no-receipt"
+      ? "NO_RECEIPT"
+      : flag === "not-receipted"
+        ? "NOT_RECEIPTED"
+        : type === "SPENT"
+          ? "SPENT"
+          : type === "RECEIVED"
+            ? "RECEIVED"
+            : "ALL";
+
+  const handleTabChange = (nextTab: string) => {
+    if (nextTab === "ALL") {
+      setParams({ type: null, flag: null });
+    } else if (nextTab === "SPENT") {
+      setParams({ type: "SPENT", flag: null });
+    } else if (nextTab === "RECEIVED") {
+      setParams({ type: "RECEIVED", flag: null });
+    } else if (nextTab === "NO_RECEIPT") {
+      setParams({ type: null, flag: "no-receipt" });
+    } else if (nextTab === "NOT_RECEIPTED") {
+      setParams({ type: null, flag: "not-receipted" });
+    }
+  };
+
+  const finding =
+    totals && log
+      ? {
+          tone: (totals.missingReceipts > 0 ? "warn" : closed ? "ok" : "info") as
+            | "warn"
+            | "ok"
+            | "info",
+          children: (
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="inline-flex items-center gap-2">
+                <b>{day === today ? "Today" : formatDay(day)}</b>
+                <Input
+                  id="cost-tracker-date"
+                  aria-label="Day"
+                  type="date"
+                  className="h-7 w-auto font-mono text-sm"
+                  value={day}
+                  max={today}
+                  onChange={(event) => {
+                    if (event.target.value) onDayChange(event.target.value);
+                  }}
+                />
+                {closed ? <StatusBadge tone="neutral">Closed {sentAt ? `at ${sentAt}` : ""}</StatusBadge> : null}
+              </span>
+              <span className="font-mono text-sm text-[var(--color-muted)]">
+                In hand: <b>{formatMoney(totals.balance)}</b> · Received:{" "}
+                <b>{formatMoney(totals.received)}</b> · Spent: <b>{formatMoney(totals.spent)}</b>
+              </span>
+              {totals.missingReceipts > 0 ? (
+                <span className="text-sm font-semibold">
+                  · {totals.missingReceipts}{" "}
+                  {totals.missingReceipts === 1
+                    ? "expense without a receipt"
+                    : "expenses without a receipt"}
+                </span>
+              ) : null}
+            </span>
+          ),
+          action: !closed
+            ? {
+                label: "Close the day →",
+                onClick: onCloseDay,
+              }
+            : undefined,
+        }
+      : null;
+
   return (
     <RecordListShell
       title="Cost tracker"
+      finding={finding}
+      tabs={[
+        { value: "ALL", label: "All lines", count: activeTab === "ALL" ? total : undefined },
+        { value: "SPENT", label: "Expenses", count: activeTab === "SPENT" ? total : undefined },
+        { value: "RECEIVED", label: "Income", count: activeTab === "RECEIVED" ? total : undefined },
+        {
+          value: "NO_RECEIPT",
+          label: "No receipt photo",
+          count: activeTab === "NO_RECEIPT" ? total : undefined,
+        },
+        {
+          value: "NOT_RECEIPTED",
+          label: "Not receipted",
+          count: activeTab === "NOT_RECEIPTED" ? total : undefined,
+        },
+      ]}
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
       createLabel={onAdd ? "New entry" : undefined}
       onCreate={onAdd}
       search={search}
@@ -569,20 +568,6 @@ function Register({ onAdd }: { onAdd?: () => void }) {
             anyLabel="Any"
             options={requisitionOptions}
             onChange={(next) => setParams({ requisition: next })}
-          />
-          <ViewToolbarFilter
-            label="Type"
-            value={type}
-            anyLabel="Both"
-            options={TYPE_OPTIONS}
-            onChange={(next) => setParams({ type: next })}
-          />
-          <ViewToolbarFilter
-            label="Show"
-            value={flag}
-            anyLabel="All"
-            options={FLAG_OPTIONS}
-            onChange={(next) => setParams({ flag: next })}
           />
         </>
       }

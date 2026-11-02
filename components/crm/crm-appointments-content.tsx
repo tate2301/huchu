@@ -87,6 +87,7 @@ export function CrmAppointmentsContent() {
   const [reportFor, setReportFor] = useState<Appointment | null>(null);
   const [scheduling, setScheduling] = useState(false);
   const [search, setSearch] = useState("");
+  const [viewFilter, setViewFilter] = useState<"all" | "scheduled" | "unwritten" | "completed">("all");
   const debounced = useDebounced(search, 300);
 
   const appointmentsQuery = useQuery({
@@ -103,15 +104,39 @@ export function CrmAppointmentsContent() {
   const visits = useMemo(() => appointmentsQuery.data?.data ?? [], [appointmentsQuery.data]);
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
 
+  const [now] = useState(() => Date.now());
+
+  const unwrittenCount = useMemo(
+    () =>
+      visits.filter(
+        (v) =>
+          (v.status === "SCHEDULED" && new Date(v.scheduledStart).getTime() < now) ||
+          (v.status === "COMPLETED" && !v.reportCompletedAt),
+      ).length,
+    [now, visits],
+  );
+
   const sections = useMemo<RecordListSection[]>(() => {
     const needle = debounced.trim().toLowerCase();
-    const matching = visits.filter((visit) =>
-      needle
-        ? `${visit.title} ${visit.appointmentNo} ${visit.client?.name ?? ""} ${visit.location ?? ""}`
-            .toLowerCase()
-            .includes(needle)
-        : true,
-    );
+    const matching = visits
+      .filter((visit) => {
+        if (viewFilter === "scheduled") return visit.status === "SCHEDULED";
+        if (viewFilter === "completed") return visit.status === "COMPLETED";
+        if (viewFilter === "unwritten") {
+          return (
+            (visit.status === "SCHEDULED" && new Date(visit.scheduledStart).getTime() < now) ||
+            (visit.status === "COMPLETED" && !visit.reportCompletedAt)
+          );
+        }
+        return true;
+      })
+      .filter((visit) =>
+        needle
+          ? `${visit.title} ${visit.appointmentNo} ${visit.client?.name ?? ""} ${visit.location ?? ""}`
+              .toLowerCase()
+              .includes(needle)
+          : true,
+      );
 
     // Done visits have no due date left to be late for, so they sit at the
     // bottom in one band rather than being bucketed as "overdue".
@@ -125,14 +150,14 @@ export function CrmAppointmentsContent() {
         // The visit's own page: what was booked, and what came back.
         href: `/crm/appointments/${visit.id}`,
         leading: (
-          <span className="flex size-9 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]">
+          <span className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-muted)]">
             <CalendarCheck className="size-4" />
           </span>
         ),
         title: visit.title,
         subtitle: (
           <>
-            <ClientDate value={visit.scheduledStart} />
+            <span className="font-mono"><ClientDate value={visit.scheduledStart} /></span>
             {visitSubject(visit) ? ` · ${visitSubject(visit)!.label}` : " · Unattached"}
             {visit.location ? ` · ${visit.location}` : ""}
           </>
@@ -164,20 +189,19 @@ export function CrmAppointmentsContent() {
     const buckets = bucketByDueDate(open, (visit) => visit.scheduledStart).map((bucket) => ({
       id: bucket.id,
       label: bucket.label,
-      alwaysShow: bucket.id === "today",
+      alwaysShow: bucket.id === "today" && viewFilter !== "completed",
       emptyBody: "Nothing booked for today.",
       rows: bucket.items.map(toRow),
     }));
 
     return [
       ...buckets,
-      { id: "closed", label: "Done and cancelled", rows: closed.map(toRow) },
+      ...(closed.length > 0 ? [{ id: "closed", label: "Done and cancelled", rows: closed.map(toRow) }] : []),
     ];
-  }, [debounced, visits]);
+  }, [debounced, now, viewFilter, visits]);
 
   return (
     <RecordListShell
-      width="narrow"
       title="Site visits"
       search={search}
       onSearchChange={setSearch}
@@ -185,6 +209,52 @@ export function CrmAppointmentsContent() {
       createLabel="Schedule a visit"
       onCreate={() => setScheduling(true)}
       error={appointmentsQuery.error}
+      finding={
+        unwrittenCount > 0
+          ? {
+              fact: `${unwrittenCount} site visit${unwrittenCount === 1 ? "" : "s"} need writing up`,
+              rest: "Capture measurements and geotagged site photos so quotations can be drafted accurately.",
+              end:
+                viewFilter !== "unwritten" ? (
+                  <button
+                    type="button"
+                    className="fl-act"
+                    onClick={() => setViewFilter("unwritten")}
+                  >
+                    Filter unwritten →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="fl-act"
+                    onClick={() => setViewFilter("all")}
+                  >
+                    Show all →
+                  </button>
+                ),
+            }
+          : undefined
+      }
+      tabs={[
+        { value: "all", label: "All visits", count: visits.length },
+        {
+          value: "scheduled",
+          label: "Scheduled",
+          count: visits.filter((v) => v.status === "SCHEDULED").length,
+        },
+        {
+          value: "unwritten",
+          label: "Needs report",
+          count: unwrittenCount,
+        },
+        {
+          value: "completed",
+          label: "Completed",
+          count: visits.filter((v) => v.status === "COMPLETED").length,
+        },
+      ]}
+      activeTab={viewFilter}
+      onTabChange={(tab) => setViewFilter(tab as typeof viewFilter)}
       // Said before anybody leaves for site: by the time the report is open,
       // the photos were taken with whatever camera was to hand.
       notice={<GeotagNotice />}

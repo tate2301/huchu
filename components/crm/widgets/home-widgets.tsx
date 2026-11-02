@@ -13,22 +13,53 @@ export type HomeData = {
   scope: "TEAM" | "MINE";
   periodDays: number;
   currency: string;
+  currencies?: Array<{
+    code: string;
+    openDeals: number;
+    pipelineValue: number;
+    quotesValue: number;
+    receivableValue: number;
+    wonValue: number;
+  }>;
   pipeline: {
     openDeals: number;
     grossValue: number;
-    byStage: Array<{ id: string; name: string; status: string; count: number; value: number }>;
+    weightedValue?: number;
+    byStage: Array<{
+      id: string;
+      name: string;
+      status: string;
+      count: number;
+      value: number;
+      weightedValue?: number;
+    }>;
     stale: number;
     closingThisWeek: number;
+    closingThisWeekValue?: number;
   };
   won: {
     count: number;
     value: number;
     lost: number;
+    avgDealSize?: number;
     valueDeltaPercent: number | null;
     previousValue: number;
     winRatePercent: number | null;
     closed: number;
   };
+  sources?: Array<{
+    key: string;
+    label: string;
+    count: number;
+    value: number;
+    share: number;
+  }>;
+  services?: Array<{
+    label: string;
+    count: number;
+    value: number;
+    share: number;
+  }>;
   speed: {
     breachedLeads: number;
     atRiskLeads: number;
@@ -50,7 +81,14 @@ export type HomeData = {
     invoiceCount: number;
     ageing: Partial<Record<AgeingBucket, { count: number; value: number }>>;
   };
-  delivery: { workOrders: Record<string, number>; upcomingVisits: number };
+  delivery: {
+    workOrders: Record<string, number>;
+    projects?: Record<string, number>;
+    activeProjectBudget?: number;
+    upcomingVisits: number;
+    todayVisits?: number;
+    overdueVisits?: number;
+  };
 };
 
 export function money(value: number, currency: string): string {

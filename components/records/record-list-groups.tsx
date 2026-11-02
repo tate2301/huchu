@@ -194,17 +194,17 @@ export function GroupedRecordList({
 
   return (
     <div className={cn("flex gap-3", className)}>
-      <div className="min-w-0 flex-1 space-y-5">
+      <div className="min-w-0 flex-1">
         {visible.map((section) => (
           <section key={section.id} aria-labelledby={`${section.id}-heading`}>
             <h3
               id={`${section.id}-heading`}
-              // The bar is opaque so rows do not show through the heading as
-              // they slide under it.
-              className="sticky top-14 z-10 -mx-1 flex items-baseline gap-2 bg-[var(--canvas)] px-1 py-1.5 text-sm font-medium text-[var(--text-subtle)]"
+              className="sticky top-14 z-10 flex items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-5 py-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-muted)]"
             >
-              <span>{section.label}</span>
-              <span className="font-mono normal-case tracking-normal">
+              <span className={section.id === "overdue" ? "text-[var(--color-bad)]" : "text-[var(--color-ink-2)]"}>
+                {section.label}
+              </span>
+              <span className="rounded-full bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10.5px] font-normal normal-case tracking-normal tabular-nums text-[var(--color-muted)]">
                 {section.count ?? section.rows.length}
               </span>
             </h3>
@@ -212,7 +212,7 @@ export function GroupedRecordList({
             {section.rows.length > 0 ? (
               <RecordList rows={section.rows} selection={selection} />
             ) : (
-              <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-subtle)] px-3 py-4 text-sm text-[var(--text-muted)]">
+              <p className="border-b border-[var(--color-line)] px-5 py-4 text-[13px] text-[var(--color-muted)]">
                 {section.emptyBody ?? "Nothing yet."}
               </p>
             )}

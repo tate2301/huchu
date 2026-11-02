@@ -61,13 +61,17 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
 
   const [products, sold, refunded] = await Promise.all([
     prisma.product.findMany({
-      // Ranged (it has a stock line somewhere) and not in the bin.
-      where: { companyId: ctx.companyId, archivedAt: null, inventoryItems: { some: { site: { companyId: ctx.companyId } } } },
+      // Ranged and not in the bin.
+      where: { companyId: ctx.companyId, archivedAt: null },
       select: {
         id: true,
         code: true,
         name: true,
         barcode: true,
+        kind: true,
+        category: true,
+        unit: true,
+        unitLabel: true,
         isActive: true,
         standardPrice: true,
         defaultTaxRate: true,
@@ -100,27 +104,33 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
   return result(
     products.filter((product) => !covered || covered.has(product.id)).map((product): ReportRow => {
       const lines = product.inventoryItems;
+      const isService = product.kind === "SERVICE" || product.kind === "LABOUR";
       const onHand = lines.reduce((sum, line) => sum + (num(line.currentStock) ?? 0), 0);
       // "Reorder at" over the lines counted: summed across sites, as on hand is.
       const levels = lines.map((line) => num(line.minStock)).filter((value): value is number => value !== null);
       const reorderAt = levels.length ? levels.reduce((sum, value) => sum + value, 0) : null;
-      const unit = lines[0]?.unit ?? null;
+      const unit = lines[0]?.unit ?? (product.unit === "OTHER" ? product.unitLabel : product.unit ? product.unit.toLowerCase() : null);
       const sold30 = netSold(sold.get(product.id) ?? 0, refunded.get(product.id) ?? 0);
       const archived = !product.isActive;
-      const stock = productStock({ onHand, reorderAt, sold30, archived });
-      const cover = coverDays(onHand, sold30);
+      const stock = isService ? "In stock" : lines.length === 0 ? "In stock" : productStock({ onHand, reorderAt, sold30, archived });
+      const cover = isService || lines.length === 0 ? null : coverDays(onHand, sold30);
       const price = prices.get(product.id);
       const vat = price?.taxPercent ?? num(product.defaultTaxRate) ?? 0;
+      const categoryName = product.retailCategory?.name ?? product.category ?? null;
+      const categoryId = product.categoryId ?? (product.category ? `custom:${product.category}` : null);
+      const displayOnHand = isService || lines.length === 0 ? null : onHand;
+      const displayOnHandLabel = isService || lines.length === 0 ? "—" : onHandLabel(onHand, unit);
+
       return {
         id: product.id,
         name: product.name,
         code: product.code,
         barcode: product.barcode,
-        category: product.retailCategory?.name ?? null,
-        categoryId: product.categoryId,
-        onHand,
-        unitWord: unitWord(onHand, unit),
-        onHandLabel: onHandLabel(onHand, unit),
+        category: categoryName,
+        categoryId,
+        onHand: displayOnHand,
+        unitWord: displayOnHand !== null ? unitWord(onHand, unit) : "",
+        onHandLabel: displayOnHandLabel,
         cover: coverLabel(cover),
         coverDays: cover,
         coverPct: coverFill(cover),
@@ -131,7 +141,7 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
         stock,
         // The phone card: "AMARULA-750 · 13 bottles · 6 days", and its badge —
         // archived first, then what needs buying.
-        cardMeta: [product.code, onHandLabel(onHand, unit), coverLabel(cover)].filter(Boolean).join(" · "),
+        cardMeta: [product.code, displayOnHandLabel !== "—" ? displayOnHandLabel : null, coverLabel(cover)].filter(Boolean).join(" · "),
         flag: archived ? "Archived" : stock === "In stock" ? null : stock,
         promotionId: params.promotion ?? null,
       };
@@ -140,20 +150,33 @@ async function loadProducts(ctx: ReportContext, params: ReportParams) {
 }
 
 async function productOptions(ctx: ReportContext): Promise<Record<string, ReportOption[]>> {
-  const [categories, sites] = await Promise.all([
+  const [categories, customCategories, sites] = await Promise.all([
     prisma.retailCategory.findMany({
       where: { companyId: ctx.companyId, archivedAt: null },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    prisma.product.findMany({
+      where: { companyId: ctx.companyId, archivedAt: null, category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+    }),
     prisma.site.findMany({
-      where: { companyId: ctx.companyId, isActive: true, inventory: { some: { productId: { not: null } } } },
+      where: { companyId: ctx.companyId, isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
   ]);
+
+  const categoryOptions: ReportOption[] = categories.map((category) => ({ value: category.id, label: category.name }));
+  for (const item of customCategories) {
+    if (item.category && !categories.some((c) => c.name.toLowerCase() === item.category!.toLowerCase())) {
+      categoryOptions.push({ value: `custom:${item.category}`, label: item.category });
+    }
+  }
+
   return {
-    category: categories.map((category) => ({ value: category.id, label: category.name })),
+    category: categoryOptions,
     site: sites.map((site) => ({ value: site.id, label: site.name })),
   };
 }

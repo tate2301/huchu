@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
  * screen should be asking anybody to read.
  */
 export const ATTRIBUTE_ROW =
-  "py-2 text-sm leading-5 sm:py-[3px] sm:text-[12px] sm:leading-[18px]";
+  "py-2 text-sm leading-5 sm:py-[4px] sm:text-[12.5px] sm:leading-[18px]";
 
 export type RecordAttributeOption = {
   value: string;
@@ -82,13 +82,13 @@ export type RecordAttributeTone =
   | "alert";
 
 const TONE_CLASS: Record<RecordAttributeTone, string> = {
-  default: "text-[var(--text-body)]",
-  strong: "font-medium text-[var(--text-strong)]",
-  link: "font-medium text-[var(--brand-strong)]",
-  code: "font-mono text-[var(--text-body)]",
-  money: "font-mono font-bold tabular-nums text-[var(--text-strong)]",
-  muted: "text-[var(--text-faint)]",
-  alert: "font-bold text-[var(--badge-bad-fg)]",
+  default: "text-[var(--color-ink)]",
+  strong: "font-medium text-[var(--color-ink)]",
+  link: "font-medium text-[var(--color-ink)]",
+  code: "font-mono text-[var(--color-ink)]",
+  money: "font-mono font-semibold tabular-nums text-[var(--color-ink)]",
+  muted: "text-[var(--color-faint)]",
+  alert: "font-semibold text-[var(--color-bad)]",
 };
 
 /**
@@ -386,31 +386,15 @@ export function RecordAttributes({
                   name of the fact, then the fact. */}
               <dt
                 className={cn(
-                  "flex w-28 shrink-0 items-start gap-2 text-[var(--text-muted)]",
+                  "flex w-28 shrink-0 items-start gap-2 text-[var(--color-muted)]",
                   ATTRIBUTE_ROW,
-                  "sm:text-[11.5px]",
+                  "sm:text-[12.5px]",
                 )}
               >
-                {/* `mt-px` against a 20px line box, which is where the optical
-                    centre of a 16px glyph actually falls — the old `mt-0.5`
-                    was tuned against a line box the value no longer uses. */}
-                {/* A step lighter than the label it sits beside, which is
-                    already a step lighter than the value. The mark is the
-                    quietest thing in the row — it is how you find "Owner"
-                    without reading, not a third thing to read — and at the
-                    label's own ink a column of sixteen of them was the first
-                    thing the eye landed on in the pane.
-                    The artboard's 14px, which is a step under the 16 the rest
-                    of the page uses: a mark in a 24px row is a bullet, not an
-                    icon. */}
                 <Icon
-                  className="mt-px size-4 shrink-0 text-[var(--text-faint)] sm:size-3.5"
+                  className="mt-0.5 size-4 shrink-0 text-[var(--color-faint)] sm:size-3.5"
                   aria-hidden="true"
                 />
-                {/* Wraps rather than truncates. In a 112px column "Primary
-                    contact" became "Primary cont…", which is a label somebody
-                    has to guess at — and a label is the half of the row that
-                    has to be readable for the other half to mean anything. */}
                 <span className="min-w-0">{attribute.label}</span>
               </dt>
               <dd className="min-w-0 flex-1">

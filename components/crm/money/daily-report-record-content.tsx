@@ -115,6 +115,52 @@ export function DailyReportRecordContent({ reportId }: { reportId: string }) {
 
   const money = summary.money;
 
+  const reportFinding =
+    summary.flags.length > 0
+      ? {
+          tone: "warn" as const,
+          children: (
+            <>
+              <b>
+                {summary.flags.length} {summary.flags.length === 1 ? "flag" : "flags"} on this daily report
+              </b>{" "}
+              — {summary.flags.join(" · ")}
+            </>
+          ),
+        }
+      : null;
+
+  const reportKpis = [
+    {
+      label: "Received",
+      value: formatMoney(money.received),
+      sub: `${summary.visits.length} ${summary.visits.length === 1 ? "visit" : "visits"} logged`,
+    },
+    {
+      label: "Spent",
+      value: formatMoney(money.spent),
+      sub:
+        money.missingReceipts > 0
+          ? `${money.missingReceipts} missing receipt`
+          : "All expenses receipted",
+      tone: money.missingReceipts > 0 ? ("warn" as const) : ("default" as const),
+    },
+    {
+      label: "In hand at close",
+      value: formatMoney(money.balance),
+      sub: `${summary.jobs.length} ${summary.jobs.length === 1 ? "job" : "jobs"} · ${summary.tasks.completed.length} tasks done`,
+    },
+    {
+      label: "Float still out",
+      value: formatMoney(summary.requisitions.outstanding),
+      sub:
+        Number(summary.requisitions.outstanding) > 0
+          ? "Unacquitted requisition float"
+          : "No outstanding float",
+      tone: Number(summary.requisitions.outstanding) > 0 ? ("warn" as const) : ("ok" as const),
+    },
+  ];
+
   return (
     <RecordPageShell
       icon={ClipboardText}
@@ -122,6 +168,8 @@ export function DailyReportRecordContent({ reportId }: { reportId: string }) {
       backLabel="Daily reports"
       title={formatDay(day)}
       subtitle={person}
+      finding={reportFinding}
+      kpis={reportKpis}
       status={
         summary.flags.length > 0
           ? { status: "need_changes", label: `${summary.flags.length} to look at` }

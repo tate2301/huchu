@@ -144,6 +144,41 @@ export function FollowUpRecordContent({ followUpId }: { followUpId: string }) {
             : null
       }
       figure={`Due ${formatDate(followUp.dueAt)}`}
+      finding={
+        late
+          ? {
+              label: "Overdue follow-up",
+              text: (
+                <>
+                  <strong>This reminder was due on {formatDate(followUp.dueAt)}</strong> — contact the client and mark it done.
+                </>
+              ),
+              action: mayEdit ? (
+                <button type="button" className="fl-act" onClick={() => move.mutate("COMPLETED")}>
+                  Mark done →
+                </button>
+              ) : null,
+            }
+          : null
+      }
+      kpis={[
+        {
+          label: "Due date",
+          value: formatDate(followUp.dueAt),
+          tone: late ? "bad" : !open ? "up" : "default",
+          sub: STATUS_LABELS[followUp.status],
+        },
+        {
+          label: "Assigned to",
+          value: followUp.assignedTo.name ?? "Unnamed",
+          sub: followUp.createdBy?.name ? `Raised by ${followUp.createdBy.name}` : "Lead reminder",
+        },
+        {
+          label: "Subject",
+          value: about?.label ?? "Unattached",
+          sub: about?.kind ?? "No linked record",
+        },
+      ]}
       primaryAction={
         mayEdit && followUp.status !== "CANCELLED" ? (
           <Button

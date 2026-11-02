@@ -411,6 +411,90 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
     </>
   );
 
+  const completedItems = job.items.filter((item) => item.completedQuantity >= item.quantity).length;
+
+  const jobFinding =
+    job.status === "BLOCKED"
+      ? {
+          tone: "bad" as const,
+          children: (
+            <>
+              <b>Job is blocked on site</b>:{" "}
+              {job.blockedReason ?? "Stopped with no reason recorded."}
+            </>
+          ),
+        }
+      : job.isOverdue
+        ? {
+            tone: "warn" as const,
+            children: (
+              <>
+                <b>Past scheduled window</b> ({when ?? "unscheduled"}) — assign a crew or update the booking window.
+              </>
+            ),
+            action: {
+              label: "Reschedule →",
+              onClick: () => setDialog("schedule"),
+            },
+          }
+        : job.status === "COMPLETED" && !job.invoice
+          ? {
+              tone: "info" as const,
+              children: (
+                <>
+                  <b>Work completed</b> — ready to raise an invoice from the completed checklist quantities.
+                </>
+              ),
+              action: {
+                label: "Review billing →",
+                onClick: () => setTab("documents"),
+              },
+            }
+          : null;
+
+  const jobKpis = [
+    {
+      label: "Checklist progress",
+      value: job.items.length > 0 ? `${job.completionPercent}%` : "No lines",
+      sub:
+        job.items.length > 0
+          ? `${completedItems} of ${job.items.length} items completed`
+          : "Add checklist items below",
+      tone: job.completionPercent === 100 ? ("ok" as const) : ("default" as const),
+    },
+    {
+      label: "Scheduled window",
+      value: when ?? "Not booked",
+      sub: job.isOverdue ? "Overdue past window" : job.site?.name ?? "No site attached",
+      tone: job.isOverdue ? ("bad" as const) : ("default" as const),
+    },
+    {
+      label: "Crew lead",
+      value: job.assignedTo?.name ?? "Unassigned",
+      sub:
+        job.crewIds.length > 0
+          ? `+${job.crewIds.length} crew on the job`
+          : job.assignedTo
+            ? "Solo crew lead"
+            : "Needs crew assignment",
+      tone: !job.assignedTo ? ("warn" as const) : ("default" as const),
+    },
+    {
+      label: "Billing & sign-off",
+      value: job.invoice
+        ? job.invoice.invoiceNumber || "Invoiced"
+        : job.signOffAt
+          ? "Customer signed"
+          : "Unbilled",
+      sub: job.invoice
+        ? "Raised in Books"
+        : job.signOffAt
+          ? `Signed by ${job.signOffName ?? "customer"}`
+          : "Invoice after completion",
+      tone: job.invoice ? ("ok" as const) : ("default" as const),
+    },
+  ];
+
   return (
     <>
       <RecordPageShell
@@ -424,6 +508,8 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
         // a typo in it is worth being able to fix from the record it is on.
         onTitleCommit={edit.required("title", job.title).onCommit}
         reference={job.workOrderNo}
+        finding={jobFinding}
+        kpis={jobKpis}
         status={{
           status: WORK_ORDER_STATUS[job.status] ?? "inactive",
           label: WORK_ORDER_STATUS_LABELS[job.status],

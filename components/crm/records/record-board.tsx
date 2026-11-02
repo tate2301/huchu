@@ -234,18 +234,13 @@ const BoardCard = memo(function BoardCard({ card }: { card: RecordBoardCard }) {
         {...listeners}
         data-board-card=""
         className={cn(
-          "rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3",
-          // `touch-manipulation` keeps the board scrollable under a finger
-          // until the long-press fires; `select-none` stops the hold raising a
-          // text-selection callout over the card it is about to move.
+          "rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] p-3",
           "cursor-grab touch-manipulation select-none active:cursor-grabbing",
           "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-          "hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-hover)]",
+          "hover:border-[var(--color-line-strong)] hover:shadow-[var(--shadow-hover)]",
           "has-[a:focus-visible]:border-[var(--focus-ring)] has-[a:focus-visible]:shadow-[0_0_0_3px_var(--focus-ring-soft)]",
-          // What stays behind is the shape of the card, not a ghost of it —
-          // the card itself is under the pointer.
           isDragging &&
-            "border-dashed border-[var(--border-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
+            "border-dashed border-[var(--color-line-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
         )}
       >
         <Link
@@ -299,7 +294,7 @@ const BoardLane = memo(function BoardLane({
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col rounded-[var(--radius-lg)] bg-[var(--surface-muted)]",
+        "flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)]",
         "transition-[background-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
         receiving && "bg-[var(--brand-tint)] shadow-[inset_0_0_0_1px_var(--focus-ring-soft)]",
       )}
@@ -317,13 +312,8 @@ const BoardLane = memo(function BoardLane({
 
       <div
         ref={bodyRef}
-        className="scroll-rail flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2"
+        className="scroll-rail flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-2"
       >
-        {/* The slot is mounted, collapsed, in every column for as long as a
-            card is in hand, and opens in the one under it. Collapsing rather
-            than unmounting is what lets it close smoothly when the pointer
-            moves on; unmounting the instant the card drops is what lets the
-            card take its place without the column jumping. */}
         {dragging ? (
           <div
             aria-hidden="true"
@@ -336,7 +326,7 @@ const BoardLane = memo(function BoardLane({
               <div className="pb-2">
                 <div
                   style={{ height: dragging.height }}
-                  className="rounded-[var(--radius-md)] border border-dashed border-[var(--brand)] bg-[var(--surface)]"
+                  className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)]"
                 />
               </div>
             </div>
@@ -350,13 +340,13 @@ const BoardLane = memo(function BoardLane({
         </div>
 
         {cards.length === 0 && !receiving ? (
-          <p className="rounded-[var(--radius-md)] border border-dashed border-[var(--border-strong)] px-3 py-6 text-center text-sm text-[var(--text-subtle)]">
+          <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line)] px-3 py-6 text-center text-sm text-[var(--color-muted)]">
             {emptyLabel}
           </p>
         ) : null}
 
         {column.footer ? (
-          <div className="px-1 pt-2 text-sm text-[var(--text-subtle)]">{column.footer}</div>
+          <div className="px-1 pt-2 text-sm text-[var(--color-muted)]">{column.footer}</div>
         ) : null}
       </div>
     </section>
@@ -644,7 +634,7 @@ export function RecordBoard({
           <div
             ref={railRef}
             className={cn(
-              "scroll-rail hidden min-h-96 gap-3 overflow-x-auto pb-3 pt-3 lg:flex",
+              "scroll-rail hidden min-h-96 gap-3 overflow-x-auto px-4 pb-3 pt-3 sm:px-6 lg:flex",
               dragging && "cursor-grabbing",
               className,
             )}

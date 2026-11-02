@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
 
     const [
       openDeals,
+      wonDealsPeriod,
       wonThisPeriod,
       wonPreviousPeriod,
       lostThisPeriod,
@@ -60,10 +61,14 @@ export async function GET(request: NextRequest) {
       quotations,
       quotesWithCustomers,
       openLeads,
+      recentLeads,
       answeredLeads,
       openInvoices,
       workOrders,
+      projects,
       upcomingVisits,
+      todayVisits,
+      overdueVisits,
       pendingApprovals,
     ] = await Promise.all([
       prisma.crmDeal.findMany({
@@ -71,11 +76,27 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           value: true,
+          currency: true,
           probability: true,
+          source: true,
+          sourceChannel: true,
+          services: true,
           stageId: true,
           stageEnteredAt: true,
           expectedCloseDate: true,
           stage: { select: { id: true, name: true, position: true, inactivityDays: true } },
+        },
+      }),
+
+      prisma.crmDeal.findMany({
+        where: { companyId, wonAt: { gte: periodStart }, ...scope },
+        select: {
+          id: true,
+          value: true,
+          currency: true,
+          source: true,
+          sourceChannel: true,
+          services: true,
         },
       }),
 
@@ -157,6 +178,25 @@ export async function GET(request: NextRequest) {
         select: { id: true, createdAt: true },
       }),
 
+      // Recent active leads for source channel and service line attribution
+      prisma.crmLead.findMany({
+        where: {
+          companyId,
+          archivedAt: null,
+          convertedDealId: null,
+          stage: { notIn: ["LOST"] },
+          ...scope,
+        },
+        select: {
+          id: true,
+          estimatedValue: true,
+          currency: true,
+          source: true,
+          sourceChannel: true,
+          services: true,
+        },
+      }),
+
       // How fast we actually answered, over the period. Only leads that were
       // answered count — an unanswered lead has no response time, and folding
       // it in as a zero would flatter the number.
@@ -186,11 +226,34 @@ export async function GET(request: NextRequest) {
         _count: { _all: true },
       }),
 
+      prisma.crmProject.findMany({
+        where: { companyId },
+        select: { status: true, budget: true, currency: true },
+      }),
+
       prisma.crmAppointment.count({
         where: {
           companyId,
           status: "SCHEDULED",
           scheduledStart: { gte: now, lte: weekAhead },
+          ...(isManager ? {} : { assignedToId: session.user.id }),
+        },
+      }),
+
+      prisma.crmAppointment.count({
+        where: {
+          companyId,
+          status: "SCHEDULED",
+          scheduledStart: { gte: startOfToday, lt: endOfToday },
+          ...(isManager ? {} : { assignedToId: session.user.id }),
+        },
+      }),
+
+      prisma.crmAppointment.count({
+        where: {
+          companyId,
+          status: "SCHEDULED",
+          scheduledStart: { lt: now },
           ...(isManager ? {} : { assignedToId: session.user.id }),
         },
       }),
@@ -201,6 +264,12 @@ export async function GET(request: NextRequest) {
     ]);
 
     const grossValue = openDeals.reduce((sum, deal) => sum + (deal.value ?? 0), 0);
+    const weightedValue = Math.round(
+      openDeals.reduce(
+        (sum, deal) => sum + (deal.value ?? 0) * (Math.min(100, Math.max(0, deal.probability ?? 50)) / 100),
+        0,
+      ),
+    );
 
     // "Stale" is the stage's own inactivity budget, not a global number — a
     // deal can sit in Quoted for a fortnight and be fine, but three days in New
@@ -214,6 +283,7 @@ export async function GET(request: NextRequest) {
     const closingThisWeek = openDeals.filter(
       (deal) => deal.expectedCloseDate && deal.expectedCloseDate <= weekAhead,
     );
+    const closingThisWeekValue = closingThisWeek.reduce((sum, deal) => sum + (deal.value ?? 0), 0);
 
     const byStage = stages.map((stage) => {
       const deals = openDeals.filter((deal) => deal.stageId === stage.id);
@@ -223,8 +293,108 @@ export async function GET(request: NextRequest) {
         status: stage.status,
         count: deals.length,
         value: deals.reduce((sum, deal) => sum + (deal.value ?? 0), 0),
+        weightedValue: Math.round(
+          deals.reduce(
+            (sum, deal) => sum + (deal.value ?? 0) * (Math.min(100, Math.max(0, deal.probability ?? 50)) / 100),
+            0,
+          ),
+        ),
       };
     });
+
+    // Normalize Zimbabwean lead & deal sources into clear acquisition channels
+    const classifyChannel = (source: string | null | undefined, channel: string | null | undefined): { key: string; label: string } => {
+      const raw = `${source ?? ""} ${channel ?? ""}`.toLowerCase();
+      if (raw.includes("whatsapp") || raw.includes("wa ") || raw.includes("phone") || raw.includes("call")) {
+        return { key: "whatsapp", label: "WhatsApp & direct calls" };
+      }
+      if (channel === "REFERRAL" || raw.includes("refer") || raw.includes("word of mouth") || raw.includes("client") || raw.includes("repeat")) {
+        return { key: "referral", label: "Referrals & repeat clients" };
+      }
+      if (raw.includes("walk") || raw.includes("showroom") || raw.includes("workshop") || raw.includes("branch") || raw.includes("site")) {
+        return { key: "walkin", label: "Walk-in, showroom & site" };
+      }
+      if (channel === "SOCIAL" || channel === "ADS" || raw.includes("facebook") || raw.includes("instagram") || raw.includes("linkedin") || raw.includes("tiktok") || raw.includes("ads")) {
+        return { key: "social", label: "Facebook, Instagram & ads" };
+      }
+      if (channel === "WEB_FORM" || channel === "WEBHOOK" || raw.includes("web") || raw.includes("email") || raw.includes("form")) {
+        return { key: "web", label: "Website & online forms" };
+      }
+      if (raw.includes("tender") || raw.includes("rfq") || raw.includes("rfp") || raw.includes("bid")) {
+        return { key: "tender", label: "Tenders & RFQ invitations" };
+      }
+      return { key: "direct", label: "Direct & outbound sales" };
+    };
+
+    const sourceMap = new Map<string, { key: string; label: string; count: number; value: number }>();
+    for (const deal of [...openDeals, ...wonDealsPeriod]) {
+      const ch = classifyChannel(deal.source, deal.sourceChannel);
+      const entry = sourceMap.get(ch.key) ?? { key: ch.key, label: ch.label, count: 0, value: 0 };
+      entry.count += 1;
+      entry.value += deal.value ?? 0;
+      sourceMap.set(ch.key, entry);
+    }
+    for (const lead of recentLeads) {
+      const ch = classifyChannel(lead.source, lead.sourceChannel);
+      const entry = sourceMap.get(ch.key) ?? { key: ch.key, label: ch.label, count: 0, value: 0 };
+      entry.count += 1;
+      entry.value += lead.estimatedValue ?? 0;
+      sourceMap.set(ch.key, entry);
+    }
+    const totalSourceValue = [...sourceMap.values()].reduce((sum, item) => sum + item.value, 0);
+    const totalSourceCount = [...sourceMap.values()].reduce((sum, item) => sum + item.count, 0);
+    const sources = [...sourceMap.values()]
+      .sort((a, b) => b.value - a.value || b.count - a.count)
+      .map((item) => ({
+        ...item,
+        share:
+          totalSourceValue > 0
+            ? Math.round((item.value / totalSourceValue) * 100)
+            : totalSourceCount > 0
+              ? Math.round((item.count / totalSourceCount) * 100)
+              : 0,
+      }));
+
+    // Service lines / Practice areas / Workshop categories
+    const serviceMap = new Map<string, { label: string; count: number; value: number }>();
+    for (const deal of [...openDeals, ...wonDealsPeriod]) {
+      const tags = deal.services?.length ? deal.services : [];
+      for (const rawTag of tags) {
+        const label = rawTag.trim();
+        if (!label) continue;
+        const key = label.toLowerCase();
+        const entry = serviceMap.get(key) ?? { label, count: 0, value: 0 };
+        entry.count += 1;
+        entry.value += deal.value ?? 0;
+        serviceMap.set(key, entry);
+      }
+    }
+    for (const lead of recentLeads) {
+      const tags = lead.services?.length ? lead.services : [];
+      for (const rawTag of tags) {
+        const label = rawTag.trim();
+        if (!label) continue;
+        const key = label.toLowerCase();
+        const entry = serviceMap.get(key) ?? { label, count: 0, value: 0 };
+        entry.count += 1;
+        entry.value += lead.estimatedValue ?? 0;
+        serviceMap.set(key, entry);
+      }
+    }
+    const totalServiceValue = [...serviceMap.values()].reduce((sum, item) => sum + item.value, 0);
+    const totalServiceCount = [...serviceMap.values()].reduce((sum, item) => sum + item.count, 0);
+    const services = [...serviceMap.values()]
+      .sort((a, b) => b.value - a.value || b.count - a.count)
+      .slice(0, 6)
+      .map((item) => ({
+        ...item,
+        share:
+          totalServiceValue > 0
+            ? Math.round((item.value / totalServiceValue) * 100)
+            : totalServiceCount > 0
+              ? Math.round((item.count / totalServiceCount) * 100)
+              : 0,
+      }));
 
     const taskByStatus = Object.fromEntries(
       taskCounts.map((row) => [row.status, row._count._all]),
@@ -273,8 +443,22 @@ export async function GET(request: NextRequest) {
       workOrders.map((row) => [row.status, row._count._all]),
     ) as Record<string, number>;
 
+    const projectByStatus = projects.reduce<Record<string, number>>((acc, proj) => {
+      acc[proj.status] = (acc[proj.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const activeProjectBudget = projects
+      .filter((proj) => proj.status === "PLANNING" || proj.status === "ACTIVE")
+      .reduce((sum, proj) => sum + Number(proj.budget ?? 0), 0);
+
     const wonValue = wonThisPeriod._sum.value ?? 0;
     const previousWonValue = wonPreviousPeriod._sum.value ?? 0;
+    const avgDealSize =
+      wonThisPeriod._count._all > 0
+        ? Math.round(wonValue / wonThisPeriod._count._all)
+        : openDeals.length > 0
+          ? Math.round(grossValue / openDeals.length)
+          : 0;
 
     // Counted in working hours, so a lead that arrived at five on Friday is
     // not half a week late by Monday morning.
@@ -296,31 +480,81 @@ export async function GET(request: NextRequest) {
 
     const closedThisPeriod = wonThisPeriod._count._all + lostThisPeriod;
 
-    // The currency most of the open money is actually in. Mixed books are
-    // possible but rare, and a bare number with no unit is worse than one
-    // labelled with the currency nearly everything is in.
+    // The currency most of the open money is actually in, plus a multi-currency
+    // breakdown (USD / ZWG / ZAR) for Zimbabwean dual-currency operations.
     const currencyTally = new Map<string, number>();
-    for (const doc of [...quotesWithCustomers, ...openInvoices]) {
-      currencyTally.set(doc.currency, (currencyTally.get(doc.currency) ?? 0) + 1);
+    for (const doc of [...quotesWithCustomers, ...openInvoices, ...openDeals]) {
+      const code = (doc.currency || "USD").toUpperCase();
+      currencyTally.set(code, (currencyTally.get(code) ?? 0) + 1);
     }
     const currency =
       [...currencyTally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "USD";
+
+    const currencyBookMap = new Map<
+      string,
+      {
+        code: string;
+        openDeals: number;
+        pipelineValue: number;
+        quotesValue: number;
+        receivableValue: number;
+        wonValue: number;
+      }
+    >();
+    const ensureCurrencyRow = (rawCode: string | null | undefined) => {
+      const code = (rawCode || currency || "USD").toUpperCase();
+      let row = currencyBookMap.get(code);
+      if (!row) {
+        row = { code, openDeals: 0, pipelineValue: 0, quotesValue: 0, receivableValue: 0, wonValue: 0 };
+        currencyBookMap.set(code, row);
+      }
+      return row;
+    };
+    for (const deal of openDeals) {
+      const row = ensureCurrencyRow(deal.currency);
+      row.openDeals += 1;
+      row.pipelineValue += deal.value ?? 0;
+    }
+    for (const deal of wonDealsPeriod) {
+      const row = ensureCurrencyRow(deal.currency);
+      row.wonValue += deal.value ?? 0;
+    }
+    for (const quote of quotesWithCustomers) {
+      const row = ensureCurrencyRow(quote.currency);
+      row.quotesValue += quote.amount ?? 0;
+    }
+    for (const inv of openInvoices) {
+      const row = ensureCurrencyRow(inv.currency);
+      row.receivableValue += balanceOf(inv);
+    }
+    if (currencyBookMap.size === 0) {
+      ensureCurrencyRow(currency);
+    }
+    const currencies = [...currencyBookMap.values()].sort(
+      (a, b) =>
+        b.pipelineValue + b.receivableValue + b.quotesValue -
+        (a.pipelineValue + a.receivableValue + a.quotesValue),
+    );
 
     return successResponse({
       scope: isManager ? "TEAM" : "MINE",
       periodDays,
       currency,
+      currencies,
       pipeline: {
         openDeals: openDeals.length,
         grossValue,
+        weightedValue,
         byStage,
         stale: stale.length,
         closingThisWeek: closingThisWeek.length,
+        closingThisWeekValue,
       },
       won: {
         count: wonThisPeriod._count._all,
         value: wonValue,
         lost: lostThisPeriod,
+        avgDealSize,
         // Null rather than 0% when there is no baseline — a fabricated
         // "+100%" against nothing is worse than saying nothing.
         valueDeltaPercent:
@@ -337,6 +571,8 @@ export async function GET(request: NextRequest) {
             : null,
         closed: closedThisPeriod,
       },
+      sources,
+      services,
       speed: {
         breachedLeads: breachedLeads.length,
         atRiskLeads: atRiskLeads.length,
@@ -374,7 +610,11 @@ export async function GET(request: NextRequest) {
       },
       delivery: {
         workOrders: workOrderByStatus,
+        projects: projectByStatus,
+        activeProjectBudget,
         upcomingVisits,
+        todayVisits,
+        overdueVisits,
       },
     });
   } catch (error) {

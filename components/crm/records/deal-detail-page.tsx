@@ -462,6 +462,54 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             {stale ? " · going cold" : ""}
           </>
         }
+        finding={
+          nextStep
+            ? {
+                label: stale ? "Going cold" : "Next step",
+                text: (
+                  <>
+                    <strong>{nextStep.label}</strong> — {nextStep.reason}
+                  </>
+                ),
+                action: !stepBlocked ? (
+                  <button type="button" className="fl-act" onClick={takeNextStep}>
+                    {nextStep.label} →
+                  </button>
+                ) : null,
+              }
+            : null
+        }
+        kpis={[
+          {
+            label: "Deal value",
+            value: deal.value == null ? "—" : formatMoney(deal.value, deal.currency),
+            sub:
+              deal.probability != null
+                ? `${deal.probability}% probability · ${deal.forecastCategory.replace("_", " ").toLowerCase()}`
+                : deal.stage.name,
+          },
+          {
+            label: "Latest quote",
+            value: latestQuote ? formatMoney(latestQuote.amount, latestQuote.currency) : "—",
+            sub: latestQuote ? latestQuote.quotation?.quotationNumber ?? "Quotation sent" : "Not quoted yet",
+          },
+          {
+            label: "Outstanding",
+            value: totalOutstanding > 0 ? formatMoney(totalOutstanding, deal.currency) : formatMoney(0, deal.currency),
+            tone: totalOutstanding > 0 ? "warn" : "default",
+            sub: `${openInvoices.length} open invoice${openInvoices.length === 1 ? "" : "s"}`,
+          },
+          {
+            label: "Open tasks & visits",
+            value: String(openTasks.length + (nextVisit ? 1 : 0)),
+            tone: deal.followUps.some(
+              (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
+            )
+              ? "warn"
+              : "default",
+            sub: `${deal.appointments.length} visit${deal.appointments.length === 1 ? "" : "s"} total`,
+          },
+        ]}
         primaryAction={primaryAction}
         actions={[
           { label: "Schedule a site visit", onSelect: () => setScheduleOpen(true) },

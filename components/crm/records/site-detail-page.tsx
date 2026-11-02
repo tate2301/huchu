@@ -261,6 +261,34 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       onTitleCommit={(next) => edit.save.mutate({ name: next })}
       reference={site.siteNo}
       subtitle={subtitle}
+      kpis={[
+        {
+          label: "Site visits",
+          value: String(site.appointments.length),
+          sub: `${site.appointments.filter((v) => v.status === "COMPLETED").length} completed`,
+        },
+        {
+          label: "Measurements",
+          value: String(site.appointments.reduce((s, v) => s + v.visitItems.length, 0)),
+          sub: "Captured on site",
+        },
+        {
+          label: "Linked deals",
+          value: String(site.deals.length),
+          sub:
+            site.deals.length > 0
+              ? formatMoney(
+                  site.deals.reduce((s, d) => s + (d.value ?? 0), 0),
+                  site.deals[0]?.currency ?? "USD",
+                )
+              : "No active deals",
+        },
+        {
+          label: "Location",
+          value: site.city ?? "Unpinned",
+          sub: site.addressLine ?? "No street address",
+        },
+      ]}
       activeTab={tab}
       related={
         <RecordRelated

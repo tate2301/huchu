@@ -37,7 +37,12 @@ export function BooksScope({ active, children }: { active: boolean; children: Re
   return <IconRendererProvider renderer={renderer}>{children}</IconRendererProvider>;
 }
 
-/** Whether an address is a Books page, where the shell draws in Books' face and icons. */
+/** Whether an address uses the Books face and Corelith UI icons (/books and /crm). */
 export function isBooksPath(pathname: string | null | undefined) {
-  return pathname === "/books" || Boolean(pathname?.startsWith("/books/"));
+  return (
+    pathname === "/books" ||
+    Boolean(pathname?.startsWith("/books/")) ||
+    pathname === "/crm" ||
+    Boolean(pathname?.startsWith("/crm/"))
+  );
 }

@@ -292,6 +292,7 @@ const NON_RETAIL_ROLE_ALIASES: Record<string, RetailRoleKey> = {
   AUTO_MANAGER: "MANAGER",
   SALES_EXEC: "MANAGER",
   SALES_REP: "MANAGER",
+  CLERK: "STOCK_CLERK",
 };
 
 function grantsFor(role: string | null | undefined): Grants | null {
@@ -304,10 +305,10 @@ function grantsFor(role: string | null | undefined): Grants | null {
 /** Whether a role key holds `action` on `resource`. Absent role, resource or action: deny. */
 export function canRetailRoleDo(
   role: string | null | undefined,
-  resource: RetailResource,
-  action: RetailAction,
+  resource: RetailResource | string,
+  action: RetailAction | string,
 ): boolean {
-  return grantsFor(role)?.[resource]?.includes(action) ?? false;
+  return grantsFor(role)?.[resource as RetailResource]?.includes(action as RetailAction) ?? false;
 }
 
 export type SessionLike = {
@@ -337,7 +338,11 @@ export function runsRetail(enabledFeatures: readonly string[] | null | undefined
 }
 
 /** The question every guard asks: may this signed-in caller do it. */
-export function canRetailSessionDo(session: SessionLike, resource: RetailResource, action: RetailAction): boolean {
+export function canRetailSessionDo(
+  session: SessionLike,
+  resource: RetailResource | string,
+  action: RetailAction | string,
+): boolean {
   return canRetailRoleDo(retailRoleKey(session), resource, action);
 }
 

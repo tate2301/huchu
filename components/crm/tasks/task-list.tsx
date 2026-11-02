@@ -111,17 +111,17 @@ export function TaskList({
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="divide-y divide-[var(--color-line)]">
         {groups.map((group) => (
-          <section key={group.id} className="space-y-1">
+          <section key={group.id}>
             {group.label ? (
-              <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-subtle)]">
+              <h4 className="flex items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-5 py-1.5 text-sm font-medium uppercase tracking-[0.06em] text-[var(--color-muted)]">
                 {group.label}
-                <span className="font-mono tabular-nums font-normal">{group.tasks.length}</span>
+                <span className="rounded-full bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-sm font-normal tabular-nums">{group.tasks.length}</span>
               </h4>
             ) : null}
 
-            <ul className="space-y-0.5">
+            <ul className="divide-y divide-[var(--color-line)]">
               {group.tasks.map((task) => {
                 const overdue = isTaskOverdue(task);
                 const record = showRecord ? taskRecordRef(task) : null;
@@ -134,11 +134,11 @@ export function TaskList({
                 const selected = selectedId === task.id;
 
                 const facts = (
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-muted)]">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-muted)]">
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1",
-                        overdue ? "text-[var(--status-danger-fg)]" : "",
+                        "inline-flex items-center gap-1 font-mono tabular-nums",
+                        overdue ? "font-medium text-[var(--color-bad)]" : "",
                       )}
                     >
                       <Clock className="size-3.5" />
@@ -155,12 +155,20 @@ export function TaskList({
                     {task.assignedTo ? (
                       <span>{task.assignedTo.name}</span>
                     ) : (
-                      <span>Unassigned</span>
+                      <span className="text-[var(--color-warn)]">Unassigned</span>
                     )}
                     {task.outcome ? (
-                      <span className="font-medium text-[var(--text-primary)]">
+                      <span className="font-medium text-[var(--color-ink)]">
                         {CRM_TASK_OUTCOME_LABELS[task.outcome]}
                       </span>
+                    ) : null}
+                    {record && recordLabel && !onSelect ? (
+                      <Link
+                        href={record.href}
+                        className="text-sm font-medium text-[var(--color-ink-2)] underline decoration-[var(--color-line)] underline-offset-2 hover:decoration-[var(--color-ink)]"
+                      >
+                        {recordLabel}
+                      </Link>
                     ) : null}
                   </div>
                 );
@@ -169,9 +177,9 @@ export function TaskList({
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={cn(
-                        "text-sm font-medium",
+                        "text-sm font-medium text-[var(--color-ink)]",
                         task.status === "COMPLETED"
-                          ? "text-[var(--text-muted)] line-through"
+                          ? "text-[var(--color-muted)] line-through"
                           : "",
                       )}
                     >
@@ -182,7 +190,7 @@ export function TaskList({
                     </Badge>
                     {task.recurrence !== "NONE" ? (
                       <Repeat
-                        className="size-3.5 text-[var(--text-muted)]"
+                        className="size-3.5 text-[var(--color-muted)]"
                         aria-label="Repeating task"
                       />
                     ) : null}
@@ -193,12 +201,8 @@ export function TaskList({
                   <li
                     key={task.id}
                     className={cn(
-                      "flex items-start gap-3 rounded-[var(--radius-md)] p-2.5",
-                      selected
-                        ? "bg-[var(--surface-subtle)]"
-                        : onSelect
-                          ? "hover:bg-[var(--surface-muted)]"
-                          : "",
+                      "flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-[var(--color-hover)]",
+                      selected ? "bg-[var(--color-ground)]" : "",
                     )}
                   >
                     <Checkbox
@@ -209,9 +213,6 @@ export function TaskList({
                     />
 
                     {onSelect ? (
-                      // The row opens the task beside the list, where it is
-                      // edited without leaving the record; the panel links on
-                      // to the task's own page.
                       <button
                         type="button"
                         onClick={() => onSelect(task)}
@@ -223,33 +224,18 @@ export function TaskList({
                       </button>
                     ) : (
                       <div className="min-w-0 flex-1">
-                        {/* The title opens the task's own page. */}
                         <Link href={`/crm/tasks/${task.id}`} className="block hover:underline">
                           {heading}
                         </Link>
                         {facts}
                         {task.outcomeNotes ? (
-                          <p className="mt-1 text-sm text-[var(--text-muted)]">
+                          <p className="mt-1 text-sm text-[var(--color-muted)]">
                             {task.outcomeNotes}
                           </p>
-                        ) : null}
-                        {record && recordLabel ? (
-                          <Link
-                            href={record.href}
-                            className="mt-1 inline-block text-sm text-[var(--text-muted)] hover:underline"
-                          >
-                            {recordLabel}
-                          </Link>
                         ) : null}
                       </div>
                     )}
 
-                    {/* Asked first. This is a one-tap delete at the right edge of
-                        every row, which on a phone is exactly where a thumb lands
-                        while scrolling, and a deleted task has no undo.
-                        The split view drops it — the panel beside the list has
-                        the same button with room for a label, and two deletes for
-                        one task is one too many. */}
                     {!onSelect &&
                     (task.assignedToId === currentUserId || !task.assignedToId) ? (
                       <Button

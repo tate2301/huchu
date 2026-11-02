@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@corelithzw/react";
 import { ColumnPicker } from "@/components/ui/column-picker";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusChip } from "@/components/ui/status-chip";
 import { RecordMark } from "@/components/records/record-mark";
 import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
@@ -226,13 +225,13 @@ export function WorkOrdersContent() {
    * narrowed to nothing by something invisible — and the count, the empty
    * state and the phone's "Filters (1)" all keep referring to it.
    */
-  const chooseQueue = (next: JobQueue) => {
+  const chooseQueue = useCallback((next: JobQueue) => {
     setQueue(next);
     setPage(1);
     const admissible = QUEUE_STATUSES[next];
     if (admissible.length < 2 || !admissible.includes(status as JobStatus)) setStatus(ANY);
     if (next === "MINE") setAssignee(ANY);
-  };
+  }, [status]);
 
   const clearNarrowing = () => {
     setSearch("");
@@ -436,9 +435,77 @@ export function WorkOrdersContent() {
     />
   );
 
+  const overdueCount = useMemo(() => rows.filter((j) => j.isOverdue).length, [rows]);
+  const blockedCount = useMemo(() => rows.filter((j) => j.status === "BLOCKED").length, [rows]);
+  const unassignedCount = useMemo(
+    () => rows.filter((j) => !j.assignedTo && j.status !== "COMPLETED" && j.status !== "CANCELLED").length,
+    [rows],
+  );
+
+  const finding = useMemo(() => {
+    if (jobsQuery.isLoading || rows.length === 0) return null;
+    if (blockedCount > 0 || overdueCount > 0) {
+      return {
+        tone: (blockedCount > 0 ? "bad" : "warn") as "bad" | "warn",
+        children: (
+          <>
+            {blockedCount > 0 ? (
+              <>
+                <b>
+                  {blockedCount} {blockedCount === 1 ? "job is" : "jobs are"} blocked
+                </b>{" "}
+                on site
+              </>
+            ) : null}
+            {blockedCount > 0 && overdueCount > 0 ? " · " : null}
+            {overdueCount > 0 ? (
+              <>
+                <b>
+                  {overdueCount} {overdueCount === 1 ? "job is" : "jobs are"} late
+                </b>{" "}
+                past scheduled window
+              </>
+            ) : null}
+            {unassignedCount > 0 ? ` · ${unassignedCount} without a crew lead.` : "."}
+          </>
+        ),
+        action:
+          blockedCount > 0 && queue !== "BLOCKED"
+            ? {
+                label: "Show blocked →",
+                onClick: () => chooseQueue("BLOCKED"),
+              }
+            : unassignedCount > 0 && assignee !== UNASSIGNED
+              ? {
+                  label: "Show unassigned →",
+                  onClick: () => {
+                    setAssignee(UNASSIGNED);
+                    setPage(1);
+                  },
+                }
+              : undefined,
+      };
+    }
+    return null;
+  }, [assignee, blockedCount, chooseQueue, jobsQuery.isLoading, overdueCount, queue, rows.length, unassignedCount]);
+
+  const queueTabs = useMemo(
+    () =>
+      QUEUES.map((value) => ({
+        value,
+        label: QUEUE_LABELS[value],
+        count: queue === value ? total : undefined,
+      })),
+    [queue, total],
+  );
+
   return (
     <RecordListShell
       title="Jobs"
+      finding={finding}
+      tabs={queueTabs}
+      activeTab={queue}
+      onTabChange={(next) => chooseQueue(next as JobQueue)}
       search={search}
       onSearchChange={(value) => {
         setSearch(value);
@@ -457,32 +524,30 @@ export function WorkOrdersContent() {
       display={<ColumnPicker columns={JOB_COLUMNS} state={columns} />}
       filters={
         <>
-          <SegmentedControl
-            value={queue}
-            onValueChange={chooseQueue}
-            ariaLabel="Job queue"
-            options={QUEUES.map((value) => ({ value, label: QUEUE_LABELS[value] }))}
-          />
-          <ViewToolbarFilter
-            label="Status"
-            value={status}
-            anyLabel="Any"
-            options={statusOptions}
-            onChange={(next) => {
-              setStatus(next);
-              setPage(1);
-            }}
-          />
-          <ViewToolbarFilter
-            label="Crew"
-            value={assignee}
-            anyLabel="Anyone"
-            options={crewOptions}
-            onChange={(next) => {
-              setAssignee(next);
-              setPage(1);
-            }}
-          />
+          {QUEUE_STATUSES[queue].length > 1 ? (
+            <ViewToolbarFilter
+              label="Status"
+              value={status}
+              anyLabel="Any"
+              options={statusOptions}
+              onChange={(next) => {
+                setStatus(next);
+                setPage(1);
+              }}
+            />
+          ) : null}
+          {queue !== "MINE" ? (
+            <ViewToolbarFilter
+              label="Crew"
+              value={assignee}
+              anyLabel="Anyone"
+              options={crewOptions}
+              onChange={(next) => {
+                setAssignee(next);
+                setPage(1);
+              }}
+            />
+          ) : null}
           <ViewToolbarFilter
             label="Site"
             value={site}

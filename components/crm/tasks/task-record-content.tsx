@@ -134,6 +134,47 @@ function TaskRecord({ task }: { task: TaskRecord }) {
       figure={
         done && task.completedAt ? `Done ${formatDate(task.completedAt)}` : `Due ${formatDate(task.dueAt)}`
       }
+      finding={
+        overdue && !done
+          ? {
+              label: "Overdue task",
+              text: (
+                <>
+                  <strong>This task was due on {formatDate(task.dueAt)}</strong> — complete it or move the due date forward.
+                </>
+              ),
+              action: (
+                <button type="button" className="fl-act" onClick={() => completion.toggle(task)}>
+                  Complete task →
+                </button>
+              ),
+            }
+          : null
+      }
+      kpis={[
+        {
+          label: "Due date",
+          value: formatDate(task.dueAt),
+          tone: overdue && !done ? "bad" : done ? "up" : "default",
+          sub: done && task.completedAt ? `Completed ${formatDate(task.completedAt)}` : CRM_TASK_TYPE_LABELS[task.type],
+        },
+        {
+          label: "Priority",
+          value: CRM_TASK_PRIORITY_LABELS[task.priority] ?? task.priority,
+          tone: task.priority === "URGENT" || task.priority === "HIGH" ? "warn" : "default",
+          sub: task.assignedTo?.name ?? "Unassigned",
+        },
+        {
+          label: "Related record",
+          value: recordLabel ?? "General task",
+          sub: record?.kind ? record.kind.toUpperCase() : "Standalone",
+        },
+        {
+          label: "Recurrence",
+          value: task.recurrence !== "NONE" ? (RECURRENCE_LABELS[task.recurrence] ?? task.recurrence) : "One-off",
+          sub: `${chain.length} linked occurrence${chain.length === 1 ? "" : "s"}`,
+        },
+      ]}
       primaryAction={
         task.status === "CANCELLED" ? null : (
           <Button variant={done ? "secondary" : "primary"} onClick={() => completion.toggle(task)}>

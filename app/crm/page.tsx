@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
-import { PageChrome } from "@/components/layout/page-chrome";
 import { CrmOverview } from "@/components/crm/crm-overview";
 import { authOptions } from "@/lib/auth";
 
@@ -10,9 +9,7 @@ export default async function CrmDashboardPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage
-    >
-      <PageChrome title="Home" />
+    <CrmPage>
       <CrmOverview />
     </CrmPage>
   );

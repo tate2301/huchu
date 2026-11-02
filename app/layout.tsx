@@ -19,6 +19,7 @@ import "@/components/core/kit.css";
 import "@/components/core/parts.css";
 import "@/components/core/books.css";
 import "@/components/books/books-type.css";
+import "@/components/crm/crm-books.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cache, Suspense } from "react";
@@ -67,7 +68,7 @@ import {
  * actions all derive from it. Given the prop, `SessionProvider` treats it as
  * the initial value instead of fetching `/api/auth/session`.
  */
-const BOOKS_FACE_SCRIPT = `(function(){var p=location.pathname;if(p==="/books"||p.indexOf("/books/")===0)document.documentElement.dataset.module="books";})();`;
+const BOOKS_FACE_SCRIPT = `(function(){var p=location.pathname;if(p==="/books"||p.indexOf("/books/")===0||p==="/crm"||p.indexOf("/crm/")===0)document.documentElement.dataset.module="books";})();`;
 
 
 const resolveRequestWorkspace = cache(async () => {

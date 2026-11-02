@@ -47,21 +47,23 @@ export function BoardCardFace({
   const hasFigure = figure !== undefined;
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       <div className="flex items-start gap-2.5">
         {leading ? <span className="flex-none">{leading}</span> : null}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-[var(--text-strong)]">{title}</p>
+          <p className="truncate text-[13px] font-medium leading-snug text-[var(--color-ink)]">
+            {title}
+          </p>
           {subtitle ? (
-            <p className="truncate text-sm text-[var(--text-muted)]">{subtitle}</p>
+            <p className="mt-0.5 truncate text-[11.5px] text-[var(--color-muted)]">{subtitle}</p>
           ) : null}
         </div>
         {hasFigure ? null : avatar}
       </div>
 
       {hasFigure ? (
-        <div className="flex min-h-6 items-center justify-between gap-2">
-          <span className="truncate font-mono text-sm tabular-nums text-[var(--text-strong)]">
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--color-line)] pt-2">
+          <span className="truncate font-mono text-[12.5px] font-semibold tabular-nums text-[var(--color-ink)]">
             {figure}
           </span>
           {avatar}
@@ -74,9 +76,9 @@ export function BoardCardFace({
 }
 
 const SIGNAL_TONE = {
-  neutral: "text-[var(--text-subtle)]",
-  warn: "font-medium text-[var(--status-warning-text)]",
-  danger: "font-medium text-[var(--status-error-text)]",
+  neutral: "text-[var(--color-muted)]",
+  warn: "font-medium text-[var(--color-warn)]",
+  danger: "font-medium text-[var(--color-bad)]",
 } as const;
 
 /**

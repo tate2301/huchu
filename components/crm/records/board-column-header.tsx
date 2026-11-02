@@ -50,32 +50,28 @@ export function BoardColumnHeader({
   actions?: BoardColumnAction[];
 }) {
   return (
-    <header className="group/head flex flex-none items-start gap-2 px-3 pb-2 pt-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="flex h-7 items-center gap-2">
-          <span aria-hidden="true" className={cn("size-2 flex-none rounded-full", dot)} />
-          <h3 id={id} className="min-w-0 truncate text-sm font-semibold text-[var(--text-strong)]">
-            {name}
-          </h3>
-          <span className="flex-none rounded-full bg-[var(--surface)] px-2 font-mono text-sm tabular-nums text-[var(--text-muted)]">
-            {count}
-          </span>
-        </div>
-        {total ? (
-          <p className="truncate pl-4 font-mono text-sm tabular-nums text-[var(--text-muted)]">
-            {total}
-          </p>
-        ) : null}
+    <header className="group/head flex flex-none items-center justify-between gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-3 py-2.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span aria-hidden="true" className={cn("size-2 flex-none rounded-full", dot)} />
+        <h3 id={id} className="min-w-0 truncate text-sm font-medium text-[var(--color-ink)]">
+          {name}
+        </h3>
+        <span className="flex-none font-mono text-sm tabular-nums text-[var(--color-muted)]">
+          {count}
+        </span>
       </div>
 
-      <div className="flex flex-none items-center gap-0.5">
+      <div className="flex flex-none items-center gap-1.5">
+        {total ? (
+          <span className="font-mono text-sm tabular-nums text-[var(--color-sub)]">
+            {total}
+          </span>
+        ) : null}
         {onAdd ? (
           <IconButton
             size="sm"
             onClick={onAdd}
             aria-label={addLabel ?? `Add to ${name}`}
-            // Visible on hover and on keyboard focus. A row of plus signs
-            // across eight columns is eight things competing with the cards.
             className="opacity-0 focus-visible:opacity-100 group-hover/head:opacity-100 pointer-coarse:opacity-100"
           >
             <Plus />

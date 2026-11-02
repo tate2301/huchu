@@ -4,18 +4,14 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { Skeleton } from "@corelithzw/react";
-import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
-  type ColumnListRow,
-} from "@/components/management/ui";
+import { NumericCell } from "@/components/ui/numeric-cell";
 import { useDebounced } from "@/hooks/use-debounced";
-import { fetchCrmReps } from "@/lib/crm/crm-v2";
+import { fetchCrmReps, type CrmRepSummary } from "@/lib/crm/crm-v2";
 
 import { RecordMark } from "@/components/records/record-mark";
-import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
+import { RecordCell, RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
+import { RecordListShell, type RecordListTab } from "@/components/crm/records/record-list-shell";
 import { formatMoney } from "@/components/crm/documents/document-types";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,26 +21,14 @@ const ROLE_LABELS: Record<string, string> = {
   SALES_EXEC: "Sales executive",
 };
 
-/** A register's measure: wide enough for its figures, not the whole window. */
-const WIDTH = 960;
-
 /**
- * The team as a directory.
- *
- * Rep performance was a table inside a report, which answers "who is ahead"
- * and nothing else. Here a member is a record: the numbers are still the
- * point, but they sit beside the workload, and the row opens onto everything
- * that person is carrying.
- *
- * The figures are named once, in the column header line (rule 6), rather
- * than "Open pipeline", "Collected" and "Win rate" written again on every
- * row; the role is a word on the line under the name, not a chip — a role is
- * a fact about somebody, not a state (rule 5).
+ * The team as a Books worksheet directory.
  */
 export function RepsContent() {
   const { data: session } = useSession();
   const me = session?.user?.id;
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
   const debouncedSearch = useDebounced(search, 300);
 
   const repsQuery = useQuery({
@@ -55,50 +39,136 @@ export function RepsContent() {
   const reps = useMemo(() => repsQuery.data?.data ?? [], [repsQuery.data]);
   const mayOpenEveryone = repsQuery.data?.mayOpenEveryone ?? false;
 
-  const rows = useMemo<ColumnListRow[]>(() => {
+  const filteredReps = useMemo(() => {
     const needle = debouncedSearch.trim().toLowerCase();
-    // The roster is small enough that filtering it in the browser beats a
-    // round trip — a company with a thousand salespeople is not this product.
-    const filtered = needle
-      ? reps.filter((rep) => `${rep.name ?? ""} ${rep.email ?? ""}`.toLowerCase().includes(needle))
-      : reps;
+    return reps.filter((rep) => {
+      if (roleFilter === "MANAGER" && rep.role !== "MANAGER" && rep.role !== "SUPERADMIN") return false;
+      if (roleFilter === "REP" && rep.role !== "SALES_REP" && rep.role !== "SALES_EXEC") return false;
+      if (!needle) return true;
+      return `${rep.name ?? ""} ${rep.email ?? ""}`.toLowerCase().includes(needle);
+    });
+  }, [debouncedSearch, reps, roleFilter]);
 
-    return filtered.map((rep) => ({
-      id: rep.id,
-      cells: {
-        member: (
-          <ColumnName
-            mark={<RecordMark kind="rep" name={rep.name ?? rep.email} size="sm" />}
-            name={rep.name ?? rep.email ?? "Unnamed"}
-            meta={[
-              ROLE_LABELS[rep.role] ?? rep.role,
-              `${rep.openLeads} lead${rep.openLeads === 1 ? "" : "s"}`,
-              `${rep.openDeals} deal${rep.openDeals === 1 ? "" : "s"}`,
-              rep.openTasks > 0 ? `${rep.openTasks} open task${rep.openTasks === 1 ? "" : "s"}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            // Everybody sees the whole team; a page is opened by its owner or
-            // a manager, so a colleague's row does not pretend to go anywhere.
-            href={mayOpenEveryone || rep.id === me ? `/crm/reps/${rep.id}` : null}
+  const columns = useMemo<RecordTableColumn<CrmRepSummary>[]>(
+    () => [
+      {
+        id: "member",
+        label: "Member",
+        cell: (rep) => (
+          <RecordTableName
+            leading={<RecordMark kind="rep" name={rep.name ?? rep.email} size="sm" />}
+            title={rep.name ?? rep.email ?? "Unnamed"}
+            subtitle={rep.email ?? undefined}
           />
         ),
-        pipeline: <ColumnFigure>{formatMoney(rep.openLeadValue + rep.openDealValue, "USD")}</ColumnFigure>,
-        // A dash, not a zero: "not shown to you" and "sold nothing" are
-        // different facts and must not look the same.
-        collected: rep.performance ? (
-          <ColumnFigure>{formatMoney(rep.performance.collectedAmount, "USD")}</ColumnFigure>
-        ) : (
-          <ColumnFigure tone="muted">—</ColumnFigure>
-        ),
-        winRate: rep.performance ? (
-          <ColumnFigure>{rep.performance.winRate}%</ColumnFigure>
-        ) : (
-          <ColumnFigure tone="muted">—</ColumnFigure>
+      },
+      {
+        id: "role",
+        label: "Role",
+        width: "10rem",
+        cell: (rep) => <RecordCell value={ROLE_LABELS[rep.role] ?? rep.role} />,
+      },
+      {
+        id: "leads",
+        label: "Open leads",
+        width: "8rem",
+        align: "end",
+        cell: (rep) => <RecordCell kind="number" value={rep.openLeads} />,
+      },
+      {
+        id: "deals",
+        label: "Open deals",
+        width: "8rem",
+        align: "end",
+        cell: (rep) => <RecordCell kind="number" value={rep.openDeals} />,
+      },
+      {
+        id: "tasks",
+        label: "Open tasks",
+        width: "8rem",
+        align: "end",
+        cell: (rep) => <RecordCell kind="number" value={rep.openTasks} />,
+      },
+      {
+        id: "pipeline",
+        label: "Open pipeline",
+        width: "10rem",
+        align: "end",
+        cell: (rep) => (
+          <NumericCell className="whitespace-nowrap">
+            {formatMoney(rep.openLeadValue + rep.openDealValue, "USD")}
+          </NumericCell>
         ),
       },
-    }));
-  }, [debouncedSearch, mayOpenEveryone, me, reps]);
+      {
+        id: "collected",
+        label: "Collected",
+        width: "10rem",
+        align: "end",
+        cell: (rep) =>
+          rep.performance ? (
+            <NumericCell className="whitespace-nowrap">
+              {formatMoney(rep.performance.collectedAmount, "USD")}
+            </NumericCell>
+          ) : (
+            <RecordCell value={null} />
+          ),
+      },
+      {
+        id: "winRate",
+        label: "Win rate",
+        width: "7.5rem",
+        align: "end",
+        cell: (rep) =>
+          rep.performance ? (
+            <RecordCell kind="number" value={`${rep.performance.winRate}%`} />
+          ) : (
+            <RecordCell value={null} />
+          ),
+      },
+    ],
+    [],
+  );
+
+  const mobileRows = useMemo<RecordListRow[]>(
+    () =>
+      filteredReps.map((rep) => ({
+        id: rep.id,
+        href: mayOpenEveryone || rep.id === me ? `/crm/reps/${rep.id}` : "",
+        leading: <RecordMark kind="rep" name={rep.name ?? rep.email} size="md" />,
+        title: rep.name ?? rep.email ?? "Unnamed",
+        subtitle: [
+          ROLE_LABELS[rep.role] ?? rep.role,
+          `${rep.openLeads} leads`,
+          `${rep.openDeals} deals`,
+        ].join(" · "),
+        facts: [
+          {
+            value: formatMoney(rep.openLeadValue + rep.openDealValue, "USD"),
+            mono: true,
+            primary: true,
+          },
+        ],
+      })),
+    [filteredReps, mayOpenEveryone, me],
+  );
+
+  const tabs = useMemo<RecordListTab[]>(
+    () => [
+      { value: "ALL", label: "All team", count: reps.length },
+      {
+        value: "MANAGER",
+        label: "Leadership & managers",
+        count: reps.filter((r) => r.role === "MANAGER" || r.role === "SUPERADMIN").length,
+      },
+      {
+        value: "REP",
+        label: "Sales reps",
+        count: reps.filter((r) => r.role === "SALES_REP" || r.role === "SALES_EXEC").length,
+      },
+    ],
+    [reps],
+  );
 
   return (
     <RecordListShell
@@ -106,28 +176,20 @@ export function RepsContent() {
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search by name or email"
+      count={filteredReps.length}
+      tabs={tabs}
+      activeTab={roleFilter}
+      onTabChange={setRoleFilter}
       error={repsQuery.error}
     >
-      {repsQuery.isLoading ? (
-        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-        </div>
-      ) : (
-        <ColumnList
-          label="Team"
-          maxWidth={WIDTH}
-          empty={debouncedSearch ? "Nobody matches that search." : "Nobody on the team yet."}
-          columns={[
-            { id: "member", label: "Member" },
-            { id: "pipeline", label: "Open pipeline", align: "end" },
-            { id: "collected", label: "Collected", align: "end", hideBelow: "sm" },
-            { id: "winRate", label: "Win rate", align: "end", hideBelow: "sm" },
-          ]}
-          rows={rows}
-        />
-      )}
+      <RecordTable
+        rows={filteredReps}
+        columns={columns}
+        rowHref={(rep) => (mayOpenEveryone || rep.id === me ? `/crm/reps/${rep.id}` : "")}
+        isLoading={repsQuery.isLoading}
+        emptyTitle={debouncedSearch ? "Nobody matches that search" : "Nobody on the team yet"}
+        mobile={<RecordList rows={mobileRows} isLoading={repsQuery.isLoading} emptyTitle="Nobody on the team yet" />}
+      />
     </RecordListShell>
   );
 }
