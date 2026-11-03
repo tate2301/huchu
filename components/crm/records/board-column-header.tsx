@@ -95,7 +95,7 @@ export function BoardColumnHeader({
                   key={action.label}
                   onSelect={action.onSelect}
                   className={
-                    action.destructive ? "text-[var(--status-error-text)]" : undefined
+                    action.destructive ? "text-[var(--bad)]" : undefined
                   }
                 >
                   {action.label}

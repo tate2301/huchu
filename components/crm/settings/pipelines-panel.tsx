@@ -216,7 +216,7 @@ function StageEditor({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 w-8 px-0 text-[var(--tone-danger,#b91c1c)] hover:bg-[var(--tone-danger-bg,#fef2f2)] hover:text-[var(--tone-danger-strong,#991b1b)]"
+                        className="h-8 w-8 px-0 text-[var(--tone-danger)] hover:bg-[var(--tone-danger-bg)] hover:text-[var(--tone-danger-strong)]"
                         aria-label={`Remove ${stage.name}`}
                         disabled={openStages.length <= 1}
                         onClick={() => setStages((prev) => prev.filter((_, i) => i !== index))}
@@ -584,12 +584,12 @@ export function PipelinesPanel({
               className={cn(
                 "min-w-[210px] rounded-[var(--radius-sm,4px)] border px-3 py-2.5 text-left transition-colors",
                 active
-                  ? "border-[var(--color-ink,#141413)] bg-[var(--color-fill,#f4f3ef)]"
-                  : "border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)] hover:bg-[var(--color-surface,#ffffff)]",
+                  ? "border-[var(--color-ink)] bg-[var(--color-fill)]"
+                  : "border-[var(--color-line)] bg-[var(--color-ground)] hover:bg-[var(--color-surface)]",
               )}
             >
               <span className="flex items-center gap-2">
-                <span className="truncate text-sm font-bold text-[var(--color-ink,#141413)]">
+                <span className="truncate text-sm font-bold text-[var(--color-ink)]">
                   {pipeline.name}
                 </span>
                 {pipeline.isDefault ? (
@@ -598,7 +598,7 @@ export function PipelinesPanel({
                   </span>
                 ) : null}
               </span>
-              <span className="mt-0.5 block font-mono text-[11.5px] text-[var(--color-muted,#6b6a65)]">
+              <span className="mt-0.5 block font-mono text-[11.5px] text-[var(--color-muted)]">
                 {pipeline.stages.length} stage{pipeline.stages.length === 1 ? "" : "s"} · {deals}{" "}
                 open deal{deals === 1 ? "" : "s"}
               </span>
@@ -624,19 +624,19 @@ export function PipelinesPanel({
           rows={rows}
           emptyLabel="This pipeline has no stages yet."
         />
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-line,#e8e6e1)] px-[13px] py-2.5 bg-[var(--color-ground,#fbfbfa)]">
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-line)] px-[13px] py-2.5 bg-[var(--color-ground)]">
           <Button size="sm" variant="outline" onClick={() => setEditing(selected)}>
             Edit stages
           </Button>
           {selected.isDefault ? null : (
             <>
-              <Button size="sm" variant="ghost" className="text-[var(--brand,#2563eb)] hover:bg-[var(--tone-info-bg,#eff6ff)] hover:text-[var(--brand-strong,#1d4ed8)]" onClick={() => makeDefault.mutate(selected.id)}>
+              <Button size="sm" variant="ghost" className="text-[var(--brand)] hover:bg-[var(--tone-info-bg)] hover:text-[var(--brand-strong)]" onClick={() => makeDefault.mutate(selected.id)}>
                 Make default
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="ml-auto size-8 px-0 text-[var(--tone-danger,#b91c1c)] hover:bg-[var(--tone-danger-bg,#fef2f2)] hover:text-[var(--tone-danger-strong,#991b1b)]"
+                className="ml-auto size-8 px-0 text-[var(--tone-danger)] hover:bg-[var(--tone-danger-bg)] hover:text-[var(--tone-danger-strong)]"
                 aria-label={`Delete ${selected.name}`}
                 onClick={() => remove.mutate(selected.id)}
               >

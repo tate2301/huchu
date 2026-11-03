@@ -256,7 +256,7 @@ export function CustomFieldsPanel({
           <Button
             size="sm"
             variant="ghost"
-            className="size-6 px-0 text-[var(--tone-danger,#b91c1c)] hover:bg-[var(--tone-danger-bg,#fef2f2)] hover:text-[var(--tone-danger-strong,#991b1b)]"
+            className="size-6 px-0 text-[var(--tone-danger)] hover:bg-[var(--tone-danger-bg)] hover:text-[var(--tone-danger-strong)]"
             aria-label={`Archive ${definition.label}`}
             onClick={() => archive.mutate(definition.id)}
           >

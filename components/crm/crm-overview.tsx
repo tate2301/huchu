@@ -453,11 +453,11 @@ export function CrmOverview() {
                     className="crm-bk-kt-v"
                     style={
                       tile.tone === "bad"
-                        ? { color: "var(--color-danger, #b91c1c)" }
+                        ? { color: "var(--color-danger)" }
                         : tile.tone === "warn"
-                          ? { color: "var(--color-warning, #b45309)" }
+                          ? { color: "var(--color-warning)" }
                           : tile.tone === "ok"
-                            ? { color: "var(--color-success, #15803d)" }
+                            ? { color: "var(--color-success)" }
                             : undefined
                     }
                   >
@@ -653,7 +653,7 @@ export function CrmOverview() {
                         <td
                           style={
                             row.isUnassigned
-                              ? { color: "var(--color-warning, #b45309)", fontWeight: 500 }
+                              ? { color: "var(--color-warning)", fontWeight: 500 }
                               : { color: "var(--color-muted)" }
                           }
                         >
@@ -666,9 +666,9 @@ export function CrmOverview() {
                           className="font-mono tabular-nums text-right"
                           style={
                             row.tone === "bad"
-                              ? { color: "var(--color-danger, #b91c1c)", fontWeight: 600 }
+                              ? { color: "var(--color-danger)", fontWeight: 600 }
                               : row.tone === "warn"
-                                ? { color: "var(--color-warning, #b45309)", fontWeight: 600 }
+                                ? { color: "var(--color-warning)", fontWeight: 600 }
                                 : undefined
                           }
                         >
@@ -747,7 +747,7 @@ export function CrmOverview() {
                 className="font-mono tabular-nums text-right"
                 style={
                   collections.overdue > 0
-                    ? { color: "var(--color-danger, #b91c1c)", fontWeight: 600 }
+                    ? { color: "var(--color-danger)", fontWeight: 600 }
                     : undefined
                 }
               >
@@ -801,7 +801,7 @@ export function CrmOverview() {
                 className="font-mono tabular-nums text-right"
                 style={
                   pipeline.stale > 0
-                    ? { color: "var(--color-warning, #b45309)", fontWeight: 600 }
+                    ? { color: "var(--color-warning)", fontWeight: 600 }
                     : undefined
                 }
               >
@@ -837,7 +837,7 @@ export function CrmOverview() {
                 className="font-mono tabular-nums text-right"
                 style={
                   (delivery.workOrders.BLOCKED ?? 0) > 0
-                    ? { color: "var(--color-danger, #b91c1c)", fontWeight: 600 }
+                    ? { color: "var(--color-danger)", fontWeight: 600 }
                     : undefined
                 }
               >
@@ -852,7 +852,7 @@ export function CrmOverview() {
                 className="font-mono tabular-nums text-right"
                 style={
                   tasks.overdue + tasks.legacyOverdue > 0
-                    ? { color: "var(--color-danger, #b91c1c)", fontWeight: 600 }
+                    ? { color: "var(--color-danger)", fontWeight: 600 }
                     : undefined
                 }
               >

@@ -46,18 +46,18 @@ export function SetupPanel({
     // Books hairline panel styling: hairline border, surface ground, crisp header
     <Card
       className={cn(
-        "overflow-hidden rounded-[var(--radius-sm,4px)] border border-[var(--color-line,#e8e6e1)] bg-[var(--color-surface,#ffffff)] shadow-none",
+        "overflow-hidden rounded-[var(--radius-sm,4px)] border border-[var(--color-line)] bg-[var(--color-surface)] shadow-none",
         className,
       )}
       style={{ "--stack-top": "0px" } as CSSProperties}
     >
-      <CardHeader className="flex flex-row items-center gap-2 border-b border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)] px-4 py-2.5">
-        <CardTitle className="text-[13.5px] font-semibold text-[var(--color-ink,#141413)]">{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-4 py-2.5">
+        <CardTitle className="text-[13.5px] font-semibold text-[var(--color-ink)]">{title}</CardTitle>
         {hint ? (
-          <span className="ml-auto hidden truncate text-sm text-[var(--color-muted,#6b6a65)] md:inline">{hint}</span>
+          <span className="ml-auto hidden truncate text-sm text-[var(--color-muted)] md:inline">{hint}</span>
         ) : null}
         {count !== undefined ? (
-          <span className="ml-auto shrink-0 font-mono text-sm font-medium tabular-nums text-[var(--color-muted,#6b6a65)]">{count}</span>
+          <span className="ml-auto shrink-0 font-mono text-sm font-medium tabular-nums text-[var(--color-muted)]">{count}</span>
         ) : null}
       </CardHeader>
       {flush ? children : <CardContent className="p-4">{children}</CardContent>}
@@ -90,18 +90,18 @@ export function SetupNote({
 }) {
   const Mark = icon;
   const toneClasses = {
-    info: "border-[var(--tone-info-bd,#bfdbfe)] bg-[var(--tone-info-bg,#eff6ff)] text-[var(--brand-strong,#1d4ed8)]",
-    success: "border-[var(--tone-success-bd,#bbf7d0)] bg-[var(--tone-success-bg,#f0fdf4)] text-[var(--tone-success-strong,#15803d)]",
-    danger: "border-[var(--tone-danger-bd,#fecaca)] bg-[var(--tone-danger-bg,#fef2f2)] text-[var(--tone-danger-strong,#b91c1c)]",
-    warning: "border-[var(--tone-warn-bd,#fde68a)] bg-[var(--tone-warn-bg,#fffbeb)] text-[var(--tone-warn-strong,#b45309)]",
-    mute: "border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)] text-[var(--color-muted,#6b6a65)]",
+    info: "border-[var(--tone-info-bd)] bg-[var(--tone-info-bg)] text-[var(--brand-strong)]",
+    success: "border-[var(--tone-success-bd)] bg-[var(--tone-success-bg)] text-[var(--tone-success-strong)]",
+    danger: "border-[var(--tone-danger-bd)] bg-[var(--tone-danger-bg)] text-[var(--tone-danger-strong)]",
+    warning: "border-[var(--tone-warn-bd)] bg-[var(--tone-warn-bg)] text-[var(--tone-warn-strong)]",
+    mute: "border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-muted)]",
   };
   const iconClasses = {
-    info: "text-[var(--brand,#2563eb)]",
-    success: "text-[var(--tone-success,#15803d)]",
-    danger: "text-[var(--tone-danger,#b91c1c)]",
-    warning: "text-[var(--tone-warn,#b45309)]",
-    mute: "text-[var(--color-muted,#6b6a65)]",
+    info: "text-[var(--brand)]",
+    success: "text-[var(--tone-success)]",
+    danger: "text-[var(--tone-danger)]",
+    warning: "text-[var(--tone-warn)]",
+    mute: "text-[var(--color-muted)]",
   };
 
   return (
@@ -145,20 +145,20 @@ export function SetupStat({
     <>
       <span className="flex items-center gap-1.5">
         {dot ? <span className={cn("size-[7px] shrink-0 rounded-[2px]", dot)} /> : null}
-        <span className="truncate text-sm font-semibold text-[var(--color-muted,#6b6a65)]">{label}</span>
+        <span className="truncate text-sm font-semibold text-[var(--color-muted)]">{label}</span>
       </span>
-      <span className="mt-1 block font-mono text-xl font-bold leading-tight tracking-tight tabular-nums text-[var(--color-ink,#141413)]">
+      <span className="mt-1 block font-mono text-xl font-bold leading-tight tracking-tight tabular-nums text-[var(--color-ink)]">
         {value}
       </span>
-      {note ? <span className="mt-0.5 block truncate font-mono text-[11.5px] text-[var(--color-muted,#6b6a65)]">{note}</span> : null}
+      {note ? <span className="mt-0.5 block truncate font-mono text-[11.5px] text-[var(--color-muted)]">{note}</span> : null}
     </>
   );
 
   const shell = cn(
     "block min-w-0 rounded-[var(--radius-sm,4px)] border px-3 py-2.5 text-left transition-colors",
     active
-      ? "border-[var(--color-ink,#141413)] bg-[var(--color-fill,#f4f3ef)]"
-      : "border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)]",
+      ? "border-[var(--color-ink)] bg-[var(--color-fill)]"
+      : "border-[var(--color-line)] bg-[var(--color-ground)]",
   );
 
   if (!onSelect) return <div className={shell}>{body}</div>;
@@ -168,7 +168,7 @@ export function SetupStat({
       type="button"
       onClick={onSelect}
       aria-pressed={active}
-      className={cn(shell, "hover:border-[var(--color-muted,#6b6a65)] hover:bg-[var(--color-surface,#ffffff)]")}
+      className={cn(shell, "hover:border-[var(--color-muted)] hover:bg-[var(--color-surface)]")}
     >
       {body}
     </button>
