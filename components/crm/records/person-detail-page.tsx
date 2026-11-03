@@ -34,6 +34,8 @@ import { RecordAttributes } from "@/components/records/record-attributes";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_users } from "@/components/books/icons/glyphs";
 import {
   AddressBook,
   Buildings,
@@ -46,7 +48,6 @@ import {
   Plus,
   Work,
   UserRound,
-  Users,
 } from "@/lib/icons";
 import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
@@ -307,7 +308,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
   return (
     <>
     <RecordPageShell
-      icon={Users}
+      icon={ciNavIcon(ci_users)}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="PERSON" recordId={person.id} />}
       backHref={listHref}

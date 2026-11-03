@@ -3,13 +3,13 @@
 import { useEffect, useEffectEvent, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Alert, Button } from "@corelithzw/react";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { LayoutSwitch } from "@/components/records/layout-switch";
 import { ListSearch } from "@/components/crm/records/list-search";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { activeFilterCount } from "@/lib/crm/registers/codec";
 import { CUSTOM_FIELD_PREFIX, isCustomFieldKey, type FilterDef, type RegisterDef } from "@/lib/crm/registers/types";
-import { Plus, X } from "@/lib/icons";
+import { X } from "@/lib/icons";
 
 import { BulkActions } from "./bulk-actions";
 import { useCustomFieldFilters, usePipelines } from "./register-data";
@@ -18,6 +18,30 @@ import { AddFilterMenu, FilterChip } from "./filter-controls";
 import { ColumnsMenu, GroupByMenu, SortMenu } from "./toolbar-menus";
 import type { RegisterHandle } from "./use-register";
 import { ViewsMenu } from "./views-menu";
+import { CrmFinding } from "@/components/crm/crm-finding";
+import {
+  ci_alert,
+  ci_apps,
+  ci_calendar_clock,
+  ci_check_circle,
+  ci_pipeline,
+  ci_table,
+  ci_user,
+  ci_x_circle,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+
+function getViewGlyph(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("all")) return ci_apps;
+  if (lower.includes("my") || lower.includes("mine")) return ci_user;
+  if (lower.includes("won") || lower.includes("done") || lower.includes("complete")) return ci_check_circle;
+  if (lower.includes("lost") || lower.includes("archived")) return ci_x_circle;
+  if (lower.includes("pipeline") || lower.includes("open") || lower.includes("deal")) return ci_pipeline;
+  if (lower.includes("scheduled") || lower.includes("upcoming")) return ci_calendar_clock;
+  if (lower.includes("urgent") || lower.includes("overdue") || lower.includes("attention")) return ci_alert;
+  return ci_table;
+}
 
 /** The list's search box, for `/` to find. */
 function searchInputId(def: RegisterDef): string {
@@ -114,6 +138,7 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
         <div className="crm-bk-tabs" role="tablist" aria-label={`${def.noun.many} views`}>
           {register.views.map((v) => {
             const active = register.view.key === v.key;
+            const glyph = getViewGlyph(v.name);
             return (
               <button
                 key={v.key}
@@ -123,6 +148,7 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
                 className="crm-bk-tab"
                 onClick={() => register.applyView(v)}
               >
+                <CiGlyphIcon glyph={glyph} size={16} className="shrink-0" />
                 <span>{v.name}</span>
                 {active && register.count ? (
                   <span className="n">{register.count.total.toLocaleString("en-US")}</span>
@@ -204,7 +230,7 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
                     <button
                       type="button"
                       onClick={register.clearFilters}
-                      className="font-sans text-sm text-[var(--color-muted)] underline decoration-[var(--color-line)] underline-offset-2 hover:text-[var(--color-ink)]"
+                      className="font-sans text-sm text-[var(--color-ink-2)] underline decoration-[var(--color-line)] underline-offset-2 hover:text-[var(--color-ink)]"
                     >
                       Clear
                     </button>
@@ -225,12 +251,6 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
       )}
     </div>
   );
-}
-
-function isStructuredFinding(
-  finding: RegisterFinding,
-): finding is { fact: ReactNode; rest?: ReactNode; end?: ReactNode } {
-  return Boolean(finding && typeof finding === "object" && "fact" in finding);
 }
 
 /**
@@ -264,13 +284,16 @@ export function RegisterShell({
   display?: ReactNode;
   children: ReactNode;
 }) {
-  const actions = useMemo(
+  const primary = useMemo<PagePrimary | null>(
     () =>
-      createLabel && onCreate ? (
-        <Button variant="primary" startIcon={<Plus className="h-4 w-4" />} onClick={onCreate}>
-          {createLabel}
-        </Button>
-      ) : null,
+      createLabel && onCreate
+        ? {
+            label: createLabel,
+            icon: "plus" as const,
+            shortcut: "N",
+            onClick: onCreate,
+          }
+        : null,
     [createLabel, onCreate],
   );
 
@@ -299,41 +322,9 @@ export function RegisterShell({
       className="crm-bk-worksheet"
       style={{ "--stack-next": "calc(var(--stack-top, 0px) + var(--list-toolbar-h))" } as CSSProperties}
     >
-      <PageChrome title={title}>{actions}</PageChrome>
+      <PageChrome title={title} primary={primary} />
 
-      {finding ? (
-        <div className="crm-bk-finding">
-          {isStructuredFinding(finding) ? (
-            <>
-              <div className="crm-bk-finding-text">
-                <span className="crm-bk-finding-fact">{finding.fact}</span>
-                {finding.rest ? <span className="crm-bk-finding-rest"> {finding.rest}</span> : null}
-              </div>
-              {finding.end ? <div className="crm-bk-finding-end">{finding.end}</div> : null}
-            </>
-          ) : finding && typeof finding === "object" && ("children" in finding || "text" in finding) ? (
-            <>
-              <div className="crm-bk-finding-text">
-                {"label" in finding && finding.label ? <strong className="crm-bk-finding-fact mr-2">{finding.label}</strong> : null}
-                {"text" in finding ? finding.text : "children" in finding ? finding.children : null}
-              </div>
-              {"action" in finding && finding.action ? (
-                <div className="crm-bk-finding-end">
-                  {typeof finding.action === "object" && finding.action && "label" in finding.action && "onClick" in finding.action ? (
-                    <button type="button" className="fl-act" onClick={finding.action.onClick}>
-                      {finding.action.label}
-                    </button>
-                  ) : (
-                    finding.action
-                  )}
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="crm-bk-finding-text">{finding as ReactNode}</div>
-          )}
-        </div>
-      ) : null}
+      {finding ? <CrmFinding finding={finding} /> : null}
 
       {kpis && kpis.length > 0 ? (
         <div className="crm-bk-strip">

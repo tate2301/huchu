@@ -3,24 +3,25 @@
 import { createElement } from "react";
 
 import { Avatar, Emoji, IconTile } from "@corelithzw/react";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
 import {
-  MedusaBookOpenIcon,
-  Building2,
-  Checklist,
-  Home,
-  FileText,
-  Funnel,
-  ManageAccounts,
-  MapPin,
-  Package,
-  TableRows,
-  Receipt,
-  UserRound,
-  Users,
-  Work,
-  Wrench,
-  type LucideIcon,
-} from "@/lib/icons";
+  ci_book_open,
+  ci_box,
+  ci_briefcase,
+  ci_building,
+  ci_handshake,
+  ci_home,
+  ci_list_check,
+  ci_map_pin,
+  ci_pipeline,
+  ci_receipt,
+  ci_sheet,
+  ci_table,
+  ci_tool,
+  ci_user_circle,
+  ci_users,
+} from "@/components/books/icons/glyphs";
+import type { LucideIcon } from "@/lib/icons";
 import { recordAccent } from "@/lib/ui/record-accent";
 
 /**
@@ -63,24 +64,24 @@ export type RecordKind =
   | "project";
 
 const KIND_ICON: Record<RecordKind, LucideIcon> = {
-  person: Users,
-  rep: UserRound,
-  company: Building2,
-  deal: Funnel,
-  lead: Funnel,
-  site: MapPin,
-  task: Checklist,
-  document: FileText,
-  "work-order": Wrench,
-  product: Package,
-  receipt: Receipt,
-  student: Users,
-  guardian: Users,
-  teacher: ManageAccounts,
-  class: TableRows,
-  subject: MedusaBookOpenIcon,
-  hostel: Home,
-  project: Work,
+  person: ciNavIcon(ci_users),
+  rep: ciNavIcon(ci_user_circle),
+  company: ciNavIcon(ci_building),
+  deal: ciNavIcon(ci_handshake),
+  lead: ciNavIcon(ci_pipeline),
+  site: ciNavIcon(ci_map_pin),
+  task: ciNavIcon(ci_list_check),
+  document: ciNavIcon(ci_sheet),
+  "work-order": ciNavIcon(ci_tool),
+  product: ciNavIcon(ci_box),
+  receipt: ciNavIcon(ci_receipt),
+  student: ciNavIcon(ci_users),
+  guardian: ciNavIcon(ci_users),
+  teacher: ciNavIcon(ci_user_circle),
+  class: ciNavIcon(ci_table),
+  subject: ciNavIcon(ci_book_open),
+  hostel: ciNavIcon(ci_home),
+  project: ciNavIcon(ci_briefcase),
 };
 
 /**

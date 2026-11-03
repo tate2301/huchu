@@ -23,6 +23,36 @@ import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
 import { useShellIfAny } from "@/components/layout/shell-state";
 import type { RegisterKpi } from "@/components/crm/registers/register-shell";
+import { CrmFinding } from "@/components/crm/crm-finding";
+import {
+  ci_apps,
+  ci_calendar_check,
+  ci_clock,
+  ci_pencil,
+  ci_pipeline,
+  ci_receipt,
+  ci_sheet,
+  ci_site_visit,
+  ci_sliders,
+  ci_tool,
+  ci_users,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+
+function getSectionGlyph(label: string) {
+  const lower = label.toLowerCase();
+  if (lower.includes("activ") || lower.includes("histor") || lower.includes("timeline")) return ci_clock;
+  if (lower.includes("note") || lower.includes("message")) return ci_pencil;
+  if (lower.includes("task") || lower.includes("follow") || lower.includes("todo")) return ci_calendar_check;
+  if (lower.includes("deal") || lower.includes("sale") || lower.includes("pipeline")) return ci_pipeline;
+  if (lower.includes("visit") || lower.includes("appointment")) return ci_site_visit;
+  if (lower.includes("job") || lower.includes("work") || lower.includes("order")) return ci_tool;
+  if (lower.includes("file") || lower.includes("doc") || lower.includes("sheet")) return ci_sheet;
+  if (lower.includes("financ") || lower.includes("money") || lower.includes("invoice") || lower.includes("cost")) return ci_receipt;
+  if (lower.includes("peopl") || lower.includes("contact") || lower.includes("team") || lower.includes("member")) return ci_users;
+  if (lower.includes("prop") || lower.includes("detail") || lower.includes("info")) return ci_sliders;
+  return ci_apps;
+}
 
 /** The query parameter that says which section of a record is open. */
 const SECTION_PARAM = "section";
@@ -346,6 +376,11 @@ export function RecordPageShell({
               className="crm-bk-tab no-underline hover:no-underline"
               data-active={isCurrent || undefined}
             >
+              {tab.icon ? (
+                <tab.icon className="size-4 shrink-0" data-current={isCurrent || undefined} />
+              ) : (
+                <CiGlyphIcon glyph={getSectionGlyph(tab.label)} size={16} className="shrink-0" />
+              )}
               <span>{tab.label}</span>
               {typeof tab.count === "number" && tab.count > 0 ? (
                 <span className="n">{tab.count}</span>
@@ -365,7 +400,7 @@ export function RecordPageShell({
     <>
       <RailSection title="Properties" action={railToggle}>
         {attributes ?? (
-          <p className="text-sm text-[var(--color-muted)]">Nothing recorded on this one yet.</p>
+          <p className="text-sm text-[var(--color-ink-3)]">Nothing recorded on this one yet.</p>
         )}
       </RailSection>
       {related ? <RailSection title="Related">{related}</RailSection> : null}
@@ -444,30 +479,14 @@ export function RecordPageShell({
 
       <div className="crm-bk-rec min-w-0 md:min-h-0 md:flex-1">
         <div className="crm-bk-main md:overflow-y-auto">
-          {finding ? (
-            <div className="crm-bk-finding">
-              <span className="fl">{finding.label ?? "Finding"}</span>
-              <span className="min-w-0 flex-1">{finding.text ?? finding.children}</span>
-              {finding.action ? (
-                <div className="ml-auto shrink-0">
-                  {typeof finding.action === "object" && "label" in finding.action && "onClick" in finding.action ? (
-                    <button type="button" className="fl-act" onClick={finding.action.onClick}>
-                      {finding.action.label}
-                    </button>
-                  ) : (
-                    finding.action
-                  )}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          {finding ? <CrmFinding finding={finding} /> : null}
 
           <div className="crm-bk-hd">
             <div className="flex min-w-0 flex-1 items-start gap-3">
               {leading ? (
                 <span className="mt-0.5 flex-none">{leading}</span>
               ) : RecordIcon ? (
-                <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-muted)]">
+                <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-ink-3)]">
                   <RecordIcon className="size-4" aria-hidden="true" />
                 </span>
               ) : null}

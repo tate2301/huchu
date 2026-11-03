@@ -2,8 +2,10 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
+import { useShortcut } from "@/components/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
 import { ArrowDownward, ArrowUpward, ChevronDown, ChevronRight, type LucideIcon } from "@/lib/icons";
@@ -310,8 +312,74 @@ export function RecordTable<T extends { id: string }>({
   const anchor = useRef<number | null>(null);
   const shift = useRef(false);
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [cursor, setCursor] = useState<number | null>(null);
+  const router = useRouter();
+
   // A record opened from here can step to its neighbours.
   useListSequence(rows.map((row) => rowHref?.(row) ?? null));
+
+  const selectedIds = selection?.selectedIds ?? [];
+  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
+
+  const toggleAll = () =>
+    selection?.onChange(
+      allSelected
+        ? selectedIds.filter((id) => !rows.some((row) => row.id === id))
+        : [...new Set([...selectedIds, ...rows.map((row) => row.id)])],
+    );
+
+  const toggle = (id: string, index: number) => {
+    if (!selection) return;
+    const on = !selectedIds.includes(id);
+    if (shift.current && anchor.current !== null && anchor.current !== index) {
+      const [from, to] = anchor.current < index ? [anchor.current, index] : [index, anchor.current];
+      const range = rows.slice(from, to + 1).map((row) => row.id);
+      selection.onChange(
+        on ? [...new Set([...selectedIds, ...range])] : selectedIds.filter((entry) => !range.includes(entry)),
+      );
+    } else {
+      selection.onChange(on ? [...selectedIds, id] : selectedIds.filter((entry) => entry !== id));
+    }
+    anchor.current = index;
+  };
+
+  const move = (step: number) => {
+    setCursor((c) => {
+      if (rows.length === 0) return null;
+      if (c == null) return step > 0 ? 0 : rows.length - 1;
+      const next = c + step;
+      if (next < 0) return 0;
+      if (next >= rows.length) return rows.length - 1;
+      return next;
+    });
+  };
+
+  const openCursorRow = () => {
+    if (cursor == null || !rows[cursor]) return;
+    const target = rows[cursor];
+    const href = rowHref?.(target);
+    if (href) router.push(href);
+  };
+
+  const toggleCursorRow = () => {
+    if (cursor == null || !rows[cursor] || !selection) return;
+    toggle(rows[cursor].id, cursor);
+  };
+
+  useShortcut("J", () => move(1), { enabled: !mobile && rows.length > 0 });
+  useShortcut("K", () => move(-1), { enabled: !mobile && rows.length > 0 });
+  useShortcut("Enter", openCursorRow, { enabled: !mobile && cursor != null });
+  useShortcut("X", toggleCursorRow, { enabled: !mobile && cursor != null && Boolean(selection) });
+  useShortcut(
+    "Escape",
+    () => {
+      setCursor(null);
+      if (selection && selection.selectedIds.length > 0) {
+        selection.onChange([]);
+      }
+    },
+    { enabled: !mobile && (cursor != null || Boolean(selection && selection.selectedIds.length > 0)) },
+  );
 
   // Before the loading and empty branches, so a phone gets the row list's own
   // skeleton and empty state rather than the table's.
@@ -357,42 +425,21 @@ export function RecordTable<T extends { id: string }>({
     );
   }
 
-  const selectedIds = selection?.selectedIds ?? [];
-  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
-
-  const toggleAll = () =>
-    selection?.onChange(
-      allSelected
-        ? selectedIds.filter((id) => !rows.some((row) => row.id === id))
-        : [...new Set([...selectedIds, ...rows.map((row) => row.id)])],
-    );
-
-  const toggle = (id: string, index: number) => {
-    if (!selection) return;
-    const on = !selectedIds.includes(id);
-    if (shift.current && anchor.current !== null && anchor.current !== index) {
-      const [from, to] = anchor.current < index ? [anchor.current, index] : [index, anchor.current];
-      const range = rows.slice(from, to + 1).map((row) => row.id);
-      selection.onChange(
-        on ? [...new Set([...selectedIds, ...range])] : selectedIds.filter((entry) => !range.includes(entry)),
-      );
-    } else {
-      selection.onChange(on ? [...selectedIds, id] : selectedIds.filter((entry) => entry !== id));
-    }
-    anchor.current = index;
-  };
-
   const renderRow = (row: T, rowIndex: number) => {
     const selected = selectedIds.includes(row.id);
+    const isCur = cursor === rowIndex;
     const href = rowHref?.(row) ?? null;
     return (
       <tr
         key={row.id}
         data-selected={selected || undefined}
+        data-cursor={isCur || undefined}
         className={cn(
           "group/row transition-colors",
+          isCur && "is-cur bg-[var(--color-fill)]",
           selected ? "bg-[var(--color-fill)]" : "hover:bg-[var(--color-hover)]",
         )}
+        onClick={() => setCursor(rowIndex)}
       >
         {selection ? (
           <td className="border-b border-[var(--color-line)] pl-6 pr-2">
@@ -651,31 +698,44 @@ export function RecordTableName({
   leading,
   title,
   subtitle,
+  inlineSubtitle,
 }: {
   leading?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
+  inlineSubtitle?: boolean;
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2.5">
       {leading ? <span className="flex-none">{leading}</span> : null}
       <span className="min-w-0">
-        {/* The underline is on the title and nowhere else — the same quiet
-            "this opens" cue `EntityLink` draws, and the only part of the cell
-            that actually is the link's subject. */}
-        <span className="block truncate font-semibold text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
-          {title}
-        </span>
-        {/* Mono, and a step down.
+        {inlineSubtitle && subtitle ? (
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate font-semibold text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
+              {title}
+            </span>
+            <span className="acct-caption truncate font-mono text-[var(--color-ink-3)]">{subtitle}</span>
+          </span>
+        ) : (
+          <>
+            {/* The underline is on the title and nowhere else — the same quiet
+                "this opens" cue `EntityLink` draws, and the only part of the cell
+                that actually is the link's subject. */}
+            <span className="block truncate font-semibold text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
+              {title}
+            </span>
+            {/* Mono, and a step down.
 
-            The subtitle is nearly always an identifier — a reference, a code,
-            a phone number, a branch — and setting identifiers in mono is what
-            lets the eye run down the column and spot the one that differs.
-            At the same size and face as the title it read as a second name
-            and doubled the apparent height of every row. */}
-        {subtitle ? (
-          <span className="acct-caption block truncate font-mono">{subtitle}</span>
-        ) : null}
+                The subtitle is nearly always an identifier — a reference, a code,
+                a phone number, a branch — and setting identifiers in mono is what
+                lets the eye run down the column and spot the one that differs.
+                At the same size and face as the title it read as a second name
+                and doubled the apparent height of every row. */}
+            {subtitle ? (
+              <span className="acct-caption block truncate font-mono">{subtitle}</span>
+            ) : null}
+          </>
+        )}
       </span>
     </span>
   );

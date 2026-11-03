@@ -20,7 +20,8 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, Button, Skeleton } from "@corelithzw/react";
-import { ColumnFigure, ColumnList, ColumnName, SectionHeading, StatusDot } from "@/components/management/ui";
+import { SectionHeading, StatusDot } from "@/components/management/ui";
+import { RecordTable, RecordTableName, RecordCell } from "@/components/records/record-table";
 import { formatDate } from "@/components/crm/money/money";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes } from "@/components/records/record-attributes";
@@ -28,6 +29,8 @@ import { RecordPageShell, RecordRelated } from "@/components/records/record-page
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CrmTaskRecord } from "@/lib/crm/crm-v2";
 import { CRM_TASK_PRIORITY_LABELS, CRM_TASK_TYPE_LABELS, isTaskOverdue, taskRecordRef } from "@/lib/crm/tasks";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_list_check } from "@/components/books/icons/glyphs";
 import { Checklist, MapPin, Repeat, Trash2, User } from "@/lib/icons";
 
 import { useTaskFields } from "./task-detail";
@@ -41,9 +44,6 @@ type TaskRecord = CrmTaskRecord & {
   recurredFrom: Occurrence | null;
   recurrences: Occurrence[];
 };
-
-/** The section's measure. */
-const SECTION_WIDTH = 760;
 
 const RECURRENCE_LABELS: Record<string, string> = {
   DAILY: "Every day",
@@ -110,7 +110,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
 
   return (
     <RecordPageShell
-      icon={Checklist}
+      icon={ciNavIcon(ci_list_check)}
       backHref="/crm/tasks"
       backLabel="Tasks"
       title={task.title}
@@ -140,14 +140,14 @@ function TaskRecord({ task }: { task: TaskRecord }) {
               label: "Overdue task",
               text: (
                 <>
-                  <strong>This task was due on {formatDate(task.dueAt)}</strong> — complete it or move the due date forward.
+                  <b>This task was due on {formatDate(task.dueAt)}</b> — complete it or move the due date forward.
                 </>
               ),
-              action: (
-                <button type="button" className="fl-act" onClick={() => completion.toggle(task)}>
-                  Complete task →
-                </button>
-              ),
+              action: {
+                label: "Complete task →",
+                onClick: () => completion.toggle(task),
+              },
+              tone: "warn" as const,
             }
           : null
       }
@@ -249,36 +249,45 @@ function TaskRecord({ task }: { task: TaskRecord }) {
           label: "Task",
           icon: Checklist,
           content: (
-            <div className="space-y-6" style={{ maxWidth: SECTION_WIDTH }}>
+            <div className="space-y-6">
               {fields.notes}
 
               {chain.length > 0 ? (
                 <section aria-labelledby="task-chain">
-                  <SectionHeading count={chain.length} maxWidth={SECTION_WIDTH}>
+                  <SectionHeading count={chain.length}>
                     <span id="task-chain">The same task, other times</span>
                   </SectionHeading>
-                  <ColumnList
-                    label="The same task, other times"
-                    maxWidth={SECTION_WIDTH}
+                  <RecordTable
                     columns={[
-                      { id: "task", label: "Task" },
-                      { id: "status", label: "Status" },
-                      { id: "due", label: "Due", align: "end" },
-                    ]}
-                    rows={chain.map((occurrence) => ({
-                      id: occurrence.id,
-                      cells: {
-                        task: (
-                          <ColumnName
-                            name={occurrence.title}
-                            meta={occurrence.id === task.recurredFrom?.id ? "The one before" : "Booked after"}
-                            href={`/crm/tasks/${occurrence.id}`}
+                      {
+                        id: "task",
+                        label: "Task",
+                        cell: (occurrence) => (
+                          <RecordTableName
+                            title={occurrence.title}
+                            subtitle={occurrence.id === task.recurredFrom?.id ? "The one before" : "Booked after"}
                           />
                         ),
-                        status: occurrenceStatus(occurrence),
-                        due: <ColumnFigure tone="muted">{formatDate(occurrence.dueAt)}</ColumnFigure>,
                       },
-                    }))}
+                      {
+                        id: "status",
+                        label: "Status",
+                        width: "8.5rem",
+                        cell: (occurrence) => occurrenceStatus(occurrence),
+                      },
+                      {
+                        id: "due",
+                        label: "Due",
+                        width: "8.5rem",
+                        align: "end",
+                        cell: (occurrence) => (
+                          <RecordCell kind="date" value={formatDate(occurrence.dueAt)} />
+                        ),
+                      },
+                    ]}
+                    rows={chain}
+                    rowHref={(occurrence) => `/crm/tasks/${occurrence.id}`}
+                    emptyTitle="No linked occurrences."
                   />
                 </section>
               ) : null}

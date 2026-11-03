@@ -18,6 +18,11 @@ import {
   RecordPageShell,
   RecordRelated,
 } from "@/components/records/record-page-shell";
+import {
+  RecordCell,
+  RecordTable,
+  RecordTableName,
+} from "@/components/records/record-table";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { NextStepCard } from "@/components/crm/records/next-step-card";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
@@ -29,6 +34,8 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import { canAskForSignOff } from "@/lib/crm/sign-off";
 import { WORK_ORDER_STATUS_LABELS, checklistEditRefusal } from "@/lib/crm/work-orders";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_tool } from "@/components/books/icons/glyphs";
 import {
   Building2,
   CalendarCheck,
@@ -47,7 +54,6 @@ import {
   User,
   Users,
   Work,
-  Wrench,
   XCircle,
 } from "@/lib/icons";
 
@@ -498,7 +504,7 @@ export function JobDetailPage({ jobId }: { jobId: string }) {
   return (
     <>
       <RecordPageShell
-        icon={Wrench}
+        icon={ciNavIcon(ci_tool)}
         // Which groups it is in, from the record itself.
         toolbar={<RecordGroupsControl entity="WORK_ORDER" recordId={job.id} />}
         backHref="/crm/projects/jobs"
@@ -970,37 +976,40 @@ function JobPaperwork({
   /** Undefined lines means "bill it off the quote"; a list means these prices. */
   onRaise: (lines?: InvoiceLineInput[]) => void;
 }) {
+  const tableRows = rows.map((r) => ({ ...r, id: r.key }));
+
   return (
     <div className="space-y-4">
-      {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-          Nothing has been raised off this job yet.
-        </p>
-      ) : (
-        <ul className="border-t border-[var(--table-divider)]">
-          {rows.map((row) => {
-            const Icon = row.icon;
-            return (
-              <li
-                key={row.key}
-                className="flex items-start gap-3 border-b border-[var(--table-divider)] py-2.5"
-              >
-                <Icon className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[var(--text-strong)]">{row.title}</p>
-                  <p className="text-sm text-[var(--text-muted)]">{row.body}</p>
-                </div>
-                <Link
-                  href={row.href}
-                  className="shrink-0 text-sm text-[var(--brand-strong)] hover:underline"
-                >
-                  {row.linkLabel}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <RecordTable
+        columns={[
+          {
+            id: "document",
+            label: "Document",
+            cell: (r) => (
+              <RecordTableName
+                title={r.title}
+                subtitle={r.body}
+              />
+            ),
+          },
+          {
+            id: "action",
+            label: "",
+            width: "8rem",
+            align: "end",
+            cell: (r) => (
+              <RecordCell
+                kind="relation"
+                value={r.linkLabel}
+                href={r.href}
+              />
+            ),
+          },
+        ]}
+        rows={tableRows}
+        rowHref={(r) => r.href}
+        emptyTitle="Nothing has been raised off this job yet."
+      />
 
       {/* What the invoice would say, before anybody commits to sending one,
           and the place the missing half of it gets typed. The server derives

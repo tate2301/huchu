@@ -20,6 +20,8 @@ import { RecordAttributes, type RecordAttribute } from "@/components/records/rec
 import { RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_phone } from "@/components/books/icons/glyphs";
 import { Calendar, CalendarCheck, Funnel, Tag, User } from "@/lib/icons";
 
 type FollowUp = {
@@ -131,7 +133,7 @@ export function FollowUpRecordContent({ followUpId }: { followUpId: string }) {
 
   return (
     <RecordPageShell
-      icon={CalendarCheck}
+      icon={ciNavIcon(ci_phone)}
       backHref="/crm/tasks/follow-ups"
       backLabel="Follow-ups"
       title={followUp.title}

@@ -5,19 +5,20 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
 import {
-  Checklist,
-  Coins,
-  Dataset,
-  Funnel,
-  Lock,
-  MapPin,
-  Megaphone,
-  Package,
-  Paperclip,
-  Plug,
-  type LucideIcon,
-} from "@/lib/icons";
+  ci_bookmark,
+  ci_box,
+  ci_camera,
+  ci_coins,
+  ci_list_check,
+  ci_lock,
+  ci_pipeline,
+  ci_plug,
+  ci_sheet,
+  ci_target,
+} from "@/components/books/icons/glyphs";
+import type { LucideIcon } from "@/lib/icons";
 import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
@@ -28,6 +29,7 @@ import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
 import { FieldCameraPanel } from "@/components/crm/settings/field-camera-panel";
 import { LeadSourcesPanel } from "@/components/crm/settings/lead-sources-panel";
 import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
+import { CrmFinding } from "@/components/crm/crm-finding";
 import { QuestionSetsContent } from "@/components/crm/settings/question-sets-content";
 
 /**
@@ -84,7 +86,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "pipelines",
     label: "Pipelines",
-    icon: Funnel,
+    icon: ciNavIcon(ci_pipeline),
     countKey: "pipelines",
     addLabel: "New pipeline",
     render: (props) => <PipelinesPanel {...props} />,
@@ -92,7 +94,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "fields",
     label: "Custom fields",
-    icon: Dataset,
+    icon: ciNavIcon(ci_sheet),
     countKey: "fields",
     addLabel: "Add field",
     render: (props) => <CustomFieldsPanel {...props} />,
@@ -100,7 +102,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "sources",
     label: "Lead sources",
-    icon: Megaphone,
+    icon: ciNavIcon(ci_target),
     countKey: "sources",
     addLabel: "Add source",
     render: (props) => <LeadSourcesPanel {...props} />,
@@ -108,7 +110,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "catalogue",
     label: "Catalogue",
-    icon: Package,
+    icon: ciNavIcon(ci_box),
     countKey: "catalogue",
     addLabel: "Add item",
     render: (props) => <CataloguePanel {...props} />,
@@ -119,13 +121,13 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "site-visit-questions",
     label: "Site visit questions",
-    icon: Checklist,
+    icon: ciNavIcon(ci_list_check),
     render: () => <QuestionSetsContent />,
   },
   {
     id: "resources",
     label: "Client resources",
-    icon: Paperclip,
+    icon: ciNavIcon(ci_bookmark),
     countKey: "resources",
     addLabel: "Add resource",
     render: (props) => <ClientResourcesPanel {...props} />,
@@ -133,7 +135,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "commissions",
     label: "Commissions",
-    icon: Coins,
+    icon: ciNavIcon(ci_coins),
     countKey: "commissions",
     addLabel: "Create rule",
     render: (props) => <CommissionsPanel {...props} />,
@@ -141,7 +143,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "keys",
     label: "API keys",
-    icon: Lock,
+    icon: ciNavIcon(ci_lock),
     countKey: "keys",
     addLabel: "Create key",
     render: (props) => <ApiKeysPanel {...props} />,
@@ -149,7 +151,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "facebook",
     label: "Facebook ads",
-    icon: Plug,
+    icon: ciNavIcon(ci_plug),
     countKey: "integrations",
     addLabel: "Connect Page",
     render: (props) => <FacebookPanel {...props} />,
@@ -157,7 +159,7 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "field-camera",
     label: "Field camera",
-    icon: MapPin,
+    icon: ciNavIcon(ci_camera),
     render: () => <FieldCameraPanel />,
   },
 ];
@@ -200,17 +202,15 @@ export function CrmSettingsContent({ createOpen, onCreateOpenChange }: SettingsP
 
   return (
     <div className="crm-bk-worksheet">
-      <div className="crm-bk-finding">
-        <div className="crm-bk-finding-text">
-          <span className="crm-bk-finding-fact">{active.label}</span>
-          <span className="crm-bk-finding-rest">
-            {" "}— Workspace configuration for pipelines, custom fields, attribution sources, and integrations.
+      <CrmFinding
+        fact={active.label}
+        rest="— Workspace configuration for pipelines, custom fields, attribution sources, and integrations."
+        end={
+          <span className="crm-bk-meta-chip">
+            Active section: <b>{active.label}</b>
           </span>
-        </div>
-        <div className="crm-bk-finding-end">
-          <span>Active section: <b>{active.label}</b></span>
-        </div>
-      </div>
+        }
+      />
 
       <div className="settings-layout p-4 md:p-6">
         <NavRail label="CRM settings sections" orientation="responsive">

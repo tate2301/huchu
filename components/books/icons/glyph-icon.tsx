@@ -6,10 +6,10 @@ import type { CiGlyph, CiStyle } from "./types";
  * The style every Books icon takes unless it says otherwise. Icons v2 makes
  * fill duo the default (design/books/spec/open.md): that is this one line.
  */
-export const CI_DEFAULT_STYLE: CiStyle = "outline";
+export const CI_DEFAULT_STYLE: CiStyle = "fill-duo";
 
 /** The style a current row, a pressed tab or a chosen module takes. */
-export const CI_ACTIVE_STYLE: CiStyle = "fill";
+export const CI_ACTIVE_STYLE: CiStyle = "fill-duo";
 
 /**
  * The fill styles cut their shapes with masks whose ids the pack writes once

@@ -4,39 +4,54 @@ import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { Button } from "@corelithzw/react";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Alert, Button } from "@corelithzw/react";
+import { PageChrome } from "@/components/layout/page-chrome";
+import { ListSearch } from "@/components/crm/records/list-search";
+import { CrmFinding } from "@/components/crm/crm-finding";
+import { StatusDot } from "@/components/management/ui";
 import { RecordMark } from "@/components/records/record-mark";
-import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
-import {
-  RecordList,
-  RecordListPager,
-  type RecordListRow,
-} from "@/components/records/record-list";
-import { RecordListShell } from "@/components/crm/records/record-list-shell";
+import { RecordListPager } from "@/components/records/record-list";
 import {
   RecordCell,
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
 } from "@/components/records/record-table";
-import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@/hooks/use-debounced";
-import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import {
   WORK_ORDER_QUEUE_LABELS,
-  WORK_ORDER_STATUS_LABELS,
   WORK_ORDER_STATUSES,
+  WORK_ORDER_STATUS_LABELS,
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
 import { Building2, CalendarCheck, Checklist, Funnel, MapPin, Tag, User, Wrench } from "@/lib/icons";
+import {
+  ci_alert,
+  ci_apps,
+  ci_calendar_check,
+  ci_calendar_clock,
+  ci_check_circle,
+  ci_clock,
+  ci_download,
+  ci_user,
+} from "@/components/books/icons/glyphs";
+import type { CiGlyph } from "@/components/books/icons/types";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+import { downloadCsv } from "@/components/books/bk-list";
 
 import { RaiseJobSheet } from "./raise-job-sheet";
 import { jobHref, jobWindow, type JobRow, type JobStatus } from "./job-types";
+
+const WORK_ORDER_TONE: Record<string, "neutral" | "success" | "warn" | "danger"> = {
+  DRAFT: "neutral",
+  SCHEDULED: "neutral",
+  IN_PROGRESS: "warn",
+  BLOCKED: "danger",
+  COMPLETED: "success",
+  CANCELLED: "neutral",
+};
 
 /**
  * The queues, and the whole register beside them.
@@ -59,6 +74,16 @@ const QUEUES: JobQueue[] = [
 ];
 
 const QUEUE_LABELS: Record<JobQueue, string> = { ...WORK_ORDER_QUEUE_LABELS, ALL: "All" };
+
+const QUEUE_GLYPHS: Record<JobQueue, CiGlyph> = {
+  ALL: ci_apps,
+  TODAY: ci_calendar_check,
+  SCHEDULED: ci_calendar_clock,
+  IN_PROGRESS: ci_clock,
+  BLOCKED: ci_alert,
+  MINE: ci_user,
+  DONE: ci_check_circle,
+};
 
 /**
  * Which statuses each queue can hold.
@@ -87,20 +112,9 @@ const EMPTY_MESSAGES: Record<JobQueue, string> = {
   DONE: "No jobs completed yet.",
 };
 
-const JOB_COLUMNS: ColumnOption[] = [
-  { id: "name", label: "Job", required: true },
-  { id: "deal", label: "Deal" },
-  { id: "status", label: "Status" },
-  { id: "when", label: "Window" },
-  { id: "assignee", label: "Crew lead" },
-  { id: "site", label: "Site" },
-  { id: "customer", label: "Customer", hiddenByDefault: true },
-  { id: "progress", label: "Progress" },
-];
-
 const PAGE_SIZE = 50;
 
-const ANY = FILTER_ANY;
+const ANY = "any";
 
 /** The server's own word for "nobody has it", on the crew filter. */
 const UNASSIGNED = "none";
@@ -132,7 +146,6 @@ export function WorkOrdersContent() {
   const { data: session } = useSession();
   const [queue, setQueue] = useState<JobQueue>("TODAY");
   const [search, setSearch] = useState("");
-  const [layout, setLayout] = useState<RecordLayout>("TABLE");
   const [status, setStatus] = useState<string>(ANY);
   const [assignee, setAssignee] = useState<string>(ANY);
   const [site, setSite] = useState<string>(ANY);
@@ -140,7 +153,6 @@ export function WorkOrdersContent() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const debouncedSearch = useDebounced(search, 300);
-  const columns = useVisibleColumns("crm.jobs.columns", JOB_COLUMNS);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -275,20 +287,17 @@ export function WorkOrdersContent() {
         icon: Tag,
         width: "11rem",
         cell: (job) => (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <StatusChip
-              status={WORK_ORDER_STATUS[job.status] ?? "inactive"}
-              label={WORK_ORDER_STATUS_LABELS[job.status]}
+          <div className="flex items-center gap-2">
+            <StatusDot
+              tone={WORK_ORDER_TONE[job.status] ?? "neutral"}
+              label={WORK_ORDER_STATUS_LABELS[job.status] ?? job.status}
             />
-            {/* A job that should have started and hasn't is the row somebody
-                opened this page to find, so it says so in the danger ink
-                rather than looking like every other scheduled job. */}
             {job.isOverdue ? (
-              <span className="shrink-0 text-sm font-medium text-[var(--badge-bad-fg)]">
+              <span className="rounded bg-[var(--badge-bad-bg)] px-1.5 py-0.5 text-sm font-medium text-[var(--badge-bad-fg)]">
                 Late
               </span>
             ) : null}
-          </span>
+          </div>
         ),
       },
       {
@@ -356,84 +365,12 @@ export function WorkOrdersContent() {
     [],
   );
 
-  const visible = useMemo(
-    () => tableColumns.filter((column) => columns.isVisible(column.id)),
-    [columns, tableColumns],
-  );
-
-  // An empty list has two causes and they want two different sentences. The
-  // queue narrows as much as the chips do, so the narrowed message names it —
-  // "nothing matches" over a Blocked queue sends somebody looking for a fault
-  // in their search when the answer is that nothing is blocked.
-  const empty = narrowed
-    ? {
-        title: "No jobs match that",
-        body:
-          queue === "ALL"
-            ? "Nothing in the register matches the search and the filters above."
-            : `Nothing in ${QUEUE_LABELS[queue]} matches the search and the filters above — the queue narrows this list too.`,
-        // Offered instead of "Raise a job": a search with no hits wants the
-        // search widened, not a second job nobody asked for. Widening the
-        // queue keeps the search and the chips — it is the same question of
-        // the whole register, which is usually where the job actually is.
-        action: (
-          <span className="flex flex-wrap items-center justify-center gap-2">
-            {queue === "ALL" ? null : (
-              <Button variant="secondary" size="sm" onClick={() => chooseQueue("ALL")}>
-                Look in every queue
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={clearNarrowing}>
-              Clear the filters
-            </Button>
-          </span>
-        ),
-      }
-    : {
-        title: EMPTY_MESSAGES[queue],
-        body: "A job is the work a won deal turns into — raise one and it lands on the crew's list.",
-        action: (
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-            Raise a job
-          </Button>
-        ),
-      };
-
-  const listRows = useMemo<RecordListRow[]>(
-    () =>
-      rows.map((job) => ({
-        id: job.id,
-        href: jobHref(job.id),
-        leading: <RecordMark kind="work-order" name={job.title} size="md" />,
-        title: job.title,
-        subtitle: [job.workOrderNo, job.site?.name, jobWindow(job.scheduledStart, job.scheduledEnd)]
-          .filter(Boolean)
-          .join(" · "),
-        status: (
-          <StatusChip
-            status={WORK_ORDER_STATUS[job.status] ?? "inactive"}
-            label={WORK_ORDER_STATUS_LABELS[job.status]}
-          />
-        ),
-        facts: [
-          { label: "Crew", value: job.assignedTo?.name ?? "Unassigned" },
-          ...(job.itemCount > 0
-            ? [{ label: "Done", value: `${job.completionPercent}%`, primary: true, mono: true }]
-            : []),
-        ],
-      })),
-    [rows],
-  );
-
-  const register = (
-    <RecordList
-      rows={listRows}
-      isLoading={jobsQuery.isLoading}
-      emptyTitle={empty.title}
-      emptyBody={empty.body}
-      emptyAction={empty.action}
-    />
-  );
+  const emptyTitle = narrowed ? "No jobs match that" : EMPTY_MESSAGES[queue];
+  const emptyBody = narrowed
+    ? queue === "ALL"
+      ? "Nothing in the register matches the search and the filters above."
+      : `Nothing in ${QUEUE_LABELS[queue]} matches the search and the filters above.`
+    : "A job is the work a won deal turns into — raise one and it lands on the crew's list.";
 
   const overdueCount = useMemo(() => rows.filter((j) => j.isOverdue).length, [rows]);
   const blockedCount = useMemo(() => rows.filter((j) => j.status === "BLOCKED").length, [rows]);
@@ -442,139 +379,213 @@ export function WorkOrdersContent() {
     [rows],
   );
 
-  const finding = useMemo(() => {
-    if (jobsQuery.isLoading || rows.length === 0) return null;
-    if (blockedCount > 0 || overdueCount > 0) {
-      return {
-        tone: (blockedCount > 0 ? "bad" : "warn") as "bad" | "warn",
-        children: (
-          <>
-            {blockedCount > 0 ? (
-              <>
-                <b>
-                  {blockedCount} {blockedCount === 1 ? "job is" : "jobs are"} blocked
-                </b>{" "}
-                on site
-              </>
-            ) : null}
-            {blockedCount > 0 && overdueCount > 0 ? " · " : null}
-            {overdueCount > 0 ? (
-              <>
-                <b>
-                  {overdueCount} {overdueCount === 1 ? "job is" : "jobs are"} late
-                </b>{" "}
-                past scheduled window
-              </>
-            ) : null}
-            {unassignedCount > 0 ? ` · ${unassignedCount} without a crew lead.` : "."}
-          </>
-        ),
-        action:
-          blockedCount > 0 && queue !== "BLOCKED"
-            ? {
-                label: "Show blocked →",
-                onClick: () => chooseQueue("BLOCKED"),
-              }
-            : unassignedCount > 0 && assignee !== UNASSIGNED
-              ? {
-                  label: "Show unassigned →",
-                  onClick: () => {
-                    setAssignee(UNASSIGNED);
-                    setPage(1);
-                  },
-                }
-              : undefined,
-      };
-    }
-    return null;
-  }, [assignee, blockedCount, chooseQueue, jobsQuery.isLoading, overdueCount, queue, rows.length, unassignedCount]);
-
-  const queueTabs = useMemo(
-    () =>
-      QUEUES.map((value) => ({
-        value,
-        label: QUEUE_LABELS[value],
-        count: queue === value ? total : undefined,
-      })),
-    [queue, total],
-  );
+  const handleExportCsv = () => {
+    const head = [
+      "Job No",
+      "Title",
+      "Deal",
+      "Status",
+      "Window Start",
+      "Window End",
+      "Crew Lead",
+      "Site",
+      "Customer",
+      "Progress",
+    ];
+    const data = rows.map((job) => [
+      job.workOrderNo,
+      job.title,
+      job.deal?.title ?? "",
+      WORK_ORDER_STATUS_LABELS[job.status] ?? job.status,
+      job.scheduledStart ?? "",
+      job.scheduledEnd ?? "",
+      job.assignedTo?.name ?? "",
+      job.site?.name ?? "",
+      job.client?.name ?? "",
+      job.itemCount > 0 ? `${job.completionPercent}%` : "",
+    ]);
+    downloadCsv("jobs.csv", head, data);
+  };
 
   return (
-    <RecordListShell
-      title="Jobs"
-      finding={finding}
-      tabs={queueTabs}
-      activeTab={queue}
-      onTabChange={(next) => chooseQueue(next as JobQueue)}
-      search={search}
-      onSearchChange={(value) => {
-        setSearch(value);
-        setPage(1);
-      }}
-      searchPlaceholder="Search jobs by number or title"
-      searchNoun="jobs"
-      createLabel="New job"
-      onCreate={() => setCreateOpen(true)}
-      error={jobsQuery.error}
-      // Both halves now count the same set: the rows on this page, out of
-      // everything the server matched for this queue, search and chips.
-      count={`${rows.length} of ${total}`}
-      filterCount={filterCount}
-      layout={<LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST"]} />}
-      display={<ColumnPicker columns={JOB_COLUMNS} state={columns} />}
-      filters={
-        <>
-          {QUEUE_STATUSES[queue].length > 1 ? (
-            <ViewToolbarFilter
-              label="Status"
-              value={status}
-              anyLabel="Any"
-              options={statusOptions}
-              onChange={(next) => {
-                setStatus(next);
-                setPage(1);
-              }}
-            />
-          ) : null}
-          {queue !== "MINE" ? (
-            <ViewToolbarFilter
-              label="Crew"
-              value={assignee}
-              anyLabel="Anyone"
-              options={crewOptions}
-              onChange={(next) => {
-                setAssignee(next);
-                setPage(1);
-              }}
-            />
-          ) : null}
-          <ViewToolbarFilter
-            label="Site"
-            value={site}
-            anyLabel="Anywhere"
-            options={siteOptions}
-            onChange={(next) => {
-              setSite(next);
+    <div className="crm-bk-worksheet">
+      <PageChrome
+        title="Jobs"
+        primary={{
+          label: "Raise a job",
+          icon: "plus",
+          shortcut: "N",
+          onClick: () => setCreateOpen(true),
+        }}
+      />
+
+      {blockedCount > 0 || overdueCount > 0 ? (
+        <CrmFinding
+          label={blockedCount > 0 ? "Blocked" : "Overdue"}
+          tone="danger"
+          fact={
+            blockedCount > 0
+              ? `${blockedCount} ${blockedCount === 1 ? "job is" : "jobs are"} blocked on site`
+              : `${overdueCount} ${overdueCount === 1 ? "job is" : "jobs are"} late past scheduled window`
+          }
+          rest={
+            blockedCount > 0 && overdueCount > 0
+              ? `· ${overdueCount} late${unassignedCount > 0 ? ` · ${unassignedCount} unassigned` : ""}.`
+              : unassignedCount > 0
+                ? `— ${unassignedCount} jobs without a crew lead.`
+                : undefined
+          }
+          action={
+            blockedCount > 0 && queue !== "BLOCKED"
+              ? {
+                  label: "Show blocked →",
+                  onClick: () => chooseQueue("BLOCKED"),
+                }
+              : unassignedCount > 0 && assignee !== UNASSIGNED
+                ? {
+                    label: "Show unassigned →",
+                    onClick: () => {
+                      setAssignee(UNASSIGNED);
+                      setPage(1);
+                    },
+                  }
+                : undefined
+          }
+        />
+      ) : null}
+
+      <div className="crm-bk-tabs-bar" role="tablist" aria-label="Job queue">
+        <div className="crm-bk-tabs">
+          {QUEUES.map((value) => {
+            const active = queue === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-active={active || undefined}
+                onClick={() => chooseQueue(value)}
+                className="crm-bk-tab"
+              >
+                <CiGlyphIcon glyph={QUEUE_GLYPHS[value]} size={16} className="shrink-0" />
+                <span>{QUEUE_LABELS[value]}</span>
+                {active ? <span className="n">{total}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="crm-bk-tools">
+        <ListSearch
+          value={search}
+          onChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          narrow
+          placeholder="Search jobs by number or title…"
+        />
+
+        {QUEUE_STATUSES[queue].length > 1 ? (
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
               setPage(1);
             }}
-          />
-        </>
-      }
-    >
-      {layout === "TABLE" ? (
-        <RecordTable
-          rows={rows}
-          columns={visible}
-          rowHref={(job) => jobHref(job.id)}
-          isLoading={jobsQuery.isLoading}
-          emptyTitle={empty.title}
-          emptyBody={empty.body}
-          emptyAction={empty.action}
-          mobile={register}
-        />
-      ) : (
-        register
-      )}
+            className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+            aria-label="Filter by status"
+          >
+            <option value={ANY}>All statuses</option>
+            {Array.from(statusOptions.entries()).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        {queue !== "MINE" ? (
+          <select
+            value={assignee}
+            onChange={(e) => {
+              setAssignee(e.target.value);
+              setPage(1);
+            }}
+            className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+            aria-label="Filter by crew"
+          >
+            <option value={ANY}>All crews</option>
+            {Array.from(crewOptions.entries()).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        <select
+          value={site}
+          onChange={(e) => {
+            setSite(e.target.value);
+            setPage(1);
+          }}
+          className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+          aria-label="Filter by site"
+        >
+          <option value={ANY}>All sites</option>
+          {Array.from(siteOptions.entries()).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
+            {rows.length} of {total} jobs
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCsv}
+            className="h-7 text-sm font-medium"
+          >
+            <CiGlyphIcon glyph={ci_download} size={14} className="mr-1.5 shrink-0" />
+            Export
+          </Button>
+        </div>
+      </div>
+
+      {jobsQuery.error ? (
+        <div className="px-6 py-3">
+          <Alert tone="danger" title="Couldn't load jobs">
+            {getApiErrorMessage(jobsQuery.error)}
+          </Alert>
+        </div>
+      ) : null}
+
+      <RecordTable
+        rows={rows}
+        columns={tableColumns}
+        rowHref={(job) => jobHref(job.id)}
+        isLoading={jobsQuery.isLoading}
+        emptyTitle={emptyTitle}
+        emptyBody={emptyBody}
+        emptyAction={
+          narrowed ? (
+            <Button variant="ghost" size="sm" onClick={clearNarrowing}>
+              Clear filters
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+              Raise a job
+            </Button>
+          )
+        }
+      />
 
       <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
@@ -583,7 +594,7 @@ export function WorkOrdersContent() {
         onOpenChange={setCreateOpen}
         currentUserId={session?.user?.id}
       />
-    </RecordListShell>
+    </div>
   );
 }
 

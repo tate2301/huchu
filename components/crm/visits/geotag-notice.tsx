@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
 import { fetchJson } from "@/lib/api-client";
 import { ExternalLink, MapPin } from "@/lib/icons";
 import { DEFAULT_FIELD_CAMERA_APP, resolveFieldCamera, type FieldCamera } from "@/lib/crm/geotag";
@@ -26,24 +26,29 @@ export function useFieldCamera({ enabled = true }: { enabled?: boolean } = {}) {
 /** The notice itself, for a camera already decided — the settings preview draws this. */
 export function FieldCameraNotice({ camera, className }: { camera: FieldCamera; className?: string }) {
   return (
-    <Alert
-      tone="info"
-      className={className}
-      icon={<MapPin aria-hidden="true" />}
-      title="Upload geotagged photos only"
-      actions={
-        // `asChild` hands the button's look to the link and drops its icon
-        // slots, so the mark that says "this leaves the app" rides inside.
-        <Button asChild variant="secondary" size="sm">
-          <a href={camera.storeUrl} target="_blank" rel="noopener noreferrer">
-            Get {camera.appName}
-            <ExternalLink aria-hidden="true" className="size-3.5" />
-          </a>
-        </Button>
-      }
+    <div
+      role="note"
+      className={[
+        "flex flex-wrap items-center justify-between gap-3 px-6 py-2 text-sm text-[var(--color-ink-2)] bg-[var(--color-surface)] border-b border-[var(--color-line)]",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      We recommend {camera.appName} for accurate location stamps.
-    </Alert>
+      <div className="flex items-center gap-2 min-w-0">
+        <MapPin aria-hidden="true" className="size-4 shrink-0 text-[var(--color-ink-3)]" />
+        <span className="font-medium text-[var(--color-ink)]">Upload geotagged photos only.</span>
+        <span className="hidden sm:inline text-[var(--color-ink-2)]">
+          We recommend {camera.appName} for accurate location stamps.
+        </span>
+      </div>
+      <Button asChild variant="secondary" size="sm" className="h-7 text-sm">
+        <a href={camera.storeUrl} target="_blank" rel="noopener noreferrer">
+          Get {camera.appName}
+          <ExternalLink aria-hidden="true" className="size-3.5" />
+        </a>
+      </Button>
+    </div>
   );
 }
 

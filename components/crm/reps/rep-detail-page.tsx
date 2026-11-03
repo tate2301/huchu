@@ -19,6 +19,8 @@ import { ClientDate } from "@/components/ui/client-date";
 import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_user_circle } from "@/components/books/icons/glyphs";
 import {
   Calendar,
   Checklist,
@@ -26,7 +28,6 @@ import {
   Payments,
   Phone,
   ShieldCheck,
-  UserRound,
 } from "@/lib/icons";
 import { fetchCrmRep, type CrmOutstandingItem, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
@@ -235,7 +236,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
 
   return (
     <RecordPageShell
-      icon={UserRound}
+      icon={ciNavIcon(ci_user_circle)}
       backHref="/crm/reps"
       backLabel="Team"
       title={rep.name ?? rep.email ?? "Unnamed"}

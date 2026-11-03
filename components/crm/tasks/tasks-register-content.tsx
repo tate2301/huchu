@@ -9,11 +9,15 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ListSearch } from "@/components/crm/records/list-search";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
-import { Plus } from "@/lib/icons";
 import { bucketByDueDate } from "@/components/records/record-list-groups";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+import { ci_users, ci_user, ci_user_plus, ci_download } from "@/components/books/icons/glyphs";
+import { downloadCsv } from "@/components/books/bk-list";
+import { CRM_TASK_PRIORITY_LABELS, CRM_TASK_TYPE_LABELS } from "@/lib/crm/tasks";
 
 import { TaskFormSheet } from "./task-form-sheet";
 import { TaskList } from "./task-list";
+import { CrmFinding } from "@/components/crm/crm-finding";
 
 const PAGE_LIMIT = 200;
 
@@ -57,34 +61,47 @@ export function TasksRegisterContent() {
   const buckets = useMemo(() => bucketByDueDate(tasks, (task) => task.dueAt), [tasks]);
   const overdueCount = buckets.find((b) => b.id === "overdue")?.items.length ?? 0;
 
+  const handleExportCsv = () => {
+    const head = ["Title", "Type", "Priority", "Status", "Due Date", "Customer / Deal", "Assignee"];
+    const data = tasks.map((t) => [
+      t.title,
+      CRM_TASK_TYPE_LABELS[t.type] ?? t.type,
+      CRM_TASK_PRIORITY_LABELS[t.priority] ?? t.priority,
+      t.status,
+      t.dueAt ? new Date(t.dueAt).toISOString() : "",
+      t.client?.name ?? t.deal?.title ?? t.lead?.title ?? "",
+      t.assignedTo?.name ?? "Unassigned",
+    ]);
+    downloadCsv("tasks.csv", head, data);
+  };
+
   return (
     <div className="crm-bk-worksheet">
-      <PageChrome title="Tasks">
-        <Button
-          variant="primary"
-          size="sm"
-          startIcon={<Plus className="h-4 w-4" />}
-          onClick={() => setCreating(true)}
-        >
-          New task
-        </Button>
-      </PageChrome>
+      <PageChrome
+        title="Tasks"
+        primary={{
+          label: "New task",
+          icon: "plus",
+          shortcut: "N",
+          onClick: () => setCreating(true),
+        }}
+      />
 
       {overdueCount > 0 ? (
-        <div className="crm-bk-finding">
-          <span className="fl">Overdue</span>
-          <span>
-            <strong>{overdueCount} open task{overdueCount === 1 ? " is" : "s are"} past due</strong> — follow up or reschedule so nothing slips through the cracks.
-          </span>
-        </div>
+        <CrmFinding
+          label="Overdue"
+          tone="danger"
+          fact={`${overdueCount} open task${overdueCount === 1 ? " is" : "s are"} past due`}
+          rest="— follow up or reschedule so nothing slips through the cracks."
+        />
       ) : null}
 
       <div className="crm-bk-tabs-bar" role="tablist" aria-label="Task scope">
         <div className="crm-bk-tabs">
           {[
-            { value: "ALL", label: "Everyone" },
-            { value: "MINE", label: "Mine" },
-            { value: "UNASSIGNED", label: "Unassigned" },
+            { value: "ALL", label: "Everyone", glyph: ci_users },
+            { value: "MINE", label: "Mine", glyph: ci_user },
+            { value: "UNASSIGNED", label: "Unassigned", glyph: ci_user_plus },
           ].map((item) => (
             <button
               key={item.value}
@@ -95,8 +112,9 @@ export function TasksRegisterContent() {
               onClick={() => setScope(item.value as typeof scope)}
               className="crm-bk-tab"
             >
+              <CiGlyphIcon glyph={item.glyph} size={16} className="shrink-0" />
               <span>{item.label}</span>
-              {scope === item.value ? <span className="cnt">{tasks.length}</span> : null}
+              {scope === item.value ? <span className="n">{tasks.length}</span> : null}
             </button>
           ))}
         </div>
@@ -107,6 +125,7 @@ export function TasksRegisterContent() {
           value={search}
           onChange={setSearch}
           placeholder="Search tasks by title, customer, deal or assignee"
+          narrow
         />
 
         {scope === "ALL" ? (
@@ -114,7 +133,7 @@ export function TasksRegisterContent() {
             value={owner}
             onChange={(event) => setOwner(event.target.value)}
             aria-label="Filter by owner"
-            className="h-7 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-sm text-[var(--color-ink)]"
+            className="h-7 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-sm text-[var(--color-ink)] focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
           >
             <option value="">Any owner</option>
             {owners.map((person) => (
@@ -125,10 +144,19 @@ export function TasksRegisterContent() {
           </select>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="font-mono text-sm tabular-nums text-[var(--color-muted)]">
+        <div className="ml-auto flex items-center gap-3">
+          <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
             {tasks.length} open
           </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCsv}
+            className="h-7 text-sm font-medium"
+          >
+            <CiGlyphIcon glyph={ci_download} size={14} className="mr-1.5 shrink-0" />
+            Export
+          </Button>
         </div>
       </div>
 
@@ -147,7 +175,7 @@ export function TasksRegisterContent() {
             <section key={bucket.id} aria-labelledby={`tasks-${bucket.id}`}>
               <h3
                 id={`tasks-${bucket.id}`}
-                className="sticky top-14 z-10 flex items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-5 py-1.5 text-sm font-medium uppercase tracking-[0.06em] text-[var(--color-muted)]"
+                className="sticky top-14 z-10 flex items-center gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-5 py-1.5 text-sm font-medium uppercase tracking-[0.06em] text-[var(--color-ink-3)]"
               >
                 <span
                   className={
@@ -156,7 +184,7 @@ export function TasksRegisterContent() {
                 >
                   {bucket.label}
                 </span>
-                <span className="rounded-full bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-sm font-normal normal-case tracking-normal tabular-nums text-[var(--color-muted)]">
+                <span className="rounded-full bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-sm font-normal normal-case tracking-normal tabular-nums text-[var(--color-ink-3)]">
                   {bucket.items.length}
                 </span>
               </h3>

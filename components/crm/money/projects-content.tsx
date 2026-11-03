@@ -14,13 +14,14 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button, Skeleton } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { StatusDot } from "@/components/management/ui";
 import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
-  StatusDot,
-} from "@/components/management/ui";
+  RecordCell,
+  RecordTable,
+  RecordTableName,
+  type RecordTableColumn,
+} from "@/components/records/record-table";
 import { RecordListPager } from "@/components/records/record-list";
 import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
@@ -29,6 +30,16 @@ import { fetchJson } from "@/lib/api-client";
 import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
 import { PROJECT_STATUSES, PROJECT_STATUS_LABELS, type ProjectStatus } from "@/lib/crm/project-status";
 import { PROJECT_TONE } from "@/lib/crm/tones";
+import { cn } from "@/lib/utils";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import {
+  ci_apps,
+  ci_calendar_clock,
+  ci_clock,
+  ci_alert,
+  ci_check_circle,
+  ci_x_circle,
+} from "@/components/books/icons/glyphs";
 
 import { formatMoney } from "./money";
 import type { ProjectCosts } from "./project-cost-strip";
@@ -60,9 +71,6 @@ const BUDGET_OPTIONS = new Map([
   ["over", "Over budget"],
   ["within", "Within budget"],
 ]);
-
-/** A register's measure: full worksheet width. */
-const WIDTH = 1600;
 
 /** What is left of the budget, or by how much it is over. Null when there is none. */
 function budgetLeft(costs: ProjectCosts): { text: string; over: boolean } | null {
@@ -140,8 +148,6 @@ export function ProjectsContent() {
   const filterCount = [owner, client, budget].filter((value) => value !== FILTER_ANY).length;
   const narrowed = Boolean(debouncedSearch.trim()) || filterCount > 0 || status !== FILTER_ANY;
 
-  const empty = narrowed ? "No projects match." : "No projects yet.";
-
   const resetPage = <T,>(set: (value: T) => void) => (value: T) => {
     set(value);
     setPage(1);
@@ -213,14 +219,121 @@ export function ProjectsContent() {
 
   const statusTabs = useMemo(
     () => [
-      { value: FILTER_ANY, label: "All projects", count: status === FILTER_ANY ? total : undefined },
-      ...PROJECT_STATUSES.map((value) => ({
-        value,
-        label: PROJECT_STATUS_LABELS[value],
-        count: status === value ? total : undefined,
-      })),
+      {
+        value: FILTER_ANY,
+        label: "All projects",
+        count: status === FILTER_ANY ? total : undefined,
+        icon: ciNavIcon(ci_apps),
+      },
+      ...PROJECT_STATUSES.map((value) => {
+        const glyph =
+          value === "PLANNING"
+            ? ci_calendar_clock
+            : value === "ACTIVE"
+              ? ci_clock
+              : value === "ON_HOLD"
+                ? ci_alert
+                : value === "COMPLETED"
+                  ? ci_check_circle
+                  : ci_x_circle;
+        return {
+          value,
+          label: PROJECT_STATUS_LABELS[value],
+          count: status === value ? total : undefined,
+          icon: ciNavIcon(glyph),
+        };
+      }),
     ],
     [status, total],
+  );
+
+  const columns = useMemo<RecordTableColumn<ProjectRow>[]>(
+    () => [
+      {
+        id: "project",
+        label: "Project",
+        cell: (row) => (
+          <RecordTableName
+            title={row.name}
+            subtitle={`${row.projectNo} · ${row.deal.dealNo}`}
+          />
+        ),
+      },
+      {
+        id: "status",
+        label: "Status",
+        width: "8.5rem",
+        cell: (row) => (
+          <StatusDot
+            tone={PROJECT_TONE[row.status] ?? "neutral"}
+            label={PROJECT_STATUS_LABELS[row.status]}
+          />
+        ),
+      },
+      {
+        id: "customer",
+        label: "Customer",
+        width: "12rem",
+        cell: (row) => (
+          <RecordCell
+            kind="relation"
+            value={row.client?.name ?? "—"}
+            href={row.client ? `/crm/companies/${row.client.id}` : null}
+          />
+        ),
+      },
+      {
+        id: "owner",
+        label: "Owner",
+        width: "10rem",
+        cell: (row) => (
+          <RecordCell
+            kind="text"
+            value={row.manager?.name ?? "No owner"}
+            className={!row.manager ? "font-medium text-[var(--color-warn)]" : undefined}
+          />
+        ),
+      },
+      {
+        id: "jobs",
+        label: "Jobs",
+        width: "5rem",
+        align: "end",
+        cell: (row) => <RecordCell kind="number" value={row._count.workOrders} />,
+      },
+      {
+        id: "spent",
+        label: "Spent",
+        width: "8.5rem",
+        align: "end",
+        cell: (row) => (
+          <RecordCell kind="money" value={formatMoney(row.costs.spent, row.costs.currency)} />
+        ),
+      },
+      {
+        id: "left",
+        label: "Budget left",
+        width: "9.5rem",
+        align: "end",
+        cell: (row) => {
+          const left = budgetLeft(row.costs);
+          if (!left) return <span className="font-mono text-sm text-[var(--color-ink-3)]">—</span>;
+          return (
+            <span
+              className={cn(
+                "font-mono text-sm tabular-nums",
+                left.over
+                  ? "font-semibold text-[var(--color-bad)]"
+                  : "font-medium text-[var(--color-ink)]",
+              )}
+            >
+              {left.text}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
   );
 
   return (
@@ -265,66 +378,25 @@ export function ProjectsContent() {
         </>
       }
     >
-      {projectsQuery.isLoading ? (
-        <div className="space-y-1.5" aria-busy="true" style={{ maxWidth: WIDTH }}>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {/* The customer and owner ride under the name; the columns are the
-              ones scanned down — where it is, what it has cost, what is left.
-              A project's state is a dot and a word (rule 5). */}
-          <ColumnList
-            label="Projects"
-            maxWidth={WIDTH}
-            empty={empty}
-            columns={[
-              { id: "project", label: "Project" },
-              { id: "status", label: "Status", hideBelow: "sm" },
-              { id: "jobs", label: "Jobs", align: "end", hideBelow: "md" },
-              { id: "spent", label: "Spent", align: "end", hideBelow: "sm" },
-              { id: "left", label: "Budget left", align: "end" },
-            ]}
-            rows={rows.map((project) => {
-              const left = budgetLeft(project.costs);
-              return {
-                id: project.id,
-                cells: {
-                  project: (
-                    <ColumnName
-                      code={project.projectNo}
-                      name={project.name}
-                      // The deal it delivers, by number: the project is
-                      // usually named after it, so its title would repeat.
-                      meta={[project.deal.dealNo, project.client?.name, project.manager?.name ?? "No owner"]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      href={`/crm/projects/${project.id}`}
-                    />
-                  ),
-                  status: (
-                    <StatusDot tone={PROJECT_TONE[project.status] ?? "neutral"} label={PROJECT_STATUS_LABELS[project.status]} />
-                  ),
-                  jobs: <ColumnFigure tone="muted">{project._count.workOrders}</ColumnFigure>,
-                  spent: <ColumnFigure>{formatMoney(project.costs.spent, project.costs.currency)}</ColumnFigure>,
-                  left: left ? (
-                    <ColumnFigure tone={left.over ? "danger" : "default"}>{left.text}</ColumnFigure>
-                  ) : (
-                    <ColumnFigure tone="muted">No budget</ColumnFigure>
-                  ),
-                },
-              };
-            })}
-          />
-          {rows.length === 0 && !narrowed ? (
+      <RecordTable
+        rows={rows}
+        columns={columns}
+        rowHref={(project) => `/crm/projects/${project.id}`}
+        isLoading={projectsQuery.isLoading}
+        emptyTitle={narrowed ? "No projects match that search" : "No projects yet"}
+        emptyBody={
+          narrowed
+            ? "Try changing your search term, owner, or budget filter."
+            : "When a deal is won, start a project to track its budget, jobs, and spend."
+        }
+        emptyAction={
+          !narrowed ? (
             <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
               New project
             </Button>
-          ) : null}
-        </div>
-      )}
+          ) : undefined
+        }
+      />
 
       <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 

@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_map_pin } from "@/components/books/icons/glyphs";
 import {
   Building2,
   Buildings,
@@ -228,7 +230,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
   return (
     <>
       <RecordPageShell
-      icon={MapPin}
+      icon={ciNavIcon(ci_map_pin)}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="SITE" recordId={site.id} />}
       backHref={listHref}

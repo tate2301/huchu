@@ -110,12 +110,26 @@ export const NAV_NODES: readonly NavNode[] = [
     ] },
   { id: "projects", label: "Projects", icon: "deal", href: "/crm/projects", group: "crm", kids: [
       { id: "proj-all", label: "Projects", icon: "deal", href: "/crm/projects" },
-      { id: "proj-jobs", label: "Jobs", icon: "job-card", href: "/crm/projects/jobs" },
+      { id: "proj-jobs", label: "Jobs", icon: "job-card", href: "/crm/work-orders" },
     ] },
   { id: "visits", label: "Visits", icon: "calendar-check", href: "/crm/appointments", group: "crm", badge: "visits" },
   { id: "tasks", label: "Tasks", icon: "task", href: "/crm/tasks", group: "crm", kids: [
       { id: "tasks-all", label: "Tasks", icon: "task", href: "/crm/tasks" },
       { id: "tasks-follow", label: "Follow-ups", icon: "phone-call", href: "/crm/tasks/follow-ups" },
+    ] },
+  { id: "crm-cost", label: "Cost tracker", icon: "receipt", href: "/crm/cost-tracker", group: "crm", kids: [
+      { id: "cost-all", label: "Cost tracker", icon: "receipt", href: "/crm/cost-tracker" },
+      { id: "cost-daily", label: "Daily reports", icon: "journal", href: "/crm/daily-reports" },
+    ] },
+  { id: "crm-team", label: "Team", icon: "employee", href: "/crm/reps", group: "crm", kids: [
+      { id: "team-all", label: "Team", icon: "employee", href: "/crm/reps" },
+      { id: "team-me", label: "My performance", icon: "person-check", href: "/crm/reps/me" },
+    ] },
+  { id: "crm-knowledge", label: "Knowledge", icon: "journal", href: "/crm/knowledge", group: "crm" },
+  { id: "crm-settings", label: "Settings", icon: "shield", href: "/crm/settings", group: "crm", kids: [
+      { id: "crm-set-config", label: "Configuration", icon: "shield", href: "/crm/settings" },
+      { id: "crm-set-workflows", label: "Workflows", icon: "checklist", href: "/crm/workflows" },
+      { id: "crm-set-import", label: "Import", icon: "dispatch", href: "/crm/import" },
     ] },
   { id: "students", label: "Students", icon: "pupil", href: "/schools/students", group: "campus", kids: [
       { id: "st-all", label: "Students", icon: "pupil", href: "/schools/students" },
