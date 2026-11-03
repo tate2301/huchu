@@ -34,9 +34,9 @@
 
 .build-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  padding: 16px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 20px;
+  padding: 20px 24px 32px;
 }
 
 .build-card {
@@ -44,7 +44,7 @@
   flex-direction: column;
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-line, #e8e6e1);
-  border-radius: 6px;
+  border-radius: var(--radius-md, 8px);
   overflow: hidden;
   text-decoration: none;
   color: inherit;
@@ -52,16 +52,16 @@
 }
 
 .build-card:hover {
-  border-color: var(--color-ink, #141413);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
+  border-color: var(--color-ink-3, #9ca3af);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
 }
 
 .build-card-body {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 12px 14px 14px;
+  padding: 14px 16px 16px;
 }
 
 .build-card-head {
@@ -75,16 +75,16 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--color-ink, #141413);
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .build-card-meta {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  margin-top: 5px;
+  font-size: 14px;
+  color: var(--color-ink-2, #6b6a65);
 }
 
 .build-card-foot {
@@ -94,7 +94,7 @@
   margin-top: auto;
   padding-top: 12px;
   border-top: 1px solid var(--color-line, #e8e6e1);
-  font-size: 11.5px;
+  font-size: 14px;
 }
 
 /* Layout switch pill */

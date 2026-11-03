@@ -3,8 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Button, ButtonLink, Empty, Finding, Icon, Segmented, TableFoot } from "@/components/core";
+import { Button, ButtonLink, Empty, Icon, Segmented, TableFoot } from "@/components/core";
+import { CrmFinding } from "@/components/crm/crm-finding";
 import { MenuButton } from "@/components/core/menu";
+import { cn } from "@/lib/utils";
 import { changedWhen } from "@/components/reports/reports-all-view";
 import { CraftDocCover } from "@/components/build/craft-doc-cover";
 import {
@@ -161,7 +163,13 @@ export function BuildHomeView({
         </div>
       </div>
 
-      <Finding fact={finding.fact} rest={finding.rest} />
+      <CrmFinding
+        finding={{
+          fact: finding.fact,
+          rest: finding.rest ? `— ${finding.rest}` : null,
+        }}
+        className="border-b border-[var(--color-line)] bg-[var(--color-surface)] px-6 py-2.5"
+      />
 
       {shown.length === 0 ? (
         items.length === 0 ? (
@@ -207,24 +215,44 @@ export function BuildHomeView({
                     <span className="build-card-title truncate" title={item.name}>
                       {item.name}
                     </span>
-                    <span className={STATUS_TONE[item.status]}>
-                      {BUILD_STATUS_LABEL[item.status]}
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium">
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full shrink-0",
+                          item.status === "published"
+                            ? "bg-[var(--tone-success-strong,#15803d)]"
+                            : item.status === "draft"
+                              ? "bg-[var(--tone-warn-strong,#b45309)]"
+                              : "bg-[var(--color-ink-3)]",
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          item.status === "published"
+                            ? "text-[var(--tone-success-strong,#15803d)]"
+                            : item.status === "draft"
+                              ? "text-[var(--tone-warn-strong,#b45309)]"
+                              : "text-[var(--color-ink-3)]",
+                        )}
+                      >
+                        {BUILD_STATUS_LABEL[item.status]}
+                      </span>
                     </span>
                   </div>
 
                   <div className="build-card-meta">
-                    <span className="truncate" title={`${BUILD_USER_LABEL[item.usedBy]}: ${item.usedFor}`}>
+                    <span className="truncate text-sm text-[var(--color-ink-2)]" title={`${BUILD_USER_LABEL[item.usedBy]}: ${item.usedFor}`}>
                       {item.usedFor}
                     </span>
-                    <span>·</span>
-                    <span>{BUILD_KIND_LABEL[item.kind]}</span>
+                    <span className="text-[var(--color-ink-3)]">·</span>
+                    <span className="text-sm text-[var(--color-ink-2)]">{BUILD_KIND_LABEL[item.kind]}</span>
                   </div>
 
                   <div className="build-card-foot">
-                    <span className="text-[var(--color-muted,#6b6a65)]">
+                    <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
                       {changedWhen(item.updatedAt).replace(/^today$/, "Today").replace(/^yesterday$/, "Yesterday")}
                     </span>
-                    <span className="font-mono text-[var(--color-muted,#6b6a65)]">
+                    <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
                       {item.version ? `v${item.version}` : item.isDefault ? "Default" : "Custom"}
                     </span>
                   </div>

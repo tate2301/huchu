@@ -155,56 +155,48 @@ export function CraftDocCover({
   return (
     <div
       className={cn(
-        "craft-doc-cover relative flex h-[154px] w-full items-center justify-center overflow-hidden border-b border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)] px-4 py-3 select-none",
+        "craft-doc-cover relative flex h-[156px] w-full items-center justify-center overflow-hidden border-b border-[var(--color-line,#e8e6e1)] bg-[var(--color-ground,#fbfbfa)] px-5 py-4 select-none",
         className,
       )}
       aria-hidden="true"
     >
-      {/* Background paper ambient grain / grid */}
+      {/* Background paper ambient dot grid */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.4]"
         style={{
           backgroundImage:
             "radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px)",
-          backgroundSize: "16px 16px",
+          backgroundSize: "14px 14px",
         }}
       />
 
-      {/* Floating paper sheet */}
+      {/* Floating tactile paper sheet */}
       <div
-        className="relative flex h-full w-[172px] flex-col rounded-[4px] border border-black/10 bg-white px-3 py-2.5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md"
+        className="relative flex h-[122px] w-[184px] shrink-0 flex-col rounded-[4px] border border-black/10 bg-white px-3.5 py-2.5 transition-all duration-200 group-hover:-translate-y-1 group-hover:shadow-md"
         style={{
           boxShadow:
-            "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.03)",
+            "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
         }}
       >
         {/* Top colored accent header banner */}
         <div
-          className="absolute left-0 top-0 h-[4px] w-full rounded-t-[3px]"
+          className="absolute left-0 top-0 h-[3px] w-full rounded-t-[3px]"
           style={{ backgroundColor: theme.accent }}
         />
 
-        {/* Top header row: Logo badge + document type pill */}
+        {/* Top header row: Logo badge + mini title line */}
         <div className="mt-1 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-1.5">
           <div className="flex items-center gap-1.5">
             <div
-              className="size-3 rounded-[2px]"
+              className="size-2.5 rounded-[2px]"
               style={{ backgroundColor: theme.accentBg, border: `1px solid ${theme.accentBorder}` }}
             />
             <div
-              className="h-1.5 w-12 rounded-[1px]"
+              className="h-1.5 w-14 rounded-[1px]"
               style={{ backgroundColor: theme.accent, opacity: 0.85 }}
             />
           </div>
-          <span
-            className="rounded-[2px] px-1 py-[1px] font-mono text-[8.5px] font-bold tracking-wider"
-            style={{
-              backgroundColor: theme.accentBg,
-              color: theme.accent,
-            }}
-          >
-            {theme.iconText}
-          </span>
+          <div className="h-1 w-7 rounded-[1px] bg-black/15" />
         </div>
 
         {/* Document Body Skeletons */}
@@ -224,7 +216,7 @@ export function CraftDocCover({
               {/* Submit button pill */}
               <div className="mt-auto flex justify-end">
                 <div
-                  className="h-3 w-12 rounded-[2px]"
+                  className="h-2.5 w-10 rounded-[2px]"
                   style={{ backgroundColor: theme.accent, opacity: 0.85 }}
                 />
               </div>
@@ -249,7 +241,7 @@ export function CraftDocCover({
               {/* Action button */}
               <div className="mt-auto flex justify-start">
                 <div
-                  className="h-3 w-16 rounded-[2px]"
+                  className="h-2.5 w-12 rounded-[2px]"
                   style={{ backgroundColor: theme.accent, opacity: 0.85 }}
                 />
               </div>
@@ -277,9 +269,9 @@ export function CraftDocCover({
               </div>
               {/* Total & Signature */}
               <div className="mt-auto flex items-end justify-between border-t border-black/[0.06] pt-1">
-                <div className="h-1 w-10 rounded-[1px] bg-black/10" />
+                <div className="h-1 w-8 rounded-[1px] bg-black/10" />
                 <div
-                  className="h-2 w-10 rounded-[1px]"
+                  className="h-2 w-9 rounded-[1px]"
                   style={{ backgroundColor: theme.accent, opacity: 0.9 }}
                 />
               </div>
@@ -288,11 +280,11 @@ export function CraftDocCover({
         </div>
       </div>
 
-      {/* Kind pill watermark badge on top right */}
+      {/* Kind pill watermark badge placed neatly in the top right corner */}
       <span
-        className="absolute right-3 top-3 rounded-full border px-2 py-0.5 font-mono text-[10.5px] font-medium tracking-wide shadow-sm"
+        className="absolute right-3 top-3 inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-sm font-medium tracking-tight shadow-xs backdrop-blur-xs"
         style={{
-          backgroundColor: "#ffffff",
+          backgroundColor: "rgba(255, 255, 255, 0.92)",
           borderColor: theme.accentBorder,
           color: theme.accent,
         }}
