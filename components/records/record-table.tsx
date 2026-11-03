@@ -391,7 +391,7 @@ export function RecordTable<T extends { id: string }>({
         data-selected={selected || undefined}
         className={cn(
           "group/row transition-colors",
-          selected ? "bg-[var(--color-fill,#f4f3ef)]" : "hover:bg-[var(--color-hover,#f8f7f4)]",
+          selected ? "bg-[var(--color-fill)]" : "hover:bg-[var(--color-hover)]",
         )}
       >
         {selection ? (
@@ -521,7 +521,7 @@ export function RecordTable<T extends { id: string }>({
               {selection ? (
                 <th
                   scope="col"
-                  className="w-11 border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] pl-6 pr-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
+                  className="w-11 border-b border-[var(--color-line)] bg-[var(--color-ground)] pl-6 pr-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
                 >
                   <Checkbox
                     checked={allSelected}
@@ -541,7 +541,7 @@ export function RecordTable<T extends { id: string }>({
                     aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
-                      "h-[34px] border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2] group/head",
+                      "h-[34px] border-b border-[var(--color-line)] bg-[var(--color-ground)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2] group/head",
                       !selection && colIdx === 0 && "pl-6",
                       column.align === "end" && "text-right",
                     )}
@@ -584,7 +584,7 @@ export function RecordTable<T extends { id: string }>({
 
               <th
                 scope="col"
-                className="w-10 border-b border-[var(--color-line)] bg-[var(--color-ground,#fbfbfa)] pl-2 pr-6 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
+                className="w-10 border-b border-[var(--color-line)] bg-[var(--color-ground)] pl-2 pr-6 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
               >
                 <span className="sr-only">Open</span>
               </th>

@@ -236,7 +236,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
             owner={person.assignedTo?.name ?? null}
           >
             {person.email || person.phone ? (
-              <p className="truncate text-sm text-[var(--text-subtle)]">{person.email ?? person.phone}</p>
+              <p className="truncate text-sm text-[var(--ink-2)]">{person.email ?? person.phone}</p>
             ) : null}
           </BoardCardFace>
         ),

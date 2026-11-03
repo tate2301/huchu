@@ -236,7 +236,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
             subtitle={[company.city, company.country].filter(Boolean).join(", ") || company.clientNo}
             owner={company.assignedTo?.name ?? null}
           >
-            <p className="text-sm text-[var(--text-subtle)]">
+            <p className="text-sm text-[var(--ink-2)]">
               {company._count?.people ?? 0} people · {company._count?.deals ?? 0} deals
             </p>
           </BoardCardFace>

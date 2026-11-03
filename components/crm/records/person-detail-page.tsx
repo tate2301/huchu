@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -51,13 +52,12 @@ import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { NextStepCard } from "./next-step-card";
 
-import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { DealFormSheet } from "./deal-form-sheet";
 import { PersonFormSheet } from "./person-form-sheet";
 import { MergeDialog } from "./merge-dialog";
 
-import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
@@ -279,16 +279,21 @@ export function PersonDetailPage({ personId }: { personId: string }) {
     ) : null,
     person.companyLinks.length > 1 ? (
       <RailSection key="companies" title="Companies">
-        <Stack as="ul" gap="xs">
+        <ul className="crm-bk-related-list">
           {person.companyLinks.map((link) => (
-            <li key={link.id} className="text-sm">
-              <EntityLink href={`/crm/companies/${link.client.id}`}>{link.client.name}</EntityLink>
-              {link.jobTitle ? (
-                <span className="text-sm text-[var(--text-muted)]"> · {link.jobTitle}</span>
-              ) : null}
+            <li key={link.id}>
+              <Link
+                href={`/crm/companies/${link.client.id}`}
+                className="crm-bk-related-link"
+              >
+                <span className="truncate">{link.client.name}</span>
+                {link.jobTitle ? (
+                  <span className="n">{link.jobTitle}</span>
+                ) : null}
+              </Link>
             </li>
           ))}
-        </Stack>
+        </ul>
       </RailSection>
     ) : null,
     definitions.length > 0 ? (
@@ -519,22 +524,48 @@ export function PersonDetailPage({ personId }: { personId: string }) {
           icon: Funnel,
           count: person.dealContacts.length,
           content: (
-            <RelatedList
-              items={person.dealContacts}
-              emptyMessage="This person isn't on any deals yet."
-              renderItem={(contact) => ({
-                href: `/crm/deals/${contact.deal.id}`,
-                title: contact.deal.title,
-                subtitle:
-                  [ROLE_LABELS[contact.role] ?? contact.role, contact.deal.stage.name]
-                    .filter(Boolean)
-                    .join(" · ") || null,
-                meta:
-                  contact.deal.value !== null
-                    ? formatMoney(contact.deal.value, contact.deal.currency)
-                    : undefined,
-              })}
-            />
+            <div className="space-y-3">
+              <div className="bk-bleed">
+                <table className="table" aria-label="Deals this person is on">
+                  <thead>
+                    <tr>
+                      <th>Deal</th>
+                      <th>Role</th>
+                      <th>Stage</th>
+                      <th className="num">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {person.dealContacts.map((contact) => (
+                      <tr key={contact.id}>
+                        <td>
+                          <EntityLink
+                            href={`/crm/deals/${contact.deal.id}`}
+                            className="ref font-medium hover:underline"
+                          >
+                            {contact.deal.title}
+                          </EntityLink>
+                        </td>
+                        <td className="muted">{ROLE_LABELS[contact.role] ?? contact.role}</td>
+                        <td className="muted">{contact.deal.stage.name}</td>
+                        <td className="num">
+                          {contact.deal.value !== null
+                            ? formatMoney(contact.deal.value, contact.deal.currency)
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                    {person.dealContacts.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="muted py-4 text-center">
+                          This person isn&apos;t on any deals yet.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ),
         },
         tasksTab({ ref: { kind: "person", id: personId }, currentUserId: session?.user?.id }),

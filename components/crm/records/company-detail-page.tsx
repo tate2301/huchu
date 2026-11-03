@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
@@ -55,7 +56,7 @@ import { NextStepCard } from "./next-step-card";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
-import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell } from "@/components/records/record-page-shell";
 import { CompanyFormSheet } from "./company-form-sheet";
 import { DealFormSheet } from "./deal-form-sheet";
 import { MergeDialog } from "./merge-dialog";
@@ -452,16 +453,46 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
           icon: Funnel,
           count: company.deals.length,
           content: (
-            <RelatedList
-              items={company.deals}
-              emptyMessage="No deals with this company yet."
-              renderItem={(deal) => ({
-                href: `/crm/deals/${deal.id}`,
-                title: deal.title,
-                subtitle: deal.stage.name,
-                meta: deal.value !== null ? formatMoney(deal.value, deal.currency) : undefined,
-              })}
-            />
+            <div className="space-y-3">
+              <div className="bk-bleed">
+                <table className="table" aria-label="Deals with this company">
+                  <thead>
+                    <tr>
+                      <th>Deal</th>
+                      <th>Stage</th>
+                      <th>State</th>
+                      <th className="num">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {company.deals.map((deal) => (
+                      <tr key={deal.id}>
+                        <td>
+                          <EntityLink href={`/crm/deals/${deal.id}`} className="ref font-medium hover:underline">
+                            {deal.title}
+                          </EntityLink>
+                        </td>
+                        <td className="muted">{deal.stage.name}</td>
+                        <td>
+                          <StatusChip
+                            status={deal.status === "WON" ? "passing" : deal.status === "LOST" ? "failing" : "pending"}
+                            label={deal.status.toLowerCase()}
+                          />
+                        </td>
+                        <td className="num">{deal.value !== null ? formatMoney(deal.value, deal.currency) : "—"}</td>
+                      </tr>
+                    ))}
+                    {company.deals.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="muted py-4 text-center">
+                          No deals with this company yet.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ),
         },
         {
@@ -470,15 +501,39 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
           icon: MapPin,
           count: company.sites.length,
           content: (
-            <RelatedList
-              items={company.sites}
-              emptyMessage="No sites recorded for this company yet."
-              renderItem={(site) => ({
-                href: `/crm/sites/${site.id}`,
-                title: site.name,
-                subtitle: [site.addressLine, site.city].filter(Boolean).join(", ") || null,
-              })}
-            />
+            <div className="space-y-3">
+              <div className="bk-bleed">
+                <table className="table" aria-label="Sites for this company">
+                  <thead>
+                    <tr>
+                      <th>Site</th>
+                      <th>Address</th>
+                      <th>City</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {company.sites.map((site) => (
+                      <tr key={site.id}>
+                        <td>
+                          <EntityLink href={`/crm/sites/${site.id}`} className="ref font-medium hover:underline">
+                            {site.name}
+                          </EntityLink>
+                        </td>
+                        <td className="muted">{site.addressLine ?? "—"}</td>
+                        <td className="muted">{site.city ?? "—"}</td>
+                      </tr>
+                    ))}
+                    {company.sites.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="muted py-4 text-center">
+                          No sites recorded for this company yet.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ),
         },
         tasksTab({ ref: { kind: "company", id: companyId }, currentUserId: session?.user?.id }),

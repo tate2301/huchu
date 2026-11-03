@@ -234,13 +234,13 @@ const BoardCard = memo(function BoardCard({ card }: { card: RecordBoardCard }) {
         {...listeners}
         data-board-card=""
         className={cn(
-          "rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] p-3",
+          "rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-sm",
           "cursor-grab touch-manipulation select-none active:cursor-grabbing",
           "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-          "hover:border-[var(--color-line-strong)] hover:shadow-[var(--shadow-hover)]",
+          "hover:border-[var(--line-strong)] hover:shadow-md",
           "has-[a:focus-visible]:border-[var(--focus-ring)] has-[a:focus-visible]:shadow-[0_0_0_3px_var(--focus-ring-soft)]",
           isDragging &&
-            "border-dashed border-[var(--color-line-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
+            "border-dashed border-[var(--line-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
         )}
       >
         <Link
@@ -294,9 +294,9 @@ const BoardLane = memo(function BoardLane({
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)]",
-        "transition-[background-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-        receiving && "bg-[var(--brand-tint)] shadow-[inset_0_0_0_1px_var(--focus-ring-soft)]",
+        "flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--tray)]",
+        "transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+        receiving && "border-[var(--line-strong)] bg-[var(--surface)] shadow-[inset_0_0_0_1px_var(--focus-ring-soft)]",
       )}
     >
       <BoardColumnHeader
@@ -312,7 +312,8 @@ const BoardLane = memo(function BoardLane({
 
       <div
         ref={bodyRef}
-        className="scroll-rail flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-2"
+        data-board-column-body=""
+        className="scroll-rail-y flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-2"
       >
         {dragging ? (
           <div
@@ -326,7 +327,7 @@ const BoardLane = memo(function BoardLane({
               <div className="pb-2">
                 <div
                   style={{ height: dragging.height }}
-                  className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)]"
+                  className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] bg-[var(--surface)]"
                 />
               </div>
             </div>
@@ -340,13 +341,13 @@ const BoardLane = memo(function BoardLane({
         </div>
 
         {cards.length === 0 && !receiving ? (
-          <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line)] px-3 py-6 text-center text-sm text-[var(--color-muted)]">
+          <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line)] px-3 py-6 text-center text-sm text-[var(--ink-2)]">
             {emptyLabel}
           </p>
         ) : null}
 
         {column.footer ? (
-          <div className="px-1 pt-2 text-sm text-[var(--color-muted)]">{column.footer}</div>
+          <div className="px-1 pt-2 text-sm text-[var(--ink-2)]">{column.footer}</div>
         ) : null}
       </div>
     </section>
@@ -434,6 +435,48 @@ export function RecordBoard({
   const droppedAt = useRef(0);
   const railRef = useRef<HTMLDivElement>(null);
   useFillScrollport(railRef, !isLoading && columns.length > 0);
+
+  // Map vertical mouse wheel movement over the board background, headers, or
+  // at column scroll boundaries into horizontal scrolling across columns.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      // 1. Shift + wheel is already mapped by the browser to horizontal scroll.
+      // 2. Trackpad horizontal swipe (larger deltaX than deltaY) should scroll natively.
+      if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        return;
+      }
+
+      // 3. If there is no horizontal overflow on the board, nothing to scroll horizontally.
+      if (rail.scrollWidth <= rail.clientWidth) {
+        return;
+      }
+
+      // 4. Check if the pointer is over a column card body that can still scroll vertically.
+      const target = event.target as HTMLElement | null;
+      const columnBody = target?.closest<HTMLElement>("[data-board-column-body]");
+
+      if (columnBody) {
+        const isScrollingDown = event.deltaY > 0;
+        const canScrollDown =
+          columnBody.scrollTop + columnBody.clientHeight < columnBody.scrollHeight - 1;
+        const canScrollUp = columnBody.scrollTop > 1;
+
+        if ((isScrollingDown && canScrollDown) || (!isScrollingDown && canScrollUp)) {
+          return;
+        }
+      }
+
+      // 5. Otherwise, translate vertical wheel movement into horizontal scroll.
+      event.preventDefault();
+      rail.scrollLeft += event.deltaY;
+    };
+
+    rail.addEventListener("wheel", handleWheel, { passive: false });
+    return () => rail.removeEventListener("wheel", handleWheel);
+  }, []);
 
   const sensors = useSensors(
     // MouseSensor and TouchSensor rather than PointerSensor. PointerSensor
@@ -634,7 +677,7 @@ export function RecordBoard({
           <div
             ref={railRef}
             className={cn(
-              "scroll-rail hidden min-h-96 gap-3 overflow-x-auto px-4 pb-3 pt-3 sm:px-6 lg:flex",
+              "crm-bk-board-rail hidden min-h-96 w-full min-w-0 max-w-full gap-3 overflow-x-auto px-4 pb-3 pt-3 sm:px-6 lg:flex",
               dragging && "cursor-grabbing",
               className,
             )}
@@ -663,8 +706,8 @@ export function RecordBoard({
             {dragging ? (
               <div
                 className={cn(
-                  "cursor-grabbing rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-3",
-                  "shadow-[var(--shadow-popover)] transition-[scale,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+                  "cursor-grabbing rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-3",
+                  "shadow-[var(--shadow-float)] transition-[scale,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
                   // Lifts off the tray as it is picked up.
                   "scale-[1.02] starting:scale-100 starting:shadow-none motion-reduce:scale-100",
                 )}

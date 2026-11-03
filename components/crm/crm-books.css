@@ -7,22 +7,75 @@
    - Row 1: View Tabs strip (`.crm-bk-tabs`) on its own hairline row
    - Row 2: Worksheet Tools row (`.crm-bk-tools`) with 220px search, `.chipsel`
      filter pills, mono count, and quiet right-aligned Sort/Group/Columns/Export
-   - Selection bar (`.crm-bk-sel`) on `#f4f3ef` / `var(--color-fill)`
+   - Selection bar (`.crm-bk-sel`) on `var(--color-fill)`
    - Full-bleed 34px/40px worksheet tables with sticky ground header and footer pager
    - Books Record layout (`.crm-bk-rec`): Main column + 350px right rail (`dl.attrs`),
      Record Header (`.crm-bk-hd`), KPI Strip (`.crm-bk-strip > .kstrip`), and
      horizontal section tabs (`.crm-bk-rtabs`).
    ========================================================================== */
 
+/* 0. Theme Role Token Bridges */
+:root,
+[data-theme] {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
+  --color-tray: var(--tray);
+  --color-fill: var(--tray);
+  --color-active: var(--active);
+  --color-pressed: var(--active);
+  --color-selected: var(--selected);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-rule: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-muted: var(--ink-3);
+  --color-sub: var(--ink-3);
+  --color-faint: var(--faint);
+  --color-action: var(--action);
+  --color-action-fill: var(--action-fill);
+  --color-on-action: var(--on-action);
+  --color-accent: var(--action-fill);
+  --color-accent-ink: var(--on-action);
+  --color-accent-tint: var(--sel-bg);
+  --brand: var(--action);
+  --brand-strong: var(--action-ink, var(--action));
+  --color-warn: var(--warn);
+  --color-warning: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warning-tint: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-danger: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-danger-tint: var(--bad-soft);
+  --color-ok: var(--ok);
+  --color-success: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-success-tint: var(--ok-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-tint: var(--info-soft);
+  --color-scrim: var(--scrim);
+  --scrollbar-thumb: var(--line-strong);
+  --scrollbar-thumb-hover: var(--ink-3);
+  --shadow-hover: var(--shadow-float);
+  --shadow-popover: var(--shadow-float);
+}
+
 /* 1. Worksheet / Register Shell Container */
 .crm-bk-worksheet {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: calc(100% + (var(--content-gutter-x, 1.5rem) * 2));
+  max-width: calc(100% + (var(--content-gutter-x, 1.5rem) * 2));
   margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
   margin-top: calc(var(--content-lede, 1.25rem) * -1);
-  background: var(--color-surface, #ffffff);
-  color: var(--color-ink, #141413);
+  background: var(--color-surface);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 13.5px;
   line-height: 1.45;
@@ -36,6 +89,8 @@
   margin-left: 0 !important;
   margin-right: 0 !important;
   width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
 /* 2. Finding Banner (matches Books `.finding` / `.k-find`) */
@@ -46,11 +101,11 @@
   gap: 16px;
   flex-wrap: wrap;
   padding: 13px 24px;
-  background: var(--color-ground, #fbfbfa);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-ground);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 13.5px;
   line-height: 1.5;
-  color: var(--color-ink-2, #3d3d3a);
+  color: var(--color-ink-2);
 }
 
 .crm-bk-finding-text {
@@ -60,12 +115,12 @@
 
 .crm-bk-finding-fact {
   font-weight: 600;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
 }
 
 .crm-bk-finding-rest {
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
 }
 
 .crm-bk-finding-end {
@@ -74,20 +129,57 @@
   gap: 14px;
   margin-left: auto;
   font-size: 12.5px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .crm-bk-finding-end b {
   font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
+}
+
+.crm-bk-finding .fl {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-fill);
+  color: var(--color-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.crm-bk-finding .fl-act,
+.fl-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 80ms ease, border-color 80ms ease;
+}
+
+.crm-bk-finding .fl-act:hover,
+.fl-act:hover {
+  background: var(--color-hover);
+  border-color: var(--color-line-strong);
 }
 
 /* 3. KPI Strip (matches Books `.bk-strip > .kstrip > .kt`) */
 .crm-bk-strip {
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-surface);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-kstrip {
@@ -104,34 +196,58 @@
 }
 
 .crm-bk-kt + .crm-bk-kt {
-  box-shadow: inset 1px 0 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 1px 0 0 var(--color-line);
 }
 
-.crm-bk-kt-l {
+.crm-bk-kt-l,
+.crm-bk-kt .l,
+.crm-bk-kt .kt-l {
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.crm-bk-kt-v {
+.crm-bk-kt-v,
+.crm-bk-kt .v,
+.crm-bk-kt .kt-v {
   font-family: var(--font-mono);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.02em;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.crm-bk-kt-n {
+.crm-bk-kt-v.up,
+.crm-bk-kt .v.up,
+.crm-bk-kt .kt-v.up {
+  color: var(--color-success);
+}
+
+.crm-bk-kt-v.warn,
+.crm-bk-kt .v.warn,
+.crm-bk-kt .kt-v.warn {
+  color: var(--color-warning);
+}
+
+.crm-bk-kt-v.bad,
+.crm-bk-kt .v.bad,
+.crm-bk-kt .kt-v.bad {
+  color: var(--color-danger);
+}
+
+.crm-bk-kt-n,
+.crm-bk-kt .d,
+.crm-bk-kt .kt-n {
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -149,7 +265,7 @@
     box-shadow: none;
   }
   .crm-bk-kt:nth-child(n + 3) {
-    border-top: 1px solid var(--color-line, #e8e6e1);
+    border-top: 1px solid var(--color-line);
   }
   .crm-bk-kt-v {
     font-size: 17px;
@@ -163,8 +279,8 @@
   gap: 12px;
   padding: 0 24px;
   min-height: 40px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-surface);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-tabs {
@@ -193,48 +309,55 @@
   font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   white-space: nowrap;
   cursor: pointer;
   transition: color 120ms ease;
 }
 
 .crm-bk-tab:hover {
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
 }
 
-.crm-bk-tab[aria-selected="true"] {
-  color: var(--color-ink, #141413);
+.crm-bk-tab[aria-selected="true"],
+.crm-bk-tab[data-active] {
+  color: var(--color-ink);
   font-weight: 600;
 }
 
-.crm-bk-tab[aria-selected="true"]::after {
+.crm-bk-tab[aria-selected="true"]::after,
+.crm-bk-tab[data-active]::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--color-ink, #141413);
+  background: var(--color-ink);
 }
 
-.crm-bk-tab .n {
+.crm-bk-tab .n,
+.crm-bk-tab .cnt {
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
+  margin-left: 2px;
 }
 
-.crm-bk-tab[aria-selected="true"] .n {
-  color: var(--color-ink-2, #3d3d3a);
+.crm-bk-tab[aria-selected="true"] .n,
+.crm-bk-tab[aria-selected="true"] .cnt,
+.crm-bk-tab[data-active] .n,
+.crm-bk-tab[data-active] .cnt {
+  color: var(--color-ink-2);
 }
 
 .crm-bk-tab-dot {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--color-warning, #b45309);
+  background: var(--color-action);
 }
 
 .crm-bk-tabs-end {
@@ -254,8 +377,8 @@
   flex-wrap: wrap;
   min-height: 46px;
   padding: 7px 24px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-surface);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-tools-start {
@@ -270,7 +393,7 @@
 .crm-bk-count {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   padding: 0 4px;
@@ -287,7 +410,7 @@
 .crm-bk-sepv {
   width: 1px;
   height: 16px;
-  background: var(--color-line, #e8e6e1);
+  background: var(--color-line);
   margin: 0 4px;
   flex: none;
 }
@@ -300,21 +423,21 @@
   flex-wrap: wrap;
   min-height: 40px;
   padding: 6px 24px;
-  background: var(--color-fill, #f4f3ef);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-fill);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 13px;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
 }
 
 .crm-bk-sel-count {
   font-size: 13px;
-  color: var(--color-ink-2, #3d3d3a);
+  color: var(--color-ink-2);
 }
 
 .crm-bk-sel-count b {
   font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -322,7 +445,7 @@
 .crm-bk-table-wrap {
   width: 100%;
   overflow-x: auto;
-  background: var(--color-surface, #ffffff);
+  background: var(--color-surface);
 }
 
 .crm-bk-table {
@@ -330,7 +453,7 @@
   border-collapse: collapse;
   font-family: var(--font-sans);
   font-size: 13.5px;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
 }
 
 .crm-bk-table thead th {
@@ -339,11 +462,11 @@
   z-index: 1;
   height: 34px;
   padding: 0 12px;
-  background: var(--color-ground, #fbfbfa);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-ground);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   text-align: left;
   white-space: nowrap;
   user-select: none;
@@ -359,23 +482,23 @@
 
 .crm-bk-table tbody tr {
   height: 40px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   transition: background-color 80ms ease;
 }
 
 .crm-bk-table tbody tr:hover {
-  background: var(--color-hover, #f8f7f4);
+  background: var(--color-hover);
 }
 
 .crm-bk-table tbody tr[data-selected="true"] {
-  background: var(--color-fill, #f4f3ef);
+  background: var(--color-fill);
 }
 
 .crm-bk-table tbody td {
   padding: 6px 12px;
   vertical-align: middle;
   font-size: 13.5px;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
 }
 
 .crm-bk-table tbody td:first-child {
@@ -393,29 +516,39 @@
   gap: 12px;
   min-height: 42px;
   padding: 6px 24px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-surface);
+  box-shadow: inset 0 1px 0 var(--color-line);
   font-size: 12.5px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
 }
 
 .crm-bk-pager-range {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 
 /* 8. Books Record Detail Layout (`.crm-bk-rec` matching `.bk.bk-rec`) */
 .crm-bk-rec {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 350px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   min-height: var(--content-viewport, calc(100vh - 56px));
   margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
   margin-top: calc(var(--content-lede, 1.25rem) * -1);
-  background: var(--color-surface, #ffffff);
-  color: var(--color-ink, #141413);
+  background: var(--color-surface);
+  color: var(--color-ink);
   font-family: var(--font-sans);
+}
+
+/* Cancel double negative margins when nested inside .record-shell which already has lede/gutter offsets */
+.record-shell .crm-bk-rec {
+  margin-inline: 0 !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0;
+  flex: 1 1 0%;
 }
 
 .crm-bk-rec.is-single-col {
@@ -426,7 +559,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  box-shadow: inset -1px 0 0 var(--color-line, #e8e6e1);
+  box-shadow: inset -1px 0 0 var(--color-line);
 }
 
 .crm-bk-rec.is-single-col .crm-bk-main {
@@ -438,7 +571,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 20px 24px 16px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-hd-top {
@@ -459,12 +592,19 @@
 }
 
 .crm-bk-title {
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
   letter-spacing: -0.015em;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+@media (min-width: 768px) {
+  .crm-bk-title {
+    font-size: 28px;
+  }
 }
 
 .crm-bk-hd-end {
@@ -481,7 +621,7 @@
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -491,19 +631,19 @@
   gap: 8px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
 }
 
 .crm-bk-ml .ref {
   font-family: var(--font-mono);
   font-size: 12.5px;
-  color: var(--color-ink-2, #3d3d3a);
+  color: var(--color-ink-2);
   font-variant-numeric: tabular-nums;
 }
 
 .crm-bk-ml i {
   font-style: normal;
-  color: var(--color-faint, #9c9a92);
+  color: var(--color-faint);
 }
 
 .crm-bk-body {
@@ -512,12 +652,212 @@
   padding: 20px 24px 36px;
 }
 
+/* Books Edge-to-Edge Table in CRM Records (`.bk-bleed > table.table`) */
+.crm-bk-rec .bk-bleed,
+.crm-bk-body .bk-bleed {
+  margin-inline: -24px;
+  overflow-x: auto;
+  min-width: calc(100% + 48px);
+}
+
+.crm-bk-rec .bk-bleed .table,
+.crm-bk-body .bk-bleed .table,
+.crm-bk-rec table.table,
+.crm-bk-body table.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--color-ink);
+}
+
+.crm-bk-rec .bk-bleed .table thead th,
+.crm-bk-body .bk-bleed .table thead th,
+.crm-bk-rec table.table thead th,
+.crm-bk-body table.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--color-ground);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.crm-bk-rec .bk-bleed .table thead th:first-child,
+.crm-bk-body .bk-bleed .table thead th:first-child,
+.crm-bk-rec table.table thead th:first-child,
+.crm-bk-body table.table thead th:first-child {
+  padding-left: 24px;
+}
+
+.crm-bk-rec .bk-bleed .table thead th:last-child,
+.crm-bk-body .bk-bleed .table thead th:last-child,
+.crm-bk-rec table.table thead th:last-child,
+.crm-bk-body table.table thead th:last-child {
+  padding-right: 24px;
+}
+
+.crm-bk-rec .bk-bleed .table tbody tr,
+.crm-bk-body .bk-bleed .table tbody tr,
+.crm-bk-rec table.table tbody tr,
+.crm-bk-body table.table tbody tr {
+  height: 40px;
+  box-shadow: inset 0 -1px 0 var(--color-line);
+  transition: background-color 80ms ease;
+}
+
+.crm-bk-rec .bk-bleed .table tbody tr:hover,
+.crm-bk-body .bk-bleed .table tbody tr:hover,
+.crm-bk-rec table.table tbody tr:hover,
+.crm-bk-body table.table tbody tr:hover {
+  background: var(--color-hover);
+}
+
+.crm-bk-rec .bk-bleed .table tbody td,
+.crm-bk-body .bk-bleed .table tbody td,
+.crm-bk-rec table.table tbody td,
+.crm-bk-body table.table tbody td {
+  padding: 6px 12px;
+  vertical-align: middle;
+  font-size: 13.5px;
+  color: var(--color-ink);
+}
+
+.crm-bk-rec .bk-bleed .table tbody td:first-child,
+.crm-bk-body .bk-bleed .table tbody td:first-child,
+.crm-bk-rec table.table tbody td:first-child,
+.crm-bk-body table.table tbody td:first-child {
+  padding-left: 24px;
+}
+
+.crm-bk-rec .bk-bleed .table tbody td:last-child,
+.crm-bk-body .bk-bleed .table tbody td:last-child,
+.crm-bk-rec table.table tbody td:last-child,
+.crm-bk-body table.table tbody td:last-child {
+  padding-right: 24px;
+}
+
+.crm-bk-rec .table th.num,
+.crm-bk-rec .table td.num,
+.crm-bk-body .table th.num,
+.crm-bk-body .table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.crm-bk-rec .table td .ref,
+.crm-bk-body .table td .ref {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.crm-bk-rec .table td .ref:hover,
+.crm-bk-body .table td .ref:hover {
+  text-decoration: underline;
+}
+
+.crm-bk-rec .table td .muted,
+.crm-bk-body .table td .muted {
+  color: var(--color-muted);
+}
+
+/* Books Timeline in CRM records (`ol.bk-tl`) */
+.crm-bk-rec .bk-tl,
+.crm-bk-body .bk-tl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+
+.crm-bk-rec .bk-tl li,
+.crm-bk-body .bk-tl li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 110px;
+  gap: 12px;
+  padding: 10px 24px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+
+.crm-bk-rec .bk-tl .d,
+.crm-bk-body .bk-tl .d {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-faint);
+  margin-top: 6px;
+}
+
+.crm-bk-rec .bk-tl .d.ok,
+.crm-bk-body .bk-tl .d.ok {
+  background: var(--color-success);
+}
+
+.crm-bk-rec .bk-tl .d.in,
+.crm-bk-body .bk-tl .d.in {
+  background: var(--color-action);
+}
+
+.crm-bk-rec .bk-tl .d.wa,
+.crm-bk-body .bk-tl .d.wa {
+  background: var(--color-warning);
+}
+
+.crm-bk-rec .bk-tl time,
+.crm-bk-body .bk-tl time {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 759px) {
+  .crm-bk-rec .bk-bleed,
+  .crm-bk-body .bk-bleed {
+    margin-inline: -16px;
+    min-width: calc(100% + 32px);
+  }
+  .crm-bk-rec .bk-bleed .table thead th:first-child,
+  .crm-bk-body .bk-bleed .table thead th:first-child,
+  .crm-bk-rec .bk-bleed .table tbody td:first-child,
+  .crm-bk-body .bk-bleed .table tbody td:first-child {
+    padding-left: 16px;
+  }
+  .crm-bk-rec .bk-bleed .table thead th:last-child,
+  .crm-bk-body .bk-bleed .table thead th:last-child,
+  .crm-bk-rec .bk-bleed .table tbody td:last-child,
+  .crm-bk-body .bk-bleed .table tbody td:last-child {
+    padding-right: 16px;
+  }
+  .crm-bk-rec .bk-tl li,
+  .crm-bk-body .bk-tl li {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
 /* Books Right Rail (`aside.crm-bk-rail`) */
 .crm-bk-rail {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--color-surface, #ffffff);
+  background: var(--color-surface);
   align-self: start;
   position: sticky;
   top: 0;
@@ -525,21 +865,31 @@
   overflow-y: auto;
 }
 
-.crm-bk-rail-sec {
+.crm-bk-rail-sec,
+.crm-bk-rsec,
+.crm-bk-rail section {
   padding: 18px 22px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
-.crm-bk-rail-title {
-  font-size: 11px;
+.crm-bk-rail-title,
+.crm-bk-rail .sec-title,
+.crm-bk-rsec .sec-title,
+.crm-bk-rail-sec .sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted, #6b6a65);
-  margin-bottom: 10px;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-.crm-bk-attrs {
+.crm-bk-attrs,
+.crm-bk-rail dl.attrs,
+.crm-bk-rec dl.attrs {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
   row-gap: 8px;
@@ -549,8 +899,10 @@
   line-height: 1.4;
 }
 
-.crm-bk-attrs dt {
-  color: var(--color-muted, #6b6a65);
+.crm-bk-attrs dt,
+.crm-bk-rail dl.attrs dt,
+.crm-bk-rec dl.attrs dt {
+  color: var(--color-muted);
   font-weight: 400;
   padding-top: 2px;
   overflow: hidden;
@@ -558,9 +910,11 @@
   white-space: nowrap;
 }
 
-.crm-bk-attrs dd {
+.crm-bk-attrs dd,
+.crm-bk-rail dl.attrs dd,
+.crm-bk-rec dl.attrs dd {
   margin: 0;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -582,20 +936,20 @@
   padding: 0 8px;
   border-radius: 6px;
   font-size: 13px;
-  color: var(--color-ink-2, #3d3d3a);
+  color: var(--color-ink-2);
   text-decoration: none;
   transition: background-color 100ms ease;
 }
 
 .crm-bk-related-link:hover {
-  background: var(--color-hover, #f8f7f4);
-  color: var(--color-ink, #141413);
+  background: var(--color-hover);
+  color: var(--color-ink);
 }
 
 .crm-bk-related-link .n {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -604,7 +958,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .crm-bk-main {
-    box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+    box-shadow: inset 0 -1px 0 var(--color-line);
   }
   .crm-bk-rail {
     position: static;
@@ -633,14 +987,45 @@
   }
 }
 
-/* 9. Books Kanban Board inside CRM (`.crm-bk-board`) */
+/* 9. Books Kanban Board inside CRM (`.crm-bk-board`, `.crm-bk-board-rail`) */
+.crm-bk-board-rail {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, var(--color-line-strong)) transparent;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar {
+  height: 8px;
+  display: block;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, var(--color-line-strong));
+  border-radius: 9999px;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, var(--color-rule));
+}
+
 .crm-bk-board {
   display: flex;
   gap: 0;
   overflow-x: auto;
   min-height: calc(100vh - 220px);
-  background: var(--color-ground, #fbfbfa);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-ground);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-board-col {
@@ -649,8 +1034,8 @@
   width: 296px;
   flex: 0 0 296px;
   min-height: 100%;
-  box-shadow: inset -1px 0 0 var(--color-line, #e8e6e1);
-  background: var(--color-ground, #fbfbfa);
+  box-shadow: inset -1px 0 0 var(--color-line);
+  background: var(--color-tray);
 }
 
 .crm-bk-board-col-hd {
@@ -658,8 +1043,8 @@
   flex-direction: column;
   gap: 2px;
   padding: 12px 14px 10px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-tray);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -678,14 +1063,14 @@
   flex-direction: column;
   gap: 6px;
   padding: 11px 12px;
-  border-radius: 6px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 0 0 1px var(--color-line, #e8e6e1);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line), 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: box-shadow 120ms ease, background-color 120ms ease;
 }
 
 .crm-bk-board-card:hover {
-  box-shadow: inset 0 0 0 1px var(--color-rule, #d4d1c8), 0 1px 2px rgba(20, 20, 19, 0.04);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 /* 10. Books Overview / Home Sections (`.crm-bk-sec`, `.crm-bk-group-head`, `.crm-bk-shares`, `.crm-bk-needs`) */
@@ -695,21 +1080,21 @@
   justify-content: space-between;
   gap: 12px;
   padding: 28px 24px 10px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
 }
 
 .crm-bk-group-head h2 {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   margin: 0;
 }
 
 .crm-bk-group-head .sum {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -723,12 +1108,12 @@
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   transition: background-color 100ms ease;
 }
 
 .crm-bk-need:hover {
-  background: var(--color-hover, #f8f7f4);
+  background: var(--color-hover);
 }
 
 .crm-bk-need-ic {
@@ -737,7 +1122,7 @@
   width: 24px;
   height: 24px;
   flex: none;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
 }
 
 .crm-bk-need-body {
@@ -751,13 +1136,13 @@
 .crm-bk-need-lead {
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   line-height: 1.35;
 }
 
 .crm-bk-need-sub {
   font-size: 12.5px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   line-height: 1.4;
 }
 
@@ -779,15 +1164,15 @@
   gap: 12px;
   min-height: 38px;
   padding: 6px 24px;
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 13.5px;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   text-decoration: none;
   transition: background-color 80ms ease;
 }
 
 a.crm-bk-share:hover {
-  background: var(--color-hover, #f8f7f4);
+  background: var(--color-hover);
 }
 
 .crm-bk-share-label {
@@ -796,7 +1181,7 @@ a.crm-bk-share:hover {
   gap: 8px;
   min-width: 0;
   font-weight: 500;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -806,7 +1191,7 @@ a.crm-bk-share:hover {
   height: 6px;
   width: 100%;
   border-radius: 999px;
-  background: var(--color-fill, #f4f3ef);
+  background: var(--color-fill);
   overflow: hidden;
 }
 
@@ -814,21 +1199,21 @@ a.crm-bk-share:hover {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--color-ink, #141413);
+  background: var(--color-ink);
 }
 
 .crm-bk-share-bar.is-ok {
-  background: var(--color-success, #15803d);
+  background: var(--color-success);
 }
 
 .crm-bk-share-bar.is-warn {
-  background: var(--color-warning, #b45309);
+  background: var(--color-warning);
 }
 
 .crm-bk-share-meta {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted, #6b6a65);
+  color: var(--color-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -838,7 +1223,7 @@ a.crm-bk-share:hover {
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-ink, #141413);
+  color: var(--color-ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -851,7 +1236,7 @@ a.crm-bk-share:hover {
 }
 
 .crm-bk-kt-link:hover {
-  background: var(--color-hover, #f8f7f4);
+  background: var(--color-hover);
 }
 
 @media (max-width: 759px) {
@@ -877,84 +1262,84 @@ a.crm-bk-share:hover {
 
 /* Semantic Buttons */
 .crm-bk-btn-success {
-  background: var(--tone-success, #15803d) !important;
-  color: #ffffff !important;
-  border-color: var(--tone-success-bd, #15803d) !important;
+  background: var(--tone-success, var(--ok)) !important;
+  color: var(--on-action) !important;
+  border-color: var(--tone-success-bd, var(--ok)) !important;
 }
 .crm-bk-btn-success:hover {
-  background: var(--tone-success-strong, #166534) !important;
-  color: #ffffff !important;
+  background: var(--tone-success-strong, var(--ok)) !important;
+  color: var(--on-action) !important;
 }
 
 .crm-bk-btn-danger {
-  background: var(--tone-danger, #b91c1c) !important;
-  color: #ffffff !important;
-  border-color: var(--tone-danger-bd, #b91c1c) !important;
+  background: var(--tone-danger, var(--bad)) !important;
+  color: var(--on-sel) !important;
+  border-color: var(--tone-danger-bd, var(--bad)) !important;
 }
 .crm-bk-btn-danger:hover {
-  background: var(--tone-danger-strong, #991b1b) !important;
-  color: #ffffff !important;
+  background: var(--tone-danger-strong, var(--bad)) !important;
+  color: var(--on-sel) !important;
 }
 
 .crm-bk-btn-warning,
 .crm-bk-btn-warn {
-  background: var(--tone-warn, #b45309) !important;
-  color: #ffffff !important;
-  border-color: var(--tone-warn-bd, #b45309) !important;
+  background: var(--tone-warn, var(--warn)) !important;
+  color: var(--on-sel) !important;
+  border-color: var(--tone-warn-bd, var(--warn)) !important;
 }
 .crm-bk-btn-warning:hover,
 .crm-bk-btn-warn:hover {
-  background: var(--tone-warn-strong, #92400e) !important;
-  color: #ffffff !important;
+  background: var(--tone-warn-strong, var(--warn)) !important;
+  color: var(--on-sel) !important;
 }
 
 .crm-bk-btn-info {
-  background: var(--brand, #2563eb) !important;
-  color: #ffffff !important;
-  border-color: var(--brand, #2563eb) !important;
+  background: var(--brand, var(--action)) !important;
+  color: var(--on-action) !important;
+  border-color: var(--brand, var(--action)) !important;
 }
 .crm-bk-btn-info:hover {
-  background: var(--brand-strong, #1d4ed8) !important;
-  color: #ffffff !important;
+  background: var(--brand-strong, var(--action-ink, var(--action))) !important;
+  color: var(--on-action) !important;
 }
 
 /* Subtle Semantic Buttons / Outlines */
 .crm-bk-btn-subtle-success {
-  background: var(--tone-success-bg, #f0fdf4) !important;
-  color: var(--tone-success-strong, #15803d) !important;
-  border-color: var(--tone-success-bd, #bbf7d0) !important;
+  background: var(--tone-success-bg, var(--ok-soft)) !important;
+  color: var(--tone-success-strong, var(--ok)) !important;
+  border-color: var(--tone-success-bd, var(--ok)) !important;
 }
 .crm-bk-btn-subtle-success:hover {
-  background: var(--tone-success-bd, #bbf7d0) !important;
+  background: var(--tone-success-bd, var(--ok)) !important;
 }
 
 .crm-bk-btn-subtle-danger {
-  background: var(--tone-danger-bg, #fef2f2) !important;
-  color: var(--tone-danger-strong, #b91c1c) !important;
-  border-color: var(--tone-danger-bd, #fecaca) !important;
+  background: var(--tone-danger-bg, var(--bad-soft)) !important;
+  color: var(--tone-danger-strong, var(--bad)) !important;
+  border-color: var(--tone-danger-bd, var(--bad)) !important;
 }
 .crm-bk-btn-subtle-danger:hover {
-  background: var(--tone-danger-bd, #fecaca) !important;
+  background: var(--tone-danger-bd, var(--bad)) !important;
 }
 
 .crm-bk-btn-subtle-warn,
 .crm-bk-btn-subtle-warning {
-  background: var(--tone-warn-bg, #fffbeb) !important;
-  color: var(--tone-warn-strong, #b45309) !important;
-  border-color: var(--tone-warn-bd, #fde68a) !important;
+  background: var(--tone-warn-bg, var(--warn-soft)) !important;
+  color: var(--tone-warn-strong, var(--warn)) !important;
+  border-color: var(--tone-warn-bd, var(--warn)) !important;
 }
 .crm-bk-btn-subtle-warn:hover,
 .crm-bk-btn-subtle-warning:hover {
-  background: var(--tone-warn-bd, #fde68a) !important;
+  background: var(--tone-warn-bd, var(--warn)) !important;
 }
 
 .crm-bk-btn-subtle-info {
-  background: var(--tone-info-bg, #eff6ff) !important;
-  color: var(--brand-strong, #1d4ed8) !important;
-  border-color: var(--tone-info-bd, #bfdbfe) !important;
+  background: var(--tone-info-bg, var(--info-soft)) !important;
+  color: var(--brand-strong, var(--action-ink, var(--action))) !important;
+  border-color: var(--tone-info-bd, var(--line)) !important;
 }
 .crm-bk-btn-subtle-info:hover {
-  background: var(--tone-info-bd, #bfdbfe) !important;
+  background: var(--tone-info-bd, var(--line)) !important;
 }
 
 /* Semantic Badges & Chips */
@@ -967,84 +1352,84 @@ a.crm-bk-share:hover {
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.25;
-  border: 1px solid var(--color-line, #e8e6e1);
-  background: var(--color-ground, #fbfbfa);
-  color: var(--color-ink, #141413);
+  border: 1px solid var(--color-line);
+  background: var(--color-ground);
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .crm-bk-badge[data-tone="success"],
 .crm-bk-badge.is-success {
-  background: var(--tone-success-bg, #f0fdf4);
-  color: var(--tone-success-strong, #15803d);
-  border-color: var(--tone-success-bd, #bbf7d0);
+  background: var(--tone-success-bg, var(--ok-soft));
+  color: var(--tone-success-strong, var(--ok));
+  border-color: var(--tone-success-bd, var(--ok));
 }
 
 .crm-bk-badge[data-tone="danger"],
 .crm-bk-badge.is-danger {
-  background: var(--tone-danger-bg, #fef2f2);
-  color: var(--tone-danger-strong, #b91c1c);
-  border-color: var(--tone-danger-bd, #fecaca);
+  background: var(--tone-danger-bg, var(--bad-soft));
+  color: var(--tone-danger-strong, var(--bad));
+  border-color: var(--tone-danger-bd, var(--bad));
 }
 
 .crm-bk-badge[data-tone="warning"],
 .crm-bk-badge[data-tone="warn"],
 .crm-bk-badge.is-warning,
 .crm-bk-badge.is-warn {
-  background: var(--tone-warn-bg, #fffbeb);
-  color: var(--tone-warn-strong, #b45309);
-  border-color: var(--tone-warn-bd, #fde68a);
+  background: var(--tone-warn-bg, var(--warn-soft));
+  color: var(--tone-warn-strong, var(--warn));
+  border-color: var(--tone-warn-bd, var(--warn));
 }
 
 .crm-bk-badge[data-tone="info"],
 .crm-bk-badge.is-info {
-  background: var(--tone-info-bg, #eff6ff);
-  color: var(--brand-strong, #1d4ed8);
-  border-color: var(--tone-info-bd, #bfdbfe);
+  background: var(--tone-info-bg, var(--info-soft));
+  color: var(--brand-strong, var(--action-ink, var(--action)));
+  border-color: var(--tone-info-bd, var(--line));
 }
 
 /* Semantic Icon Accents */
 .crm-bk-icon-success {
-  color: var(--tone-success, #15803d);
+  color: var(--tone-success, var(--ok));
 }
 
 .crm-bk-icon-danger {
-  color: var(--tone-danger, #b91c1c);
+  color: var(--tone-danger, var(--bad));
 }
 
 .crm-bk-icon-warning,
 .crm-bk-icon-warn {
-  color: var(--tone-warn, #b45309);
+  color: var(--tone-warn, var(--warn));
 }
 
 .crm-bk-icon-info {
-  color: var(--brand, #2563eb);
+  color: var(--brand, var(--action));
 }
 
 /* Semantic Finding & Note Tones */
 .crm-bk-finding.is-success {
-  background: var(--tone-success-bg, #f0fdf4);
-  box-shadow: inset 0 -1px 0 var(--tone-success-bd, #bbf7d0);
-  color: var(--tone-success-strong, #15803d);
+  background: var(--tone-success-bg, var(--ok-soft));
+  box-shadow: inset 0 -1px 0 var(--tone-success-bd, var(--ok));
+  color: var(--tone-success-strong, var(--ok));
 }
 
 .crm-bk-finding.is-danger {
-  background: var(--tone-danger-bg, #fef2f2);
-  box-shadow: inset 0 -1px 0 var(--tone-danger-bd, #fecaca);
-  color: var(--tone-danger-strong, #b91c1c);
+  background: var(--tone-danger-bg, var(--bad-soft));
+  box-shadow: inset 0 -1px 0 var(--tone-danger-bd, var(--bad));
+  color: var(--tone-danger-strong, var(--bad));
 }
 
 .crm-bk-finding.is-warning,
 .crm-bk-finding.is-warn {
-  background: var(--tone-warn-bg, #fffbeb);
-  box-shadow: inset 0 -1px 0 var(--tone-warn-bd, #fde68a);
-  color: var(--tone-warn-strong, #b45309);
+  background: var(--tone-warn-bg, var(--warn-soft));
+  box-shadow: inset 0 -1px 0 var(--tone-warn-bd, var(--warn));
+  color: var(--tone-warn-strong, var(--warn));
 }
 
 .crm-bk-finding.is-info {
-  background: var(--tone-info-bg, #eff6ff);
-  box-shadow: inset 0 -1px 0 var(--tone-info-bd, #bfdbfe);
-  color: var(--brand-strong, #1d4ed8);
+  background: var(--tone-info-bg, var(--info-soft));
+  box-shadow: inset 0 -1px 0 var(--tone-info-bd, var(--line));
+  color: var(--brand-strong, var(--action-ink, var(--action)));
 }
 

@@ -189,7 +189,7 @@ function ChoiceValue({ attribute }: { attribute: RecordAttribute }) {
         <button
           type="button"
           className={cn(
-            "-mx-1.5 flex w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 text-left hover:bg-[var(--surface-subtle)]",
+            "-mx-1.5 flex w-full min-w-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 text-left hover:bg-[var(--color-hover)]",
             ATTRIBUTE_ROW,
             // Only when the page has not drawn the value itself: a chip or an
             // avatar carries its own colour, and a tone class over the top of
@@ -215,14 +215,14 @@ function ChoiceValue({ attribute }: { attribute: RecordAttribute }) {
                 setOpen(false);
               }}
               className={cn(
-                "flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 text-left text-sm hover:bg-[var(--surface-hover)] sm:min-h-9",
+                "flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 text-left text-sm hover:bg-[var(--color-hover)] sm:min-h-9",
                 option.value === attribute.value && "font-medium",
               )}
             >
               {option.leading}
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
               {option.value === attribute.value ? (
-                <Check className="size-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                <Check className="size-4 shrink-0 text-[var(--color-muted)]" aria-hidden="true" />
               ) : null}
             </button>
           ))}
@@ -233,7 +233,7 @@ function ChoiceValue({ attribute }: { attribute: RecordAttribute }) {
                 attribute.onCommit?.("");
                 setOpen(false);
               }}
-              className="flex min-h-11 w-full items-center rounded-[var(--radius-sm)] px-2 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)] sm:min-h-9"
+              className="flex min-h-11 w-full items-center rounded-[var(--radius-sm)] px-2 text-left text-sm text-[var(--color-muted)] hover:bg-[var(--color-hover)] sm:min-h-9"
             >
               {attribute.clearLabel}
             </button>
@@ -268,7 +268,7 @@ function EditableValue({ attribute }: { attribute: RecordAttribute }) {
           // screen with no ellipsis and no way to read the rest of it. A
           // property that cannot be read is worse than one that takes two
           // lines.
-          "-mx-1.5 block w-full rounded-[var(--radius-sm)] px-1.5 text-left break-words hover:bg-[var(--surface-subtle)]",
+          "-mx-1.5 block w-full rounded-[var(--radius-sm)] px-1.5 text-left break-words hover:bg-[var(--color-hover)]",
           ATTRIBUTE_ROW,
           tone,
         )}
@@ -433,7 +433,7 @@ export function RecordAttributes({
           type="button"
           variant="ghost"
           size="sm"
-          className="text-[var(--text-muted)]"
+          className="text-[var(--color-muted)]"
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? (

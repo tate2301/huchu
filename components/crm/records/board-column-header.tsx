@@ -50,20 +50,20 @@ export function BoardColumnHeader({
   actions?: BoardColumnAction[];
 }) {
   return (
-    <header className="group/head flex flex-none items-center justify-between gap-2 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-3 py-2.5">
+    <header className="group/head flex flex-none items-center justify-between gap-2 border-b border-[var(--line)] bg-[var(--tray)] px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span aria-hidden="true" className={cn("size-2 flex-none rounded-full", dot)} />
-        <h3 id={id} className="min-w-0 truncate text-sm font-medium text-[var(--color-ink)]">
+        <h3 id={id} className="min-w-0 truncate text-sm font-semibold text-[var(--ink)]">
           {name}
         </h3>
-        <span className="flex-none font-mono text-sm tabular-nums text-[var(--color-muted)]">
+        <span className="flex-none font-mono text-sm font-medium tabular-nums text-[var(--ink-2)]">
           {count}
         </span>
       </div>
 
       <div className="flex flex-none items-center gap-1.5">
         {total ? (
-          <span className="font-mono text-sm tabular-nums text-[var(--color-sub)]">
+          <span className="font-mono text-sm font-medium tabular-nums text-[var(--ink-2)]">
             {total}
           </span>
         ) : null}
@@ -95,7 +95,7 @@ export function BoardColumnHeader({
                   key={action.label}
                   onSelect={action.onSelect}
                   className={
-                    action.destructive ? "text-[var(--status-error-text)]" : undefined
+                    action.destructive ? "text-[var(--bad)]" : undefined
                   }
                 >
                   {action.label}
