@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { Stack } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -348,12 +347,11 @@ export function RecordPageShell({
               data-active={isCurrent || undefined}
             >
               <span>{tab.label}</span>
-              {tab.count && tab.count > 0 ? <span className="cnt">{tab.count}</span> : null}
+              {typeof tab.count === "number" && tab.count > 0 ? (
+                <span className="n">{tab.count}</span>
+              ) : null}
               {tab.attention ? (
-                <span
-                  aria-label="Needs attention"
-                  className="size-1.5 rounded-full bg-[var(--action-primary-bg)]"
-                />
+                <span aria-label="Needs attention" className="crm-bk-tab-dot" />
               ) : null}
             </Link>
           );
@@ -629,13 +627,11 @@ export function RailSection({
   children: ReactNode;
 }) {
   return (
-    <section className="crm-bk-rsec">
-      <div className="mb-2.5 flex items-center gap-2">
-        <h3 className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-muted)]">
-          {title}
-        </h3>
+    <section className="crm-bk-rail-sec">
+      <div className="crm-bk-rail-title flex items-center gap-2">
+        <span>{title}</span>
         {meta ? (
-          <span className="ml-auto font-mono text-[12px] font-semibold tabular-nums text-[var(--color-ink)]">
+          <span className="ml-auto font-mono text-[11px] font-semibold tabular-nums text-[var(--color-ink)]">
             {meta}
           </span>
         ) : null}
@@ -667,12 +663,12 @@ export function RecordRelated({
   if (items.length === 0) return null;
 
   return (
-    <ul>
+    <ul className="crm-bk-related-list">
       {items.map((item) => (
         <li key={item.href}>
           <Link
             href={item.href}
-            className="flex h-[27px] items-center gap-2 rounded-[var(--radius-md)] px-2 hover:bg-[var(--surface-hover)]"
+            className="crm-bk-related-link"
           >
             <span
               aria-hidden="true"
@@ -710,48 +706,35 @@ export function RelatedList<T>({
   }
 
   return (
-    <div className="space-y-2">
-      <Stack as="ul" gap="xs">
-        {items.map((item, index) => {
-          const rendered = renderItem(item);
-          return (
-            <li key={`${rendered.href}-${index}`}>
-              {/*
-                `EntityLink`, not `Link`: these rows are the record's edges, and
-                they are where the reader does most of their moving about. As
-                plain links they were the only references in the product that
-                neither carried a trail back nor knew what they pointed at.
-
-                The supporting line steps down in size as well as ink. At the
-                title's size it read as a second title, which on a guardian's
-                children — two names, one under the other — is the one place
-                that ambiguity actually costs something.
-              */}
-              <EntityLink
-                href={rendered.href}
-                className="group/row flex items-center justify-between gap-3 p-3 no-underline hover:bg-[var(--surface-hover)] hover:no-underline"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text)]">
-                    {rendered.title}
-                  </span>
-                  {rendered.subtitle ? (
-                    <span className="acct-caption block truncate text-[var(--text-muted)]">
-                      {rendered.subtitle}
-                    </span>
-                  ) : null}
-                </span>
-                {rendered.meta ? (
-                  <span className="shrink-0 font-mono text-sm text-[var(--text-muted)]">
-                    {rendered.meta}
-                  </span>
-                ) : null}
-              </EntityLink>
-            </li>
-          );
-        })}
-      </Stack>
-      {action}
+    <div className="space-y-3">
+      <div className="bk-bleed">
+        <table className="table" aria-label="Related records">
+          <thead>
+            <tr>
+              <th>Record</th>
+              <th>Details</th>
+              <th className="num">Meta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, index) => {
+              const rendered = renderItem(item);
+              return (
+                <tr key={`${rendered.href}-${index}`}>
+                  <td>
+                    <EntityLink href={rendered.href} className="ref font-medium hover:underline">
+                      {rendered.title}
+                    </EntityLink>
+                  </td>
+                  <td className="muted">{rendered.subtitle ?? "—"}</td>
+                  <td className="num font-mono">{rendered.meta ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {action ? <div className="pt-2">{action}</div> : null}
     </div>
   );
 }

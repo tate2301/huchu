@@ -99,9 +99,9 @@ export function DealContactsTab({
   });
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-56 flex-1">
+        <div className="min-w-56 max-w-md flex-1">
           <RecordPicker
             value={picked}
             onChange={setPicked}
@@ -136,43 +136,51 @@ export function DealContactsTab({
         </Button>
       </div>
 
-      {contacts.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-          Nobody is attached to this deal yet.
-        </p>
-      ) : (
-        <ul className="space-y-1">
-          {contacts.map((contact) => (
-            <li
-              key={contact.id}
-              className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 hover:bg-[var(--surface-subtle)]"
-            >
-              <EntityLink
-                href={`/crm/people/${contact.person.id}`}
-                className="min-w-0 flex-1 truncate text-sm font-medium"
-              >
-                {contact.person.fullName}
-              </EntityLink>
-              <span className="flex-none text-sm text-[var(--text-muted)]">
-                {ROLE_LABEL[contact.role] ?? contact.role}
-              </span>
-              {contact.person.phone ? (
-                <span className="hidden flex-none font-mono text-sm text-[var(--text-muted)] sm:inline">
-                  {contact.person.phone}
-                </span>
-              ) : null}
-              <IconButton
-                size="sm"
-                aria-label={`Remove ${contact.person.fullName} from this deal`}
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(contact.id)}
-              >
-                <Trash2 />
-              </IconButton>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="bk-bleed">
+        <table className="table" aria-label="People on this deal">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Role</th>
+              <th>Phone</th>
+              <th className="w-12" />
+            </tr>
+          </thead>
+          <tbody>
+            {contacts.map((contact) => (
+              <tr key={contact.id}>
+                <td>
+                  <EntityLink
+                    href={`/crm/people/${contact.person.id}`}
+                    className="ref font-medium hover:underline"
+                  >
+                    {contact.person.fullName}
+                  </EntityLink>
+                </td>
+                <td className="muted">{ROLE_LABEL[contact.role] ?? contact.role}</td>
+                <td className="muted font-mono">{contact.person.phone ?? "—"}</td>
+                <td className="num">
+                  <IconButton
+                    size="sm"
+                    aria-label={`Remove ${contact.person.fullName} from this deal`}
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(contact.id)}
+                  >
+                    <Trash2 />
+                  </IconButton>
+                </td>
+              </tr>
+            ))}
+            {contacts.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="muted py-4 text-center">
+                  Nobody is attached to this deal yet.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

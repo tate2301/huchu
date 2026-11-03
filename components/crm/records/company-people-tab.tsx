@@ -82,9 +82,9 @@ export function CompanyPeopleTab({
   });
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-56 flex-1">
+        <div className="min-w-56 max-w-md flex-1">
           <RecordPicker
             value={picked}
             onChange={setPicked}
@@ -105,45 +105,51 @@ export function CompanyPeopleTab({
         </Button>
       </div>
 
-      {people.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-          Nobody is recorded at this company yet.
-        </p>
-      ) : (
-        <ul className="space-y-1">
-          {people.map((person) => (
-            <li
-              key={person.id}
-              className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 hover:bg-[var(--surface-subtle)]"
-            >
-              <EntityLink
-                href={`/crm/people/${person.id}`}
-                className="min-w-0 flex-1 truncate text-sm font-medium"
-              >
-                {person.fullName}
-              </EntityLink>
-              {person.jobTitle ? (
-                <span className="hidden flex-none text-sm text-[var(--text-muted)] sm:inline">
-                  {person.jobTitle}
-                </span>
-              ) : null}
-              {person.phone ? (
-                <span className="hidden flex-none font-mono text-sm text-[var(--text-muted)] sm:inline">
-                  {person.phone}
-                </span>
-              ) : null}
-              <IconButton
-                size="sm"
-                aria-label={`Remove ${person.fullName} from this company`}
-                disabled={detach.isPending}
-                onClick={() => detach.mutate(person.id)}
-              >
-                <X />
-              </IconButton>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="bk-bleed">
+        <table className="table" aria-label="People at this company">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Job title</th>
+              <th>Phone</th>
+              <th className="w-12" />
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((person) => (
+              <tr key={person.id}>
+                <td>
+                  <EntityLink
+                    href={`/crm/people/${person.id}`}
+                    className="ref font-medium hover:underline"
+                  >
+                    {person.fullName}
+                  </EntityLink>
+                </td>
+                <td className="muted">{person.jobTitle ?? "—"}</td>
+                <td className="muted font-mono">{person.phone ?? "—"}</td>
+                <td className="num">
+                  <IconButton
+                    size="sm"
+                    aria-label={`Remove ${person.fullName} from this company`}
+                    disabled={detach.isPending}
+                    onClick={() => detach.mutate(person.id)}
+                  >
+                    <X />
+                  </IconButton>
+                </td>
+              </tr>
+            ))}
+            {people.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="muted py-4 text-center">
+                  Nobody is recorded at this company yet.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

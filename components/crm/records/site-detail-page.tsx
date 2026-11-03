@@ -45,12 +45,11 @@ import { RelationAttribute } from "./relation-attribute";
 import { useToast } from "@/components/ui/use-toast";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
-import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { SiteFormSheet } from "./site-form-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
-import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
 
@@ -435,38 +434,60 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
             (visit) =>
               visit.status === "SCHEDULED" && new Date(visit.scheduledStart) < new Date(),
           ),
-          content:
-            site.appointments.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-                Nobody has visited this site yet.
-              </p>
-            ) : (
-              <Stack as="ul" gap="xs">
-                {site.appointments.map((visit) => {
-                  const status = VISIT_STATUS[visit.status];
-                  return (
-                    <li key={visit.id} className="p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-sm">{visit.appointmentNo}</span>
-                        {status ? (
-                          <StatusChip status={status.status} label={status.label} />
-                        ) : null}
-                      </div>
-                      <p className="text-sm">{visit.title}</p>
-                      <p className="text-sm text-[var(--text-muted)]">
-                        <ClientDate value={visit.scheduledStart} />
-                      </p>
-                      {visit.visitItems.length > 0 ? (
-                        <p className="text-sm text-[var(--text-muted)]">
-                          {visit.visitItems.length} measurement
-                          {visit.visitItems.length === 1 ? "" : "s"} recorded
-                        </p>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </Stack>
-            ),
+          content: (
+            <div className="space-y-3">
+              <div className="bk-bleed">
+                <table className="table" aria-label="Site visits">
+                  <thead>
+                    <tr>
+                      <th>Visit</th>
+                      <th>Scheduled</th>
+                      <th>State</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {site.appointments.map((visit) => {
+                      const status = VISIT_STATUS[visit.status];
+                      return (
+                        <tr key={visit.id}>
+                          <td>
+                            <EntityLink
+                              href={`/crm/appointments/${visit.id}`}
+                              className="ref font-medium hover:underline"
+                            >
+                              {visit.appointmentNo}
+                            </EntityLink>{" "}
+                            <span className="muted">{visit.title}</span>
+                          </td>
+                          <td className="muted font-mono">
+                            <ClientDate value={visit.scheduledStart} />
+                          </td>
+                          <td>
+                            {status ? (
+                              <StatusChip status={status.status} label={status.label} />
+                            ) : null}
+                          </td>
+                          <td className="muted">
+                            {visit.visitItems.length > 0
+                              ? `${visit.visitItems.length} measurement${visit.visitItems.length === 1 ? "" : "s"} recorded`
+                              : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {site.appointments.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="muted py-4 text-center">
+                          Nobody has visited this site yet.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ),
         },
         {
           value: "conversation",
@@ -480,16 +501,44 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
           icon: Funnel,
           count: site.deals.length,
           content: (
-            <RelatedList
-              items={site.deals}
-              emptyMessage="No deals are attached to this site yet."
-              renderItem={(deal) => ({
-                href: `/crm/deals/${deal.id}`,
-                title: deal.title,
-                subtitle: deal.stage.name,
-                meta: deal.value !== null ? formatMoney(deal.value, deal.currency) : undefined,
-              })}
-            />
+            <div className="space-y-3">
+              <div className="bk-bleed">
+                <table className="table" aria-label="Deals attached to this site">
+                  <thead>
+                    <tr>
+                      <th>Deal</th>
+                      <th>Stage</th>
+                      <th className="num">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {site.deals.map((deal) => (
+                      <tr key={deal.id}>
+                        <td>
+                          <EntityLink
+                            href={`/crm/deals/${deal.id}`}
+                            className="ref font-medium hover:underline"
+                          >
+                            {deal.title}
+                          </EntityLink>
+                        </td>
+                        <td className="muted">{deal.stage.name}</td>
+                        <td className="num">
+                          {deal.value !== null ? formatMoney(deal.value, deal.currency) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                    {site.deals.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="muted py-4 text-center">
+                          No deals are attached to this site yet.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ),
         },
         tasksTab({ ref: { kind: "site", id: siteId }, currentUserId: session?.user?.id }),

@@ -14,8 +14,6 @@ import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
 import type { LeadAppointment } from "./lead-types";
 
-import { Stack } from "@corelithzw/react";
-
 const VISIT_STATUS: Record<LeadAppointment["status"], { label: string; status: CanonicalUiStatus }> =
   {
     SCHEDULED: { label: "Scheduled", status: "pending" },
@@ -64,58 +62,85 @@ export function VisitsTab({
 
   return (
     <div className="space-y-3">
-      <Button size="sm" className="gap-1.5" onClick={onSchedule}>
-        <Plus className="h-3.5 w-3.5" />
-        Schedule visit
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button size="sm" className="gap-1.5" onClick={onSchedule}>
+          <Plus className="h-3.5 w-3.5" />
+          Schedule visit
+        </Button>
+      </div>
 
-      {appointments.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-          No site visits yet. The visit is where the job gets specified — book one before quoting
-          anything substantial.
-        </p>
-      ) : (
-        <Stack as="ul" gap="xs">
-          {appointments.map((visit) => {
-            const status = VISIT_STATUS[visit.status];
-            return (
-              <li key={visit.id} className="flex flex-wrap items-center gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm">{visit.appointmentNo}</span>
-                    <StatusChip status={status.status} label={status.label} />
-                    {visit.reportCompletedAt ? (
-                      <span className="text-sm text-[var(--text-muted)]">Written up</span>
-                    ) : null}
-                  </div>
-                  <Link href={`/crm/appointments/${visit.id}`} className="block text-sm hover:underline">
-                    {visit.title}
-                  </Link>
-                  <p className="text-sm text-[var(--text-muted)]">
+      <div className="bk-bleed">
+        <table className="table" aria-label="Site visits">
+          <thead>
+            <tr>
+              <th>Visit</th>
+              <th>Scheduled</th>
+              <th>Location</th>
+              <th>State</th>
+              <th className="num">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appointments.map((visit) => {
+              const status = VISIT_STATUS[visit.status];
+              return (
+                <tr key={visit.id}>
+                  <td>
+                    <Link
+                      href={`/crm/appointments/${visit.id}`}
+                      className="ref font-medium hover:underline"
+                    >
+                      {visit.appointmentNo}
+                    </Link>{" "}
+                    <span className="muted">{visit.title}</span>
+                  </td>
+                  <td className="muted font-mono">
                     <ClientDate value={visit.scheduledStart} />
-                    {visit.location ? ` · ${visit.location}` : ""}
-                  </p>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={share.isPending}
-                  onClick={() => share.mutate(visit.id)}
-                >
-                  <Share className="h-3.5 w-3.5" />
-                  Share
-                </Button>
-
-                <Button size="sm" variant="outline" onClick={() => onOpenReport(visit)}>
-                  {visit.reportCompletedAt ? "View report" : "Write up"}
-                </Button>
-              </li>
-            );
-          })}
-        </Stack>
-      )}
+                  </td>
+                  <td className="muted">{visit.location ?? "—"}</td>
+                  <td>
+                    <div className="inline-flex items-center gap-2">
+                      <StatusChip status={status.status} label={status.label} />
+                      {visit.reportCompletedAt ? (
+                        <span className="muted">Written up</span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="num">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-sm"
+                        disabled={share.isPending}
+                        onClick={() => share.mutate(visit.id)}
+                      >
+                        <Share className="h-3.5 w-3.5 mr-1" />
+                        Share
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-sm"
+                        onClick={() => onOpenReport(visit)}
+                      >
+                        {visit.reportCompletedAt ? "View report" : "Write up"}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {appointments.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted py-4 text-center">
+                  No site visits yet. The visit is where the job gets specified — book one before quoting anything substantial.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
