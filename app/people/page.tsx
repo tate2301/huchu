@@ -565,27 +565,37 @@ export default function HumanResourcesPage() {
   const employeeColumns = useMemo<ColumnDef<EmployeeSummary>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        meta: {
+          exportValue: (row: EmployeeSummary) => row.employeeId,
+        },
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
         id: "employee",
         header: "Employee",
         meta: {
-          exportValue: (row: EmployeeSummary) => `${row.name} (${row.employeeId})`,
+          exportValue: (row: EmployeeSummary) => row.name,
         },
         cell: ({ row }) => (
-          // The artboard's mono second line is the reference and one word of
-          // context. The department is that word here — it is what tells two
-          // people of the same name apart on a payroll — which frees Position
-          // to carry the job title rather than repeating it.
           <DirectoryName
             name={row.original.name}
             photoUrl={row.original.passportPhotoUrl}
-            subtitle={[row.original.employeeId, row.original.department?.name]
-              .filter(Boolean)
-              .join(" · ")}
+            subtitle={row.original.department?.name || undefined}
           />
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
+        size: 240,
+        minSize: 200,
+        maxSize: 380,
+      },
       {
         id: "phone",
         header: "Contact",

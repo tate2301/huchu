@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import { PeopleShell } from "@/components/people/people-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
@@ -92,8 +93,8 @@ export default function ApprovalsPage() {
         header: "Entity",
         cell: ({ row }) => (
           <div>
-            <div className="font-semibold">{row.original.entityType}</div>
-            <div className="text-xs text-muted-foreground">{row.original.entityId}</div>
+            <div className="font-semibold text-[var(--color-ink)]">{row.original.entityType}</div>
+            <div className="font-mono text-sm text-[var(--color-ink-2)]">{row.original.entityId}</div>
           </div>
         ),
         size: 160,
@@ -117,14 +118,19 @@ export default function ApprovalsPage() {
         id: "actor",
         header: "Actor",
         cell: ({ row }) => (
-          <div>
-            <div>{row.original.actedBy.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.actedBy.role}</div>
+          <div className="flex min-w-0 items-center gap-2">
+            <RecordMark kind="person" name={row.original.actedBy.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.actedBy.name}
+            </span>
+            <Badge variant="outline" className="font-mono text-sm">
+              {row.original.actedBy.role}
+            </Badge>
           </div>
         ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
+        size: 220,
+        minSize: 180,
+        maxSize: 300},
       {
         accessorKey: "note",
         header: "Note",
@@ -138,15 +144,15 @@ export default function ApprovalsPage() {
         cell: ({ row }) => (
           <button
             type="button"
-            className="text-xs font-semibold text-primary"
+            className="text-sm font-medium text-primary hover:underline"
             onClick={() => setSelectedRecord(row.original)}
           >
             Details
           </button>
         ),
-        size: 260,
-        minSize: 200,
-        maxSize: 360},
+        size: 100,
+        minSize: 80,
+        maxSize: 120},
     ],
     [],
   );
@@ -250,18 +256,18 @@ export default function ApprovalsPage() {
           {selectedRecord ? (
             <div className="mt-6 space-y-4 text-sm">
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Timestamp</div>
+                <div className="text-sm text-muted-foreground">Timestamp</div>
                 <div className="font-semibold">
                   {format(new Date(selectedRecord.actedAt), "yyyy-MM-dd HH:mm:ss")}
                 </div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Entity</div>
+                <div className="text-sm text-muted-foreground">Entity</div>
                 <div className="font-semibold">{selectedRecord.entityType}</div>
-                <div className="text-xs text-muted-foreground">{selectedRecord.entityId}</div>
+                <div className="font-mono text-sm text-[var(--color-ink-2)]">{selectedRecord.entityId}</div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Action</div>
+                <div className="text-sm text-muted-foreground">Action</div>
                 <div className="mt-1">
                   <Badge variant="neutral">{selectedRecord.action}</Badge>
                 </div>
@@ -272,12 +278,15 @@ export default function ApprovalsPage() {
                 </div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Actor</div>
-                <div className="font-semibold">{selectedRecord.actedBy.name}</div>
-                <div className="text-xs text-muted-foreground">{selectedRecord.actedBy.role}</div>
+                <div className="text-sm text-muted-foreground">Actor</div>
+                <div className="flex items-center gap-2 pt-1 font-semibold">
+                  <RecordMark kind="person" name={selectedRecord.actedBy.name} size="sm" />
+                  <span>{selectedRecord.actedBy.name}</span>
+                </div>
+                <div className="font-mono text-sm text-muted-foreground">{selectedRecord.actedBy.role}</div>
               </div>
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Note</div>
+                <div className="text-sm text-muted-foreground">Note</div>
                 <div>{selectedRecord.note || "-"}</div>
               </div>
             </div>
