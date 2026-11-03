@@ -312,7 +312,8 @@ const BoardLane = memo(function BoardLane({
 
       <div
         ref={bodyRef}
-        className="scroll-rail flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-2"
+        data-board-column-body=""
+        className="scroll-rail-y flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-2"
       >
         {dragging ? (
           <div
@@ -434,6 +435,48 @@ export function RecordBoard({
   const droppedAt = useRef(0);
   const railRef = useRef<HTMLDivElement>(null);
   useFillScrollport(railRef, !isLoading && columns.length > 0);
+
+  // Map vertical mouse wheel movement over the board background, headers, or
+  // at column scroll boundaries into horizontal scrolling across columns.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      // 1. Shift + wheel is already mapped by the browser to horizontal scroll.
+      // 2. Trackpad horizontal swipe (larger deltaX than deltaY) should scroll natively.
+      if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        return;
+      }
+
+      // 3. If there is no horizontal overflow on the board, nothing to scroll horizontally.
+      if (rail.scrollWidth <= rail.clientWidth) {
+        return;
+      }
+
+      // 4. Check if the pointer is over a column card body that can still scroll vertically.
+      const target = event.target as HTMLElement | null;
+      const columnBody = target?.closest<HTMLElement>("[data-board-column-body]");
+
+      if (columnBody) {
+        const isScrollingDown = event.deltaY > 0;
+        const canScrollDown =
+          columnBody.scrollTop + columnBody.clientHeight < columnBody.scrollHeight - 1;
+        const canScrollUp = columnBody.scrollTop > 1;
+
+        if ((isScrollingDown && canScrollDown) || (!isScrollingDown && canScrollUp)) {
+          return;
+        }
+      }
+
+      // 5. Otherwise, translate vertical wheel movement into horizontal scroll.
+      event.preventDefault();
+      rail.scrollLeft += event.deltaY;
+    };
+
+    rail.addEventListener("wheel", handleWheel, { passive: false });
+    return () => rail.removeEventListener("wheel", handleWheel);
+  }, []);
 
   const sensors = useSensors(
     // MouseSensor and TouchSensor rather than PointerSensor. PointerSensor
@@ -634,7 +677,7 @@ export function RecordBoard({
           <div
             ref={railRef}
             className={cn(
-              "scroll-rail hidden min-h-96 gap-3 overflow-x-auto px-4 pb-3 pt-3 sm:px-6 lg:flex",
+              "crm-bk-board-rail hidden min-h-96 w-full min-w-0 max-w-full gap-3 overflow-x-auto px-4 pb-3 pt-3 sm:px-6 lg:flex",
               dragging && "cursor-grabbing",
               className,
             )}

@@ -19,6 +19,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: calc(100% + (var(--content-gutter-x, 1.5rem) * 2));
+  max-width: calc(100% + (var(--content-gutter-x, 1.5rem) * 2));
   margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
   margin-top: calc(var(--content-lede, 1.25rem) * -1);
   background: var(--color-surface, #ffffff);
@@ -36,6 +38,8 @@
   margin-left: 0 !important;
   margin-right: 0 !important;
   width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
 }
 
 /* 2. Finding Banner (matches Books `.finding` / `.k-find`) */
@@ -633,7 +637,38 @@
   }
 }
 
-/* 9. Books Kanban Board inside CRM (`.crm-bk-board`) */
+/* 9. Books Kanban Board inside CRM (`.crm-bk-board`, `.crm-bk-board-rail`) */
+.crm-bk-board-rail {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, var(--color-line-strong, #c8c5bc)) transparent;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar {
+  height: 8px;
+  display: block;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, var(--color-line-strong, #c8c5bc));
+  border-radius: 9999px;
+}
+
+.crm-bk-board-rail::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, var(--color-rule, #99968d));
+}
+
 .crm-bk-board {
   display: flex;
   gap: 0;
