@@ -96,24 +96,42 @@
 /* 2. Finding Banner (matches Books `.finding` / `.k-find` / `.lede-figure`) */
 .crm-bk-finding {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 14px 24px;
+  padding: 10px 24px;
   background: var(--color-ground);
   box-shadow: inset 0 -1px 0 var(--color-line);
-  font-size: 16px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.4;
   letter-spacing: -0.01em;
   color: var(--color-ink-2);
 }
 
+.crm-bk-finding-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.crm-bk-finding-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: inherit;
+}
+
 .crm-bk-finding-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   min-width: 0;
-  max-width: 88ch;
+  max-width: 96ch;
   color: var(--color-ink-2);
-  text-wrap: balance;
 }
 
 .crm-bk-finding-fact {
@@ -644,19 +662,74 @@ tr[data-cursor] td:first-child {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  box-shadow: inset -1px 0 0 var(--color-line);
+  border-right: 1px solid var(--color-line);
 }
 
 .crm-bk-rec.is-single-col .crm-bk-main {
-  box-shadow: none;
+  border-right: none;
 }
 
 .crm-bk-hd {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 20px 24px 16px;
+  padding: 18px 24px 16px;
   box-shadow: inset 0 -1px 0 var(--color-line);
+}
+
+.crm-bk-hd-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.crm-bk-hd-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.crm-bk-hd-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-line);
+  background: var(--color-ground);
+  color: var(--color-ink-3);
+  margin-top: 2px;
+}
+
+.crm-bk-hd-title-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.crm-bk-hd-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
+}
+
+.crm-bk-hd-figure {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
 }
 
 .crm-bk-hd-top {
@@ -943,11 +1016,13 @@ tr[data-cursor] td:first-child {
   flex-direction: column;
   min-width: 0;
   background: var(--color-surface);
-  align-self: start;
   position: sticky;
   top: 0;
+  height: 100%;
   max-height: 100vh;
   overflow-y: auto;
+  border-left: 1px solid var(--color-line);
+  margin-left: -1px;
 }
 
 .crm-bk-rail-sec,
@@ -1499,15 +1574,28 @@ a.crm-bk-share:hover {
   color: var(--tone-success-strong, var(--ok));
 }
 
+.crm-bk-finding.is-success .crm-bk-finding-fact {
+  color: var(--tone-success-strong, var(--ok));
+}
+
+.crm-bk-finding.is-success .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
 .crm-bk-finding.is-danger {
   background: var(--tone-danger-bg, var(--bad-soft));
   box-shadow: inset 0 -1px 0 var(--tone-danger-bd, var(--bad));
   color: var(--tone-danger-strong, var(--bad));
 }
 
-.crm-bk-finding.is-danger .crm-bk-finding-text,
-.crm-bk-finding.is-danger .crm-bk-finding-fact,
-.crm-bk-finding.is-danger .crm-bk-finding-rest,
+.crm-bk-finding.is-danger .crm-bk-finding-fact {
+  color: var(--tone-danger-strong, var(--bad));
+}
+
+.crm-bk-finding.is-danger .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
 .crm-bk-finding.is-danger .num {
   color: var(--tone-danger-strong, var(--bad));
 }
@@ -1531,9 +1619,27 @@ a.crm-bk-share:hover {
   color: var(--tone-warn-strong, var(--warn));
 }
 
+.crm-bk-finding.is-warning .crm-bk-finding-fact,
+.crm-bk-finding.is-warn .crm-bk-finding-fact {
+  color: var(--tone-warn-strong, var(--warn));
+}
+
+.crm-bk-finding.is-warning .crm-bk-finding-rest,
+.crm-bk-finding.is-warn .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
 .crm-bk-finding.is-info {
   background: var(--tone-info-bg, var(--info-soft));
   box-shadow: inset 0 -1px 0 var(--tone-info-bd, var(--line));
   color: var(--brand-strong, var(--action-ink, var(--action)));
+}
+
+.crm-bk-finding.is-info .crm-bk-finding-fact {
+  color: var(--brand-strong, var(--action-ink, var(--action)));
+}
+
+.crm-bk-finding.is-info .crm-bk-finding-rest {
+  color: var(--color-ink-2);
 }
 

@@ -297,16 +297,12 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
               ? { status: "need_changes", label: "Not written up" }
               : null
       }
-      figure={when(visit.scheduledStart)}
       finding={
         overdue
           ? {
               label: "Field report overdue",
-              text: (
-                <>
-                  <b>This visit took place on {when(visit.scheduledStart)}</b> — write up the report and measurements so a quotation can be raised.
-                </>
-              ),
+              fact: `This visit took place on ${when(visit.scheduledStart)}`,
+              rest: "— write up the report and measurements so a quotation can be raised.",
               action: mayEdit
                 ? {
                     label: "Write it up →",
@@ -318,11 +314,8 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
           : unplaced.length > 0
             ? {
                 label: "Geotag check",
-                text: (
-                  <>
-                    <b>{unplaced.length} site photo{unplaced.length === 1 ? " has" : "s have"} no GPS coordinates</b> — verify location metadata with the field rep.
-                  </>
-                ),
+                fact: `${unplaced.length} site photo${unplaced.length === 1 ? " has" : "s have"} no GPS coordinates`,
+                rest: "— verify location metadata with the field rep.",
                 tone: "warn" as const,
               }
             : null

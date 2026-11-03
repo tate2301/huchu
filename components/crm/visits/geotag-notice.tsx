@@ -42,7 +42,7 @@ export function FieldCameraNotice({ camera, className }: { camera: FieldCamera; 
           We recommend {camera.appName} for accurate location stamps.
         </span>
       </div>
-      <Button asChild variant="secondary" size="sm" className="h-7 text-sm">
+      <Button asChild variant="primary" size="sm" className="h-7 text-sm font-medium">
         <a href={camera.storeUrl} target="_blank" rel="noopener noreferrer">
           Get {camera.appName}
           <ExternalLink aria-hidden="true" className="size-3.5" />

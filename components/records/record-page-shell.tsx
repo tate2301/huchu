@@ -437,7 +437,7 @@ export function RecordPageShell({
     }
 
     return (
-      <>
+      <div className="inline-flex items-center gap-1.5">
         {primaryAction}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -458,7 +458,7 @@ export function RecordPageShell({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      </>
+      </div>
     );
   }, [actions, narrow, primaryAction]);
 
@@ -477,50 +477,52 @@ export function RecordPageShell({
         {barActions}
       </PageChrome>
 
-      <div className="crm-bk-rec min-w-0 md:min-h-0 md:flex-1">
+      <div className={cn("crm-bk-rec min-w-0 md:min-h-0 md:flex-1", !infoShown && "is-single-col")}>
         <div className="crm-bk-main md:overflow-y-auto">
           {finding ? <CrmFinding finding={finding} /> : null}
 
           <div className="crm-bk-hd">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              {leading ? (
-                <span className="mt-0.5 flex-none">{leading}</span>
-              ) : RecordIcon ? (
-                <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] text-[var(--color-ink-3)]">
-                  <RecordIcon className="size-4" aria-hidden="true" />
-                </span>
-              ) : null}
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {onTitleCommit ? (
-                    <RecordTitleEditor title={title} onCommit={onTitleCommit} />
-                  ) : (
-                    <h1 className="crm-bk-title">{title}</h1>
-                  )}
-                  {status ? <StatusChip status={status.status} label={status.label} /> : null}
-                </div>
-                {reference || subtitle ? (
-                  <div className="crm-bk-ml">
-                    {reference ? <span className="ref font-mono">{reference}</span> : null}
-                    {reference && subtitle ? <i>·</i> : null}
-                    {subtitle ? <span>{subtitle}</span> : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            {figure || stage || toolbar ? (
-              <div className="flex flex-wrap items-center justify-end gap-2.5">
-                {stage}
-                {toolbar}
-                {figure ? (
-                  <span className="font-mono text-[18px] font-semibold tracking-[-0.02em] tabular-nums text-[var(--color-ink)]">
-                    {figure}
+            <div className="crm-bk-hd-row">
+              <div className="crm-bk-hd-left">
+                {leading ? (
+                  <span className="crm-bk-hd-leading flex-none">{leading}</span>
+                ) : RecordIcon ? (
+                  <span className="crm-bk-hd-icon flex-none">
+                    <RecordIcon className="size-4" aria-hidden="true" />
                   </span>
                 ) : null}
+
+                <div className="min-w-0 flex-1">
+                  <div className="crm-bk-hd-title-wrap">
+                    {onTitleCommit ? (
+                      <RecordTitleEditor title={title} onCommit={onTitleCommit} />
+                    ) : (
+                      <h1 className="crm-bk-title">{title}</h1>
+                    )}
+                    {status ? <StatusChip status={status.status} label={status.label} /> : null}
+                  </div>
+                  {reference || subtitle ? (
+                    <div className="crm-bk-ml">
+                      {reference ? <span className="ref font-mono">{reference}</span> : null}
+                      {reference && subtitle ? <i>·</i> : null}
+                      {subtitle ? <span>{subtitle}</span> : null}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            ) : null}
+
+              {figure || stage || toolbar ? (
+                <div className="crm-bk-hd-right">
+                  {stage}
+                  {toolbar}
+                  {figure ? (
+                    <span className="crm-bk-hd-figure">
+                      {figure}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {kpis && kpis.length > 0 ? (
@@ -650,7 +652,7 @@ export function RailSection({
       <div className="crm-bk-rail-title flex items-center gap-2">
         <span>{title}</span>
         {meta ? (
-          <span className="ml-auto font-mono text-[11px] font-semibold tabular-nums text-[var(--color-ink)]">
+          <span className="ml-auto font-mono text-sm font-medium tabular-nums text-[var(--color-ink-2)]">
             {meta}
           </span>
         ) : null}

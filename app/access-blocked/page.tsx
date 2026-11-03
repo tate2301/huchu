@@ -1,96 +1,129 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowRight, ShieldAlert, UserRound } from "@/lib/icons";
+import {
+  ci_arrow_right,
+  ci_lock,
+  ci_shield,
+  ci_user,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
 
 const RECOVERY_STEPS = [
-  "Confirm you are signed in with the correct organization account.",
-  "Ask your platform administrator to verify tenant and subscription status.",
-  "Retry after access is restored.",
+  {
+    step: "01",
+    title: "Verify your signed-in identity",
+    desc: "Confirm you are signed in with the corporate email address provisioned for this organization.",
+  },
+  {
+    step: "02",
+    title: "Contact your workspace administrator",
+    desc: "Ask your administrator or billing owner to confirm that your seat assignment and organization lease are active.",
+  },
+  {
+    step: "03",
+    title: "Retry once permissions are updated",
+    desc: "After membership or organization status has been restored, refresh or retry connection.",
+  },
 ] as const;
 
 export default function AccessBlockedPage() {
   return (
     <main
-      className="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-10"
-      aria-labelledby="access-blocked-title"
+      className="flex min-h-screen flex-col items-center justify-center bg-[var(--color-ground)] px-4 py-12 sm:px-6 lg:px-8"
+      aria-labelledby="access-gate-title"
     >
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl items-center justify-center">
-        <Card className="relative w-full overflow-hidden border-border/80 bg-card shadow-sm">
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[var(--status-error-bg)] to-transparent"
-            aria-hidden="true"
-          />
+      <div className="w-full max-w-[540px]">
+        {/* Brand / System badge */}
+        <div className="mb-6 flex items-center justify-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-2)]">
+            <CiGlyphIcon glyph={ci_shield} className="size-4" />
+          </span>
+          <span className="font-mono text-xs font-medium uppercase tracking-wider text-[var(--color-ink-3)]">
+            Platform Access Gate
+          </span>
+        </div>
 
-          <CardHeader className="relative space-y-4 border-b border-border/80 pb-5 pt-6 sm:px-6 sm:pt-7">
-            <Badge variant="destructive" className="w-fit">
-              Access Restricted
-            </Badge>
-
-            <div className="flex items-start gap-4">
-              <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] text-[var(--status-error-text)]">
-                <ShieldAlert className="h-6 w-6" aria-hidden="true" />
+        {/* Central Gate Panel */}
+        <div className="overflow-hidden rounded-[var(--radius-md,6px)] border border-[var(--color-line)] bg-[var(--color-surface)] shadow-sm">
+          {/* Header row */}
+          <div className="border-b border-[var(--color-line)] bg-[var(--color-ground)] p-6 sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--tone-danger-bd,var(--bad))] bg-[var(--tone-danger-bg,var(--bad-soft))] text-[var(--tone-danger-strong,var(--bad))]">
+                <CiGlyphIcon glyph={ci_lock} className="size-5" />
               </div>
-
-              <div className="space-y-2">
-                <h1 id="access-blocked-title" className="text-page-title text-foreground">
-                  Access blocked for this organization
-                </h1>
-                <p className="max-w-xl text-sm text-muted-foreground">
-                  Your signed-in account does not currently have permission to use this tenant host.
-                </p>
-              </div>
+              <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--tone-danger-bd,var(--bad))] bg-[var(--tone-danger-bg,var(--bad-soft))] px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--tone-danger-strong,var(--bad))]">
+                Access Restricted
+              </span>
             </div>
-          </CardHeader>
 
-          <CardContent className="space-y-6 py-5 sm:px-6 sm:py-6">
-            <section
-              className="rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] p-4"
-              aria-labelledby="access-blocked-details"
+            <h1
+              id="access-gate-title"
+              className="mt-4 text-[22px] font-semibold tracking-[-0.015em] text-[var(--color-ink)] sm:text-2xl"
             >
-              <h2 id="access-blocked-details" className="text-sm font-semibold text-[var(--status-error-text)]">
-                Why this happens
-              </h2>
-              <p className="mt-2 text-sm text-[var(--status-error-text)]">
-                This usually means tenant access is temporarily restricted or your account belongs to a different organization.
-              </p>
-            </section>
+              Access blocked for this organization
+            </h1>
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-2)]">
+              Your signed-in account is not authorized to access this tenant host, or the organization membership is currently inactive.
+            </p>
+          </div>
 
-            <section aria-labelledby="next-steps-title" className="space-y-3">
-              <h2 id="next-steps-title" className="text-section-title text-foreground">
-                What to do next
+          {/* Body Section */}
+          <div className="p-6 sm:p-7 space-y-6">
+            {/* Status notice */}
+            <div className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] p-4 text-xs leading-relaxed text-[var(--color-ink-2)]">
+              <span className="font-semibold text-[var(--color-ink)]">Why this happens: </span>
+              Access to this host is gated by organization tenant policy. If your team recently switched domains or changed roles, permissions may need to be refreshed.
+            </div>
+
+            {/* Structured Recovery Steps */}
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink-3)]">
+                Recommended Resolution
               </h2>
-              <ol className="space-y-2 text-sm text-muted-foreground">
-                {RECOVERY_STEPS.map((step) => (
-                  <li key={step} className="flex gap-3">
-                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                    <span>{step}</span>
+              <ol className="mt-3 divide-y divide-[var(--color-line)] rounded-[var(--radius-sm)] border border-[var(--color-line)]">
+                {RECOVERY_STEPS.map((item) => (
+                  <li key={item.step} className="flex items-start gap-3.5 p-3.5 bg-[var(--color-surface)]">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded bg-[var(--color-fill)] font-mono text-[11px] font-semibold tabular-nums text-[var(--color-ink-2)]">
+                      {item.step}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[var(--color-ink)]">
+                        {item.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-normal text-[var(--color-ink-3)]">
+                        {item.desc}
+                      </p>
+                    </div>
                   </li>
                 ))}
               </ol>
-            </section>
-
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
-              <Button asChild size="lg" className="sm:min-w-44">
-                <Link href="/">
-                  Retry Access
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="sm:min-w-44">
-                <Link href="/login">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                  Switch Account
-                </Link>
-              </Button>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              If access still fails, contact your platform administrator with your company name and expected tenant.
+            {/* Action Buttons */}
+            <div className="pt-1 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+              <Link
+                href="/"
+                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--action-bd,transparent)] bg-[var(--action-bg,#0f172a)] px-4 text-sm font-medium text-[var(--action-fg,#ffffff)] transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-[var(--action-ring,#0f172a)] focus:ring-offset-2 dark:bg-[var(--action-bg,#f8fafc)] dark:text-[var(--action-fg,#0f172a)]"
+              >
+                <span>Retry Access</span>
+                <CiGlyphIcon glyph={ci_arrow_right} className="size-3.5" />
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-hover)] focus:outline-none"
+              >
+                <CiGlyphIcon glyph={ci_user} className="size-3.5 text-[var(--color-ink-3)]" />
+                <span>Switch Account</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Footer note */}
+          <div className="border-t border-[var(--color-line)] bg-[var(--color-ground)] px-6 py-3.5 sm:px-7">
+            <p className="text-center font-mono text-[11px] text-[var(--color-ink-3)]">
+              Tenant ID & host records logged for security auditing
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </main>
   );

@@ -1,4 +1,11 @@
 import * as React from "react";
+import {
+  ci_alert,
+  ci_alert_circle,
+  ci_check_circle,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+import type { CiGlyph } from "@/components/books/icons/types";
 
 /**
  * Matches monetary values, percentages, durations (e.g. 30d), and integer/decimal quantities.
@@ -97,6 +104,7 @@ export type CrmStructuredFinding = {
   children?: React.ReactNode;
   action?: CrmFindingAction;
   tone?: CrmFindingTone;
+  icon?: CiGlyph | React.ComponentType<{ className?: string }>;
 };
 
 export type CrmFindingProp = CrmStructuredFinding | React.ReactNode;
@@ -113,6 +121,7 @@ export interface CrmFindingProps {
   window?: string | number;
   action?: CrmFindingAction;
   tone?: CrmFindingTone;
+  icon?: CiGlyph | React.ComponentType<{ className?: string }>;
   className?: string;
   role?: string;
 }
@@ -143,6 +152,7 @@ export function CrmFinding({
   window: propWindow,
   action: propAction,
   tone: propTone,
+  icon: propIcon,
   className = "",
   role = "status",
 }: CrmFindingProps) {
@@ -166,15 +176,40 @@ export function CrmFinding({
   const end = propEnd ?? structured.end;
   const action = propAction ?? structured.action;
   const tone = propTone ?? structured.tone;
+  const icon = propIcon ?? structured.icon;
 
   const toneClass = resolveToneClass(tone);
   const classes = ["crm-bk-finding", toneClass, className].filter(Boolean).join(" ");
+
+  // Auto-resolve duotone icon if not explicitly provided
+  const resolvedIcon =
+    icon ??
+    (tone === "danger" || tone === "bad"
+      ? ci_alert_circle
+      : tone === "warn" || tone === "warning"
+      ? ci_alert
+      : tone === "success" || tone === "ok"
+      ? ci_check_circle
+      : undefined);
 
   // If finding is a raw React element and not an object shape
   if (!isObjectFinding && finding && !propFact && !propRest && !propLabel && !propText && !propChildren) {
     return (
       <div className={classes} role={role}>
-        <div className="crm-bk-finding-text">{finding}</div>
+        <div className="crm-bk-finding-text">
+          {resolvedIcon ? (
+            <span className="crm-bk-finding-icon">
+              {typeof resolvedIcon === "object" && "body" in resolvedIcon ? (
+                <CiGlyphIcon glyph={resolvedIcon} className="size-4 shrink-0" />
+              ) : React.isValidElement(resolvedIcon) ? (
+                resolvedIcon
+              ) : typeof resolvedIcon === "function" ? (
+                React.createElement(resolvedIcon, { className: "size-4 shrink-0" })
+              ) : null}
+            </span>
+          ) : null}
+          {finding}
+        </div>
       </div>
     );
   }
@@ -182,11 +217,25 @@ export function CrmFinding({
   return (
     <div className={classes} role={role}>
       <div className="crm-bk-finding-text">
-        {label ? (
-          <span className={`fl ${toneClass ? `is-${toneClass.replace("is-", "")}` : ""} mr-2`}>
-            {label}
-          </span>
-        ) : null}
+        <div className="crm-bk-finding-lead">
+          {resolvedIcon ? (
+            <span className="crm-bk-finding-icon">
+              {typeof resolvedIcon === "object" && "body" in resolvedIcon ? (
+                <CiGlyphIcon glyph={resolvedIcon} className="size-4 shrink-0" />
+              ) : React.isValidElement(resolvedIcon) ? (
+                resolvedIcon
+              ) : typeof resolvedIcon === "function" ? (
+                React.createElement(resolvedIcon, { className: "size-4 shrink-0" })
+              ) : null}
+            </span>
+          ) : null}
+
+          {label ? (
+            <span className={`fl ${toneClass ? `is-${toneClass.replace("is-", "")}` : ""}`}>
+              {label}
+            </span>
+          ) : null}
+        </div>
 
         {fact ? (
           <span className="crm-bk-finding-fact">
@@ -196,7 +245,6 @@ export function CrmFinding({
 
         {rest ? (
           <span className="crm-bk-finding-rest">
-            {fact ? " " : null}
             <Figures text={rest} />
           </span>
         ) : null}
