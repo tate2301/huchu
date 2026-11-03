@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { ArrowRight, Plus } from "@/lib/icons";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -514,8 +515,8 @@ export default function CompensationPage() {
         header: "Template",
         cell: ({ row }) => (
           <div>
-            <div className="font-semibold">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="font-semibold text-[var(--color-ink)]">{row.original.name}</div>
+            <div className="text-sm text-muted-foreground">
               {row.original.description || "No description"}
             </div>
           </div>
@@ -530,7 +531,7 @@ export default function CompensationPage() {
         cell: ({ row }) => (
           <div>
             <div>{row.original.employmentType || "All employment types"}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {row.original.position
                 ? employeePositionOptions.find((position) => position.value === row.original.position)?.label ??
                   row.original.position
@@ -596,19 +597,33 @@ export default function CompensationPage() {
   const profileColumns = useMemo<ColumnDef<CompensationProfileRecord>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
         id: "employee",
         header: "Employee",
+        accessorFn: (row) => row.employee.name,
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.employee.employeeId}
-            </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
+        size: 200,
+        minSize: 160,
+        maxSize: 280,
       },
       {
         id: "baseAmount",
@@ -730,8 +745,8 @@ export default function CompensationPage() {
         header: "Rule",
         cell: ({ row }) => (
           <div>
-            <div className="font-semibold">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="font-semibold text-[var(--color-ink)]">{row.original.name}</div>
+            <div className="text-sm text-muted-foreground">
               {row.original.calcMethod === "PERCENT"
                 ? "Percent of base"
                 : "Fixed amount"}
@@ -761,7 +776,7 @@ export default function CompensationPage() {
                 : `${row.original.currency} ${row.original.value}`}
             </div>
             {row.original.cap ? (
-              <div className="text-xs text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Cap {row.original.cap}
               </div>
             ) : null}
@@ -774,14 +789,28 @@ export default function CompensationPage() {
       {
         id: "scope",
         header: "Scope",
-        cell: ({ row }) =>
-          row.original.employee?.name ||
-          row.original.department?.name ||
-          row.original.grade?.name ||
-          "Global",
-        size: 160,
+        cell: ({ row }) => {
+          if (row.original.employee?.name) {
+            return (
+              <div className="flex min-w-0 items-center gap-2">
+                <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+                <span className="truncate text-sm text-[var(--color-ink)]">
+                  {row.original.employee.name}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <span className="text-sm text-[var(--color-ink)]">
+              {row.original.department?.name ||
+                row.original.grade?.name ||
+                "Global"}
+            </span>
+          );
+        },
+        size: 180,
         minSize: 160,
-        maxSize: 160,
+        maxSize: 240,
       },
       {
         id: "status",
@@ -1067,7 +1096,7 @@ export default function CompensationPage() {
                 Included Rules
               </label>
               {templateRuleOptions.length === 0 ? (
-                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
                   No approved active rules available yet. Create and approve
                   rules first.
                 </div>
@@ -1094,7 +1123,7 @@ export default function CompensationPage() {
                           }}
                         />
                         <span className="font-medium">{rule.name}</span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           ({rule.type},{" "}
                           {rule.calcMethod === "PERCENT"
                             ? `${rule.value}%`
@@ -1503,14 +1532,10 @@ export default function CompensationPage() {
       >
         {activeView === "templates" ? (
           <>
-            <header className="space-y-1">
+            <header>
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Compensation Templates
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Reusable profile + rule bundles for onboarding permanent,
-                contract, or role-specific staff.
-              </p>
             </header>
             {templatesLoading ? (
               <Skeleton className="h-20 w-full" />
@@ -1541,13 +1566,10 @@ export default function CompensationPage() {
 
         {activeView === "profiles" ? (
           <>
-            <header className="space-y-1">
+            <header>
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Compensation Profiles
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Employee base pay with effective-date history.
-              </p>
             </header>
             {profilesLoading ? (
               <Skeleton className="h-20 w-full" />
@@ -1578,13 +1600,10 @@ export default function CompensationPage() {
 
         {activeView === "rules" ? (
           <>
-            <header className="space-y-1">
+            <header>
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Compensation Rules
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Reusable allowance and deduction rules.
-              </p>
             </header>
             {rulesLoading ? (
               <Skeleton className="h-20 w-full" />

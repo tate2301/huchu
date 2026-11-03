@@ -23,7 +23,7 @@ import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
 import { useShellIfAny } from "@/components/layout/shell-state";
 import type { RegisterKpi } from "@/components/crm/registers/register-shell";
-import { CrmFinding } from "@/components/crm/crm-finding";
+import { CrmFinding, type CrmFindingProp } from "@/components/crm/crm-finding";
 import {
   ci_apps,
   ci_calendar_check,
@@ -194,9 +194,7 @@ export function RecordPageShell({
   /** Optional Books KPI strip rendered below the record header. */
   kpis?: RegisterKpi[];
   /** Optional Books finding callout rendered above the record header. */
-  finding?:
-    | { label?: string; text?: ReactNode; children?: ReactNode; action?: ReactNode | { label: string; onClick: () => void }; tone?: string }
-    | null;
+  finding?: CrmFindingProp | null;
   /** Sheets and dialogs the page owns — mounted outside the tab content so
    *  they survive a tab change. */
   children?: ReactNode;

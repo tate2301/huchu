@@ -140,7 +140,7 @@ export function HolidaysContent() {
           <DataTable
             columns={holidayColumns}
             data={holidays}
-            emptyMessage={`No holidays recorded for ${year}.`}
+            noResultsText={`No holidays recorded for ${year}.`}
           />
         )}
       </div>

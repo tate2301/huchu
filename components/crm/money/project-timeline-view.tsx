@@ -8,7 +8,7 @@ import { jobHref } from "@/components/crm/work-orders/job-types";
 import { projectTimeline, type TimelineMarker } from "@/lib/crm/project-timeline";
 import { JOB_TONE } from "@/lib/crm/tones";
 import { WORK_ORDER_STATUS_LABELS } from "@/lib/crm/work-orders";
-import { Calendar, LayoutList, BarChart3 } from "@/lib/icons";
+import { Calendar, List, BarChart3 } from "@/lib/icons";
 
 import { formatDate, todayKey } from "./money";
 
@@ -135,15 +135,17 @@ export function ProjectTimelineView({
 
   // Compute Gantt date range
   const todayTimestamp = new Date(today).getTime();
+  const firstJobStart = scheduledJobs[0]?.scheduledStart;
+  const lastJobStart = scheduledJobs[scheduledJobs.length - 1]?.scheduledStart;
   const startTimestamp = startDate
     ? new Date(startDate).getTime()
-    : scheduledJobs[0]?.scheduledStart
-    ? new Date(scheduledJobs[0].scheduledStart).getTime()
+    : firstJobStart
+    ? new Date(firstJobStart).getTime()
     : todayTimestamp - 7 * 86400000;
   const endTimestamp = targetEndDate
     ? new Date(targetEndDate).getTime()
-    : scheduledJobs[scheduledJobs.length - 1]?.scheduledStart
-    ? new Date(scheduledJobs[scheduledJobs.length - 1].scheduledStart).getTime() + 14 * 86400000
+    : lastJobStart
+    ? new Date(lastJobStart).getTime() + 14 * 86400000
     : startTimestamp + 30 * 86400000;
   const totalDuration = Math.max(86400000 * 5, endTimestamp - startTimestamp);
 
@@ -158,7 +160,7 @@ export function ProjectTimelineView({
             className="h-7 text-sm font-medium"
             onClick={() => setView("table")}
           >
-            <LayoutList className="mr-1.5 size-3.5" />
+            <List className="mr-1.5 size-3.5" />
             Table
           </Button>
           <Button

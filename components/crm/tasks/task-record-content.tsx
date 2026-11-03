@@ -32,7 +32,7 @@ import type { CrmTaskRecord } from "@/lib/crm/crm-v2";
 import { CRM_TASK_PRIORITY_LABELS, CRM_TASK_TYPE_LABELS, isTaskOverdue, taskRecordRef } from "@/lib/crm/tasks";
 import { ciNavIcon } from "@/components/books/icons/nav-icon";
 import { ci_list_check } from "@/components/books/icons/glyphs";
-import { Checklist, MapPin, Repeat, Trash2, User, Plus, MessageSquare, Receipt, Check } from "@/lib/icons";
+import { Checklist, MapPin, Repeat, Trash2, User, Plus, ChatCircle, Receipt, Check } from "@/lib/icons";
 
 import { useTaskFields } from "./task-detail";
 import { useTaskCompletion } from "./use-task-completion";
@@ -394,7 +394,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     className="h-7 text-sm font-medium"
                     onClick={() => setTab("checklists")}
                   >
@@ -472,7 +472,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
                 </div>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   className="h-7 text-sm font-medium"
                   onClick={() => setAddingChecklist(true)}
                 >
@@ -593,7 +593,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
         {
           value: "conversation",
           label: "Conversation & Feedback",
-          icon: MessageSquare,
+          icon: ChatCircle,
           count: feedbackList.length,
           content: (
             <div className="space-y-6">
@@ -670,7 +670,7 @@ function TaskRecord({ task }: { task: TaskRecord }) {
                 </div>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   className="h-7 text-sm font-medium"
                   onClick={() => setAddingReq(true)}
                 >
