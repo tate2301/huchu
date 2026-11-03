@@ -869,3 +869,182 @@ a.crm-bk-share:hover {
     display: none;
   }
 }
+
+/* ==========================================================================
+   Semantic Tones: Success, Danger, Warning, Info
+   Used for Actions, Buttons, Badges, Chips, Finding tone banners, and Icons
+   ========================================================================== */
+
+/* Semantic Buttons */
+.crm-bk-btn-success {
+  background: var(--tone-success, #15803d) !important;
+  color: #ffffff !important;
+  border-color: var(--tone-success-bd, #15803d) !important;
+}
+.crm-bk-btn-success:hover {
+  background: var(--tone-success-strong, #166534) !important;
+  color: #ffffff !important;
+}
+
+.crm-bk-btn-danger {
+  background: var(--tone-danger, #b91c1c) !important;
+  color: #ffffff !important;
+  border-color: var(--tone-danger-bd, #b91c1c) !important;
+}
+.crm-bk-btn-danger:hover {
+  background: var(--tone-danger-strong, #991b1b) !important;
+  color: #ffffff !important;
+}
+
+.crm-bk-btn-warning,
+.crm-bk-btn-warn {
+  background: var(--tone-warn, #b45309) !important;
+  color: #ffffff !important;
+  border-color: var(--tone-warn-bd, #b45309) !important;
+}
+.crm-bk-btn-warning:hover,
+.crm-bk-btn-warn:hover {
+  background: var(--tone-warn-strong, #92400e) !important;
+  color: #ffffff !important;
+}
+
+.crm-bk-btn-info {
+  background: var(--brand, #2563eb) !important;
+  color: #ffffff !important;
+  border-color: var(--brand, #2563eb) !important;
+}
+.crm-bk-btn-info:hover {
+  background: var(--brand-strong, #1d4ed8) !important;
+  color: #ffffff !important;
+}
+
+/* Subtle Semantic Buttons / Outlines */
+.crm-bk-btn-subtle-success {
+  background: var(--tone-success-bg, #f0fdf4) !important;
+  color: var(--tone-success-strong, #15803d) !important;
+  border-color: var(--tone-success-bd, #bbf7d0) !important;
+}
+.crm-bk-btn-subtle-success:hover {
+  background: var(--tone-success-bd, #bbf7d0) !important;
+}
+
+.crm-bk-btn-subtle-danger {
+  background: var(--tone-danger-bg, #fef2f2) !important;
+  color: var(--tone-danger-strong, #b91c1c) !important;
+  border-color: var(--tone-danger-bd, #fecaca) !important;
+}
+.crm-bk-btn-subtle-danger:hover {
+  background: var(--tone-danger-bd, #fecaca) !important;
+}
+
+.crm-bk-btn-subtle-warn,
+.crm-bk-btn-subtle-warning {
+  background: var(--tone-warn-bg, #fffbeb) !important;
+  color: var(--tone-warn-strong, #b45309) !important;
+  border-color: var(--tone-warn-bd, #fde68a) !important;
+}
+.crm-bk-btn-subtle-warn:hover,
+.crm-bk-btn-subtle-warning:hover {
+  background: var(--tone-warn-bd, #fde68a) !important;
+}
+
+.crm-bk-btn-subtle-info {
+  background: var(--tone-info-bg, #eff6ff) !important;
+  color: var(--brand-strong, #1d4ed8) !important;
+  border-color: var(--tone-info-bd, #bfdbfe) !important;
+}
+.crm-bk-btn-subtle-info:hover {
+  background: var(--tone-info-bd, #bfdbfe) !important;
+}
+
+/* Semantic Badges & Chips */
+.crm-bk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  border: 1px solid var(--color-line, #e8e6e1);
+  background: var(--color-ground, #fbfbfa);
+  color: var(--color-ink, #141413);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.crm-bk-badge[data-tone="success"],
+.crm-bk-badge.is-success {
+  background: var(--tone-success-bg, #f0fdf4);
+  color: var(--tone-success-strong, #15803d);
+  border-color: var(--tone-success-bd, #bbf7d0);
+}
+
+.crm-bk-badge[data-tone="danger"],
+.crm-bk-badge.is-danger {
+  background: var(--tone-danger-bg, #fef2f2);
+  color: var(--tone-danger-strong, #b91c1c);
+  border-color: var(--tone-danger-bd, #fecaca);
+}
+
+.crm-bk-badge[data-tone="warning"],
+.crm-bk-badge[data-tone="warn"],
+.crm-bk-badge.is-warning,
+.crm-bk-badge.is-warn {
+  background: var(--tone-warn-bg, #fffbeb);
+  color: var(--tone-warn-strong, #b45309);
+  border-color: var(--tone-warn-bd, #fde68a);
+}
+
+.crm-bk-badge[data-tone="info"],
+.crm-bk-badge.is-info {
+  background: var(--tone-info-bg, #eff6ff);
+  color: var(--brand-strong, #1d4ed8);
+  border-color: var(--tone-info-bd, #bfdbfe);
+}
+
+/* Semantic Icon Accents */
+.crm-bk-icon-success {
+  color: var(--tone-success, #15803d);
+}
+
+.crm-bk-icon-danger {
+  color: var(--tone-danger, #b91c1c);
+}
+
+.crm-bk-icon-warning,
+.crm-bk-icon-warn {
+  color: var(--tone-warn, #b45309);
+}
+
+.crm-bk-icon-info {
+  color: var(--brand, #2563eb);
+}
+
+/* Semantic Finding & Note Tones */
+.crm-bk-finding.is-success {
+  background: var(--tone-success-bg, #f0fdf4);
+  box-shadow: inset 0 -1px 0 var(--tone-success-bd, #bbf7d0);
+  color: var(--tone-success-strong, #15803d);
+}
+
+.crm-bk-finding.is-danger {
+  background: var(--tone-danger-bg, #fef2f2);
+  box-shadow: inset 0 -1px 0 var(--tone-danger-bd, #fecaca);
+  color: var(--tone-danger-strong, #b91c1c);
+}
+
+.crm-bk-finding.is-warning,
+.crm-bk-finding.is-warn {
+  background: var(--tone-warn-bg, #fffbeb);
+  box-shadow: inset 0 -1px 0 var(--tone-warn-bd, #fde68a);
+  color: var(--tone-warn-strong, #b45309);
+}
+
+.crm-bk-finding.is-info {
+  background: var(--tone-info-bg, #eff6ff);
+  box-shadow: inset 0 -1px 0 var(--tone-info-bd, #bfdbfe);
+  color: var(--brand-strong, #1d4ed8);
+}
+

@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { ensureSiteVisitQuestionSets } from "@/lib/crm/site-visits/question-sets";
 import { workspaceLibraryItem, type BuildLibraryKind } from "@/lib/library/workspace";
-import { listCustomReports } from "@/lib/reports/custom/store";
 
-import { buildHref, blockItem, enquiryItem, layoutItem, reportItem, sortBuildItems, visitItem, type BuildItem } from "./items";
+import { buildHref, blockItem, enquiryItem, layoutItem, sortBuildItems, visitItem, type BuildItem } from "./items";
 import { buildProvisions, layoutProvisioned, layoutUser, type BuildProvisions } from "./provision";
 
 /**
@@ -18,7 +17,7 @@ export async function readBuildItems(viewer: BuildViewer): Promise<{ items: Buil
   const provisions = buildProvisions(viewer.enabledFeatures);
   const { companyId } = viewer;
 
-  const [visits, enquiries, blocks, layouts, reports] = await Promise.all([
+  const [visits, enquiries, blocks, layouts] = await Promise.all([
     provisions.visitForms
       ? (async () => {
           // Seeded on first read, as the visit page and the forms' own API do.
@@ -53,7 +52,6 @@ export async function readBuildItems(viewer: BuildViewer): Promise<{ items: Buil
           },
         })
       : [],
-    listCustomReports({ companyId, userId: viewer.userId, role: viewer.role }),
   ]);
 
   const items: BuildItem[] = [
@@ -63,7 +61,6 @@ export async function readBuildItems(viewer: BuildViewer): Promise<{ items: Buil
     ...layouts
       .filter((row) => layoutProvisioned(row.sourceKey, viewer.enabledFeatures))
       .map((row) => layoutItem(row, layoutUser(row.sourceKey))),
-    ...reports.map((report) => reportItem({ id: report.id, title: report.title, audience: report.audience, updatedAt: report.updatedAt })),
   ];
   return { items: sortBuildItems(items), provisions };
 }

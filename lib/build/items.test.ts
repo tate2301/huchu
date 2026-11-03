@@ -10,7 +10,6 @@ import {
   filterBuildItems,
   layoutItem,
   readBuildQuery,
-  reportItem,
   visitItem,
 } from "./items";
 import { buildProvisions, layoutProvisioned, layoutUser } from "./provision";
@@ -41,7 +40,6 @@ const items = [
     },
     "payroll",
   ),
-  reportItem({ id: "r1", title: "Monday board", audience: "JUST_ME", updatedAt: at }),
 ];
 
 describe("Build's items", () => {
@@ -53,24 +51,23 @@ describe("Build's items", () => {
       "/build/templates/b2",
       "/build/documents/b3",
       "/build/templates/l1",
-      "/build/reports/r1",
     ]);
     expect(buildHref("block", "f1", "FORM")).toBe("/build/forms/f1");
   });
 
   it("reads status and version from each table's own facts", () => {
-    expect(items.map((item) => item.status)).toEqual(["published", "draft", "published", "published", "retired", "published", "draft"]);
+    expect(items.map((item) => item.status)).toEqual(["published", "draft", "published", "published", "retired", "published"]);
     expect(items.find((item) => item.id === "l1")).toMatchObject({ version: 2, isDefault: true, usedFor: "Pay runs", usedBy: "payroll", kind: "document" });
     expect(items.find((item) => item.id === "b2")?.kind).toBe("email");
   });
 
   it("counts by kind, status and module, and keys the panel's figures by its rows", () => {
     const counts = buildCounts(items);
-    expect(counts.all).toBe(7);
-    expect(counts.kind).toEqual({ form: 2, document: 3, email: 1, report: 1 });
-    expect(counts.status).toEqual({ published: 4, draft: 2, retired: 1 });
+    expect(counts.all).toBe(6);
+    expect(counts.kind).toEqual({ form: 2, document: 3, email: 1 });
+    expect(counts.status).toEqual({ published: 4, draft: 1, retired: 1 });
     const badges = buildBadges(counts, { corelith: 24, made: 6, retired: 1 });
-    expect(badges["/build"]).toBe("7");
+    expect(badges["/build"]).toBe("6");
     expect(badges["/build?kind=forms"]).toBe("2");
     expect(badges["/build?used=payroll"]).toBe("1");
     expect(badges["/build/templates"]).toBe("24");
@@ -85,7 +82,7 @@ describe("Build's items", () => {
   });
 
   it("says how many are in use", () => {
-    expect(buildFinding(items).fact).toBe("4 forms, documents, emails and reports are in use.");
+    expect(buildFinding(items).fact).toBe("4 forms, documents and emails are in use.");
     expect(buildFinding([]).fact).toBe("Nothing is built here yet.");
   });
 });

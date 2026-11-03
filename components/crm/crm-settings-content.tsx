@@ -199,31 +199,38 @@ export function CrmSettingsContent({ createOpen, onCreateOpenChange }: SettingsP
   };
 
   return (
-    <div className="settings-layout">
-      <NavRail label="CRM settings sections" orientation="responsive">
-        {CRM_SETTINGS_SECTIONS.map((section) => (
-          <NavRailItem
-            key={section.id}
-            active={section.id === active.id}
-            icon={<section.icon className="size-4" aria-hidden="true" />}
-            // A zero is a real answer here — "nothing set up yet" — but it is
-            // only worth drawing once the counts have actually arrived.
-            count={counts.data && section.countKey ? counts.data[section.countKey] : undefined}
-            onClick={() => select(section.id)}
-          >
-            {section.label}
-          </NavRailItem>
-        ))}
-      </NavRail>
+    <div className="crm-bk-worksheet">
+      <div className="crm-bk-finding">
+        <div className="crm-bk-finding-text">
+          <span className="crm-bk-finding-fact">{active.label}</span>
+          <span className="crm-bk-finding-rest">
+            {" "}— Workspace configuration for pipelines, custom fields, attribution sources, and integrations.
+          </span>
+        </div>
+        <div className="crm-bk-finding-end">
+          <span>Active section: <b>{active.label}</b></span>
+        </div>
+      </div>
 
-      {/* No heading here.
+      <div className="settings-layout p-4 md:p-6">
+        <NavRail label="CRM settings sections" orientation="responsive">
+          {CRM_SETTINGS_SECTIONS.map((section) => (
+            <NavRailItem
+              key={section.id}
+              active={section.id === active.id}
+              icon={<section.icon className="size-4" aria-hidden="true" />}
+              // A zero is a real answer here — "nothing set up yet" — but it is
+              // only worth drawing once the counts have actually arrived.
+              count={counts.data && section.countKey ? counts.data[section.countKey] : undefined}
+              onClick={() => select(section.id)}
+            >
+              {section.label}
+            </NavRailItem>
+          ))}
+        </NavRail>
 
-          The band directly above already carries this section's name and its
-          lede — see `CrmSettingsShell`. A second copy three lines lower is the
-          same duplication the accounting pages had between the app bar and the
-          page title, and it pushed the first actual control below the fold on
-          a laptop. */}
-      <section className="min-w-0">{active.render({ createOpen, onCreateOpenChange })}</section>
+        <section className="min-w-0">{active.render({ createOpen, onCreateOpenChange })}</section>
+      </div>
     </div>
   );
 }

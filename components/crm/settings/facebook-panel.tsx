@@ -252,12 +252,12 @@ export function FacebookPanel({
               {connection.pageName ?? `Page ${connection.pageId}`}
             </span>
             {connection.isActive ? null : (
-              <span className="acct-badge shrink-0" data-tone="bad">
+              <span className="crm-bk-badge is-danger shrink-0">
                 Paused
               </span>
             )}
             {connection.isActive && !connection.verifiedAt ? (
-              <span className="acct-badge shrink-0" data-tone="warn">
+              <span className="crm-bk-badge is-warn shrink-0">
                 Awaiting Meta
               </span>
             ) : null}

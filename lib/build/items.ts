@@ -13,7 +13,7 @@ export type BuildStatus = "published" | "draft" | "retired";
 /** Where a thing is kept: which table, which builder. */
 export type BuildSource = "visit" | "enquiry" | "block" | "layout" | "report";
 
-export const BUILD_KINDS: readonly BuildKind[] = ["form", "document", "email", "report"];
+export const BUILD_KINDS: readonly BuildKind[] = ["form", "document", "email"];
 
 export const BUILD_KIND_LABEL: Record<BuildKind, string> = {
   form: "Form",
@@ -271,16 +271,16 @@ const plural = (count: number, one: string, many = `${one}s`) => `${count} ${cou
 /** "17 forms, documents and emails are in use." and what follows it. */
 export function buildFinding(items: readonly BuildItem[]): { fact: string; rest: string | null } {
   if (items.length === 0) {
-    return { fact: "Nothing is built here yet.", rest: "Start one from a template: a form, a document, an email or a report." };
+    return { fact: "Nothing is built here yet.", rest: "Start one from a template: a form, a document or an email." };
   }
   const inUse = items.filter((item) => item.status === "published").length;
   const drafts = items.filter((item) => item.status === "draft").length;
   const fact =
     inUse === 0
       ? `${plural(items.length, "thing")} built here, none in use yet.`
-      : `${inUse} ${inUse === 1 ? "form, document, email or report is" : "forms, documents, emails and reports are"} in use.`;
+      : `${inUse} ${inUse === 1 ? "form, document or email is" : "forms, documents and emails are"} in use.`;
   const rest = [
-    "Every one opens in the same builder.",
+    "Every one opens in the builder.",
     drafts ? `${plural(drafts, "draft")} ${drafts === 1 ? "is" : "are"} not in use yet.` : null,
   ]
     .filter(Boolean)

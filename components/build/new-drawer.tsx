@@ -32,7 +32,6 @@ export function NewDrawer({ open, onOpenChange, data }: { open: boolean; onOpenC
           { key: "email", icon: "send" as const, title: "Email", note: "A message about a record, with its details filled in", start: { type: "blank-block", kind: "EMAIL", name: "Email" } as const },
         ]
       : []),
-    { key: "report", icon: "reports", title: "Report", note: "A board of questions over the workspace's data", start: { type: "blank-report" } },
   ];
 
   return (

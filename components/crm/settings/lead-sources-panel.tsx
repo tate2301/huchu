@@ -188,7 +188,12 @@ export function LeadSourcesPanel({
         <Button
           size="sm"
           variant="outline"
-          className="h-6 px-2.5 text-sm"
+          className={cn(
+            "h-6 px-2.5 text-sm",
+            source.isActive
+              ? "crm-bk-btn-subtle-danger"
+              : "crm-bk-btn-subtle-success",
+          )}
           disabled={update.isPending}
           onClick={() => update.mutate({ id: source.id, isActive: !source.isActive })}
         >
@@ -286,7 +291,7 @@ export function LeadSourcesPanel({
             <Button variant="outline" onClick={() => onCreateOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
+            <Button className="crm-bk-btn-success" onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
               {create.isPending ? "Adding…" : "Add source"}
             </Button>
           </DialogFooter>
