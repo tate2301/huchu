@@ -234,13 +234,13 @@ const BoardCard = memo(function BoardCard({ card }: { card: RecordBoardCard }) {
         {...listeners}
         data-board-card=""
         className={cn(
-          "rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] p-3",
+          "rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-sm",
           "cursor-grab touch-manipulation select-none active:cursor-grabbing",
           "transition-[border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-          "hover:border-[var(--color-line-strong)] hover:shadow-[var(--shadow-hover)]",
+          "hover:border-[var(--line-strong)] hover:shadow-md",
           "has-[a:focus-visible]:border-[var(--focus-ring)] has-[a:focus-visible]:shadow-[0_0_0_3px_var(--focus-ring-soft)]",
           isDragging &&
-            "border-dashed border-[var(--color-line-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
+            "border-dashed border-[var(--line-strong)] bg-transparent shadow-none hover:shadow-none [&>*]:invisible",
         )}
       >
         <Link
@@ -294,9 +294,9 @@ const BoardLane = memo(function BoardLane({
       ref={setNodeRef}
       aria-labelledby={headingId}
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)]",
-        "transition-[background-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
-        receiving && "bg-[var(--brand-tint)] shadow-[inset_0_0_0_1px_var(--focus-ring-soft)]",
+        "flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--tray)]",
+        "transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+        receiving && "border-[var(--line-strong)] bg-[var(--surface)] shadow-[inset_0_0_0_1px_var(--focus-ring-soft)]",
       )}
     >
       <BoardColumnHeader
@@ -327,7 +327,7 @@ const BoardLane = memo(function BoardLane({
               <div className="pb-2">
                 <div
                   style={{ height: dragging.height }}
-                  className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)]"
+                  className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] bg-[var(--surface)]"
                 />
               </div>
             </div>
@@ -341,13 +341,13 @@ const BoardLane = memo(function BoardLane({
         </div>
 
         {cards.length === 0 && !receiving ? (
-          <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-line)] px-3 py-6 text-center text-sm text-[var(--color-muted)]">
+          <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line)] px-3 py-6 text-center text-sm text-[var(--ink-2)]">
             {emptyLabel}
           </p>
         ) : null}
 
         {column.footer ? (
-          <div className="px-1 pt-2 text-sm text-[var(--color-muted)]">{column.footer}</div>
+          <div className="px-1 pt-2 text-sm text-[var(--ink-2)]">{column.footer}</div>
         ) : null}
       </div>
     </section>
@@ -706,8 +706,8 @@ export function RecordBoard({
             {dragging ? (
               <div
                 className={cn(
-                  "cursor-grabbing rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-3",
-                  "shadow-[var(--shadow-popover)] transition-[scale,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+                  "cursor-grabbing rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-3",
+                  "shadow-[var(--shadow-float)] transition-[scale,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-out)]",
                   // Lifts off the tray as it is picked up.
                   "scale-[1.02] starting:scale-100 starting:shadow-none motion-reduce:scale-100",
                 )}

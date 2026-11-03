@@ -14,6 +14,42 @@
      horizontal section tabs (`.crm-bk-rtabs`).
    ========================================================================== */
 
+/* 0. Theme Role Token Bridges */
+:root {
+  --color-ground: var(--ground, #faf9f8);
+  --color-surface: var(--surface, #ffffff);
+  --color-hover: var(--hover, #f6f5f3);
+  --color-tray: var(--tray, #f4f3f1);
+  --color-active: var(--active, #eeedea);
+  --color-selected: var(--selected, #f3f7fe);
+  --color-line: var(--line, #e5e4e1);
+  --color-line-soft: var(--line-soft, #f4f3f1);
+  --color-line-strong: var(--line-strong, #dbd9d5);
+  --color-rule: var(--line-strong, #dbd9d5);
+  --color-ink: var(--ink, #26251f);
+  --color-ink-2: var(--ink-2, #5f5d57);
+  --color-ink-3: var(--ink-3, #716f69);
+  --color-muted: var(--ink-2, #5f5d57);
+  --color-sub: var(--ink-3, #716f69);
+  --color-faint: var(--faint, #a3a19b);
+  --color-action: var(--action, #2563eb);
+  --color-action-fill: var(--action-fill, #2563eb);
+  --color-on-action: var(--on-action, #ffffff);
+  --color-warn: var(--warn, #8a5200);
+  --color-warning: var(--warn, #8a5200);
+  --color-warn-soft: var(--warn-soft, #fdf3e1);
+  --color-bad: var(--bad, #c2321b);
+  --color-danger: var(--bad, #c2321b);
+  --color-bad-soft: var(--bad-soft, #fdecea);
+  --color-ok: var(--ok, #17694e);
+  --color-success: var(--ok, #17694e);
+  --color-ok-soft: var(--ok-soft, #e6f4ee);
+  --color-info: var(--info, #3b5fc4);
+  --color-info-soft: var(--info-soft, #ebf0fb);
+  --shadow-hover: var(--shadow-float, 0 2px 8px -2px rgba(22, 21, 15, 0.08));
+  --shadow-popover: var(--shadow-float, 0 8px 20px -4px rgba(22, 21, 15, 0.1));
+}
+
 /* 1. Worksheet / Register Shell Container */
 .crm-bk-worksheet {
   display: flex;
@@ -684,8 +720,8 @@
   width: 296px;
   flex: 0 0 296px;
   min-height: 100%;
-  box-shadow: inset -1px 0 0 var(--color-line, #e8e6e1);
-  background: var(--color-ground, #fbfbfa);
+  box-shadow: inset -1px 0 0 var(--color-line);
+  background: var(--color-tray);
 }
 
 .crm-bk-board-col-hd {
@@ -693,8 +729,8 @@
   flex-direction: column;
   gap: 2px;
   padding: 12px 14px 10px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 -1px 0 var(--color-line, #e8e6e1);
+  background: var(--color-tray);
+  box-shadow: inset 0 -1px 0 var(--color-line);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -713,14 +749,14 @@
   flex-direction: column;
   gap: 6px;
   padding: 11px 12px;
-  border-radius: 6px;
-  background: var(--color-surface, #ffffff);
-  box-shadow: inset 0 0 0 1px var(--color-line, #e8e6e1);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line), 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: box-shadow 120ms ease, background-color 120ms ease;
 }
 
 .crm-bk-board-card:hover {
-  box-shadow: inset 0 0 0 1px var(--color-rule, #d4d1c8), 0 1px 2px rgba(20, 20, 19, 0.04);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 /* 10. Books Overview / Home Sections (`.crm-bk-sec`, `.crm-bk-group-head`, `.crm-bk-shares`, `.crm-bk-needs`) */
