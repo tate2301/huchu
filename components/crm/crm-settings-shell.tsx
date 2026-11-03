@@ -11,6 +11,8 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { Button } from "@/components/ui/button";
 import { Plus } from "@/lib/icons";
 
+import "@/components/crm/crm-books.css";
+
 /**
  * The app bar names the section you are in, not the module you are in.
  *

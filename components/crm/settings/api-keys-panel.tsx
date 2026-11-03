@@ -129,7 +129,7 @@ export function ApiKeysPanel({
               {key.name}
             </span>
             {live ? null : (
-              <span className="acct-badge shrink-0" data-tone="bad">
+              <span className="crm-bk-badge is-danger shrink-0">
                 Revoked
               </span>
             )}
@@ -153,7 +153,7 @@ export function ApiKeysPanel({
             <Button
               size="sm"
               variant="outline"
-              className="h-6 px-2.5 text-sm text-[var(--status-error-text)]"
+              className="h-6 px-2.5 text-sm crm-bk-btn-subtle-danger"
               disabled={revoke.isPending}
               onClick={() => revoke.mutate(key.id)}
             >
@@ -253,7 +253,7 @@ export function ApiKeysPanel({
         </SetupPanel>
       )}
 
-      <SetupNote icon={TriangleAlert}>
+      <SetupNote icon={TriangleAlert} tone="warning">
         The full key is shown once, at creation, and only its prefix is stored afterwards. If a key
         is lost, revoke it and issue a new one — there is no way to read it back.
       </SetupNote>
@@ -300,7 +300,7 @@ export function ApiKeysPanel({
             <Button variant="outline" onClick={() => onCreateOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
+            <Button className="crm-bk-btn-success" onClick={() => create.mutate()} disabled={!name.trim() || create.isPending}>
               {create.isPending ? "Creating…" : "Create key"}
             </Button>
           </DialogFooter>

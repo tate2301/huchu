@@ -972,8 +972,8 @@ export const navSections: NavSection[] = [
       { id: "work", label: "Work", rank: "own" },
       // How we are doing: the reports, and the team whose numbers they are.
       { id: "learn", label: "Insights" },
-      // How the CRM is set up, and what it does by itself once it is.
-      { id: "setup", label: "Setup" },
+      // How the CRM is configured and maintained.
+      { id: "setup", label: "Configuration" },
     ],
     items: [
       // "Home", not "Overview": it is where the day starts, and the CRM's one
@@ -1033,13 +1033,13 @@ export const navSections: NavSection[] = [
       // The price lists and documents Vane answers and quotes from. Everyone reads it; Settings people add to it.
       { href: "/crm/knowledge", icon: MedusaBookOpenIcon, label: "Knowledge", group: "learn" },
 
-      // Settings is the index for everything configured once — pipelines,
+      // Configuration is the index for everything configured once — pipelines,
       // fields, sources, the site-visit questions — and Workflows for the
       // rules and what they did.
       {
         href: "/crm/settings",
         icon: ManageAccounts,
-        label: "Settings",
+        label: "Configuration",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },

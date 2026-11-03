@@ -27,3 +27,107 @@
   .sc-build .finding { padding-left: var(--space-16); padding-right: var(--space-16); }
   .sc-build .bt-act .btn .btn-l { display: none; }
 }
+
+/* ==========================================================================
+   Craft Docs Grid View & Document Previews
+   ========================================================================== */
+
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px 24px;
+}
+
+.build-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-line, #e8e6e1);
+  border-radius: 6px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.build-card:hover {
+  border-color: var(--color-ink, #141413);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.build-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 12px 14px 14px;
+}
+
+.build-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.build-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink, #141413);
+  line-height: 1.35;
+}
+
+.build-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-muted, #6b6a65);
+}
+
+.build-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line, #e8e6e1);
+  font-size: 11.5px;
+}
+
+/* Layout switch pill */
+.build-layout-switch {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-line, #e8e6e1);
+  border-radius: 4px;
+  background: var(--color-ground, #fbfbfa);
+  padding: 2px;
+}
+
+.build-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted, #6b6a65);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.build-layout-btn:hover {
+  color: var(--color-ink, #141413);
+}
+
+.build-layout-btn.is-active {
+  background: var(--color-surface, #ffffff);
+  color: var(--color-ink, #141413);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
