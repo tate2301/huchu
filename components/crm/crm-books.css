@@ -139,6 +139,43 @@
   color: var(--color-ink);
 }
 
+.crm-bk-finding .fl {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-fill);
+  color: var(--color-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.crm-bk-finding .fl-act,
+.fl-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 80ms ease, border-color 80ms ease;
+}
+
+.crm-bk-finding .fl-act:hover,
+.fl-act:hover {
+  background: var(--color-hover);
+  border-color: var(--color-line-strong);
+}
+
 /* 3. KPI Strip (matches Books `.bk-strip > .kstrip > .kt`) */
 .crm-bk-strip {
   background: var(--color-surface);
@@ -162,7 +199,9 @@
   box-shadow: inset 1px 0 0 var(--color-line);
 }
 
-.crm-bk-kt-l {
+.crm-bk-kt-l,
+.crm-bk-kt .l,
+.crm-bk-kt .kt-l {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-muted);
@@ -171,7 +210,9 @@
   text-overflow: ellipsis;
 }
 
-.crm-bk-kt-v {
+.crm-bk-kt-v,
+.crm-bk-kt .v,
+.crm-bk-kt .kt-v {
   font-family: var(--font-mono);
   font-size: 20px;
   font-weight: 600;
@@ -184,7 +225,27 @@
   text-overflow: ellipsis;
 }
 
-.crm-bk-kt-n {
+.crm-bk-kt-v.up,
+.crm-bk-kt .v.up,
+.crm-bk-kt .kt-v.up {
+  color: var(--color-success);
+}
+
+.crm-bk-kt-v.warn,
+.crm-bk-kt .v.warn,
+.crm-bk-kt .kt-v.warn {
+  color: var(--color-warning);
+}
+
+.crm-bk-kt-v.bad,
+.crm-bk-kt .v.bad,
+.crm-bk-kt .kt-v.bad {
+  color: var(--color-danger);
+}
+
+.crm-bk-kt-n,
+.crm-bk-kt .d,
+.crm-bk-kt .kt-n {
   font-size: 12px;
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
@@ -471,7 +532,7 @@
 /* 8. Books Record Detail Layout (`.crm-bk-rec` matching `.bk.bk-rec`) */
 .crm-bk-rec {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 350px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   min-height: var(--content-viewport, calc(100vh - 56px));
   margin-inline: calc(var(--content-gutter-x, 1.5rem) * -1);
   margin-top: calc(var(--content-lede, 1.25rem) * -1);
@@ -531,12 +592,19 @@
 }
 
 .crm-bk-title {
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
   letter-spacing: -0.015em;
   color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+@media (min-width: 768px) {
+  .crm-bk-title {
+    font-size: 28px;
+  }
 }
 
 .crm-bk-hd-end {
@@ -806,13 +874,17 @@
 
 .crm-bk-rail-title,
 .crm-bk-rail .sec-title,
-.crm-bk-rsec .sec-title {
-  font-size: 11px;
+.crm-bk-rsec .sec-title,
+.crm-bk-rail-sec .sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-  margin-bottom: 10px;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .crm-bk-attrs,

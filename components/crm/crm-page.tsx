@@ -39,7 +39,14 @@ export function CrmPage({
   // No band: the page names itself once, in the app bar, and the first thing
   // under the bar is the page's own toolbar or content.
   return (
-    <div className={cn("band-stack-content mx-auto w-full space-y-6", WIDTH[width], className)}>
+    <div
+      className={cn(
+        "band-stack-content mx-auto w-full",
+        width !== "detail" && "space-y-6",
+        WIDTH[width],
+        className,
+      )}
+    >
       {children}
     </div>
   );

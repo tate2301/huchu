@@ -365,7 +365,7 @@ export function RecordPageShell({
     <>
       <RailSection title="Properties" action={railToggle}>
         {attributes ?? (
-          <p className="text-sm text-[var(--text-muted)]">Nothing recorded on this one yet.</p>
+          <p className="text-sm text-[var(--color-muted)]">Nothing recorded on this one yet.</p>
         )}
       </RailSection>
       {related ? <RailSection title="Related">{related}</RailSection> : null}
@@ -477,14 +477,14 @@ export function RecordPageShell({
                   {onTitleCommit ? (
                     <RecordTitleEditor title={title} onCommit={onTitleCommit} />
                   ) : (
-                    <h1>{title}</h1>
+                    <h1 className="crm-bk-title">{title}</h1>
                   )}
                   {status ? <StatusChip status={status.status} label={status.label} /> : null}
                 </div>
                 {reference || subtitle ? (
                   <div className="crm-bk-ml">
-                    {reference ? <span className="mono">{reference}</span> : null}
-                    {reference && subtitle ? <span>·</span> : null}
+                    {reference ? <span className="ref font-mono">{reference}</span> : null}
+                    {reference && subtitle ? <i>·</i> : null}
                     {subtitle ? <span>{subtitle}</span> : null}
                   </div>
                 ) : null}
@@ -512,10 +512,10 @@ export function RecordPageShell({
               >
                 {kpis.map((kpi, idx) => (
                   <div key={idx} className="crm-bk-kt">
-                    <div className="l">{kpi.label}</div>
+                    <div className="crm-bk-kt-l">{kpi.label}</div>
                     <div
                       className={cn(
-                        "v",
+                        "crm-bk-kt-v",
                         kpi.tone === "up" && "up",
                         kpi.tone === "warn" && "warn",
                         kpi.tone === "bad" && "bad",
@@ -523,7 +523,7 @@ export function RecordPageShell({
                     >
                       {kpi.value}
                     </div>
-                    {kpi.sub ? <div className="d">{kpi.sub}</div> : null}
+                    {kpi.sub ? <div className="crm-bk-kt-n">{kpi.sub}</div> : null}
                   </div>
                 ))}
               </div>
@@ -578,7 +578,7 @@ function RecordTitleEditor({
         type="button"
         onClick={() => setDraft(title)}
         title="Rename"
-        className="-mx-1.5 rounded-[var(--radius-sm)] px-1.5 text-left text-[19px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ink)] hover:bg-[var(--color-hover)]"
+        className="-mx-1.5 rounded-[var(--radius-sm)] px-1.5 text-left crm-bk-title hover:bg-[var(--color-hover)]"
       >
         {title}
       </button>
@@ -597,7 +597,7 @@ function RecordTitleEditor({
       rows={Math.min(4, Math.max(1, Math.ceil(draft.length / 28)))}
       value={draft}
       aria-label="Record name"
-      className="-mx-1.5 block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[19px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ink)] outline-none focus:border-[var(--color-ink)]"
+      className="-mx-1.5 block w-full resize-none rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-0.5 crm-bk-title outline-none focus:border-[var(--color-ink)]"
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
