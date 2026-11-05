@@ -11,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_building } from "@/components/books/icons/glyphs";
 import {
-  Building2,
   Buildings,
   Clock,
   ExternalLink,
@@ -250,7 +251,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
   return (
     <>
     <RecordPageShell
-      icon={Building2}
+      icon={ciNavIcon(ci_building)}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="COMPANY" recordId={company.id} />}
       backHref={listHref}

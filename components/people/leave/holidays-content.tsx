@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 
 import { PeopleShell } from "@/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
 import {
   Select,
   SelectContent,
@@ -14,32 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-
-/**
- * The public holiday calendar.
- *
- * This is not decoration — it is what decides whether a Tuesday inside a leave
- * range costs a day. A missing holiday silently charges an employee annual leave
- * for a day nobody worked, so the screen says plainly which are seeded and which
- * are missing, rather than presenting a list that looks complete.
- *
- * Easter is deliberately not seeded. Getting a moveable feast wrong by a day
- * changes what leave costs, so the calendar carries only fixed dates and asks the
- * operator to add the rest.
- *
- * The table is full-bleed rather than boxed in a `Card`. A section shell around
- * a table adds a second border for no information; see the note in
- * `leave-content.tsx`.
- */
 
 type Holiday = {
   id: string;
@@ -54,6 +31,59 @@ type Holiday = {
 function currentYear() {
   return new Date().getUTCFullYear();
 }
+
+const holidayColumns: ColumnDef<Holiday>[] = [
+  {
+    accessorKey: "date",
+    header: "Date",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm text-[var(--color-ink)]">
+        {new Date(row.original.date).toLocaleDateString(undefined, {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          timeZone: "UTC",
+        })}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "name",
+    header: "Holiday",
+    cell: ({ row }) => (
+      <span className="text-sm font-medium text-[var(--color-ink)]">
+        {row.original.name}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "siteId",
+    header: "Scope",
+    cell: ({ row }) => (
+      <Badge variant="outline">
+        {row.original.siteId ? "One site" : "Company-wide"}
+      </Badge>
+    ),
+  },
+  {
+    accessorKey: "doublePayIfWorked",
+    header: "If worked",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground">
+        {row.original.doublePayIfWorked ? "Double pay" : "Normal pay"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "isSeeded",
+    header: "Source",
+    cell: ({ row }) => (
+      <Badge variant={row.original.isSeeded ? "secondary" : "outline"}>
+        {row.original.isSeeded ? "Seeded" : "Added here"}
+      </Badge>
+    ),
+  },
+];
 
 export function HolidaysContent() {
   const [year, setYear] = useState(String(currentYear()));
@@ -72,7 +102,6 @@ export function HolidaysContent() {
   }, []);
 
   const holidays = holidaysQuery.data?.holidays ?? [];
-  const seededCount = holidays.filter((holiday) => holiday.isSeeded).length;
 
   return (
     <PeopleShell activeTab="holidays" title="Public holidays">
@@ -85,91 +114,34 @@ export function HolidaysContent() {
         </Alert>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">Calendar</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            A holiday inside a leave range does not cost a day. Add any that are
-            missing before approving leave that spans them.
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] pb-3">
+        <h2 className="text-base font-semibold text-[var(--color-ink)]">Calendar</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Year</span>
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger size="sm" className="h-8 w-[7.5rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={year} onValueChange={setYear}>
-          <SelectTrigger size="sm" className="h-8 w-[7.5rem]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div>
         {holidaysQuery.isPending ? (
           <Skeleton className="h-64 w-full" />
-        ) : holidays.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No holidays recorded for {year}. Every day in a leave range will
-            count as leave until they are added.
-          </p>
         ) : (
-          <>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Holiday</TableHead>
-                    <TableHead>Scope</TableHead>
-                    <TableHead>If worked</TableHead>
-                    <TableHead>Source</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {holidays.map((holiday) => (
-                    <TableRow key={holiday.id}>
-                      <TableCell className="font-mono text-sm">
-                        {new Date(holiday.date).toLocaleDateString(undefined, {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          timeZone: "UTC",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {holiday.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {holiday.siteId ? "One site" : "Company-wide"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {holiday.doublePayIfWorked
-                          ? "Double pay"
-                          : "Normal pay"}
-                      </TableCell>
-                      <TableCell>
-                        {holiday.isSeeded ? (
-                          <Badge variant="secondary">Seeded</Badge>
-                        ) : (
-                          <Badge variant="outline">Added here</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              {seededCount} of {holidays.length} were seeded as fixed dates.
-              Good Friday and Easter Monday move each year and are not seeded —
-              add them, or leave spanning them will be charged in full.
-            </p>
-          </>
+          <DataTable
+            columns={holidayColumns}
+            data={holidays}
+            noResultsText={`No holidays recorded for ${year}.`}
+          />
         )}
       </div>
     </PeopleShell>

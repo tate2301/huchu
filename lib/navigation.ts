@@ -21,7 +21,6 @@ import {
   Layers,
   LocalShipping,
   Mail,
-  ManageAccounts,
   MapPin,
   MedusaAcademicCapIcon,
   MedusaBookOpenIcon,
@@ -30,8 +29,6 @@ import {
   NoteAdd,
   Package,
   Payments,
-  Phone,
-  Receipt,
   ReceiptLong,
   ReportProblem,
   Scale,
@@ -51,9 +48,7 @@ import {
   UserRound,
   Users,
   Wallet,
-  Work,
   Wrench,
-  Zap,
   Bed,
   Bell,
   Check,
@@ -66,7 +61,7 @@ import {
   Tag,
   type LucideIcon,
 } from "@/lib/icons";
-import { BOOKS_ROW_ICON } from "@/components/books/icons/books-nav-icons";
+import { BOOKS_ROW_ICON, CRM_ROW_ICON } from "@/components/books/icons/books-nav-icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
@@ -980,27 +975,27 @@ export const navSections: NavSection[] = [
       // page with no subject of its own — every other row names what it holds.
       // Ungrouped, so it stands at the top of the rail rather than inside an
       // area it does not belong to.
-      { href: "/crm", icon: Home, label: "Home" },
+      { href: "/crm", icon: CRM_ROW_ICON.Home, label: "Home" },
 
-      { href: "/crm/leads", icon: Funnel, label: "Leads", group: "pipeline", rank: "flow" },
-      { href: "/crm/deals", icon: Funnel, label: "Deals", group: "pipeline", rank: "flow" },
+      { href: "/crm/leads", icon: CRM_ROW_ICON.Leads, label: "Leads", group: "pipeline", rank: "flow" },
+      { href: "/crm/deals", icon: CRM_ROW_ICON.Deals, label: "Deals", group: "pipeline", rank: "flow" },
 
-      { href: "/crm/people", icon: Users, label: "People", group: "contacts" },
-      { href: "/crm/companies", icon: Building2, label: "Companies", group: "contacts" },
-      { href: "/crm/sites", icon: MapPin, label: "Sites", group: "contacts" },
+      { href: "/crm/people", icon: CRM_ROW_ICON.People, label: "People", group: "contacts" },
+      { href: "/crm/companies", icon: CRM_ROW_ICON.Companies, label: "Companies", group: "contacts" },
+      { href: "/crm/sites", icon: CRM_ROW_ICON.Sites, label: "Sites", group: "contacts" },
 
       // A project is what a won deal turns into, and somebody is answerable
       // for what it costs. Jobs sit under it because that is where they are
       // raised; a job is still labelled "Jobs" because that is what the page,
       // the button and everybody in the building already call it.
-      { href: "/crm/projects", icon: Work, label: "Projects", group: "projects", rank: "flow" },
-      { href: "/crm/projects/jobs", icon: Wrench, label: "Jobs", group: "projects", rank: "flow" },
+      { href: "/crm/projects", icon: CRM_ROW_ICON.Projects, label: "Projects", group: "projects", rank: "flow" },
+      { href: "/crm/projects/jobs", icon: CRM_ROW_ICON.Jobs, label: "Jobs", group: "projects", rank: "flow" },
 
       // The index first, then in the order the money moves: billed, paid,
       // chased; then asked for, spent, reported.
       {
         href: "/crm/finance",
-        icon: Dashboard,
+        icon: CRM_ROW_ICON.Finance,
         // What the page answers, not what kind of page it is.
         label: "Money in and out",
         roles: ["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"],
@@ -1010,35 +1005,35 @@ export const navSections: NavSection[] = [
       // Quotes, invoices, receipts, collections and requisitions are Books' records,
       // each at one address there (design/books/NOTES.md §2); a deal shows its own
       // money and opens them. The CRM keeps the field's own money tools.
-      { href: "/crm/cost-tracker", icon: Receipt, label: "Cost tracker", group: "money", rank: "flow" },
+      { href: "/crm/cost-tracker", icon: CRM_ROW_ICON.CostTracker, label: "Cost tracker", group: "money", rank: "flow" },
       {
         href: "/crm/daily-reports",
-        icon: Coins,
+        icon: CRM_ROW_ICON.DailyReports,
         label: "Daily reports",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "money",
         rank: "flow",
       },
 
-      { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
-      { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work", rank: "flow" },
-      { href: "/crm/tasks/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
+      { href: "/crm/tasks", icon: CRM_ROW_ICON.Tasks, label: "Tasks", group: "work" },
+      { href: "/crm/appointments", icon: CRM_ROW_ICON.SiteVisits, label: "Site visits", group: "work", rank: "flow" },
+      { href: "/crm/tasks/follow-ups", icon: CRM_ROW_ICON.FollowUps, label: "Follow-ups", group: "work" },
 
       // Insights and Sales reports moved to Reports (Insights → Sales, and All
       // reports); `/crm/insights` and `/crm/reports` forward there.
       // The team as a directory of the numbers each member carries, and your
       // own line in it: `/crm/reps/me` redirects to whoever is signed in.
-      { href: "/crm/reps", icon: UserRound, label: "Team", group: "learn" },
-      { href: "/crm/reps/me", icon: UserCheck, label: "My performance", group: "learn", rank: "own" },
+      { href: "/crm/reps", icon: CRM_ROW_ICON.Team, label: "Team", group: "learn" },
+      { href: "/crm/reps/me", icon: CRM_ROW_ICON.MyPerformance, label: "My performance", group: "learn", rank: "own" },
       // The price lists and documents Vane answers and quotes from. Everyone reads it; Settings people add to it.
-      { href: "/crm/knowledge", icon: MedusaBookOpenIcon, label: "Knowledge", group: "learn" },
+      { href: "/crm/knowledge", icon: CRM_ROW_ICON.Knowledge, label: "Knowledge", group: "learn" },
 
       // Configuration is the index for everything configured once — pipelines,
       // fields, sources, the site-visit questions — and Workflows for the
       // rules and what they did.
       {
         href: "/crm/settings",
-        icon: ManageAccounts,
+        icon: CRM_ROW_ICON.Configuration,
         label: "Configuration",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
@@ -1048,12 +1043,12 @@ export const navSections: NavSection[] = [
       // `/crm/forms` forward there.
       {
         href: "/crm/workflows",
-        icon: Zap,
+        icon: CRM_ROW_ICON.Workflows,
         label: "Workflows",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
       },
-      { href: "/crm/import", icon: Upload, label: "Import", group: "setup" },
+      { href: "/crm/import", icon: CRM_ROW_ICON.Import, label: "Import", group: "setup" },
     ],
   },
   {

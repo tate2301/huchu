@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-
-import { StatCard } from "@corelithzw/react";
+import type { ColumnDef } from "@tanstack/react-table";
 
 import { PeopleShell } from "@/components/people/people-shell";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -18,44 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-
-/**
- * Who is off, and what they have left.
- *
- * **`StatCard` in a plain grid, no section shells.** This screen first shipped
- * inverted: one `Card` wrapped the whole balance grid with hand-rolled bordered
- * `div`s as tiles inside it — a card within a card, which `02-tokens.md` calls
- * out as flattening the hierarchy the border exists to build, and
- * `04-composition.md` has a page pick *one* body block rather than stack section
- * shells.
- *
- * The tiles are `StatCard`, which `04-composition.md` names as *the* block for
- * "one number". Reaching for `Card` + `CardHeader` instead does not work: that
- * head is `display: flex; justify-content: space-between`, built for
- * title-left/action-right, so a label and its figure sit side by side and the
- * label wraps. `StatCard` stacks label over value and takes the policy note as
- * its `footer`.
- *
- * The requests table is full-bleed rather than boxed.
- *
- * The balance cards carry their policy note, because the number on its own is
- * not the answer to the question being asked. "20 of 25 days" does not tell an
- * employee that the unused ones expire on 31 December, and that is the part that
- * changes what they do.
- *
- * The requests table shows the **frozen** day count, not a recomputed one. A
- * request that cost 4 days when it was approved still says 4 even if a public
- * holiday was added to that week afterwards — see `working-days.ts` for why.
- */
 
 type LeaveBalance = {
   leaveTypeId: string;
@@ -129,6 +93,7 @@ function balancePercent(balance: LeaveBalance) {
 }
 
 export function LeaveContent() {
+  const [activeTab, setActiveTab] = useState<"requests" | "balances">("requests");
   const [employeeId, setEmployeeId] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
@@ -157,7 +122,7 @@ export function LeaveContent() {
     queryKey: ["leave-requests", statusFilter],
     queryFn: () =>
       fetchJson<{ data: LeaveRequestRow[] }>(
-        `/api/people/leave/requests?limit=50${
+        `/api/people/leave/requests?limit=100${
           statusFilter === "ALL" ? "" : `&status=${statusFilter}`
         }`,
       ),
@@ -166,6 +131,202 @@ export function LeaveContent() {
   const requests = requestsQuery.data?.data ?? [];
   const loadError = employeesQuery.error || balancesQuery.error || requestsQuery.error;
   const balances = balancesQuery.data?.balances ?? [];
+
+  const requestColumns = useMemo<ColumnDef<LeaveRequestRow>[]>(
+    () => [
+      {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
+        id: "employee",
+        header: "Employee",
+        accessorFn: (row) => row.employee.name,
+        cell: ({ row }) => (
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
+          </div>
+        ),
+        size: 240,
+        minSize: 180,
+        maxSize: 320,
+      },
+      {
+        id: "leaveType",
+        header: "Type",
+        accessorFn: (row) => row.leaveType.name,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span className="text-sm">{row.original.leaveType.name}</span>
+            {!row.original.leaveType.isPaid ? (
+              <Badge variant="outline">Unpaid</Badge>
+            ) : null}
+          </div>
+        ),
+        size: 160,
+        minSize: 140,
+        maxSize: 200,
+      },
+      {
+        id: "dates",
+        header: "Dates",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {formatRange(row.original.startDate, row.original.endDate)}
+          </span>
+        ),
+        size: 220,
+        minSize: 180,
+        maxSize: 260,
+      },
+      {
+        id: "workingDays",
+        header: "Days",
+        accessorFn: (row) => row.workingDays,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm font-medium">
+            {row.original.workingDays}
+          </span>
+        ),
+        size: 90,
+        minSize: 80,
+        maxSize: 110,
+      },
+      {
+        id: "coveringEmployee",
+        header: "Cover",
+        cell: ({ row }) => (
+          <span className="text-sm text-[var(--color-ink-2)]">
+            {row.original.coveringEmployee?.name ?? "—"}
+          </span>
+        ),
+        size: 160,
+        minSize: 140,
+        maxSize: 200,
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.status,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              STATUS_TONE[row.original.status] as
+                | "default"
+                | "secondary"
+                | "destructive"
+                | "outline"
+            }
+          >
+            {row.original.status.toLowerCase()}
+          </Badge>
+        ),
+        size: 120,
+        minSize: 100,
+        maxSize: 140,
+      },
+    ],
+    [],
+  );
+
+  const balanceColumns = useMemo<ColumnDef<LeaveBalance>[]>(
+    () => [
+      {
+        id: "leaveType",
+        header: "Leave Type",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium text-[var(--color-ink)]">{row.original.name}</div>
+            <div className="font-mono text-sm text-[var(--color-ink-3)]">{row.original.code}</div>
+          </div>
+        ),
+        size: 200,
+        minSize: 160,
+        maxSize: 260,
+      },
+      {
+        id: "entitled",
+        header: "Entitled",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">
+            {row.original.isUnlimited ? "Unlimited" : `${row.original.entitled} d`}
+          </span>
+        ),
+        size: 110,
+        minSize: 90,
+        maxSize: 130,
+      },
+      {
+        id: "taken",
+        header: "Taken",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">
+            {row.original.taken} d
+          </span>
+        ),
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+      },
+      {
+        id: "pending",
+        header: "Pending",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {Number(row.original.pending) > 0 ? `${row.original.pending} d` : "—"}
+          </span>
+        ),
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
+      },
+      {
+        id: "remaining",
+        header: "Remaining",
+        cell: ({ row }) => (
+          row.original.isUnlimited ? (
+            <Badge variant="outline">Unlimited</Badge>
+          ) : (
+            <div className="space-y-1.5 min-w-[140px]">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-mono font-medium">{row.original.remaining} d left</span>
+                <span className="text-[var(--color-ink-3)]">{balancePercent(row.original)}%</span>
+              </div>
+              <Progress value={balancePercent(row.original)} className="h-1.5" />
+            </div>
+          )
+        ),
+        size: 180,
+        minSize: 150,
+        maxSize: 240,
+      },
+      {
+        id: "policyNote",
+        header: "Policy Note",
+        cell: ({ row }) => (
+          <span className="text-sm text-[var(--color-ink-2)] truncate">
+            {row.original.policyNote || "—"}
+          </span>
+        ),
+        size: 260,
+        minSize: 200,
+        maxSize: 380,
+      },
+    ],
+    [],
+  );
 
   return (
     <PeopleShell activeTab="leave" title="Leave">
@@ -176,207 +337,102 @@ export function LeaveContent() {
         </Alert>
       ) : null}
 
-      {/* Section heading, not a card header. The cards below are the content. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">Balances</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            Derived from what was granted and what has been approved — never
-            stored, so it cannot disagree with the requests below.
-          </p>
-        </div>
-        <Select
-          value={selectedId}
-          onValueChange={setEmployeeId}
-          disabled={employeesQuery.isPending || employees.length === 0}
-        >
-          {/* Not a fixed width: at tablet a 220px trigger clipped
-              "Ada Moyo · EMP-001". */}
-          <SelectTrigger
-            size="sm"
-            className="h-8 w-full min-w-[9rem] max-w-[16rem] sm:w-auto"
-          >
-            <SelectValue placeholder="Choose an employee" />
-          </SelectTrigger>
-          <SelectContent>
-            {employees.map((employee) => (
-              <SelectItem key={employee.id} value={employee.id}>
-                {employee.name} · {employee.employeeId}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {balancesQuery.isPending ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {[0, 1, 2].map((key) => (
-            <Skeleton key={key} className="h-32 w-full" />
-          ))}
-        </div>
-      ) : !selectedId ? (
-        <p className="text-sm text-muted-foreground">
-          No employees yet. Add someone to the directory and their leave balances
-          appear here.
-        </p>
-      ) : balances.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No leave types are in force. Seed or add one to start tracking
-          balances.
-        </p>
-      ) : (
-        <>
-          {balancesQuery.data ? (
-            <div className="flex items-center gap-2">
-              <PersonAvatar name={balancesQuery.data.employee.name} size="sm" />
-              <span className="text-sm font-medium">
-                {balancesQuery.data.employee.name}
-              </span>
-              <span className="font-mono text-sm text-muted-foreground">
-                {balancesQuery.data.employee.employeeId}
-              </span>
-              <Badge variant="outline">{balancesQuery.data.year}</Badge>
-            </div>
-          ) : null}
-
-          {/* One tile per balance, in a plain grid. */}
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {balances.map((balance) => (
-              <StatCard
-                key={balance.leaveTypeId}
-                label={balance.name}
-                value={
-                  balance.isUnlimited ? (
-                    <>
-                      {balance.taken}
-                      <span className="u"> taken</span>
-                    </>
-                  ) : (
-                    <>
-                      {balance.remaining}
-                      <span className="u"> / {balance.entitled} days</span>
-                    </>
-                  )
-                }
-                delta={
-                  balance.isUnlimited ? (
-                    <Badge variant="outline">Unlimited</Badge>
-                  ) : (
-                    <div className="space-y-1">
-                      <Progress value={balancePercent(balance)} />
-                      <span className="font-mono">
-                        {balance.taken} taken
-                        {Number(balance.pending) > 0
-                          ? ` · ${balance.pending} pending`
-                          : ""}
-                      </span>
-                    </div>
-                  )
-                }
-                footer={balance.policyNote ?? undefined}
-              />
-            ))}
+      {/* Primary Toolbar: Tabs on their own row, contextual filters on the row below */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between border-b border-[var(--color-line)] pb-2.5">
+          <div className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] p-0.5">
+            <Button
+              size="sm"
+              variant={activeTab === "requests" ? "primary" : "ghost"}
+              className="h-7 text-sm font-medium"
+              onClick={() => setActiveTab("requests")}
+            >
+              Requests
+            </Button>
+            <Button
+              size="sm"
+              variant={activeTab === "balances" ? "primary" : "ghost"}
+              className="h-7 text-sm font-medium"
+              onClick={() => setActiveTab("balances")}
+            >
+              Balances
+            </Button>
           </div>
-        </>
-      )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3 pt-2">
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">Requests</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            The day count was frozen when the request was made, so adding a
-            public holiday later cannot restate leave already taken.
-          </p>
+          {activeTab === "requests" ? (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger size="sm" className="h-8 w-[11rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All statuses</SelectItem>
+                <SelectItem value="SUBMITTED">Awaiting decision</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedId}
+                onValueChange={setEmployeeId}
+                disabled={employeesQuery.isPending || employees.length === 0}
+              >
+                <SelectTrigger size="sm" className="h-8 w-[14rem]">
+                  <SelectValue placeholder="Choose an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name} · {employee.employeeId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {balancesQuery.data ? (
+                <Badge variant="outline" className="font-mono">
+                  {balancesQuery.data.year}
+                </Badge>
+              ) : null}
+            </div>
+          )}
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger size="sm" className="h-8 w-full max-w-[12rem] sm:w-auto">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All statuses</SelectItem>
-            <SelectItem value="SUBMITTED">Awaiting decision</SelectItem>
-            <SelectItem value="APPROVED">Approved</SelectItem>
-            <SelectItem value="REJECTED">Rejected</SelectItem>
-            <SelectItem value="DRAFT">Draft</SelectItem>
-            <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
-          </SelectContent>
-        </Select>
+
+        {activeTab === "requests" ? (
+          requestsQuery.isPending ? (
+            <Skeleton className="h-48 w-full" />
+          ) : requests.length === 0 ? (
+            <div className="py-8 text-center text-sm text-[var(--color-ink-3)]">
+              {statusFilter === "ALL"
+                ? "No leave requests recorded yet."
+                : "No requests found with this status."}
+            </div>
+          ) : (
+            <DataTable
+              data={requests}
+              columns={requestColumns}
+              features={{ sorting: true, pagination: true }}
+              pagination={{ enabled: true, server: false }}
+              searchPlaceholder="Search leave requests..."
+            />
+          )
+        ) : balancesQuery.isPending ? (
+          <Skeleton className="h-48 w-full" />
+        ) : balances.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[var(--color-ink-3)]">
+            No active leave policies or balances found for this employee.
+          </div>
+        ) : (
+          <DataTable
+            data={balances}
+            columns={balanceColumns}
+            features={{ sorting: true, pagination: false }}
+            pagination={{ enabled: false }}
+          />
+        )}
       </div>
-
-      {/* Full-bleed: no Card wrapper on a table. */}
-      {requestsQuery.isPending ? (
-        <Skeleton className="h-40 w-full" />
-      ) : requests.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {statusFilter === "ALL"
-            ? "Nobody has asked for leave yet."
-            : "No requests with that status."}
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Dates</TableHead>
-                <TableHead className="text-right">Days</TableHead>
-                <TableHead>Cover</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requests.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <PersonAvatar name={row.employee.name} size="sm" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {row.employee.name}
-                        </p>
-                        <p className="truncate font-mono text-xs text-muted-foreground">
-                          {row.employee.employeeId}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{row.leaveType.name}</span>
-                    {!row.leaveType.isPaid ? (
-                      <Badge variant="outline" className="ml-2">
-                        Unpaid
-                      </Badge>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {formatRange(row.startDate, row.endDate)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {row.workingDays}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {row.coveringEmployee?.name ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        STATUS_TONE[row.status] as
-                          | "default"
-                          | "secondary"
-                          | "destructive"
-                          | "outline"
-                      }
-                    >
-                      {row.status.toLowerCase()}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
     </PeopleShell>
   );
 }

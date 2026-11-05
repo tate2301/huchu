@@ -11,6 +11,7 @@ import { StatCard } from "@corelithzw/react";
 import { Plus, Send, Trash2 } from "@/lib/icons";
 import { PeopleShell } from "@/components/people/people-shell";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
+import { RecordMark } from "@/components/records/record-mark";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -382,17 +383,23 @@ export default function AttendancePage() {
   const columns = useMemo<ColumnDef<AttendanceRecord>[]>(
     () => [
       {
+        accessorKey: "employeeId",
+        header: "Employee ID",
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+      },
+      {
         accessorKey: "employee",
         header: "Employee",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <EmployeeAvatar name={row.original.employee.name} size="sm" />
-            <div className="min-w-0">
-              <div className="truncate font-medium">{row.original.employee.name}</div>
-              <div className="text-sm text-muted-foreground">
-                {row.original.employee.employeeId}
-              </div>
-            </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
       },
@@ -751,16 +758,15 @@ export default function AttendancePage() {
                       key={member.id}
                       className="flex flex-col gap-2 border-b border-border pb-2 last:border-0 md:flex-row md:items-center"
                     >
-                      <div className="flex flex-1 items-center gap-2">
-                        <EmployeeAvatar
+                      <div className="flex flex-1 items-center gap-2.5">
+                        <RecordMark
+                          kind="person"
                           name={member.name}
-                          photoUrl={member.passportPhotoUrl}
+                          avatarUrl={member.passportPhotoUrl}
                           size="sm"
                         />
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{member.name}</div>
-                          <div className="text-sm text-muted-foreground">{member.employeeId}</div>
-                        </div>
+                        <span className="truncate font-medium text-[var(--color-ink)]">{member.name}</span>
+                        <span className="font-mono text-sm text-[var(--color-ink-3)]">{member.employeeId}</span>
                       </div>
                       <div className="flex gap-2">
                         {(["PRESENT", "LATE", "ABSENT"] as CrewStatus[]).map((status) => (

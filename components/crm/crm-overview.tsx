@@ -13,6 +13,7 @@ import { fetchCrmLeads } from "@/lib/crm/crm-v2";
 import { registerHref } from "@/lib/crm/registers/href";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { AGEING_BUCKETS, AGEING_LABELS } from "@/lib/crm/collections";
+import { CrmFinding } from "@/components/crm/crm-finding";
 
 import { duration, money, type HomeData } from "./widgets/home-widgets";
 
@@ -424,20 +425,13 @@ export function CrmOverview() {
         <div className="crm-bk-main">
           {/* 1. Books Narrative Finding Banner */}
           {finding ? (
-            <div className="crm-bk-finding" role="status">
-              <div className="crm-bk-finding-text">
-                <span className="crm-bk-finding-fact">{finding.fact}</span>{" "}
-                <span className="crm-bk-finding-rest">{finding.rest}</span>
-              </div>
-              <div className="crm-bk-finding-end">
-                <span>
-                  Scope: <b>{data.scope === "TEAM" ? "All reps" : "My book"}</b>
-                </span>
-                <span>
-                  Window: <b>{data.periodDays}d</b>
-                </span>
-              </div>
-            </div>
+            <CrmFinding
+              fact={finding.fact}
+              rest={finding.rest}
+              scope={data.scope === "TEAM" ? "All reps" : "My book"}
+              window={data.periodDays}
+              role="status"
+            />
           ) : null}
 
           {/* 2. Six-Cell Hairline KPI Strip */}
@@ -478,7 +472,7 @@ export function CrmOverview() {
               </span>
             </div>
             {needs.length === 0 ? (
-              <p className="px-6 py-4 text-[13.5px] text-[var(--color-muted)]">
+              <p className="px-6 py-4 text-[13.5px] text-[var(--color-ink-2)]">
                 Every new enquiry has been answered, no quotes or follow-ups are overdue, and all field jobs are moving on schedule.
               </p>
             ) : (
@@ -515,7 +509,7 @@ export function CrmOverview() {
               </span>
             </div>
             {openStages.length === 0 ? (
-              <p className="px-6 py-4 text-[13.5px] text-[var(--color-muted)]">
+              <p className="px-6 py-4 text-[13.5px] text-[var(--color-ink-2)]">
                 No open deals in any pipeline stage yet.
               </p>
             ) : (
@@ -550,7 +544,7 @@ export function CrmOverview() {
               </span>
             </div>
             {sources.length === 0 ? (
-              <p className="px-6 py-4 text-[13.5px] text-[var(--color-muted)]">
+              <p className="px-6 py-4 text-[13.5px] text-[var(--color-ink-2)]">
                 Record lead sources (WhatsApp, Referral, Walk-in, Website, Tender) to see which channel brings the best work.
               </p>
             ) : (
@@ -613,7 +607,7 @@ export function CrmOverview() {
               </span>
             </div>
             {waitingRows.length === 0 ? (
-              <p className="px-6 py-4 text-[13.5px] text-[var(--color-muted)]">
+              <p className="px-6 py-4 text-[13.5px] text-[var(--color-ink-2)]">
                 Every new lead has had its first call or WhatsApp reply.
               </p>
             ) : (
@@ -644,17 +638,17 @@ export function CrmOverview() {
                             >
                               {row.title}
                             </Link>
-                            <span className="font-mono text-[11.5px] text-[var(--color-muted)] shrink-0">
+                            <span className="font-mono text-[11.5px] text-[var(--color-ink-3)] shrink-0">
                               {row.leadNo}
                             </span>
                           </div>
                         </td>
-                        <td className="text-[var(--color-muted)]">{row.channel}</td>
+                        <td className="text-[var(--color-ink-2)]">{row.channel}</td>
                         <td
                           style={
                             row.isUnassigned
                               ? { color: "var(--color-warning)", fontWeight: 500 }
-                              : { color: "var(--color-muted)" }
+                              : { color: "var(--color-ink-2)" }
                           }
                         >
                           {row.owner}

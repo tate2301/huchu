@@ -20,13 +20,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Button, Skeleton } from "@corelithzw/react";
 import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
   FactList,
   SectionHeading,
   StatusDot,
 } from "@/components/management/ui";
+import {
+  RecordTable,
+  type RecordTableColumn,
+  RecordTableName,
+  RecordCell,
+} from "@/components/records/record-table";
 import { formatDate } from "@/components/crm/money/money";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
@@ -35,6 +38,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatDimensions } from "@/lib/crm/site-visits";
 import { VISIT_STATUS_LABELS, VISIT_TONE } from "@/lib/crm/tones";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_site_visit } from "@/components/books/icons/glyphs";
 import {
   Calendar,
   CalendarCheck,
@@ -107,8 +112,38 @@ type Visit = {
   followUps: Array<{ id: string; title: string; dueAt: string; status: string }>;
 };
 
-/** The section's measure. */
-const WIDTH = 760;
+type ChecklistRow = {
+  id: string;
+  key: string;
+  label: string;
+  checked: boolean;
+  notes?: string | null;
+};
+
+const CHECKLIST_COLUMNS: RecordTableColumn<ChecklistRow>[] = [
+  {
+    id: "item",
+    label: "Item",
+    cell: (item) => (
+      <RecordTableName
+        title={item.label}
+        subtitle={item.notes ?? undefined}
+      />
+    ),
+  },
+  {
+    id: "done",
+    label: "Done",
+    width: "6rem",
+    align: "end",
+    cell: (item) =>
+      item.checked ? (
+        <StatusDot tone="success" label="Done" />
+      ) : (
+        <span className="font-mono text-sm text-[var(--color-ink-3)]">—</span>
+      ),
+  },
+];
 
 /** An answer as somebody would say it. */
 function answerText(answer: Answer): string {
@@ -185,6 +220,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
   const overdue =
     visit.status === "SCHEDULED" && !writtenUp && new Date(visit.scheduledStart).getTime() < now;
   const checklist = visit.checklist ?? [];
+  const checklistRows = checklist.map((item) => ({ ...item, id: item.key }));
   const unplaced = visit.visitPhotos.filter((photo) => photo.latitude === null || photo.longitude === null);
   const answerCount = visit.sections.reduce((sum, section) => sum + section.answers.length, 0);
 
@@ -244,7 +280,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
 
   return (
     <RecordPageShell
-      icon={MapPin}
+      icon={ciNavIcon(ci_site_visit)}
       backHref="/crm/appointments"
       backLabel="Site visits"
       title={visit.title}
@@ -261,30 +297,26 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
               ? { status: "need_changes", label: "Not written up" }
               : null
       }
-      figure={when(visit.scheduledStart)}
       finding={
         overdue
           ? {
               label: "Field report overdue",
-              text: (
-                <>
-                  <strong>This visit took place on {when(visit.scheduledStart)}</strong> — write up the report and measurements so a quotation can be raised.
-                </>
-              ),
-              action: mayEdit ? (
-                <button type="button" className="fl-act" onClick={() => setWriting(true)}>
-                  Write it up →
-                </button>
-              ) : null,
+              fact: `This visit took place on ${when(visit.scheduledStart)}`,
+              rest: "— write up the report and measurements so a quotation can be raised.",
+              action: mayEdit
+                ? {
+                    label: "Write it up →",
+                    onClick: () => setWriting(true),
+                  }
+                : undefined,
+              tone: "danger" as const,
             }
           : unplaced.length > 0
             ? {
                 label: "Geotag check",
-                text: (
-                  <>
-                    <strong>{unplaced.length} site photo{unplaced.length === 1 ? " has" : "s have"} no GPS coordinates</strong> — verify location metadata with the field rep.
-                  </>
-                ),
+                fact: `${unplaced.length} site photo${unplaced.length === 1 ? " has" : "s have"} no GPS coordinates`,
+                rest: "— verify location metadata with the field rep.",
+                tone: "warn" as const,
               }
             : null
       }
@@ -315,7 +347,7 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
       primaryAction={
         mayEdit && visit.status !== "CANCELLED" ? (
           <Button variant={writtenUp ? "secondary" : "primary"} onClick={() => setWriting(true)}>
-            {writtenUp ? "Edit the report" : "Write it up"}
+            {writtenUp ? "Edit report" : "Write report"}
           </Button>
         ) : null
       }
@@ -341,17 +373,17 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
           attention: overdue,
           titled: true,
           content: (
-            <div style={{ maxWidth: WIDTH }}>
+            <div className="space-y-8">
               {visit.siteConditions || visit.reportNotes || visit.outcomeNotes ? (
                 <section aria-labelledby="visit-notes">
-                  <SectionHeading maxWidth={WIDTH} className="mt-0">
+                  <SectionHeading className="mt-0">
                     <span id="visit-notes">What they found</span>
                   </SectionHeading>
-                  <div className="space-y-2 text-sm text-[var(--text-strong)]">
+                  <div className="space-y-2 text-sm text-[var(--color-ink)]">
                     {[visit.siteConditions, visit.reportNotes, visit.outcomeNotes]
                       .filter((text): text is string => Boolean(text))
                       .map((text) => (
-                        <p key={text} className="whitespace-pre-line">
+                        <p key={text} className="whitespace-pre-line leading-relaxed">
                           {text}
                         </p>
                       ))}
@@ -362,64 +394,56 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
               <section aria-labelledby="visit-checklist">
                 <SectionHeading
                   count={checklist.filter((item) => item.checked).length}
-                  maxWidth={WIDTH}
                   className={visit.siteConditions || visit.reportNotes || visit.outcomeNotes ? undefined : "mt-0"}
                 >
                   <span id="visit-checklist">Checklist</span>
                 </SectionHeading>
-                <ColumnList
-                  label="Checklist"
-                  maxWidth={WIDTH}
-                  empty={writtenUp ? "No checklist on this visit." : "Not written up yet."}
-                  columns={[
-                    { id: "item", label: "Item" },
-                    { id: "done", label: "Done", align: "end" },
-                  ]}
-                  rows={checklist.map((item) => ({
-                    id: item.key,
-                    cells: {
-                      item: <ColumnName name={item.label} meta={item.notes ?? undefined} />,
-                      done: item.checked ? (
-                        <StatusDot tone="success" label="Done" />
-                      ) : (
-                        <ColumnFigure tone="muted">—</ColumnFigure>
-                      ),
-                    },
-                  }))}
+                <RecordTable
+                  columns={CHECKLIST_COLUMNS}
+                  rows={checklistRows}
+                  emptyTitle={writtenUp ? "No checklist on this visit." : "Not written up yet."}
                 />
               </section>
 
               <section aria-labelledby="visit-measurements">
-                <SectionHeading count={visit.visitItems.length} maxWidth={WIDTH}>
+                <SectionHeading count={visit.visitItems.length}>
                   <span id="visit-measurements">Measurements</span>
                 </SectionHeading>
-                <ColumnList
-                  label="Measurements"
-                  maxWidth={WIDTH}
-                  empty="Nothing measured."
+                <RecordTable
                   columns={[
-                    { id: "item", label: "Item" },
-                    { id: "size", label: "Size", hideBelow: "sm" },
-                    { id: "quantity", label: "Qty", align: "end" },
-                  ]}
-                  rows={visit.visitItems.map((item) => ({
-                    id: item.id,
-                    cells: {
-                      item: (
-                        <ColumnName
-                          name={item.description}
-                          meta={[item.category, item.specNotes].filter(Boolean).join(" · ") || undefined}
+                    {
+                      id: "item",
+                      label: "Item",
+                      cell: (item) => (
+                        <RecordTableName
+                          title={item.description}
+                          subtitle={[item.category, item.specNotes].filter(Boolean).join(" · ") || undefined}
                         />
                       ),
-                      size: <ColumnFigure tone="muted">{formatDimensions(item) ?? "—"}</ColumnFigure>,
-                      quantity: (
-                        <ColumnFigure>
-                          {item.quantity}
-                          {item.unit ? ` ${item.unit}` : ""}
-                        </ColumnFigure>
+                    },
+                    {
+                      id: "size",
+                      label: "Size",
+                      width: "12rem",
+                      cell: (item) => (
+                        <RecordCell kind="code" value={formatDimensions(item) ?? "—"} />
                       ),
                     },
-                  }))}
+                    {
+                      id: "quantity",
+                      label: "Qty",
+                      width: "7rem",
+                      align: "end",
+                      cell: (item) => (
+                        <RecordCell
+                          kind="number"
+                          value={`${item.quantity}${item.unit ? ` ${item.unit}` : ""}`}
+                        />
+                      ),
+                    },
+                  ]}
+                  rows={visit.visitItems}
+                  emptyTitle="Nothing measured."
                 />
               </section>
             </div>
@@ -433,18 +457,16 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
           titled: true,
           content:
             visit.sections.length > 0 ? (
-              <div style={{ maxWidth: WIDTH }}>
+              <div className="space-y-8">
                 {visit.sections.map((section, index) => (
                   <section key={section.id} aria-labelledby={`visit-section-${section.id}`}>
                     <SectionHeading
                       count={section.answers.length}
-                      maxWidth={WIDTH}
                       className={index === 0 ? "mt-0" : undefined}
                     >
                       <span id={`visit-section-${section.id}`}>{section.name}</span>
                     </SectionHeading>
                     <FactList
-                      maxWidth={WIDTH}
                       labelWidth={240}
                       items={section.answers.map((answer) => ({
                         id: answer.id,
@@ -467,37 +489,39 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
           titled: true,
           content:
             visit.visitPhotos.length > 0 ? (
-              <section aria-labelledby="visit-photos" style={{ maxWidth: WIDTH }}>
-                <SectionHeading count={visit.visitPhotos.length} maxWidth={WIDTH} className="mt-0">
+              <section aria-labelledby="visit-photos">
+                <SectionHeading count={visit.visitPhotos.length} className="mt-0">
                   <span id="visit-photos">Photos</span>
                 </SectionHeading>
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {visit.visitPhotos.map((photo) => (
-                    <li key={photo.id} className="space-y-1">
-                      <a href={photo.url} target="_blank" rel="noreferrer" className="block">
+                    <li key={photo.id} className="space-y-1.5 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] p-2">
+                      <a href={photo.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-[var(--radius-sm)]">
                         {photo.contentType.startsWith("image/") ? (
                           // eslint-disable-next-line @next/next/no-img-element -- a stored upload, shown as taken
                           <img
                             src={photo.url}
                             alt={photo.caption ?? photo.fileName ?? "Site photo"}
-                            className="aspect-[4/3] w-full rounded-[var(--radius-md)] border border-[var(--border-subtle)] object-cover"
+                            className="aspect-[4/3] w-full object-cover transition-transform hover:scale-105"
                           />
                         ) : (
-                          <span className="flex aspect-[4/3] items-center justify-center rounded-[var(--radius-md)] border border-[var(--border-subtle)] text-sm text-[var(--text-muted)]">
+                          <span className="flex aspect-[4/3] items-center justify-center bg-[var(--color-ground)] text-sm text-[var(--color-ink-3)]">
                             {photo.fileName ?? "Document"}
                           </span>
                         )}
                       </a>
-                      {photo.latitude !== null && photo.longitude !== null ? (
-                        <p className="font-mono text-sm tabular-nums text-[var(--text-muted)]">
-                          {photo.latitude.toFixed(5)}, {photo.longitude.toFixed(5)}
-                        </p>
-                      ) : (
-                        <StatusDot tone="warn" label="No location" />
-                      )}
-                      {photo.capturedAt ? (
-                        <p className="font-mono text-sm tabular-nums text-[var(--text-muted)]">{when(photo.capturedAt)}</p>
-                      ) : null}
+                      <div className="space-y-0.5 px-0.5">
+                        {photo.latitude !== null && photo.longitude !== null ? (
+                          <p className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
+                            {photo.latitude.toFixed(5)}, {photo.longitude.toFixed(5)}
+                          </p>
+                        ) : (
+                          <StatusDot tone="warn" label="No location" />
+                        )}
+                        {photo.capturedAt ? (
+                          <p className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">{when(photo.capturedAt)}</p>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -512,30 +536,33 @@ export function VisitRecordContent({ visitId }: { visitId: string }) {
           titled: true,
           content:
             visit.followUps.length > 0 ? (
-              <section aria-labelledby="visit-follow-ups" style={{ maxWidth: WIDTH }}>
-                <SectionHeading count={visit.followUps.length} maxWidth={WIDTH} className="mt-0">
+              <section aria-labelledby="visit-follow-ups">
+                <SectionHeading count={visit.followUps.length} className="mt-0">
                   <span id="visit-follow-ups">Follow-ups</span>
                 </SectionHeading>
-                <ColumnList
-                  label="Follow-ups"
-                  maxWidth={WIDTH}
+                <RecordTable
                   columns={[
-                    { id: "follow-up", label: "Follow-up" },
-                    { id: "due", label: "Due", align: "end" },
-                  ]}
-                  rows={visit.followUps.map((followUp) => ({
-                    id: followUp.id,
-                    cells: {
-                      "follow-up": (
-                        <ColumnName
-                          name={followUp.title}
-                          meta={followUp.status === "PENDING" ? undefined : followUp.status === "COMPLETED" ? "Done" : "Cancelled"}
-                          href={`/crm/tasks/follow-ups/${followUp.id}`}
+                    {
+                      id: "follow-up",
+                      label: "Follow-up",
+                      cell: (f) => (
+                        <RecordTableName
+                          title={f.title}
+                          subtitle={f.status === "PENDING" ? undefined : f.status === "COMPLETED" ? "Done" : "Cancelled"}
                         />
                       ),
-                      due: <ColumnFigure tone="muted">{formatDate(followUp.dueAt)}</ColumnFigure>,
                     },
-                  }))}
+                    {
+                      id: "due",
+                      label: "Due",
+                      width: "8.5rem",
+                      align: "end",
+                      cell: (f) => <RecordCell kind="date" value={formatDate(f.dueAt)} />,
+                    },
+                  ]}
+                  rows={visit.followUps}
+                  rowHref={(f) => `/crm/tasks/follow-ups/${f.id}`}
+                  emptyTitle="No follow-ups recorded."
                 />
               </section>
             ) : null,

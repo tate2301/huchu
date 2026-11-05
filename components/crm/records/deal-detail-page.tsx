@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_handshake } from "@/components/books/icons/glyphs";
 import {
   Building2,
   Calendar,
   CalendarCheck,
   ChartLine,
   Clock,
-  Funnel,
   Mail,
   MapPin,
   NoteAdd,
@@ -384,7 +385,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   return (
     <>
       <RecordPageShell
-      icon={Funnel}
+      icon={ciNavIcon(ci_handshake)}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="DEAL" recordId={deal.id} />}
         backHref={listHref}

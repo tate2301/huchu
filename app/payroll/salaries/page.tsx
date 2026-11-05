@@ -7,10 +7,10 @@ import { useQuery } from "@tanstack/react-query"
 import { format } from "date-fns"
 import { ArrowRight } from "@/lib/icons"
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import { NumericCell } from "@/components/ui/numeric-cell"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -122,19 +122,6 @@ export default function HrSalariesPage() {
         .slice(0, 20),
     [paidPayments],
   )
-
-  const summary = useMemo(() => {
-    const paidBatchesTotal = paidSalaryBatches.reduce((sum, batch) => sum + batch.totalAmount, 0)
-    const paidLinesTotal = paidPayments.reduce((sum, payment) => sum + (payment.paidAmount ?? 0), 0)
-    return {
-      upcomingPeriods: upcomingPeriods.length,
-      awaitingDisbursement: runsAwaitingDisbursement.length,
-      paidBatches: paidSalaryBatches.length,
-      paidBatchesTotal,
-      paidLinesCount: paidPayments.length,
-      paidLinesTotal,
-    }
-  }, [upcomingPeriods, runsAwaitingDisbursement, paidSalaryBatches, paidPayments])
 
   const periodColumns = useMemo<ColumnDef<PayrollPeriodRecord>[]>(
     () => [
@@ -325,18 +312,32 @@ export default function HrSalariesPage() {
   const lineColumns = useMemo<ColumnDef<EmployeePayment>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160},
+      {
         id: "employee",
         header: "Employee",
-        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        accessorFn: (row) => row.employee.name,
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
+        size: 200,
+        minSize: 160,
+        maxSize: 280},
       {
         id: "period",
         header: "Period",
@@ -440,41 +441,6 @@ export default function HrSalariesPage() {
         </Alert>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Upcoming Salary Periods</CardDescription>
-            <CardTitle>{summary.upcomingPeriods}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Approved Runs Awaiting Disbursement</CardDescription>
-            <CardTitle>{summary.awaitingDisbursement}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Paid Salary Batches</CardDescription>
-            <CardTitle>
-              {summary.paidBatches} ({summary.paidBatchesTotal.toFixed(2)})
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Paid Salary Lines</CardDescription>
-            <CardTitle>{summary.paidLinesCount}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Paid on Salary Lines</CardDescription>
-            <CardTitle>{summary.paidLinesTotal.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
       <VerticalDataViews
         items={[
           { id: "periods", label: "Upcoming Periods", count: upcomingPeriods.length },
@@ -488,15 +454,10 @@ export default function HrSalariesPage() {
       >
         {activeView === "periods" ? (
           <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Upcoming Salary Periods
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Auto-generated and manual periods remain editable until they are closed.
-                </p>
-              </div>
+            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Upcoming Salary Periods
+              </h2>
             </header>
             {periodsLoading ? (
               <Skeleton className="h-20 w-full" />
@@ -519,15 +480,10 @@ export default function HrSalariesPage() {
 
         {activeView === "awaiting" ? (
           <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Approved Salary Runs Awaiting Disbursement
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  After run approval, move immediately to disbursement to complete payout.
-                </p>
-              </div>
+            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Approved Salary Runs Awaiting Disbursement
+              </h2>
             </header>
             {runsLoading || batchesLoading ? (
               <Skeleton className="h-20 w-full" />
@@ -552,15 +508,10 @@ export default function HrSalariesPage() {
 
         {activeView === "batches" ? (
           <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Paid Salary Batch History
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Batch-level salary disbursements that are fully paid and archived.
-                </p>
-              </div>
+            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Paid Salary Batch History
+              </h2>
             </header>
             {batchesLoading ? (
               <Skeleton className="h-20 w-full" />
@@ -583,15 +534,10 @@ export default function HrSalariesPage() {
 
         {activeView === "lines" ? (
           <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Recent Paid Salary Lines
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Employee-level salary payments from approved and paid disbursement batches.
-                </p>
-              </div>
+            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Recent Paid Salary Lines
+              </h2>
             </header>
             {paidPaymentsLoading ? (
               <Skeleton className="h-20 w-full" />

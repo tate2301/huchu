@@ -15,19 +15,22 @@
  * it carry the rows that explain it.
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, Button, Skeleton } from "@corelithzw/react";
 import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
   SectionAction,
   SectionHeading,
   StatusDot,
 } from "@/components/management/ui";
+import {
+  RecordTable,
+  type RecordTableColumn,
+  RecordTableName,
+  RecordCell,
+} from "@/components/records/record-table";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
@@ -40,6 +43,8 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PROJECT_STATUS_LABELS, type ProjectStatus } from "@/lib/crm/project-status";
 import { JOB_TONE, PROJECT_STATUS, PROJECT_TONE, REQUISITION_TONE } from "@/lib/crm/tones";
 import { WORK_ORDER_STATUS_LABELS } from "@/lib/crm/work-orders";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_briefcase } from "@/components/books/icons/glyphs";
 import {
   Building2,
   Calendar,
@@ -56,7 +61,6 @@ import {
   User,
   Users,
   Wallet,
-  Work,
 } from "@/lib/icons";
 
 import { CostEntryFormDialog } from "./cost-entry-form-dialog";
@@ -73,12 +77,6 @@ import { ProjectCostStrip, type ProjectCosts } from "./project-cost-strip";
 import { ProjectTeam, type ProjectMember } from "./project-team";
 import { ProjectTimelineView, type ProjectTimelineJob } from "./project-timeline-view";
 import { RaiseRequisitionSheet } from "./raise-requisition-sheet";
-
-/**
- * The measure a section's heading and its list share inside the record pane:
- * the list's right edge is where the section's verb sits.
- */
-const SECTION_WIDTH = 760;
 
 type ProjectDetail = {
   project: {
@@ -430,7 +428,7 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
   return (
     <>
       <RecordPageShell
-        icon={Work}
+        icon={ciNavIcon(ci_briefcase)}
         backHref="/crm/projects"
         backLabel="All projects"
         title={project.name}
@@ -478,25 +476,24 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
             label: "Overview",
             icon: Dashboard,
             content: (
-              <>
+              <div className="space-y-8">
                 <section aria-labelledby="project-costs">
-                  <SectionHeading maxWidth={SECTION_WIDTH} className="mt-0">
+                  <SectionHeading className="mt-0">
                     <span id="project-costs">Costs</span>
                   </SectionHeading>
-                  <ProjectCostStrip costs={costs} maxWidth={SECTION_WIDTH} />
+                  <ProjectCostStrip costs={costs} />
                 </section>
                 <section aria-labelledby="project-schedule">
-                  <SectionHeading maxWidth={SECTION_WIDTH}>
+                  <SectionHeading>
                     <span id="project-schedule">Schedule</span>
                   </SectionHeading>
                   <ProjectTimelineView
                     startDate={project.startDate}
                     targetEndDate={project.targetEndDate}
                     jobs={detail.jobs}
-                    maxWidth={SECTION_WIDTH}
                   />
                 </section>
-              </>
+              </div>
             ),
           },
           {
@@ -518,7 +515,6 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
               <section aria-labelledby="project-requisitions">
                 <SectionHeading
                   count={requisitions.length}
-                  maxWidth={SECTION_WIDTH}
                   className="mt-0"
                   action={
                     <SectionAction icon={Plus} onClick={() => setAsking(true)}>
@@ -528,35 +524,45 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                 >
                   <span id="project-requisitions">Requisitions</span>
                 </SectionHeading>
-                <ColumnList
-                  label="Requisitions"
-                  maxWidth={SECTION_WIDTH}
-                  empty="Nobody has asked for money for it."
+                <RecordTable
                   columns={[
-                    { id: "requisition", label: "Requisition" },
-                    { id: "status", label: "Status", hideBelow: "sm" },
-                    { id: "amount", label: "Amount", align: "end" },
-                  ]}
-                  rows={requisitions.map((requisition) => ({
-                    id: requisition.id,
-                    cells: {
-                      requisition: (
-                        <ColumnName
-                          code={requisition.requisitionNo}
-                          name={requisition.purpose}
-                          meta={requisition.requestedBy?.name ?? "Unknown"}
-                          href={`/books/requisitions/${requisition.id}`}
+                    {
+                      id: "requisition",
+                      label: "Requisition",
+                      cell: (r) => (
+                        <RecordTableName
+                          title={r.purpose}
+                          subtitle={`${r.requisitionNo} · ${r.requestedBy?.name ?? "Unknown"}`}
                         />
                       ),
-                      status: (
-                        <StatusDot
-                          tone={REQUISITION_TONE[requisition.status] ?? "neutral"}
-                          label={REQUISITION_STATUS_LABELS[requisition.status]}
-                        />
-                      ),
-                      amount: <ColumnFigure>{formatMoney(payable(requisition), requisition.currency)}</ColumnFigure>,
                     },
-                  }))}
+                    {
+                      id: "status",
+                      label: "Status",
+                      width: "8.5rem",
+                      cell: (r) => (
+                        <StatusDot
+                          tone={REQUISITION_TONE[r.status] ?? "neutral"}
+                          label={REQUISITION_STATUS_LABELS[r.status]}
+                        />
+                      ),
+                    },
+                    {
+                      id: "amount",
+                      label: "Amount",
+                      width: "9.5rem",
+                      align: "end",
+                      cell: (r) => (
+                        <RecordCell
+                          kind="money"
+                          value={formatMoney(payable(r), r.currency)}
+                        />
+                      ),
+                    },
+                  ]}
+                  rows={requisitions}
+                  rowHref={(r) => `/books/requisitions/${r.id}`}
+                  emptyTitle="Nobody has asked for money for it."
                 />
               </section>
             ),
@@ -572,7 +578,6 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
               <section aria-labelledby="project-spend">
                 <SectionHeading
                   count={entries.length}
-                  maxWidth={SECTION_WIDTH}
                   className="mt-0"
                   action={
                     <SectionAction icon={Plus} onClick={() => setAddingSpend(true)}>
@@ -602,7 +607,6 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                   entries={entries}
                   showProject={false}
                   empty="Nothing spent on it yet."
-                  maxWidth={SECTION_WIDTH}
                 />
               </section>
             ),
@@ -619,7 +623,6 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
                 owner={project.manager}
                 members={members}
                 canEdit={canEdit}
-                maxWidth={SECTION_WIDTH}
               />
             ),
           },
@@ -655,42 +658,55 @@ export function ProjectDetailContent({ projectId }: { projectId: string }) {
 
 /** The project's jobs: the reference, the job, how far along, where it is. */
 function ProjectJobs({ jobs }: { jobs: ProjectTimelineJob[] }) {
+  const columns = useMemo<RecordTableColumn<ProjectTimelineJob>[]>(
+    () => [
+      {
+        id: "job",
+        label: "Job",
+        cell: (job) => (
+          <RecordTableName
+            title={job.title}
+            subtitle={[
+              job.workOrderNo,
+              job.scheduledStart ? formatDate(job.scheduledStart) : "Not booked",
+              job.assignedTo?.name,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        ),
+      },
+      {
+        id: "done",
+        label: "Done",
+        width: "6rem",
+        align: "end",
+        cell: (job) => (
+          <RecordCell kind="number" value={`${job.completionPercent}%`} className="text-[var(--color-ink-3)]" />
+        ),
+      },
+      {
+        id: "status",
+        label: "Status",
+        width: "8.5rem",
+        cell: (job) => (
+          <StatusDot tone={JOB_TONE[job.status] ?? "neutral"} label={WORK_ORDER_STATUS_LABELS[job.status]} />
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <section aria-labelledby="project-jobs">
-      <SectionHeading count={jobs.length} maxWidth={SECTION_WIDTH} className="mt-0">
+      <SectionHeading count={jobs.length} className="mt-0">
         <span id="project-jobs">Jobs</span>
       </SectionHeading>
-      <ColumnList
-        label="Jobs"
-        maxWidth={SECTION_WIDTH}
-        empty="No jobs raised yet."
-        columns={[
-          { id: "job", label: "Job" },
-          { id: "done", label: "Done", align: "end", hideBelow: "sm" },
-          { id: "status", label: "Status" },
-        ]}
-        rows={jobs.map((job) => ({
-          id: job.id,
-          cells: {
-            job: (
-              <ColumnName
-                code={job.workOrderNo}
-                name={job.title}
-                meta={[
-                  job.scheduledStart ? formatDate(job.scheduledStart) : "Not booked",
-                  job.assignedTo?.name,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                href={jobHref(job.id)}
-              />
-            ),
-            done: <ColumnFigure tone="muted">{job.completionPercent}%</ColumnFigure>,
-            status: (
-              <StatusDot tone={JOB_TONE[job.status] ?? "neutral"} label={WORK_ORDER_STATUS_LABELS[job.status]} />
-            ),
-          },
-        }))}
+      <RecordTable
+        columns={columns}
+        rows={jobs}
+        rowHref={(job) => jobHref(job.id)}
+        emptyTitle="No jobs raised yet."
       />
     </section>
   );

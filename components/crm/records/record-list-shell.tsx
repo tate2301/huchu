@@ -7,20 +7,40 @@ import { PageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { cn } from "@/lib/utils";
 
 import { ListSearch } from "./list-search";
+import type { LucideIcon } from "@/lib/icons";
 import type { RegisterFinding, RegisterKpi } from "@/components/crm/registers/register-shell";
+import { CrmFinding } from "@/components/crm/crm-finding";
 import { getApiErrorMessage } from "@/lib/api-client";
+import {
+  ci_alert,
+  ci_apps,
+  ci_calendar_clock,
+  ci_check_circle,
+  ci_pipeline,
+  ci_table,
+  ci_user,
+  ci_x_circle,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+
+function getViewGlyph(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("all")) return ci_apps;
+  if (lower.includes("my") || lower.includes("mine")) return ci_user;
+  if (lower.includes("won") || lower.includes("done") || lower.includes("complete")) return ci_check_circle;
+  if (lower.includes("lost") || lower.includes("archived")) return ci_x_circle;
+  if (lower.includes("pipeline") || lower.includes("open") || lower.includes("deal")) return ci_pipeline;
+  if (lower.includes("scheduled") || lower.includes("upcoming")) return ci_calendar_clock;
+  if (lower.includes("urgent") || lower.includes("overdue") || lower.includes("attention")) return ci_alert;
+  return ci_table;
+}
 
 export type RecordListTab = {
   value: string;
   label: string;
   count?: number | null;
+  icon?: LucideIcon | ReactNode;
 };
-
-function isStructuredFinding(
-  finding: RegisterFinding,
-): finding is { fact: ReactNode; rest?: ReactNode; end?: ReactNode } {
-  return Boolean(finding && typeof finding === "object" && "fact" in finding);
-}
 
 /**
  * The frame every CRM record list shares: title, Books finding banner, optional
@@ -94,39 +114,7 @@ export function RecordListShell({
     >
       <PageChrome title={title} primary={primary} />
 
-      {finding ? (
-        <div className="crm-bk-finding">
-          {isStructuredFinding(finding) ? (
-            <>
-              <div className="crm-bk-finding-text">
-                <span className="crm-bk-finding-fact">{finding.fact}</span>
-                {finding.rest ? <span className="crm-bk-finding-rest"> {finding.rest}</span> : null}
-              </div>
-              {finding.end ? <div className="crm-bk-finding-end">{finding.end}</div> : null}
-            </>
-          ) : finding && typeof finding === "object" && ("children" in finding || "text" in finding) ? (
-            <>
-              <div className="crm-bk-finding-text">
-                {"label" in finding && finding.label ? <strong className="crm-bk-finding-fact mr-2">{finding.label}</strong> : null}
-                {"text" in finding ? finding.text : "children" in finding ? finding.children : null}
-              </div>
-              {"action" in finding && finding.action ? (
-                <div className="crm-bk-finding-end">
-                  {typeof finding.action === "object" && finding.action && "label" in finding.action && "onClick" in finding.action ? (
-                    <button type="button" className="fl-act" onClick={finding.action.onClick}>
-                      {finding.action.label}
-                    </button>
-                  ) : (
-                    finding.action
-                  )}
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="crm-bk-finding-text">{finding as ReactNode}</div>
-          )}
-        </div>
-      ) : null}
+      {finding ? <CrmFinding finding={finding} /> : null}
 
       {kpis && kpis.length > 0 ? (
         <div className="crm-bk-strip">
@@ -146,7 +134,7 @@ export function RecordListShell({
       ) : null}
 
       {notice ? (
-        <div className="px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-ground)] text-sm text-[var(--color-muted)]">
+        <div className="px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-ground)] text-sm text-[var(--color-ink-2)]">
           {notice}
         </div>
       ) : null}
@@ -165,6 +153,15 @@ export function RecordListShell({
                   className="crm-bk-tab"
                   onClick={() => onTabChange?.(tab.value)}
                 >
+                  {tab.icon ? (
+                    typeof tab.icon === "function" ? (
+                      <tab.icon className="size-4 shrink-0" data-current={selected || undefined} />
+                    ) : (
+                      tab.icon
+                    )
+                  ) : (
+                    <CiGlyphIcon glyph={getViewGlyph(tab.label)} size={16} className="shrink-0" />
+                  )}
                   <span>{tab.label}</span>
                   {typeof tab.count === "number" ? (
                     <span className="n">{tab.count.toLocaleString("en-US")}</span>

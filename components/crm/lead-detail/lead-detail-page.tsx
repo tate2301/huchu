@@ -13,12 +13,13 @@ import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ciNavIcon } from "@/components/books/icons/nav-icon";
+import { ci_pipeline } from "@/components/books/icons/glyphs";
 import {
   ArrowRight,
   Building2,
   CalendarCheck,
   Clock,
-  Funnel,
   Mail,
   NoteAdd,
   Payments,
@@ -354,7 +355,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
 
   return (
     <RecordPageShell
-      icon={Funnel}
+      icon={ciNavIcon(ci_pipeline)}
       // Which groups it is in, from the record itself.
       toolbar={<RecordGroupsControl entity="LEAD" recordId={lead.id} />}
       backHref="/crm/leads"

@@ -4,17 +4,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -125,13 +118,6 @@ function money(value: number) {
   });
 }
 
-function nameParts(name: string) {
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0] ?? "";
-  // A one-word name gives the avatar the same letter twice rather than a blank.
-  return { firstName: first, lastName: parts.slice(1).join(" ") || first };
-}
-
 function periodOptions() {
   const options: Array<{ value: string; label: string }> = [];
   const now = new Date();
@@ -235,252 +221,204 @@ export function StatutoryReturnsContent() {
             )}
 
             {/* Then whether it agrees with the books. */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-section-title text-foreground font-bold tracking-tight">
                   Reconciliation against the ledger
-                  {!data.reconciliation.ledgerAvailable ? (
-                    <Badge variant="outline">Not checked</Badge>
-                  ) : data.reconciliation.reconciled ? (
-                    <Badge variant="secondary">Agrees</Badge>
-                  ) : (
-                    <Badge variant="destructive">Does not agree</Badge>
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  {data.reconciliation.ledgerAvailable
-                    ? "Each return is compared with the credit on its own payable account, in reporting currency."
-                    : "This workspace has no accounting module, so there is no ledger to compare against. The returns are computed from the payroll runs themselves."}
-                </CardDescription>
-              </CardHeader>
+                </h2>
+                {!data.reconciliation.ledgerAvailable ? (
+                  <Badge variant="outline">Not checked</Badge>
+                ) : data.reconciliation.reconciled ? (
+                  <Badge variant="secondary">Agrees</Badge>
+                ) : (
+                  <Badge variant="destructive">Does not agree</Badge>
+                )}
+              </div>
               {data.reconciliation.ledgerAvailable ? (
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Liability</TableHead>
-                          <TableHead>Account</TableHead>
-                          <TableHead className="text-right">Return</TableHead>
-                          <TableHead className="text-right">Ledger</TableHead>
-                          <TableHead className="text-right">Difference</TableHead>
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Liability</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead className="text-right">Return</TableHead>
+                        <TableHead className="text-right">Ledger</TableHead>
+                        <TableHead className="text-right">Difference</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.reconciliation.lines.map((line) => (
+                        <TableRow key={line.accountCode + line.label}>
+                          <TableCell className="font-medium">{line.label}</TableCell>
+                          <TableCell className="tabular-nums text-muted-foreground">
+                            {line.accountCode}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(line.returnAmountBase)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(line.ledgerAmountBase)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {line.reconciled ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <Badge variant="destructive">
+                                {money(line.difference)}
+                              </Badge>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data.reconciliation.lines.map((line) => (
-                          <TableRow key={line.accountCode + line.label}>
-                            <TableCell className="font-medium">{line.label}</TableCell>
-                            <TableCell className="tabular-nums text-muted-foreground">
-                              {line.accountCode}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {money(line.returnAmountBase)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {money(line.ledgerAmountBase)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {line.reconciled ? (
-                                <span className="text-muted-foreground">—</span>
-                              ) : (
-                                <Badge variant="destructive">
-                                  {money(line.difference)}
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : null}
-            </Card>
+            </div>
 
             {/* One P2 per currency: USD PAYE is remitted in USD and ZWG in ZWG. */}
             {data.paye.map((p2) => (
-              <Card key={`p2-${p2.currency}`}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>P2 — monthly PAYE ({p2.currency})</CardTitle>
-                      <CardDescription>
-                        {p2.boxes.employeesReported} employee
-                        {p2.boxes.employeesReported === 1 ? "" : "s"} · remit{" "}
-                        <span className="font-medium text-foreground tabular-nums">
-                          {money(p2.boxes.totalRemittance)} {p2.currency}
-                        </span>
-                      </CardDescription>
+              <div key={`p2-${p2.currency}`} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                    P2 — monthly PAYE ({p2.currency})
+                  </h2>
+                  <Button variant="outline" size="sm" disabled={!data.canFile}>
+                    {data.canFile ? "Export" : "Cannot file yet"}
+                  </Button>
+                </div>
+                <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {[
+                    ["Gross emoluments", p2.boxes.grossEmoluments],
+                    ["Taxable emoluments", p2.boxes.taxableEmoluments],
+                    ["PAYE before credits", p2.boxes.payeBeforeCredits],
+                    ["Tax credits", p2.boxes.taxCredits],
+                    ["PAYE deducted", p2.boxes.payeDeducted],
+                    ["AIDS levy", p2.boxes.aidsLevy],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="rounded-md border p-3">
+                      <dt className="text-sm text-muted-foreground">{label}</dt>
+                      <dd className="mt-1 font-medium tabular-nums">
+                        {money(Number(value))}
+                      </dd>
                     </div>
-                    <Button variant="outline" size="sm" disabled={!data.canFile}>
-                      {data.canFile ? "Export" : "Cannot file yet"}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {[
-                      ["Gross emoluments", p2.boxes.grossEmoluments],
-                      ["Taxable emoluments", p2.boxes.taxableEmoluments],
-                      ["PAYE before credits", p2.boxes.payeBeforeCredits],
-                      ["Tax credits", p2.boxes.taxCredits],
-                      ["PAYE deducted", p2.boxes.payeDeducted],
-                      ["AIDS levy", p2.boxes.aidsLevy],
-                    ].map(([label, value]) => (
-                      <div key={String(label)} className="rounded-md border p-3">
-                        <dt className="text-xs text-muted-foreground">{label}</dt>
-                        <dd className="mt-1 font-medium tabular-nums">
-                          {money(Number(value))}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
+                  ))}
+                </dl>
 
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Tax (BP) number</TableHead>
-                          <TableHead className="text-right">Gross</TableHead>
-                          <TableHead className="text-right">Taxable</TableHead>
-                          <TableHead className="text-right">PAYE</TableHead>
-                          <TableHead className="text-right">AIDS levy</TableHead>
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee ID</TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Tax (BP) number</TableHead>
+                        <TableHead className="text-right">Gross</TableHead>
+                        <TableHead className="text-right">Taxable</TableHead>
+                        <TableHead className="text-right">PAYE</TableHead>
+                        <TableHead className="text-right">AIDS levy</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {p2.schedule.map((row) => (
+                        <TableRow key={row.employeeId}>
+                          <TableCell className="font-mono text-sm text-[var(--color-ink-2)]">
+                            {row.employeeNumber}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <RecordMark kind="person" name={row.name} size="sm" />
+                              <span className="truncate font-medium text-[var(--color-ink)]">
+                                {row.name}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {row.taxNumber ?? (
+                              <Badge variant="destructive">Missing</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.grossEmoluments)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.taxableEmoluments)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.payeDeducted)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.aidsLevy)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {p2.schedule.map((row) => {
-                          const { firstName, lastName } = nameParts(row.name);
-                          return (
-                            <TableRow key={row.employeeId}>
-                              <TableCell>
-                                <span className="flex items-center gap-2">
-                                  <PersonAvatar
-                                    firstName={firstName}
-                                    lastName={lastName}
-                                    size="sm"
-                                  />
-                                  <span>
-                                    <span className="block font-medium">{row.name}</span>
-                                    <span className="block text-xs text-muted-foreground">
-                                      {row.employeeNumber}
-                                    </span>
-                                  </span>
-                                </span>
-                              </TableCell>
-                              <TableCell className="tabular-nums">
-                                {row.taxNumber ?? (
-                                  <Badge variant="destructive">Missing</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.grossEmoluments)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.taxableEmoluments)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.payeDeducted)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.aidsLevy)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             ))}
 
             {data.nssa.map((nssa) => (
-              <Card key={`nssa-${nssa.currency}`}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>NSSA schedule ({nssa.currency})</CardTitle>
-                      <CardDescription>
-                        {nssa.membersReported} member
-                        {nssa.membersReported === 1 ? "" : "s"} · remit{" "}
-                        <span className="font-medium text-foreground tabular-nums">
-                          {money(nssa.totalRemittance)} {nssa.currency}
-                        </span>
-                      </CardDescription>
-                    </div>
-                    <Button variant="outline" size="sm" disabled={!data.canFile}>
-                      {data.canFile ? "Export" : "Cannot file yet"}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Insurable earnings are the capped figure, not the wage. A
-                      schedule listing full salaries beside capped contributions
-                      reads to NSSA as an under-payment. */}
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    Insurable earnings are capped at the ceiling in force, so they are
-                    lower than gross pay for anybody earning above it.
-                  </p>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Member</TableHead>
-                          <TableHead>NSSA number</TableHead>
-                          <TableHead className="text-right">
-                            Insurable earnings
-                          </TableHead>
-                          <TableHead className="text-right">Employee</TableHead>
-                          <TableHead className="text-right">Employer</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
+              <div key={`nssa-${nssa.currency}`} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                    NSSA schedule ({nssa.currency})
+                  </h2>
+                  <Button variant="outline" size="sm" disabled={!data.canFile}>
+                    {data.canFile ? "Export" : "Cannot file yet"}
+                  </Button>
+                </div>
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee ID</TableHead>
+                        <TableHead>Member</TableHead>
+                        <TableHead>NSSA number</TableHead>
+                        <TableHead className="text-right">
+                          Insurable earnings
+                        </TableHead>
+                        <TableHead className="text-right">Employee</TableHead>
+                        <TableHead className="text-right">Employer</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {nssa.schedule.map((row) => (
+                        <TableRow key={row.employeeId}>
+                          <TableCell className="font-mono text-sm text-[var(--color-ink-2)]">
+                            {row.employeeNumber}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <RecordMark kind="person" name={row.name} size="sm" />
+                              <span className="truncate font-medium text-[var(--color-ink)]">
+                                {row.name}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {row.nssaNumber ?? (
+                              <Badge variant="destructive">Missing</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.insurableEarnings)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.employeeContribution)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money(row.employerContribution)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {money(row.total)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {nssa.schedule.map((row) => {
-                          const { firstName, lastName } = nameParts(row.name);
-                          return (
-                            <TableRow key={row.employeeId}>
-                              <TableCell>
-                                <span className="flex items-center gap-2">
-                                  <PersonAvatar
-                                    firstName={firstName}
-                                    lastName={lastName}
-                                    size="sm"
-                                  />
-                                  <span>
-                                    <span className="block font-medium">{row.name}</span>
-                                    <span className="block text-xs text-muted-foreground">
-                                      {row.employeeNumber}
-                                    </span>
-                                  </span>
-                                </span>
-                              </TableCell>
-                              <TableCell className="tabular-nums">
-                                {row.nssaNumber ?? (
-                                  <Badge variant="destructive">Missing</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.insurableEarnings)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.employeeContribution)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {money(row.employerContribution)}
-                              </TableCell>
-                              <TableCell className="text-right font-medium tabular-nums">
-                                {money(row.total)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             ))}
           </>
         )}

@@ -8,6 +8,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { ArrowRight, FileText, Plus } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -438,13 +439,14 @@ export default function DisbursementsPage() {
         header: "Batch",
         cell: ({ row }) => (
           <div>
-            <div className="font-semibold">{row.original.code}</div>
-            <div className="text-xs text-muted-foreground">{row.original.method}</div>
+            <div className="font-semibold text-[var(--color-ink)]">{row.original.code}</div>
+            <div className="text-sm text-muted-foreground">{row.original.method}</div>
           </div>
         ),
         size: 280,
         minSize: 220,
-        maxSize: 420},
+        maxSize: 420,
+      },
       {
         id: "run",
         header: "Run",
@@ -453,14 +455,15 @@ export default function DisbursementsPage() {
             <div>
               <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {row.original.payrollRun.period?.periodKey ?? "-"}
             </div>
           </div>
         ),
         size: 160,
         minSize: 160,
-        maxSize: 160},
+        maxSize: 160,
+      },
       {
         accessorKey: "totalAmount",
         header: "Amount",
@@ -553,18 +556,34 @@ export default function DisbursementsPage() {
   const batchDetailColumns = useMemo<ColumnDef<BatchDetailItem>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
         id: "employee",
         header: "Employee",
-        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        accessorFn: (row) => row.employee.name,
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.employee.employeeId}</div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
+        size: 200,
+        minSize: 160,
+        maxSize: 280,
+      },
       {
         id: "amount",
         header: "Amount",
@@ -878,21 +897,21 @@ export default function DisbursementsPage() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Batch</div>
+                  <div className="text-sm text-muted-foreground">Batch</div>
                   <div className="font-semibold">{markPaidBatch.code}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Run</div>
+                  <div className="text-sm text-muted-foreground">Run</div>
                   <div className="font-semibold">
                     #{markPaidBatch.payrollRun.runNumber} ({markPaidBatch.payrollRun.period.periodKey})
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Total Amount</div>
+                  <div className="text-sm text-muted-foreground">Total Amount</div>
                   <div className="font-semibold"><NumericCell>{markPaidBatch.totalAmount.toFixed(2)}</NumericCell></div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Items</div>
+                  <div className="text-sm text-muted-foreground">Items</div>
                   <div className="font-semibold"><NumericCell>{markPaidBatch.itemCount}</NumericCell></div>
                 </div>
               </div>
@@ -903,16 +922,19 @@ export default function DisbursementsPage() {
                   const state = derivePaidState(item.amount, Number.isFinite(paidAmount) ? paidAmount : 0);
                   return (
                     <div key={item.id} className="grid gap-2 md:grid-cols-[1.6fr_1fr_1fr_auto] md:items-center">
-                      <div>
-                        <div className="font-medium">{item.employeeName}</div>
-                        <div className="text-xs text-muted-foreground">{item.employeeCode}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <RecordMark kind="person" name={item.employeeName} size="sm" />
+                        <div>
+                          <div className="font-medium text-[var(--color-ink)]">{item.employeeName}</div>
+                          <div className="font-mono text-sm text-[var(--color-ink-2)]">{item.employeeCode}</div>
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">Amount</div>
+                        <div className="text-sm text-muted-foreground">Amount</div>
                         <NumericCell>{item.currency} {item.amount.toFixed(2)}</NumericCell>
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground" htmlFor={`paid-amount-${item.id}`}>
+                        <label className="text-sm text-muted-foreground" htmlFor={`paid-amount-${item.id}`}>
                           Paid Amount
                         </label>
                         <Input
@@ -1017,18 +1039,18 @@ export default function DisbursementsPage() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Batch</div>
+                  <div className="text-sm text-muted-foreground">Batch</div>
                   <div className="font-semibold">{batchDetails.code}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Run</div>
+                  <div className="text-sm text-muted-foreground">Run</div>
                   <div className="font-semibold">
                     <NumericCell align="left">#{batchDetails.payrollRun.runNumber}</NumericCell> (
                     {batchDetails.payrollRun.period.periodKey})
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Total Amount
                   </div>
                   <div className="font-semibold">
@@ -1036,7 +1058,7 @@ export default function DisbursementsPage() {
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Items</div>
+                  <div className="text-sm text-muted-foreground">Items</div>
                   <div className="font-semibold"><NumericCell>{batchDetails.itemCount}</NumericCell></div>
                 </div>
               </div>

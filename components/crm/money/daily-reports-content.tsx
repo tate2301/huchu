@@ -19,6 +19,9 @@ import { fetchJson } from "@/lib/api-client";
 
 import { DailyReportCard, type DailyReportCardSummary } from "./daily-report-card";
 import { formatDay, todayKey } from "./money";
+import { CrmFinding } from "@/components/crm/crm-finding";
+import { ci_alert_circle, ci_apps } from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
 
 type Report = {
   id: string;
@@ -50,22 +53,16 @@ export function DailyReportsContent() {
   return (
     <div className="crm-bk-worksheet">
       {!isLoading && flaggedCount > 0 ? (
-        <div className="crm-bk-finding warn">
-          <span className="crm-bk-fdot" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <b>
-              {flaggedCount} {flaggedCount === 1 ? "report has" : "reports have"} items to look at
-            </b>{" "}
-            for {formatDay(date)} (missing receipts, unacquitted floats, or overdue tasks).
-          </div>
-          <button
-            type="button"
-            className="crm-bk-fact"
-            onClick={() => setFilterTab((prev) => (prev === "FLAGGED" ? "ALL" : "FLAGGED"))}
-          >
-            {filterTab === "FLAGGED" ? "Show all reports" : "Show flagged only →"}
-          </button>
-        </div>
+        <CrmFinding
+          label="Needs review"
+          tone="danger"
+          fact={`${flaggedCount} ${flaggedCount === 1 ? "report has" : "reports have"} items to look at`}
+          rest={`for ${formatDay(date)} (missing receipts, unacquitted floats, or overdue tasks).`}
+          action={{
+            label: filterTab === "FLAGGED" ? "Show all reports" : "Show flagged only →",
+            onClick: () => setFilterTab((prev) => (prev === "FLAGGED" ? "ALL" : "FLAGGED")),
+          }}
+        />
       ) : null}
 
       <div className="crm-bk-tabs-bar">
@@ -74,21 +71,25 @@ export function DailyReportsContent() {
             type="button"
             role="tab"
             aria-selected={filterTab === "ALL"}
+            data-active={filterTab === "ALL" || undefined}
             onClick={() => setFilterTab("ALL")}
-            className={`crm-bk-tab${filterTab === "ALL" ? " on" : ""}`}
+            className="crm-bk-tab"
           >
-            All reports
-            <span className="tc">{reports.length}</span>
+            <CiGlyphIcon glyph={ci_apps} size={16} className="shrink-0" />
+            <span>All reports</span>
+            <span className="n">{reports.length}</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={filterTab === "FLAGGED"}
+            data-active={filterTab === "FLAGGED" || undefined}
             onClick={() => setFilterTab("FLAGGED")}
-            className={`crm-bk-tab${filterTab === "FLAGGED" ? " on" : ""}`}
+            className="crm-bk-tab"
           >
-            Needs review
-            <span className="tc">{flaggedCount}</span>
+            <CiGlyphIcon glyph={ci_alert_circle} size={16} className="shrink-0" />
+            <span>Needs review</span>
+            <span className="n">{flaggedCount}</span>
           </button>
         </div>
       </div>

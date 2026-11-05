@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FileText, Plus, Trash2 } from "@/lib/icons";
 import { PeopleShell } from "@/components/people/people-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -363,31 +364,44 @@ export default function HrIncidentsPage() {
       accessorFn: (row) => `${row.title} ${row.category}`,
       cell: ({ row }) => (
         <div>
-          <div className="font-medium">{row.original.title}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="font-medium text-[var(--color-ink)]">{row.original.title}</div>
+          <div className="text-sm text-muted-foreground">
             {row.original.category}
           </div>
         </div>
       ),
-      size: 280,
-      minSize: 220,
-      maxSize: 420,
+      size: 240,
+      minSize: 200,
+      maxSize: 360,
+    },
+    {
+      id: "employeeId",
+      header: "Employee ID",
+      accessorFn: (row) => row.employee.employeeId,
+      cell: ({ row }) => (
+        <span className="font-mono text-sm text-[var(--color-ink-2)]">
+          {row.original.employee.employeeId}
+        </span>
+      ),
+      size: 130,
+      minSize: 110,
+      maxSize: 160,
     },
     {
       id: "employee",
       header: "Employee",
-      accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+      accessorFn: (row) => row.employee.name,
       cell: ({ row }) => (
-        <div>
-          <div>{row.original.employee.name}</div>
-          <div className="text-xs text-muted-foreground">
-            {row.original.employee.employeeId}
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+          <span className="truncate font-medium text-[var(--color-ink)]">
+            {row.original.employee.name}
+          </span>
         </div>
       ),
-      size: 160,
+      size: 200,
       minSize: 160,
-      maxSize: 160,
+      maxSize: 280,
     },
     {
       id: "severity",
@@ -398,8 +412,8 @@ export default function HrIncidentsPage() {
           {row.original.severity}
         </Badge>
       ),
-      size: 160,
-      minSize: 160,
+      size: 140,
+      minSize: 120,
       maxSize: 160,
     },
     {
@@ -483,31 +497,44 @@ export default function HrIncidentsPage() {
       accessorFn: (row) => `${row.actionType} ${row.summary}`,
       cell: ({ row }) => (
         <div>
-          <div className="font-medium">{row.original.actionType}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="font-medium text-[var(--color-ink)]">{row.original.actionType}</div>
+          <div className="text-sm text-muted-foreground">
             {row.original.summary}
           </div>
         </div>
       ),
-      size: 108,
-      minSize: 108,
-      maxSize: 108,
+      size: 140,
+      minSize: 120,
+      maxSize: 180,
+    },
+    {
+      id: "employeeId",
+      header: "Employee ID",
+      accessorFn: (row) => row.employee.employeeId,
+      cell: ({ row }) => (
+        <span className="font-mono text-sm text-[var(--color-ink-2)]">
+          {row.original.employee.employeeId}
+        </span>
+      ),
+      size: 130,
+      minSize: 110,
+      maxSize: 160,
     },
     {
       id: "employee",
       header: "Employee",
-      accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+      accessorFn: (row) => row.employee.name,
       cell: ({ row }) => (
-        <div>
-          {row.original.employee.name}
-          <div className="text-xs text-muted-foreground">
-            {row.original.employee.employeeId}
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+          <span className="truncate font-medium text-[var(--color-ink)]">
+            {row.original.employee.name}
+          </span>
         </div>
       ),
-      size: 280,
-      minSize: 220,
-      maxSize: 420,
+      size: 200,
+      minSize: 160,
+      maxSize: 280,
     },
     {
       id: "status",
@@ -532,7 +559,7 @@ export default function HrIncidentsPage() {
             {row.original.penaltyCurrency}{" "}
             {row.original.penaltyAmount.toFixed(2)}
           </NumericCell>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-sm text-muted-foreground">
             {row.original.penaltyStatus}
           </div>
         </div>
@@ -1629,7 +1656,7 @@ export default function HrIncidentsPage() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Status</div>
+                  <div className="text-sm text-muted-foreground">Status</div>
                   <Badge
                     variant={incidentStatusVariant(incidentDetails.status)}
                   >
@@ -1637,7 +1664,7 @@ export default function HrIncidentsPage() {
                   </Badge>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Severity</div>
+                  <div className="text-sm text-muted-foreground">Severity</div>
                   <Badge
                     variant={incidentSeverityVariant(incidentDetails.severity)}
                   >
@@ -1645,16 +1672,16 @@ export default function HrIncidentsPage() {
                   </Badge>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Employee</div>
+                  <div className="text-sm text-muted-foreground">Employee</div>
                   <div className="font-medium">
                     {incidentDetails.employee.name}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {incidentDetails.employee.employeeId}
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Incident Date
                   </div>
                   <div>
@@ -1673,7 +1700,7 @@ export default function HrIncidentsPage() {
               </div>
 
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   Investigation Notes
                 </div>
                 <div className="text-sm">
@@ -1683,7 +1710,7 @@ export default function HrIncidentsPage() {
 
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Site</div>
+                  <div className="text-sm text-muted-foreground">Site</div>
                   <div>
                     {incidentDetails.site
                       ? `${incidentDetails.site.code} - ${incidentDetails.site.name}`
@@ -1691,13 +1718,13 @@ export default function HrIncidentsPage() {
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Reported By
                   </div>
                   <div>{incidentDetails.reportedBy?.name ?? "-"}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Resolved By
                   </div>
                   <div>{incidentDetails.resolvedBy?.name ?? "-"}</div>
@@ -1762,24 +1789,24 @@ export default function HrIncidentsPage() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Status</div>
+                  <div className="text-sm text-muted-foreground">Status</div>
                   <Badge variant={actionStatusVariant(actionDetails.status)}>
                     {actionDetails.status}
                   </Badge>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Type</div>
+                  <div className="text-sm text-muted-foreground">Type</div>
                   <div>{actionDetails.actionType}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Penalty</div>
+                  <div className="text-sm text-muted-foreground">Penalty</div>
                   <div>
                     {actionDetails.penaltyCurrency}{" "}
                     {actionDetails.penaltyAmount.toFixed(2)}
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Penalty Status
                   </div>
                   <div>{actionDetails.penaltyStatus}</div>
@@ -1793,20 +1820,20 @@ export default function HrIncidentsPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Employee</div>
+                  <div className="text-sm text-muted-foreground">Employee</div>
                   <div>{actionDetails.employee.name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {actionDetails.employee.employeeId}
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Linked Incident
                   </div>
                   <div>{actionDetails.incident?.title ?? "-"}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Effective Date
                   </div>
                   <div>
@@ -1841,7 +1868,7 @@ export default function HrIncidentsPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-              <div className="text-xs text-muted-foreground">Action</div>
+              <div className="text-sm text-muted-foreground">Action</div>
               <div className="font-medium">
                 {selectedRejectAction?.summary ?? "-"}
               </div>
@@ -1857,7 +1884,7 @@ export default function HrIncidentsPage() {
                 maxLength={1000}
                 placeholder="Explain why this is rejected"
               />
-              <div className="text-xs text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 {rejectNote.length}/1000
               </div>
             </div>
@@ -1905,7 +1932,7 @@ export default function HrIncidentsPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-              <div className="text-xs text-muted-foreground">Action</div>
+              <div className="text-sm text-muted-foreground">Action</div>
               <div className="font-medium">
                 {selectedApplyAction?.summary ?? "-"}
               </div>
@@ -1947,7 +1974,7 @@ export default function HrIncidentsPage() {
                 maxLength={1000}
                 placeholder="Optional note"
               />
-              <div className="text-xs text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 {applyNote.length}/1000
               </div>
             </div>
@@ -1997,7 +2024,7 @@ export default function HrIncidentsPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-              <div className="text-xs text-muted-foreground">Action</div>
+              <div className="text-sm text-muted-foreground">Action</div>
               <div className="font-medium">
                 {selectedDeleteAction?.summary ?? "-"}
               </div>
@@ -2039,7 +2066,7 @@ export default function HrIncidentsPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-              <div className="text-xs text-muted-foreground">Incident</div>
+              <div className="text-sm text-muted-foreground">Incident</div>
               <div className="font-medium">
                 {selectedDeleteIncident?.title ?? "-"}
               </div>

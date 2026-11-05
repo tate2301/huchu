@@ -7,13 +7,6 @@ import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -237,229 +230,195 @@ export function StatutoryTablesContent() {
             ) : null}
 
             {data.payeTables.map((table) => (
-              <Card key={table.id}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        PAYE — {table.currency}
-                        {table.isSeeded ? (
-                          <Badge variant="outline">Seeded</Badge>
-                        ) : null}
-                      </CardTitle>
-                      <CardDescription>
-                        {table.label} · in force from {day(table.effectiveFrom)}
-                        {table.effectiveTo ? ` to ${day(table.effectiveTo)}` : ""}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary">{table.cycle.toLowerCase()}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* The published subtract form: tax = gross × rate − deduction.
-                      Shown as ZIMRA prints it so an accountant can check a
-                      payslip against the circular line by line. */}
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    Tax = taxable gross × rate − deduction.
-                  </p>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Taxable gross</TableHead>
-                          <TableHead className="text-right">Rate</TableHead>
-                          <TableHead className="text-right">Deduct</TableHead>
+              <div key={table.id} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-section-title text-foreground font-bold tracking-tight flex items-center gap-2">
+                    PAYE — {table.currency}
+                    {table.isSeeded ? (
+                      <Badge variant="outline">Seeded</Badge>
+                    ) : null}
+                  </h2>
+                  <Badge variant="secondary">{table.cycle.toLowerCase()}</Badge>
+                </div>
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Taxable gross</TableHead>
+                        <TableHead className="text-right">Rate</TableHead>
+                        <TableHead className="text-right">Deduct</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {table.bands.map((row) => (
+                        <TableRow key={row.lowerBound}>
+                          <TableCell className="font-medium">{band(row)}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {Number(row.ratePercent).toFixed(2)}%
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {Number(row.deductAmount).toFixed(2)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {table.bands.map((row) => (
-                          <TableRow key={row.lowerBound}>
-                            <TableCell className="font-medium">{band(row)}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {Number(row.ratePercent).toFixed(2)}%
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {Number(row.deductAmount).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {table.source ? (
-                    <p className="mt-3 text-xs text-muted-foreground">{table.source}</p>
-                  ) : null}
-                </CardContent>
-              </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {table.source ? (
+                  <p className="text-sm text-muted-foreground">{table.source}</p>
+                ) : null}
+              </div>
             ))}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Levies & contributions</CardTitle>
-                <CardDescription>
-                  What each is charged on matters as much as the rate — the AIDS levy
-                  is a percentage of the tax, not of the wage.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {data.rates.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No rates cover this month. A payroll run will refuse.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Levy</TableHead>
-                          <TableHead>Currency</TableHead>
-                          <TableHead className="text-right">Rate</TableHead>
-                          <TableHead className="text-right">Ceiling</TableHead>
-                          <TableHead>Charged on</TableHead>
-                          <TableHead>From</TableHead>
+            <div className="space-y-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Levies & contributions
+              </h2>
+              {data.rates.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No rates cover this month. A payroll run will refuse.
+                </p>
+              ) : (
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Levy</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead className="text-right">Rate</TableHead>
+                        <TableHead className="text-right">Ceiling</TableHead>
+                        <TableHead>Charged on</TableHead>
+                        <TableHead>From</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.rates.map((rate) => (
+                        <TableRow key={rate.id}>
+                          <TableCell className="font-medium">
+                            <span className="flex items-center gap-2">
+                              {RATE_LABELS[rate.key] ?? rate.key}
+                              {rate.isSeeded ? (
+                                <Badge variant="outline">Seeded</Badge>
+                              ) : null}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {rate.currency ?? (
+                              <span className="text-muted-foreground">Any</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {Number(rate.ratePercent).toFixed(2)}%
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {rate.ceilingAmount
+                              ? Number(rate.ceilingAmount).toLocaleString()
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {RATE_BASIS[rate.key] ?? ""}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {day(rate.effectiveFrom)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data.rates.map((rate) => (
-                          <TableRow key={rate.id}>
-                            <TableCell className="font-medium">
-                              <span className="flex items-center gap-2">
-                                {RATE_LABELS[rate.key] ?? rate.key}
-                                {rate.isSeeded ? (
-                                  <Badge variant="outline">Seeded</Badge>
-                                ) : null}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              {rate.currency ?? (
-                                <span className="text-muted-foreground">Any</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {Number(rate.ratePercent).toFixed(2)}%
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {rate.ceilingAmount
-                                ? Number(rate.ceilingAmount).toLocaleString()
-                                : "—"}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {RATE_BASIS[rate.key] ?? ""}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {day(rate.effectiveFrom)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Tax credits</CardTitle>
-                <CardDescription>
-                  Applied to the tax after it is computed and before the AIDS levy is
-                  struck.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {data.credits.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No credits on file for this month.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Credit</TableHead>
-                          <TableHead>Currency</TableHead>
-                          <TableHead className="text-right">Worth</TableHead>
-                          <TableHead>From</TableHead>
+            <div className="space-y-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Tax credits
+              </h2>
+              {data.credits.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No credits on file for this month.
+                </p>
+              ) : (
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Credit</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead className="text-right">Worth</TableHead>
+                        <TableHead>From</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.credits.map((credit) => (
+                        <TableRow key={credit.id}>
+                          <TableCell className="font-medium">
+                            {CREDIT_LABELS[credit.key] ?? credit.key}
+                          </TableCell>
+                          <TableCell>{credit.currency}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {credit.ratePercent
+                              ? `${Number(credit.ratePercent).toFixed(2)}% of contributions`
+                              : Number(credit.amount ?? 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {day(credit.effectiveFrom)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data.credits.map((credit) => (
-                          <TableRow key={credit.id}>
-                            <TableCell className="font-medium">
-                              {CREDIT_LABELS[credit.key] ?? credit.key}
-                            </TableCell>
-                            <TableCell>{credit.currency}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {credit.ratePercent
-                                ? `${Number(credit.ratePercent).toFixed(2)}% of contributions`
-                                : Number(credit.amount ?? 0).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {day(credit.effectiveFrom)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>NEC agreement</CardTitle>
-                <CardDescription>
-                  Never seeded — dues are set per National Employment Council, and a
-                  wrong council on a remittance is a wrong remittance.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {data.necAgreements.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No NEC agreement on file. If your industry has a council, add its
-                    dues so they appear on payslips and in the returns.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Council</TableHead>
-                          <TableHead>Currency</TableHead>
-                          <TableHead className="text-right">Employee</TableHead>
-                          <TableHead className="text-right">Employer</TableHead>
-                          <TableHead>From</TableHead>
+            <div className="space-y-3">
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                NEC agreement
+              </h2>
+              {data.necAgreements.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No NEC agreement on file. If your industry has a council, add its
+                  dues so they appear on payslips and in the returns.
+                </p>
+              ) : (
+                <div className="overflow-x-auto border-y border-[var(--color-line)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Council</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead className="text-right">Employee</TableHead>
+                        <TableHead className="text-right">Employer</TableHead>
+                        <TableHead>From</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.necAgreements.map((nec) => (
+                        <TableRow key={nec.id}>
+                          <TableCell className="font-medium">
+                            {nec.councilName}
+                          </TableCell>
+                          <TableCell>{nec.currency}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {nec.employeeRatePercent
+                              ? `${Number(nec.employeeRatePercent).toFixed(2)}%`
+                              : Number(nec.employeeFixedAmount ?? 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {nec.employerRatePercent
+                              ? `${Number(nec.employerRatePercent).toFixed(2)}%`
+                              : Number(nec.employerFixedAmount ?? 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {day(nec.effectiveFrom)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data.necAgreements.map((nec) => (
-                          <TableRow key={nec.id}>
-                            <TableCell className="font-medium">
-                              {nec.councilName}
-                            </TableCell>
-                            <TableCell>{nec.currency}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {nec.employeeRatePercent
-                                ? `${Number(nec.employeeRatePercent).toFixed(2)}%`
-                                : Number(nec.employeeFixedAmount ?? 0).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {nec.employerRatePercent
-                                ? `${Number(nec.employerRatePercent).toFixed(2)}%`
-                                : Number(nec.employerFixedAmount ?? 0).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {day(nec.effectiveFrom)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

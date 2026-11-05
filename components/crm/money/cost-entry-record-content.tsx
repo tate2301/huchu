@@ -34,9 +34,6 @@ type Entry = CostEntryRow & {
   log: { logDate: string; submittedAt: string | null; user: { id: string; name: string | null } };
 };
 
-/** The section's measure. */
-const WIDTH = 760;
-
 export function CostEntryRecordContent({ entryId }: { entryId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -269,8 +266,8 @@ export function CostEntryRecordContent({ entryId }: { entryId: string }) {
           icon: FileText,
           attention: noReceipt,
           content: (
-            <section aria-labelledby="entry-receipt" style={{ maxWidth: WIDTH }}>
-              <SectionHeading maxWidth={WIDTH} className="mt-0">
+            <section aria-labelledby="entry-receipt">
+              <SectionHeading className="mt-0">
                 <span id="entry-receipt">Receipt</span>
               </SectionHeading>
               {entry.receiptUrl ? (

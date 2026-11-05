@@ -312,6 +312,9 @@
   --tone-neutral-bg: var(--tray);
   --tone-neutral-bd: var(--line);
 
+  --muted: var(--ink-3);
+  --muted-foreground: var(--ink-2);
+
   --dot-attention: var(--info);
   --dot-progress: var(--info);
   --dot-ok: var(--ok);

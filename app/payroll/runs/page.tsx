@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FileText, Plus, Wrench } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -445,7 +446,7 @@ export default function SalaryPayrollPage() {
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-foreground">{label}</h3>
         {runRows.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{emptyMessage}</p>
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
         ) : (
           <div className="overflow-hidden rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
             {runRows.map((run) => (
@@ -457,7 +458,7 @@ export default function SalaryPayrollPage() {
                   <div className="font-medium">
                     <NumericCell align="left">Run #{run.runNumber}</NumericCell>
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     <NumericCell align="left">
                       {format(new Date(run.createdAt), "yyyy-MM-dd HH:mm")}
                     </NumericCell>
@@ -582,12 +583,12 @@ export default function SalaryPayrollPage() {
         header: "Run",
         cell: ({ row }) => (
           <div>
-            <div className="font-medium">
+            <div className="font-medium text-[var(--color-ink)]">
               <NumericCell align="left">
                 Run #{row.original.runNumber}
               </NumericCell>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               <NumericCell align="left">
                 {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
               </NumericCell>
@@ -625,10 +626,19 @@ export default function SalaryPayrollPage() {
       {
         id: "owner",
         header: "Owner",
-        cell: ({ row }) => row.original.createdBy?.name ?? "-",
-        size: 160,
+        cell: ({ row }) => {
+          const name = row.original.createdBy?.name;
+          if (!name) return <span className="text-sm text-muted-foreground">-</span>;
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <RecordMark kind="person" name={name} size="sm" />
+              <span className="truncate font-medium text-[var(--color-ink)]">{name}</span>
+            </div>
+          );
+        },
+        size: 180,
         minSize: 160,
-        maxSize: 160,
+        maxSize: 240,
       },
       {
         id: "actions",
@@ -661,12 +671,12 @@ export default function SalaryPayrollPage() {
         header: "Run",
         cell: ({ row }) => (
           <div>
-            <div className="font-medium">
+            <div className="font-medium text-[var(--color-ink)]">
               <NumericCell align="left">
                 Run #{row.original.runNumber}
               </NumericCell>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               <NumericCell align="left">
                 {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
               </NumericCell>
@@ -704,10 +714,19 @@ export default function SalaryPayrollPage() {
       {
         id: "owner",
         header: "Owner",
-        cell: ({ row }) => row.original.createdBy?.name ?? "-",
-        size: 160,
+        cell: ({ row }) => {
+          const name = row.original.createdBy?.name;
+          if (!name) return <span className="text-sm text-muted-foreground">-</span>;
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <RecordMark kind="person" name={name} size="sm" />
+              <span className="truncate font-medium text-[var(--color-ink)]">{name}</span>
+            </div>
+          );
+        },
+        size: 180,
         minSize: 160,
-        maxSize: 160,
+        maxSize: 240,
       },
       {
         id: "actions",
@@ -745,20 +764,33 @@ export default function SalaryPayrollPage() {
   const runDetailColumns = useMemo<ColumnDef<RunDetailLine>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
         id: "employee",
         header: "Employee",
-        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        accessorFn: (row) => row.employee.name,
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.employee.employeeId}
-            </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
+        size: 200,
+        minSize: 160,
+        maxSize: 280,
       },
       {
         id: "base",
@@ -841,15 +873,9 @@ export default function SalaryPayrollPage() {
         {activeView === "periods" ? (
           <section className="space-y-3">
             <header className="section-shell flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Payroll Periods
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Expand a period row to review runs, then generate a run when
-                  the period is open.
-                </p>
-              </div>
+              <h2 className="text-section-title text-foreground font-bold tracking-tight">
+                Payroll Periods
+              </h2>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -993,9 +1019,6 @@ export default function SalaryPayrollPage() {
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Pending Runs
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Draft and submitted runs waiting for completion.
-              </p>
             </header>
             {!activePeriod ? (
               <div className="text-sm text-muted-foreground">
@@ -1034,10 +1057,6 @@ export default function SalaryPayrollPage() {
               <h2 className="text-section-title text-foreground font-bold tracking-tight">
                 Archived Runs
               </h2>
-              <p className="text-sm text-muted-foreground">
-                Approved and posted runs retained for disbursement and audit
-                history.
-              </p>
             </header>
             {!activePeriod ? (
               <div className="text-sm text-muted-foreground">
@@ -1100,9 +1119,9 @@ export default function SalaryPayrollPage() {
               }}
             >
               <div className="rounded-md border-0 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-                <div className="text-xs text-muted-foreground">Period</div>
+                <div className="text-sm text-muted-foreground">Period</div>
                 <div className="font-semibold">{activePeriod.periodKey}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   {format(new Date(activePeriod.startDate), "yyyy-MM-dd")} to{" "}
                   {format(new Date(activePeriod.endDate), "yyyy-MM-dd")}
                 </div>
@@ -1398,7 +1417,7 @@ export default function SalaryPayrollPage() {
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-3 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Run</div>
+                  <div className="text-sm text-muted-foreground">Run</div>
                   <div className="font-semibold">
                     <NumericCell align="left">
                       #{runDetails.runNumber}
@@ -1406,11 +1425,11 @@ export default function SalaryPayrollPage() {
                   </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Status</div>
+                  <div className="text-sm text-muted-foreground">Status</div>
                   <div className="font-semibold">{runDetails.status}</div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-xs text-muted-foreground">Net Total</div>
+                  <div className="text-sm text-muted-foreground">Net Total</div>
                   <div className="font-semibold">
                     <NumericCell>{runDetails.netTotal.toFixed(2)}</NumericCell>
                   </div>

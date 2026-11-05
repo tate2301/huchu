@@ -7,15 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays, format } from "date-fns";
 import { ArrowRight, FileText } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -130,43 +125,6 @@ export default function OutstandingSalariesPage() {
       .sort((a, b) => b.outstandingAmount - a.outstandingAmount);
   }, [outstandingRows, employeeFilter, statusFilter, dueStart, dueEnd]);
 
-  const totals = useMemo(() => {
-    const totalOutstanding = filteredRows.reduce(
-      (sum, row) => sum + row.outstandingAmount,
-      0,
-    );
-    const overdueOutstanding = filteredRows
-      .filter((row) => row.isOverdue)
-      .reduce((sum, row) => sum + row.outstandingAmount, 0);
-    const employeesAffected = new Set(filteredRows.map((row) => row.employeeId))
-      .size;
-    const aging = filteredRows.reduce(
-      (acc, row) => {
-        if (!row.isOverdue) return acc;
-        if (row.overdueDays <= 30) acc.bucket30 += row.outstandingAmount;
-        else if (row.overdueDays <= 60) acc.bucket60 += row.outstandingAmount;
-        else acc.bucket90 += row.outstandingAmount;
-        return acc;
-      },
-      { bucket30: 0, bucket60: 0, bucket90: 0 },
-    );
-    return {
-      totalOutstanding,
-      overdueOutstanding,
-      openItems: filteredRows.length,
-      employeesAffected,
-      ...aging,
-    };
-  }, [filteredRows]);
-
-  const summaryUnit = useMemo(() => {
-    const uniqueUnits = Array.from(
-      new Set(filteredRows.map((row) => row.unit)),
-    );
-    if (uniqueUnits.length === 1) return uniqueUnits[0];
-    return "MIXED";
-  }, [filteredRows]);
-
   const selected = useMemo(
     () => filteredRows.find((row) => row.id === detailsId) ?? null,
     [filteredRows, detailsId],
@@ -175,20 +133,33 @@ export default function OutstandingSalariesPage() {
   const columns = useMemo<ColumnDef<RowView>[]>(
     () => [
       {
+        id: "employeeId",
+        header: "Employee ID",
+        accessorFn: (row) => row.employee.employeeId,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-[var(--color-ink-2)]">
+            {row.original.employee.employeeId}
+          </span>
+        ),
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
         id: "employee",
         header: "Employee",
-        accessorFn: (row) => `${row.employee.name} ${row.employee.employeeId}`,
+        accessorFn: (row) => row.employee.name,
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.employee.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.employee.employeeId}
-            </div>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
+            <span className="truncate font-medium text-[var(--color-ink)]">
+              {row.original.employee.name}
+            </span>
           </div>
         ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
+        size: 200,
+        minSize: 160,
+        maxSize: 280,
       },
       {
         id: "period",
@@ -214,7 +185,7 @@ export default function OutstandingSalariesPage() {
               {format(new Date(row.original.dueDate), "yyyy-MM-dd")}
             </NumericCell>
             {row.original.isOverdue ? (
-              <div className="text-xs text-red-600">
+              <div className="text-sm text-red-600">
                 {row.original.overdueDays}d overdue
               </div>
             ) : null}
@@ -340,59 +311,11 @@ export default function OutstandingSalariesPage() {
         </Alert>
       )}
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total Outstanding</CardDescription>
-            <CardTitle>
-              {toCurrency(totals.totalOutstanding, summaryUnit)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Overdue Outstanding</CardDescription>
-            <CardTitle>
-              {toCurrency(totals.overdueOutstanding, summaryUnit)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Open Salary Items</CardDescription>
-            <CardTitle>{totals.openItems}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Employees Affected</CardDescription>
-            <CardTitle>{totals.employeesAffected}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Overdue 0-30d</CardDescription>
-            <CardTitle>{toCurrency(totals.bucket30, summaryUnit)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Overdue 31d+</CardDescription>
-            <CardTitle>
-              {toCurrency(totals.bucket60 + totals.bucket90, summaryUnit)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
       <section className="space-y-3">
         <header className="space-y-1">
           <h2 className="text-section-title text-foreground font-bold tracking-tight">
             Outstanding Salary Lines
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Each row is an unpaid or partially paid salary obligation.
-          </p>
         </header>
         {isLoading ? (
           <Skeleton className="h-20 w-full" />
@@ -479,8 +402,11 @@ export default function OutstandingSalariesPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <div className="text-muted-foreground">Employee</div>
-                  <div className="font-medium">{selected.employee.name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 pt-1 font-medium">
+                    <RecordMark kind="person" name={selected.employee.name} size="sm" />
+                    <span>{selected.employee.name}</span>
+                  </div>
+                  <div className="font-mono text-sm text-[var(--color-ink-2)]">
                     {selected.employee.employeeId}
                   </div>
                 </div>

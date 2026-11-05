@@ -1,17 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
 
-import { Skeleton } from "@corelithzw/react";
 import {
-  ColumnFigure,
-  ColumnList,
-  ColumnName,
-  ColumnRowAction,
-  StatusDot,
-  type ColumnListColumn,
-} from "@/components/management/ui";
+  RecordCell,
+  RecordTable,
+  RecordTableName,
+  type RecordTableColumn,
+} from "@/components/records/record-table";
+import { StatusDot } from "@/components/management/ui";
 import { IconButton } from "@/components/ui/icon-button";
 import { Trash2 } from "@/lib/icons";
 
@@ -34,12 +31,12 @@ function ReceiptState({ entry }: { entry: CostEntryRow }) {
 
   if (entry.receiptUrl) {
     return (
-      <span className="inline-flex items-baseline gap-3">
+      <span className="inline-flex items-baseline gap-2">
         <a
           href={entry.receiptUrl}
           target="_blank"
           rel="noreferrer"
-          className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
+          className="text-sm font-medium text-[var(--color-brand)] underline decoration-transparent underline-offset-2 hover:decoration-current"
         >
           Photo
         </a>
@@ -48,7 +45,7 @@ function ReceiptState({ entry }: { entry: CostEntryRow }) {
     );
   }
   if (entry.direction === "SPENT") return <StatusDot tone="warn" label="No receipt" />;
-  return notReceipted ?? <ColumnFigure tone="muted">—</ColumnFigure>;
+  return notReceipted ?? <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">—</span>;
 }
 
 /**
@@ -93,21 +90,19 @@ export function CostEntryTable({
   showPerson = true,
   showProject = true,
   showAgainst = true,
-  label = "Money",
   empty,
   emptyAction,
   onRemove,
   removable,
-  maxWidth,
 }: {
+  label?: string;
+  maxWidth?: number;
   entries: CostEntryRow[];
   isLoading?: boolean;
   layout?: "register" | "section";
   showPerson?: boolean;
   showProject?: boolean;
   showAgainst?: boolean;
-  /** The list's accessible name — its section heading's words. */
-  label?: string;
   /** Said once, in the meta ink, when there are no lines. */
   empty: string;
   /** The one verb that fixes an empty list — "Clear the filters". */
@@ -120,29 +115,7 @@ export function CostEntryTable({
   onRemove?: (entry: CostEntryRow) => void;
   /** Which lines `onRemove` is offered on, where not every line is. */
   removable?: (entry: CostEntryRow) => boolean;
-  maxWidth?: number;
 }) {
-  const width = maxWidth ?? (layout === "register" ? 1400 : 760);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-1.5" aria-busy="true" aria-live="polite" style={{ maxWidth: width }}>
-        <Skeleton height={38} />
-        <Skeleton height={38} />
-        <Skeleton height={38} />
-      </div>
-    );
-  }
-
-  if (entries.length === 0) {
-    return (
-      <div className="space-y-3">
-        <ColumnList label={label} columns={[]} rows={[]} empty={empty} maxWidth={width} />
-        {emptyAction}
-      </div>
-    );
-  }
-
   const canRemove = (entry: CostEntryRow) => Boolean(onRemove) && (removable?.(entry) ?? true);
   const anyRemovable = entries.some(canRemove);
   const wide = layout === "register";
@@ -162,123 +135,140 @@ export function CostEntryTable({
       .filter(Boolean)
       .join(" · ");
 
-  const columns: ColumnListColumn[] = [
-    { id: "what", label: "What" },
-    { id: "day", label: "Day" },
-    ...(wide && showPerson ? [{ id: "person", label: "Who" }] : []),
-    ...(wide && showProject ? [{ id: "project", label: "Project" }] : []),
-    ...(wide && showAgainst ? [{ id: "against", label: "Against" }] : []),
-    { id: "receipt", label: "Receipt" },
+  const columns: RecordTableColumn<CostEntryRow>[] = [
+    {
+      id: "what",
+      label: "What",
+      cell: (entry) => (
+        <RecordTableName
+          title={entry.description}
+          subtitle={metaOf(entry)}
+        />
+      ),
+    },
+    {
+      id: "day",
+      label: "Day",
+      width: "8.5rem",
+      cell: (entry) => <RecordCell kind="date" value={dayOf(entry)} />,
+    },
+    ...(wide && showPerson
+      ? [
+          {
+            id: "person",
+            label: "Who",
+            width: "11rem",
+            cell: (entry: CostEntryRow) => (
+              <RecordCell
+                kind="relation"
+                value={entry.log?.user.name ?? null}
+                href={entry.log?.user.id ? `/crm/reps/${entry.log.user.id}` : null}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(wide && showProject
+      ? [
+          {
+            id: "project",
+            label: "Project",
+            width: "12rem",
+            cell: (entry: CostEntryRow) => (
+              <RecordCell
+                kind="relation"
+                value={entry.project?.name ?? null}
+                href={entry.project?.id ? `/crm/projects/${entry.project.id}` : null}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(wide && showAgainst
+      ? [
+          {
+            id: "against",
+            label: "Against",
+            width: "10rem",
+            cell: (entry: CostEntryRow) => (
+              <RecordCell kind="text" value={againstOf(entry)} />
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "receipt",
+      label: "Receipt",
+      width: "10rem",
+      cell: (entry) => <ReceiptState entry={entry} />,
+    },
     ...(split
       ? [
-          { id: "in", label: "In", align: "end" as const },
-          { id: "out", label: "Out", align: "end" as const },
+          {
+            id: "in",
+            label: "In",
+            width: "8.5rem",
+            align: "end" as const,
+            cell: (entry: CostEntryRow) =>
+              entry.direction === "RECEIVED" ? (
+                <RecordCell kind="number" value={formatMoney(entry.amount, entry.currency)} />
+              ) : null,
+          },
+          {
+            id: "out",
+            label: "Out",
+            width: "8.5rem",
+            align: "end" as const,
+            cell: (entry: CostEntryRow) =>
+              entry.direction === "SPENT" ? (
+                <RecordCell kind="number" value={formatMoney(entry.amount, entry.currency)} />
+              ) : null,
+          },
         ]
-      : [{ id: "amount", label: "Amount", align: "end" as const }]),
-    ...(anyRemovable ? [{ id: "remove", label: "" }] : []),
+      : [
+          {
+            id: "amount",
+            label: "Amount",
+            width: "8.5rem",
+            align: "end" as const,
+            cell: (entry: CostEntryRow) => (
+              <RecordCell kind="number" value={formatMoney(entry.amount, entry.currency)} />
+            ),
+          },
+        ]),
+    ...(anyRemovable
+      ? [
+          {
+            id: "remove",
+            label: "",
+            width: "3.5rem",
+            align: "end" as const,
+            cell: (entry: CostEntryRow) =>
+              onRemove && canRemove(entry) ? (
+                <IconButton
+                  size="sm"
+                  aria-label={`Remove ${entry.description}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(entry);
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                </IconButton>
+              ) : null,
+          },
+        ]
+      : []),
   ];
 
-  const figure = (entry: CostEntryRow) => (
-    <ColumnFigure>{formatMoney(entry.amount, entry.currency)}</ColumnFigure>
-  );
-
   return (
-    <>
-      <div className="hidden md:block">
-        <ColumnList
-          label={label}
-          maxWidth={width}
-          columns={columns}
-          rows={entries.map((entry) => ({
-            id: entry.id,
-            cells: {
-              what: (
-                <ColumnName name={entry.description} meta={metaOf(entry)} href={`/crm/cost-tracker/${entry.id}`} />
-              ),
-              day: <ColumnFigure tone="muted">{dayOf(entry) ?? "—"}</ColumnFigure>,
-              person: entry.log ? (
-                <Link
-                  href={`/crm/reps/${entry.log.user.id}`}
-                  className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
-                >
-                  {entry.log.user.name ?? "Unnamed"}
-                </Link>
-              ) : null,
-              project: entry.project ? (
-                <Link
-                  href={`/crm/projects/${entry.project.id}`}
-                  className="text-sm text-[var(--brand-strong)] underline decoration-transparent underline-offset-2 hover:decoration-current"
-                >
-                  {entry.project.name}
-                </Link>
-              ) : (
-                <ColumnFigure tone="muted">—</ColumnFigure>
-              ),
-              against: againstOf(entry) ? (
-                <ColumnFigure tone="muted">{againstOf(entry)}</ColumnFigure>
-              ) : (
-                <ColumnFigure tone="muted">—</ColumnFigure>
-              ),
-              receipt: <ReceiptState entry={entry} />,
-              in: entry.direction === "RECEIVED" ? figure(entry) : null,
-              out: entry.direction === "SPENT" ? figure(entry) : null,
-              amount: figure(entry),
-              remove:
-                onRemove && canRemove(entry) ? (
-                  <ColumnRowAction>
-                    <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
-                      <Trash2 />
-                    </IconButton>
-                  </ColumnRowAction>
-                ) : null,
-            },
-          }))}
-        />
-      </div>
-
-      {/* A phone: what, when and whose on the left, the money and its
-          receipt on the right. Four columns of figures do not fit 390px, and
-          a list that scrolls sideways hides the figure you came for. */}
-      <ul className="md:hidden">
-        {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] py-3 last:border-b-0"
-          >
-            <div className="min-w-0">
-              <Link
-                href={`/crm/cost-tracker/${entry.id}`}
-                className="block truncate text-sm text-[var(--text-strong)] hover:underline"
-              >
-                {entry.description}
-              </Link>
-              <p className="truncate text-sm text-[var(--text-muted)]">
-                {[
-                  dayOf(entry),
-                  showPerson ? entry.log?.user.name : null,
-                  showProject ? entry.project?.name : null,
-                  showAgainst ? againstOf(entry) : null,
-                  CATEGORY_LABELS[entry.category],
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <ColumnFigure>
-                {split && entry.direction === "RECEIVED" ? "+" : ""}
-                {formatMoney(entry.amount, entry.currency)}
-              </ColumnFigure>
-              <ReceiptState entry={entry} />
-            </div>
-            {onRemove && canRemove(entry) ? (
-              <IconButton size="sm" aria-label={`Remove ${entry.description}`} onClick={() => onRemove(entry)}>
-                <Trash2 />
-              </IconButton>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </>
+    <RecordTable
+      rows={entries}
+      columns={columns}
+      rowHref={(entry) => `/crm/cost-tracker/${entry.id}`}
+      isLoading={isLoading}
+      emptyTitle={empty}
+      emptyAction={emptyAction}
+    />
   );
 }

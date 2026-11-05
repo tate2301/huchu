@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, EmptyState, Switch, Stack } from "@corelithzw/react";
+import { Alert, EmptyState, Switch } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,7 +16,6 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { ViewToolbar } from "@/components/records/view-toolbar";
 import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -25,7 +24,14 @@ import {
   type AutomationCondition,
   type AUTOMATION_TRIGGERS,
 } from "@/lib/crm/automation";
-import { DotsThree, History, Plus } from "@/lib/icons";
+import { DotsThree, History } from "@/lib/icons";
+import {
+  ci_alert_circle,
+  ci_apps,
+  ci_pause,
+  ci_play,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
 
 type WorkflowRow = {
   id: string;
@@ -101,65 +107,72 @@ export function WorkflowsContent() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <PageChrome title="Workflows">
+    <div className="crm-bk-worksheet">
+      <PageChrome
+        title="Workflows"
+        primary={{
+          label: "New workflow",
+          icon: "plus",
+          shortcut: "N",
+          href: "/crm/workflows/new",
+        }}
+      >
         {/* What the rules did lives one step under the rules, not as a row of
             its own in the sidebar: this page is its index. */}
-        <Button type="button" variant="secondary" asChild>
+        <Button type="button" variant="secondary" size="sm" asChild>
           <Link href="/crm/workflows/runs">
             <History className="mr-1.5 size-4" aria-hidden="true" />
             Activity
           </Link>
         </Button>
-        <Button type="button" asChild>
-          <Link href="/crm/workflows/new">
-            <Plus className="mr-1.5 size-4" aria-hidden="true" />
-            New workflow
-          </Link>
-        </Button>
       </PageChrome>
 
-      <ViewToolbar
-        start={
-          <>
-            {(["all", "live", "paused", "failing"] as const).map((value) => (
-              <Button
-                key={value}
-                type="button"
-                size="sm"
-                className="h-9 gap-2"
-                variant={filter === value ? "secondary" : "ghost"}
-                onClick={() => setFilter(value)}
-              >
-                {value === "all"
-                  ? "All"
-                  : value === "live"
-                    ? "Live"
-                    : value === "paused"
-                      ? "Paused"
-                      : "Needs a look"}
-                <span className="text-[var(--text-muted)]">{counts[value]}</span>
-              </Button>
-            ))}
-          </>
-        }
-      />
+      <div className="crm-bk-tabs-bar" role="tablist" aria-label="Workflow status">
+        <div className="crm-bk-tabs">
+          {[
+            { value: "all", label: "All", glyph: ci_apps },
+            { value: "live", label: "Live", glyph: ci_play },
+            { value: "paused", label: "Paused", glyph: ci_pause },
+            { value: "failing", label: "Needs a look", glyph: ci_alert_circle },
+          ].map(({ value, label, glyph }) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={filter === value}
+              data-active={filter === value || undefined}
+              onClick={() => setFilter(value as typeof filter)}
+              className="crm-bk-tab"
+            >
+              <CiGlyphIcon glyph={glyph} size={16} className="shrink-0" />
+              <span>{label}</span>
+              <span className="n">{counts[value as typeof filter]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {error ? (
-        <Alert tone="danger" title="Couldn't load workflows">
-          {getApiErrorMessage(error)}
-        </Alert>
+        <div className="px-6 py-3">
+          <Alert tone="danger" title="Couldn't load workflows">
+            {getApiErrorMessage(error)}
+          </Alert>
+        </div>
       ) : null}
 
       {isLoading ? (
-        <Skeleton className="h-40 w-full" />
+        <div className="p-6">
+          <Skeleton className="h-40 w-full" />
+        </div>
       ) : workflows.length === 0 ? (
-        <EmptyState
-          title="No workflows yet"
-          body="A good first one: when a lead comes in worth more than your average job, create a call task for today."
-        />
+        <div className="p-8">
+          <EmptyState
+            title="No workflows yet"
+            body="A good first one: when a lead comes in worth more than your average job, create a call task for today."
+          />
+        </div>
       ) : visible.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
+        <p className="py-8 text-center text-sm text-[var(--text-muted)]">
           Nothing in this group.
         </p>
       ) : (

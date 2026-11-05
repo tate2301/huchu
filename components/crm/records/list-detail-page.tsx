@@ -11,6 +11,7 @@ import { fetchCrmList } from "@/lib/crm/crm-v2";
 import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark } from "@/components/records/record-mark";
 import { jobHref, type JobRow } from "@/components/crm/work-orders/job-types";
+import { CrmFinding } from "@/components/crm/crm-finding";
 
 /**
  * A group of jobs.
@@ -76,16 +77,13 @@ export function ListDetailPage({ listId }: { listId: string }) {
             <span className="cnt">{list.recordIds.length}</span>
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-2 text-sm text-[var(--color-muted)]">
+        <div className="ml-auto flex items-center gap-2 text-sm text-[var(--color-ink-3)]">
           {list.isShared ? <span>Shared with the team</span> : <span>Private group</span>}
         </div>
       </div>
 
       {list.description ? (
-        <div className="crm-bk-finding">
-          <span className="fl">Group</span>
-          <span>{list.description}</span>
-        </div>
+        <CrmFinding label="Group" text={list.description} />
       ) : null}
 
       <RecordList

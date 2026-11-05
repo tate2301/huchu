@@ -93,64 +93,146 @@
   min-width: 0 !important;
 }
 
-/* 2. Finding Banner (matches Books `.finding` / `.k-find`) */
+/* 2. Finding Banner (matches Books `.finding` / `.k-find` / `.lede-figure`) */
 .crm-bk-finding {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 13px 24px;
+  padding: 10px 24px;
   background: var(--color-ground);
   box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 13.5px;
-  line-height: 1.5;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--color-ink-2);
 }
 
+.crm-bk-finding-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.crm-bk-finding-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: inherit;
+}
+
 .crm-bk-finding-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   min-width: 0;
-  max-width: 82ch;
+  max-width: 96ch;
+  color: var(--color-ink-2);
 }
 
 .crm-bk-finding-fact {
   font-weight: 600;
   color: var(--color-ink);
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .crm-bk-finding-rest {
-  color: var(--color-muted);
+  color: var(--color-ink-2);
+  font-weight: 400;
+}
+
+.crm-bk-finding .num,
+.crm-bk-finding-num {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.crm-bk-finding-dot,
+.crm-bk-finding-dash {
+  color: var(--color-ink-3);
+  font-weight: 400;
+  padding: 0 4px;
+  user-select: none;
 }
 
 .crm-bk-finding-end {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   margin-left: auto;
-  font-size: 12.5px;
-  color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--color-ink-2);
 }
 
-.crm-bk-finding-end b {
+.crm-bk-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-line);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-ink-2);
+  white-space: nowrap;
+}
+
+.crm-bk-meta-chip b {
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--color-ink);
+  letter-spacing: -0.01em;
 }
 
 .crm-bk-finding .fl {
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: var(--radius-sm, 4px);
   background: var(--color-fill);
   color: var(--color-ink-2);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   flex: none;
+}
+
+.crm-bk-finding .fl.is-warn,
+.crm-bk-finding.is-warn .fl {
+  background: var(--tone-warn-bg, var(--warn-soft));
+  color: var(--tone-warn-strong, var(--warn));
+  box-shadow: 0 0 0 1px var(--tone-warn-bd, var(--warn-line));
+}
+
+.crm-bk-finding .fl.is-danger,
+.crm-bk-finding.is-danger .fl {
+  background: var(--tone-danger-bg, var(--bad-soft));
+  color: var(--tone-danger-strong, var(--bad));
+  box-shadow: 0 0 0 1px var(--tone-danger-bd, var(--bad));
+}
+
+.crm-bk-finding .fl.is-success,
+.crm-bk-finding.is-success .fl {
+  background: var(--tone-success-bg, var(--ok-soft));
+  color: var(--tone-success-strong, var(--ok));
+  box-shadow: 0 0 0 1px var(--tone-success-bd, var(--ok));
+}
+
+.crm-bk-finding .fl.is-info,
+.crm-bk-finding.is-info .fl {
+  background: var(--tone-info-bg, var(--info-soft));
+  color: var(--brand-strong, var(--action-ink, var(--action)));
+  box-shadow: 0 0 0 1px var(--tone-info-bd, var(--line));
 }
 
 .crm-bk-finding .fl-act,
@@ -163,7 +245,7 @@
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   color: var(--color-ink);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -204,7 +286,7 @@
 .crm-bk-kt .kt-l {
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -247,7 +329,7 @@
 .crm-bk-kt .d,
 .crm-bk-kt .kt-n {
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -309,7 +391,7 @@
   font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-ink-2);
   white-space: nowrap;
   cursor: pointer;
   transition: color 120ms ease;
@@ -341,7 +423,7 @@
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
 }
@@ -393,7 +475,7 @@
 .crm-bk-count {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   padding: 0 4px;
@@ -466,7 +548,7 @@
   box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   text-align: left;
   white-space: nowrap;
   user-select: none;
@@ -494,6 +576,27 @@
   background: var(--color-fill);
 }
 
+.crm-bk-table tbody tr.is-cur,
+.crm-bk-table tbody tr[data-cursor],
+tr.is-cur,
+tr[data-cursor] {
+  background: var(--color-fill);
+}
+
+.crm-bk-table tbody tr.is-cur td,
+.crm-bk-table tbody tr[data-cursor] td,
+tr.is-cur td,
+tr[data-cursor] td {
+  box-shadow: inset 0 -1px 0 var(--color-line), inset 0 1px 0 var(--color-line);
+}
+
+.crm-bk-table tbody tr.is-cur td:first-child,
+.crm-bk-table tbody tr[data-cursor] td:first-child,
+tr.is-cur td:first-child,
+tr[data-cursor] td:first-child {
+  box-shadow: inset 2px 0 0 var(--action, #f97316), inset 0 -1px 0 var(--color-line);
+}
+
 .crm-bk-table tbody td {
   padding: 6px 12px;
   vertical-align: middle;
@@ -519,13 +622,13 @@
   background: var(--color-surface);
   box-shadow: inset 0 1px 0 var(--color-line);
   font-size: 12.5px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
 }
 
 .crm-bk-pager-range {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -559,19 +662,74 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  box-shadow: inset -1px 0 0 var(--color-line);
+  border-right: 1px solid var(--color-line);
 }
 
 .crm-bk-rec.is-single-col .crm-bk-main {
-  box-shadow: none;
+  border-right: none;
 }
 
 .crm-bk-hd {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 20px 24px 16px;
+  padding: 18px 24px 16px;
   box-shadow: inset 0 -1px 0 var(--color-line);
+}
+
+.crm-bk-hd-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.crm-bk-hd-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.crm-bk-hd-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-line);
+  background: var(--color-ground);
+  color: var(--color-ink-3);
+  margin-top: 2px;
+}
+
+.crm-bk-hd-title-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.crm-bk-hd-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
+}
+
+.crm-bk-hd-figure {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
 }
 
 .crm-bk-hd-top {
@@ -631,7 +789,7 @@
   gap: 8px;
   flex-wrap: wrap;
   font-size: 13px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
 }
 
 .crm-bk-ml .ref {
@@ -684,7 +842,7 @@
   box-shadow: inset 0 -1px 0 var(--color-line);
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   text-align: left;
   white-space: nowrap;
   user-select: none;
@@ -769,7 +927,7 @@
 
 .crm-bk-rec .table td .muted,
 .crm-bk-body .table td .muted {
-  color: var(--color-muted);
+  color: var(--color-ink-3);
 }
 
 /* Books Timeline in CRM records (`ol.bk-tl`) */
@@ -819,7 +977,7 @@
 
 .crm-bk-rec .bk-tl time,
 .crm-bk-body .bk-tl time {
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-family: var(--font-mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -858,11 +1016,13 @@
   flex-direction: column;
   min-width: 0;
   background: var(--color-surface);
-  align-self: start;
   position: sticky;
   top: 0;
+  height: 100%;
   max-height: 100vh;
   overflow-y: auto;
+  border-left: 1px solid var(--color-line);
+  margin-left: -1px;
 }
 
 .crm-bk-rail-sec,
@@ -902,7 +1062,7 @@
 .crm-bk-attrs dt,
 .crm-bk-rail dl.attrs dt,
 .crm-bk-rec dl.attrs dt {
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-weight: 400;
   padding-top: 2px;
   overflow: hidden;
@@ -949,7 +1109,7 @@
 .crm-bk-related-link .n {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1094,7 +1254,7 @@
 .crm-bk-group-head .sum {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1122,7 +1282,7 @@
   width: 24px;
   height: 24px;
   flex: none;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
 }
 
 .crm-bk-need-body {
@@ -1142,7 +1302,7 @@
 
 .crm-bk-need-sub {
   font-size: 12.5px;
-  color: var(--color-muted);
+  color: var(--color-ink-2);
   line-height: 1.4;
 }
 
@@ -1213,7 +1373,7 @@ a.crm-bk-share:hover {
 .crm-bk-share-meta {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--color-ink-3);
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1414,10 +1574,42 @@ a.crm-bk-share:hover {
   color: var(--tone-success-strong, var(--ok));
 }
 
+.crm-bk-finding.is-success .crm-bk-finding-fact {
+  color: var(--tone-success-strong, var(--ok));
+}
+
+.crm-bk-finding.is-success .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
 .crm-bk-finding.is-danger {
   background: var(--tone-danger-bg, var(--bad-soft));
   box-shadow: inset 0 -1px 0 var(--tone-danger-bd, var(--bad));
   color: var(--tone-danger-strong, var(--bad));
+}
+
+.crm-bk-finding.is-danger .crm-bk-finding-fact {
+  color: var(--tone-danger-strong, var(--bad));
+}
+
+.crm-bk-finding.is-danger .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
+.crm-bk-finding.is-danger .num {
+  color: var(--tone-danger-strong, var(--bad));
+}
+
+.crm-bk-finding.is-danger .fl {
+  background: var(--bad);
+  color: #fff;
+  box-shadow: none;
+}
+
+.crm-bk-finding.is-danger .fl-act {
+  color: var(--tone-danger-strong, var(--bad));
+  border-color: var(--tone-danger-bd, var(--bad));
+  background: var(--color-surface);
 }
 
 .crm-bk-finding.is-warning,
@@ -1427,9 +1619,27 @@ a.crm-bk-share:hover {
   color: var(--tone-warn-strong, var(--warn));
 }
 
+.crm-bk-finding.is-warning .crm-bk-finding-fact,
+.crm-bk-finding.is-warn .crm-bk-finding-fact {
+  color: var(--tone-warn-strong, var(--warn));
+}
+
+.crm-bk-finding.is-warning .crm-bk-finding-rest,
+.crm-bk-finding.is-warn .crm-bk-finding-rest {
+  color: var(--color-ink-2);
+}
+
 .crm-bk-finding.is-info {
   background: var(--tone-info-bg, var(--info-soft));
   box-shadow: inset 0 -1px 0 var(--tone-info-bd, var(--line));
   color: var(--brand-strong, var(--action-ink, var(--action)));
+}
+
+.crm-bk-finding.is-info .crm-bk-finding-fact {
+  color: var(--brand-strong, var(--action-ink, var(--action)));
+}
+
+.crm-bk-finding.is-info .crm-bk-finding-rest {
+  color: var(--color-ink-2);
 }
 

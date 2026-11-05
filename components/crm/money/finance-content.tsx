@@ -38,6 +38,7 @@ import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/d
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { REQUISITION_TONE } from "@/lib/crm/tones";
+import { CrmFinding } from "@/components/crm/crm-finding";
 
 import {
   REQUISITION_STATUS_LABELS,
@@ -208,29 +209,25 @@ export function FinanceContent() {
   return (
     <div className="crm-bk-worksheet pb-10">
       {data && activeAlerts.length > 0 ? (
-        <div
-          className={`crm-bk-finding ${
+        <CrmFinding
+          tone={
             activeAlerts.some((a) => a.kind === "not-receipted" || a.kind === "over-budget")
-              ? "bad"
+              ? "danger"
               : "warn"
-          }`}
-        >
-          <span className="crm-bk-fdot" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <b>Needs attention:</b>{" "}
-            {activeAlerts
-              .map((item) => {
-                if (item.kind === "awaiting-approval")
-                  return `${plural(item.count, "requisition", "requisitions")} waiting for approval`;
-                if (item.kind === "not-receipted")
-                  return `${plural(item.count, "invoice payment", "invoice payments")} not receipted`;
-                if (item.kind === "no-receipt")
-                  return `${plural(item.count, "expense line", "expense lines")} without receipt photo`;
-                return `${plural(item.count, "project", "projects")} over budget`;
-              })
-              .join(" · ")}
-          </div>
-        </div>
+          }
+          label="Needs attention"
+          text={activeAlerts
+            .map((item) => {
+              if (item.kind === "awaiting-approval")
+                return `${plural(item.count, "requisition", "requisitions")} waiting for approval`;
+              if (item.kind === "not-receipted")
+                return `${plural(item.count, "invoice payment", "invoice payments")} not receipted`;
+              if (item.kind === "no-receipt")
+                return `${plural(item.count, "expense line", "expense lines")} without receipt photo`;
+              return `${plural(item.count, "project", "projects")} over budget`;
+            })
+            .join(" · ")}
+        />
       ) : null}
 
       {data ? (

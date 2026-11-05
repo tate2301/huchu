@@ -23,23 +23,33 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@corelithzw/react";
-import { FactList, StatusBadge } from "@/components/management/ui";
+import { Alert, Button } from "@corelithzw/react";
+import { PageChrome } from "@/components/layout/page-chrome";
+import { ListSearch } from "@/components/crm/records/list-search";
+import { CrmFinding } from "@/components/crm/crm-finding";
+import { FactList, StatusDot } from "@/components/management/ui";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { RecordListPager } from "@/components/records/record-list";
-import { FILTER_ANY, ViewToolbarFilter } from "@/components/records/view-toolbar";
-import { COMMON_PRESETS, DateRangePicker, DayRangeChip } from "@/components/ui/date-picker";
-import { Input } from "@/components/ui/input";
+import { FILTER_ANY } from "@/components/records/view-toolbar";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useDebounced } from "@/hooks/use-debounced";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  ci_alert_circle,
+  ci_apps,
+  ci_download,
+  ci_money_in,
+  ci_money_out,
+  ci_receipt,
+} from "@/components/books/icons/glyphs";
+import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+import { downloadCsv } from "@/components/books/bk-list";
 
 import { CostEntryFormDialog } from "./cost-entry-form-dialog";
 import { CostEntryTable } from "./cost-entry-table";
-import { formatDay, formatMoney, todayKey, type CostEntryRow } from "./money";
+import { CATEGORY_LABELS, formatDay, formatMoney, todayKey, type Category, type CostEntryRow } from "./money";
 
 type DayResponse = {
   log: { id: string; logDate: string; notes: string | null; submittedAt: string | null };
@@ -458,125 +468,226 @@ function Register({
     }
   };
 
-  const finding =
-    totals && log
-      ? {
-          tone: (totals.missingReceipts > 0 ? "warn" : closed ? "ok" : "info") as
-            | "warn"
-            | "ok"
-            | "info",
-          children: (
-            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="inline-flex items-center gap-2">
-                <b>{day === today ? "Today" : formatDay(day)}</b>
-                <Input
-                  id="cost-tracker-date"
-                  aria-label="Day"
-                  type="date"
-                  className="h-7 w-auto font-mono text-sm"
-                  value={day}
-                  max={today}
-                  onChange={(event) => {
-                    if (event.target.value) onDayChange(event.target.value);
-                  }}
-                />
-                {closed ? <StatusBadge tone="neutral">Closed {sentAt ? `at ${sentAt}` : ""}</StatusBadge> : null}
-              </span>
-              <span className="font-mono text-sm text-[var(--color-muted)]">
-                In hand: <b>{formatMoney(totals.balance)}</b> · Received:{" "}
-                <b>{formatMoney(totals.received)}</b> · Spent: <b>{formatMoney(totals.spent)}</b>
-              </span>
-              {totals.missingReceipts > 0 ? (
-                <span className="text-sm font-semibold">
-                  · {totals.missingReceipts}{" "}
-                  {totals.missingReceipts === 1
-                    ? "expense without a receipt"
-                    : "expenses without a receipt"}
-                </span>
-              ) : null}
-            </span>
-          ),
-          action: !closed
-            ? {
-                label: "Close the day →",
-                onClick: onCloseDay,
-              }
-            : undefined,
-        }
-      : null;
+  const handleExportCsv = () => {
+    const head = [
+      "Date",
+      "Direction",
+      "Category",
+      "Description",
+      "Amount",
+      "Currency",
+      "Project",
+      "Requisition No",
+      "Has Receipt",
+    ];
+    const data = rows.map((r) => [
+      r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : "",
+      r.direction,
+      CATEGORY_LABELS[r.category as Category] ?? r.category,
+      r.description,
+      r.amount,
+      r.currency,
+      r.project?.name ?? "",
+      r.requisition?.requisitionNo ?? "",
+      r.receiptUrl ? "Yes" : "No",
+    ]);
+    downloadCsv("cost-entries.csv", head, data);
+  };
 
   return (
-    <RecordListShell
-      title="Cost tracker"
-      finding={finding}
-      tabs={[
-        { value: "ALL", label: "All lines", count: activeTab === "ALL" ? total : undefined },
-        { value: "SPENT", label: "Expenses", count: activeTab === "SPENT" ? total : undefined },
-        { value: "RECEIVED", label: "Income", count: activeTab === "RECEIVED" ? total : undefined },
-        {
-          value: "NO_RECEIPT",
-          label: "No receipt photo",
-          count: activeTab === "NO_RECEIPT" ? total : undefined,
-        },
-        {
-          value: "NOT_RECEIPTED",
-          label: "Not receipted",
-          count: activeTab === "NOT_RECEIPTED" ? total : undefined,
-        },
-      ]}
-      activeTab={activeTab}
-      onTabChange={handleTabChange}
-      createLabel={onAdd ? "New entry" : undefined}
-      onCreate={onAdd}
-      search={search}
-      onSearchChange={setSearch}
-      searchPlaceholder="Search by what it was"
-      searchNoun="lines"
-      error={listQuery.error}
-      count={`${rows.length} of ${total}`}
-      filterCount={filterCount}
-      filters={
-        <>
-          <DateRangePicker
-            openEnded
-            presets={COMMON_PRESETS}
-            title="Day"
-            value={{ from, to }}
-            latest={todayKey()}
-            onChange={(next) => setParams({ from: next.from, to: next.to })}
-            trigger={<DayRangeChip label="Day" range={{ from, to }} />}
-          />
-          {mayViewAll ? (
-            <ViewToolbarFilter
-              label="Person"
-              value={person}
-              anyLabel="Everyone"
-              options={personOptions}
-              onChange={(next) => setParams({ person: next })}
+    <div className="crm-bk-worksheet">
+      <PageChrome
+        title="Cost tracker"
+        primary={
+          onAdd
+            ? {
+                label: "New entry",
+                icon: "plus",
+                shortcut: "N",
+                onClick: onAdd,
+              }
+            : undefined
+        }
+      />
+
+      {/* The Day Bar: Date switcher + Cash in Hand / Totals + Day status */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] bg-[var(--color-ground)] px-5 py-2.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium text-[var(--color-ink-1)]">
+              {day === today ? "Today" : formatDay(day)}
+            </span>
+            <input
+              id="cost-tracker-date"
+              aria-label="Day"
+              type="date"
+              className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2 font-mono text-sm text-[var(--color-ink-1)]"
+              value={day}
+              max={today}
+              onChange={(event) => {
+                if (event.target.value) onDayChange(event.target.value);
+              }}
             />
+          </div>
+
+          {closed ? (
+            <StatusDot tone="success" label={`Closed ${sentAt ? `at ${sentAt}` : ""}`} />
+          ) : (
+            <StatusDot tone="neutral" label="Open" />
+          )}
+
+          {totals ? (
+            <div className="flex items-center gap-3 font-mono text-sm tabular-nums text-[var(--color-ink-2)]">
+              <span>
+                In hand: <strong className="text-[var(--color-ink-1)]">{formatMoney(totals.balance)}</strong>
+              </span>
+              <span className="text-[var(--color-ink-4)]">·</span>
+              <span>
+                Received: <strong className="text-[var(--color-ink-1)]">{formatMoney(totals.received)}</strong>
+              </span>
+              <span className="text-[var(--color-ink-4)]">·</span>
+              <span>
+                Spent: <strong className="text-[var(--color-ink-1)]">{formatMoney(totals.spent)}</strong>
+              </span>
+            </div>
           ) : null}
-          <ViewToolbarFilter
-            label="Project"
-            value={project}
-            anyLabel="Any"
-            options={projectOptions}
-            onChange={(next) => setParams({ project: next })}
-          />
-          <ViewToolbarFilter
-            label="Requisition"
-            value={requisition}
-            anyLabel="Any"
-            options={requisitionOptions}
-            onChange={(next) => setParams({ requisition: next })}
-          />
-        </>
-      }
-    >
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!closed ? (
+            <Button variant="secondary" size="sm" onClick={onCloseDay}>
+              Close the day
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {totals && totals.missingReceipts > 0 ? (
+        <CrmFinding
+          label="Missing receipts"
+          tone="warn"
+          fact={`${totals.missingReceipts} expense${totals.missingReceipts === 1 ? "" : "s"} without a receipt photo`}
+          rest="— attach receipt photos to clear this log."
+          action={
+            activeTab !== "NO_RECEIPT"
+              ? {
+                  label: "Show missing receipts →",
+                  onClick: () => handleTabChange("NO_RECEIPT"),
+                }
+              : undefined
+          }
+        />
+      ) : null}
+
+      <div className="crm-bk-tabs-bar" role="tablist" aria-label="Cost entries">
+        <div className="crm-bk-tabs">
+          {[
+            { value: "ALL", label: "All lines", glyph: ci_apps },
+            { value: "SPENT", label: "Expenses", glyph: ci_money_out },
+            { value: "RECEIVED", label: "Income", glyph: ci_money_in },
+            { value: "NO_RECEIPT", label: "No receipt photo", glyph: ci_alert_circle },
+            { value: "NOT_RECEIPTED", label: "Not receipted", glyph: ci_receipt },
+          ].map(({ value, label, glyph }) => {
+            const active = activeTab === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-active={active || undefined}
+                onClick={() => handleTabChange(value)}
+                className="crm-bk-tab"
+              >
+                <CiGlyphIcon glyph={glyph} size={16} className="shrink-0" />
+                <span>{label}</span>
+                {active ? <span className="n">{total}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="crm-bk-tools">
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          narrow
+          placeholder="Search by description…"
+        />
+
+        {mayViewAll ? (
+          <select
+            value={person}
+            onChange={(e) => setParams({ person: e.target.value })}
+            className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+            aria-label="Filter by person"
+          >
+            <option value={FILTER_ANY}>Everyone</option>
+            {Array.from(personOptions.entries()).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        <select
+          value={project}
+          onChange={(e) => setParams({ project: e.target.value })}
+          className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+          aria-label="Filter by project"
+        >
+          <option value={FILTER_ANY}>All projects</option>
+          {Array.from(projectOptions.entries()).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={requisition}
+          onChange={(e) => setParams({ requisition: e.target.value })}
+          className="h-8 rounded-[var(--radius-md)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-sm text-[var(--color-ink-1)]"
+          aria-label="Filter by requisition"
+        >
+          <option value={FILTER_ANY}>All requisitions</option>
+          {Array.from(requisitionOptions.entries()).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
+            {rows.length} of {total} lines
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCsv}
+            className="h-7 text-sm font-medium"
+          >
+            <CiGlyphIcon glyph={ci_download} size={14} className="mr-1.5 shrink-0" />
+            Export
+          </Button>
+        </div>
+      </div>
+
+      {listQuery.error ? (
+        <div className="px-6 py-3">
+          <Alert tone="danger" title="Couldn't load cost entries">
+            {getApiErrorMessage(listQuery.error)}
+          </Alert>
+        </div>
+      ) : null}
+
       <CostEntryTable
         entries={rows}
         isLoading={listQuery.isLoading}
         layout="register"
-        label="Cost tracker"
         showPerson={showPerson}
         empty={empty}
         emptyAction={
@@ -589,13 +700,11 @@ function Register({
                 router.replace(pathname, { scroll: false });
               }}
             >
-              Clear the filters
+              Clear filters
             </Button>
           ) : undefined
         }
         onRemove={(entry) => removeLine.mutate(entry.id)}
-        // Only your own line, on a day still open, off a requisition not yet
-        // accounted for. The server refuses the rest regardless.
         removable={(entry) =>
           entry.log?.user.id === me &&
           !entry.log?.submittedAt &&
@@ -609,6 +718,6 @@ function Register({
         total={total}
         onPageChange={(next) => setParams({ page: String(next) })}
       />
-    </RecordListShell>
+    </div>
   );
 }
