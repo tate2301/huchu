@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { BkState, BkTabs } from "@/components/books/bk-list";
+import { BkState, BkTabs, downloadCsv } from "@/components/books/bk-list";
 import { Bleed, Callout, FactTable, History, RailSection, RecordHead, Section, Strip } from "@/components/books/bk-record";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -78,7 +78,7 @@ function SupplierRecord() {
 
   const menu: MenuEntry[] = data
     ? [
-        { key: "statement", icon: "print", label: "Print the statement", onSelect: () => (setTab("statement"), window.setTimeout(() => window.print(), 50)) },
+        { key: "statement", icon: "docs", label: "View statement", onSelect: () => setTab("statement") },
         ...(data.can.bill ? [{ key: "bill", icon: "docs" as const, label: "New bill", onSelect: () => router.push("/books/bills/new") }] : []),
         ...(data.can.order ? [{ key: "order", icon: "list" as const, label: "New order", onSelect: () => router.push("/books/orders/new") }] : []),
         { key: "bills", icon: "docs", label: "Their bills", onSelect: () => router.push(`/books/bills?supplier=${id}`) },
@@ -285,8 +285,27 @@ function SupplierRecord() {
                     Show
                   </Button>
                   <span style={{ marginLeft: "auto" }}>
-                    <Button variant="quiet" icon="print" onClick={() => window.print()}>
-                      Print
+                    <Button
+                      variant="quiet"
+                      icon="export"
+                      onClick={() => {
+                        const head = ["Date", "Document", "Detail", "Billed", "Paid", "Balance"];
+                        const rows: Array<Array<string | number>> = [
+                          [shortDay(data.statement.from), "", "Owed before", "", "", data.statement.opening],
+                          ...data.statement.lines.map((line) => [
+                            line.date,
+                            line.document,
+                            line.detail,
+                            line.billed !== null ? line.billed : "",
+                            line.paid !== null ? line.paid : "",
+                            line.balance,
+                          ]),
+                          [`Owed on ${shortDay(data.statement.to)}`, "", "", "", "", data.statement.closing],
+                        ];
+                        downloadCsv(`statement-${data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, head, rows);
+                      }}
+                    >
+                      Export
                     </Button>
                   </span>
                 </div>

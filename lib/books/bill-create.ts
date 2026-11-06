@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { recordPurchasePayment } from "@/lib/accounting/payments";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { postBill } from "./core/bills";
 import { moneyLimits } from "./core/approvals";
 import { nextNumber } from "./core/numbering";
+
+const ACCOUNT_METHOD: Record<string, string> = { CASH: "Cash", MOBILE: "Mobile money", BANK: "Bank transfer" };
 
 /**
  * A supplier's bill, a draft or received: `POST /api/accounting/purchases/bills`
@@ -27,6 +30,12 @@ export const billSchema = z.object({
   /** D16: the supplier's fiscal tax invoice number, and what FDMS said about it. */
   supplierFtiNumber: z.string().trim().max(60).optional(),
   fdmsStatus: z.enum(["NOT_CHECKED", "VALID", "NOT_VALID"]).optional(),
+  paidNow: z
+    .object({
+      bankAccountId: z.string().uuid(),
+      reference: z.string().trim().max(200).optional(),
+    })
+    .optional(),
   lines: z
     .array(
       z.object({
@@ -131,6 +140,30 @@ export async function createPurchaseBill(
       if (posting.error) console.error(`[Books] Bill ${bill.billNumber} waits to post: ${posting.error}`);
     } catch (error) {
       console.error("[Books] Purchase bill posting failed:", error);
+    }
+
+    if (validated.paidNow?.bankAccountId && bill.total > 0.005) {
+      const account = await prisma.bankAccount.findFirst({
+        where: { id: validated.paidNow.bankAccountId, companyId: actor.companyId, isActive: true },
+        select: { id: true, kind: true, currency: true },
+      });
+      if (account && account.currency.toUpperCase() === bill.currency.toUpperCase()) {
+        try {
+          await recordPurchasePayment({
+            companyId: actor.companyId,
+            userId: actor.userId,
+            role: actor.role ?? null,
+            billId: bill.id,
+            paidAt: billDate,
+            amount: bill.total,
+            method: ACCOUNT_METHOD[account.kind] ?? "Bank transfer",
+            reference: validated.paidNow.reference || bill.supplierFtiNumber || bill.billNumber || undefined,
+            bankAccountId: account.id,
+          });
+        } catch (error) {
+          console.error("[Books] One-step purchase bill payment failed:", error);
+        }
+      }
     }
   }
   return bill;

@@ -16,14 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 /**
@@ -283,7 +277,32 @@ export function StatutoryReturnsContent() {
                   <h2 className="text-section-title text-foreground font-bold tracking-tight">
                     P2 — monthly PAYE ({p2.currency})
                   </h2>
-                  <Button variant="outline" size="sm" disabled={!data.canFile}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!data.canFile}
+                    onClick={() => {
+                      const head = [
+                        "Employee ID",
+                        "Employee",
+                        "Tax (BP) number",
+                        "Gross",
+                        "Taxable",
+                        "PAYE",
+                        "AIDS levy",
+                      ];
+                      const rows = p2.schedule.map((row) => [
+                        row.employeeNumber,
+                        row.name,
+                        row.taxNumber ?? "",
+                        row.grossEmoluments.toFixed(2),
+                        row.taxableEmoluments.toFixed(2),
+                        row.payeDeducted.toFixed(2),
+                        row.aidsLevy.toFixed(2),
+                      ]);
+                      downloadCsv(`p2-paye-${p2.currency.toLowerCase()}-${periodKey || "period"}.csv`, head, rows);
+                    }}
+                  >
                     {data.canFile ? "Export" : "Cannot file yet"}
                   </Button>
                 </div>
@@ -363,7 +382,32 @@ export function StatutoryReturnsContent() {
                   <h2 className="text-section-title text-foreground font-bold tracking-tight">
                     NSSA schedule ({nssa.currency})
                   </h2>
-                  <Button variant="outline" size="sm" disabled={!data.canFile}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!data.canFile}
+                    onClick={() => {
+                      const head = [
+                        "Employee ID",
+                        "Member",
+                        "NSSA number",
+                        "Insurable earnings",
+                        "Employee",
+                        "Employer",
+                        "Total",
+                      ];
+                      const rows = nssa.schedule.map((row) => [
+                        row.employeeNumber,
+                        row.name,
+                        row.nssaNumber ?? "",
+                        row.insurableEarnings.toFixed(2),
+                        row.employeeContribution.toFixed(2),
+                        row.employerContribution.toFixed(2),
+                        row.total.toFixed(2),
+                      ]);
+                      downloadCsv(`nssa-schedule-${nssa.currency.toLowerCase()}-${periodKey || "period"}.csv`, head, rows);
+                    }}
+                  >
                     {data.canFile ? "Export" : "Cannot file yet"}
                   </Button>
                 </div>

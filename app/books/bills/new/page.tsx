@@ -14,11 +14,18 @@ import { MenuButton } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { billFormErrors, billPayload, fdmsSentence, type BillForm, type FdmsResult } from "@/lib/books/bill-form";
+import { billFormErrors, billPayload, fdmsSentence, type BillForm, type BillSpendingKind, type FdmsResult } from "@/lib/books/bill-form";
 import type { BillRecordPage } from "@/lib/books/bill-record";
 import { money, monthName, shortDay } from "@/lib/books/format";
 import { currencyWord, type BooksFormOptions } from "@/lib/books/form-options-view";
 import { dueDate, formTotals, lineNet, type InvoiceFormLine } from "@/lib/books/invoice-form";
+import {
+  nextRenewalDate,
+  SPENDING_CATEGORY_GROUPS,
+  SUBSCRIPTION_CYCLE_LABEL,
+  SUBSCRIPTION_CYCLES,
+  type SubscriptionCycle,
+} from "@/lib/books/spending-categories";
 import { uploadBooksFile } from "@/lib/books/upload-client";
 
 type Options = BooksFormOptions & { approval: { limit: number; owner: string | null } | null };
@@ -87,7 +94,7 @@ function PhotoField({ file, kept, onFile }: { file: File | null; kept: string | 
   );
 }
 
-function BillFormPage({ options, draft }: { options: Options; draft: BillRecordPage | null }) {
+function BillFormPage({ options, draft, initialKind }: { options: Options; draft: BillRecordPage | null; initialKind: BillSpendingKind }) {
   const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
@@ -95,6 +102,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
   const [parties, setParties] = React.useState(options.parties);
   const [adding, setAdding] = React.useState(false);
   const [photo, setPhoto] = React.useState<File | null>(null);
+  const defaultAccountFor = (code: string) => options.accounts.find((account) => account.currency === code)?.id ?? "";
   const [form, setForm] = React.useState<BillForm>(() => ({
     vendorId: draft?.supplier.id ?? "",
     theirNumber: draft?.fti.number ?? "",
@@ -102,8 +110,14 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
     fdmsCode: "",
     fdmsStatus: draft?.fti.fdms ?? "NOT_CHECKED",
     currency: draft?.currency ?? options.base,
-    dueInDays: "30",
+    dueInDays: initialKind === "bill" ? "30" : "0",
     costCenterId: "",
+    spendingKind: initialKind,
+    category: initialKind === "subscription" ? "software-saas" : initialKind === "expense" ? "general-expense" : "stock-for-resale",
+    subscriptionCycle: "monthly",
+    paidNow: initialKind !== "bill" && !draft,
+    paidFrom: defaultAccountFor(draft?.currency ?? options.base),
+    paymentReference: "",
     // A goods receipt's draft: its lines as counted, each with the tax code of its rate, to bring into line with their invoice.
     lines: draft
       ? draft.lines.map((line) => ({
@@ -112,7 +126,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
           unitPrice: line.unitPrice.toFixed(2),
           taxCodeId: line.taxCodeId ?? options.taxCodes.find((code) => code.rate === line.taxRate)?.id ?? "",
         }))
-      : [blank(vat), blank(vat)],
+      : [blank(vat)],
   }));
   const [shown, setShown] = React.useState(false);
   const set = <K extends keyof BillForm>(key: K, value: BillForm[K]) => setForm((current) => ({ ...current, [key]: value }));
@@ -125,6 +139,11 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
   const box = fdmsSentence(form.fdmsStatus, monthName(form.billDate));
   const over = options.approval && totals.total > options.approval.limit + 0.004 && !draft?.details.approvedBy;
   const vatRegistered = Boolean(draft ? draft.supplier.vatNumber : supplier?.vatNumber);
+  const matchingAccounts = options.accounts.filter((account) => account.currency === form.currency);
+  const renewalDay =
+    form.spendingKind === "subscription" && form.subscriptionCycle && /^\d{4}-\d{2}-\d{2}$/.test(form.billDate)
+      ? nextRenewalDate(form.billDate, form.subscriptionCycle)
+      : null;
 
   const keepPhoto = async (billId: string) => {
     if (!photo) return null;
@@ -157,8 +176,19 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
     },
     onSuccess: async (saved) => {
       toast({
-        title: saved.status === "DRAFT" ? `The draft bill from ${saved.supplier} is saved` : `${saved.number} from ${saved.supplier} is recorded`,
-        description: saved.photo ?? (saved.status === "DRAFT" ? "It takes its number when you record it." : "It is posted to the books."),
+        title:
+          saved.status === "DRAFT"
+            ? `Draft from ${saved.supplier} saved`
+            : form.paidNow
+              ? `${saved.number} from ${saved.supplier} recorded and marked paid`
+              : `${saved.number} from ${saved.supplier} is recorded`,
+        description:
+          saved.photo ??
+          (saved.status === "DRAFT"
+            ? "It takes its number when you record it."
+            : form.paidNow
+              ? "Both the spending and its payment are posted to the books."
+              : "It is posted to the books."),
         variant: saved.photo ? "destructive" : "success",
       });
       await client.invalidateQueries({ queryKey: ["books"] });
@@ -174,13 +204,30 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
 
   const approvalWord = over ? `Over ${money(options.approval!.limit, form.currency)}, ${options.approval!.owner ?? "the owner"} approves` : draft?.details.approvedBy ? `Approved by ${draft.details.approvedBy}` : "Not needed";
 
+  const pageTitle =
+    form.spendingKind === "subscription"
+      ? "Record subscription or recurring cost"
+      : form.spendingKind === "expense"
+        ? "Record business expense"
+        : "Record supplier bill";
+  const primaryLabel =
+    form.paidNow && !draft
+      ? form.spendingKind === "subscription"
+        ? "Save & mark paid"
+        : "Record & mark paid"
+      : form.spendingKind === "subscription"
+        ? "Save subscription"
+        : form.spendingKind === "expense"
+          ? "Record expense"
+          : "Record the bill";
+
   return (
     <>
       <PageChrome
-        title="New bill"
+        title={pageTitle}
         backHref="/books/bills"
-        backLabel="Bills"
-        primary={{ label: "Record the bill", icon: "check", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: save.isPending ? "Saving" : undefined }}
+        backLabel="Bills & spending"
+        primary={{ label: primaryLabel, icon: "check", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: save.isPending ? "Saving" : undefined }}
       >
         <Kit contents>
           <Button icon="docs" onClick={() => submit(false)} disabled={save.isPending}>
@@ -197,7 +244,8 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
               rows={[
                 ["Before VAT", money(totals.net, form.currency)],
                 [totals.rates.length === 1 ? `VAT at ${totals.rates[0]}%` : "VAT", money(totals.tax, form.currency)],
-                ["Due", due ? shortDay(due) : "No date"],
+                ["Payment", form.paidNow ? "Paid immediately" : due ? `Due ${shortDay(due)}` : "No due date"],
+                ...(renewalDay ? ([["Next renewal", shortDay(renewalDay)]] as Array<[string, string]>) : []),
                 ["Number", options.nextNumber],
               ]}
             />
@@ -227,8 +275,81 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
           </>
         }
       >
-        <FormSec title="Supplier" text="Who sent it, and their fiscal invoice.">
-          <BkField label="Supplier" htmlFor="bill-supplier" error={errors.vendorId}>
+        {!draft ? (
+          <FormSec title="1. Type of spending" text="Choose what kind of business cost you are recording and its industry category.">
+            <BkField label="What are you recording?">
+              <BkSeg
+                label="Type of spending"
+                value={form.spendingKind ?? "bill"}
+                onChange={(kind) => {
+                  const nextKind = kind as BillSpendingKind;
+                  setForm((current) => ({
+                    ...current,
+                    spendingKind: nextKind,
+                    dueInDays: nextKind === "bill" ? "30" : "0",
+                    paidNow: nextKind !== "bill",
+                    category:
+                      nextKind === "subscription"
+                        ? "software-saas"
+                        : nextKind === "expense" && current.category === "stock-for-resale"
+                          ? "general-expense"
+                          : current.category,
+                  }));
+                }}
+                options={[
+                  { value: "bill", label: "Supplier bill" },
+                  { value: "expense", label: "Everyday expense" },
+                  { value: "subscription", label: "Subscription / Recurring" },
+                ]}
+              />
+            </BkField>
+            <div className="field-row">
+              <BkField label="Spending category" htmlFor="bill-category" hint="Helps organize your spending across your industry">
+                <Select id="bill-category" value={form.category ?? ""} onChange={(event) => set("category", event.target.value)}>
+                  <option value="">General spending</option>
+                  {SPENDING_CATEGORY_GROUPS.map((group) => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.items.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label} — {item.hint}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </Select>
+              </BkField>
+              {form.spendingKind === "subscription" ? (
+                <BkField
+                  label="How often does it renew?"
+                  htmlFor="bill-sub-cycle"
+                  hint={renewalDay ? `Next renewal: ${shortDay(renewalDay)}` : undefined}
+                >
+                  <Select
+                    id="bill-sub-cycle"
+                    value={form.subscriptionCycle ?? "monthly"}
+                    onChange={(event) => set("subscriptionCycle", event.target.value as SubscriptionCycle)}
+                  >
+                    {SUBSCRIPTION_CYCLES.map((cycle) => (
+                      <option key={cycle} value={cycle}>
+                        {SUBSCRIPTION_CYCLE_LABEL[cycle]}
+                      </option>
+                    ))}
+                  </Select>
+                </BkField>
+              ) : null}
+            </div>
+          </FormSec>
+        ) : null}
+
+        <FormSec
+          title={draft ? "Supplier" : "2. Who you paid (or owe)"}
+          text={
+            form.spendingKind === "subscription"
+              ? "The provider (e.g. Starlink, Microsoft, Liquid, insurer, landlord) and billing date."
+              : "Who sent the invoice or receipt, and the date on it."
+          }
+        >
+          <BkField label={form.spendingKind === "subscription" ? "Provider / Supplier" : "Supplier / Payee"} htmlFor="bill-supplier" error={errors.vendorId}>
             {draft ? (
               <Select id="bill-supplier" value={draft.supplier.id} disabled>
                 <option value={draft.supplier.id}>{draft.supplier.name}</option>
@@ -236,7 +357,7 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
             ) : (
               <div style={{ display: "flex", gap: 8 }}>
                 <Select id="bill-supplier" value={form.vendorId} onChange={(event) => set("vendorId", event.target.value)} style={{ flex: 1, minWidth: 0 }}>
-                  <option value="">Choose a supplier</option>
+                  <option value="">Choose a supplier or provider…</option>
                   {parties.map((party) => (
                     <option key={party.id} value={party.id}>
                       {party.name}
@@ -250,23 +371,23 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
             )}
           </BkField>
           <div className="field-row">
-            <BkField label="Their invoice number" htmlFor="bill-theirs" hint={vatRegistered ? "Needed: they are registered for VAT." : undefined}>
-              <Input id="bill-theirs" aria-label="Their invoice number" value={form.theirNumber} onChange={(event) => set("theirNumber", event.target.value)} />
+            <BkField label="Invoice or receipt number (optional)" htmlFor="bill-theirs" hint={vatRegistered ? "Required if claiming VAT from this supplier." : "Leave blank if there is no number"}>
+              <Input id="bill-theirs" aria-label="Their invoice number" placeholder="E.g. INV-1042" value={form.theirNumber} onChange={(event) => set("theirNumber", event.target.value)} />
             </BkField>
-            <BkField label="Their invoice date" htmlFor="bill-date" error={errors.billDate}>
+            <BkField label="Date" htmlFor="bill-date" error={errors.billDate}>
               <Input id="bill-date" type="date" aria-label="Their invoice date" value={form.billDate} disabled={Boolean(draft)} onChange={(event) => set("billDate", event.target.value)} />
             </BkField>
           </div>
-          <FdmsCheck code={form.fdmsCode} status={form.fdmsStatus} onCode={(code) => set("fdmsCode", code)} onStatus={(status) => set("fdmsStatus", status)} />
-          {box ? (
-            <BkBox tone={box.tone} icon={box.tone === "ok" ? "check" : "warn"}>
-              <b>{box.lead}</b>
-              {box.rest}
-            </BkBox>
-          ) : !draft && supplier && !supplier.vatNumber ? (
-            <BkBox tone="warn" icon="warn">
-              <b>No VAT number on file for {supplier.name}.</b> Their VAT counts only on a valid fiscal invoice.
-            </BkBox>
+          {vatRegistered || totals.tax > 0.005 || form.fdmsCode || form.fdmsStatus !== "NOT_CHECKED" ? (
+            <>
+              <FdmsCheck code={form.fdmsCode} status={form.fdmsStatus} onCode={(code) => set("fdmsCode", code)} onStatus={(status) => set("fdmsStatus", status)} />
+              {box ? (
+                <BkBox tone={box.tone} icon={box.tone === "ok" ? "check" : "warn"}>
+                  <b>{box.lead}</b>
+                  {box.rest}
+                </BkBox>
+              ) : null}
+            </>
           ) : null}
         </FormSec>
 
@@ -280,20 +401,20 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
           </FormSec>
         ) : null}
 
-        <WideSec title="Lines" text={fromReceipt ? `From ${fromReceipt.number}.` : "What it was for."}>
+        <WideSec title={draft ? "Lines" : "3. What it was for & how much"} text={fromReceipt ? `From ${fromReceipt.number}.` : "Add each item or service on the bill or receipt."}>
             <>
               <table className="table bk-le" aria-label="Lines">
                 <thead>
                   <tr>
-                    <th>Item</th>
+                    <th>Description</th>
                     <th className="num" style={{ width: 84 }}>
-                      Quantity
+                      Qty
                     </th>
-                    <th className="num" style={{ width: 100 }}>
+                    <th className="num" style={{ width: 110 }}>
                       Price, {currencyWord(form.currency)}
                     </th>
                     {fromReceipt ? <th style={{ width: 136 }}>Account</th> : null}
-                    <th style={{ width: 118 }}>Tax code</th>
+                    <th style={{ width: 118 }}>VAT</th>
                     <th className="num" style={{ width: 104 }}>
                       Amount
                     </th>
@@ -304,7 +425,19 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
                   {form.lines.map((line, index) => (
                     <tr key={index}>
                       <td>
-                        <Input aria-label="Item" value={line.description} placeholder="What it was for" aria-invalid={Boolean(errors[`lines.${index}.description`]) || undefined} onChange={(event) => setLine(index, { description: event.target.value })} />
+                        <Input
+                          aria-label="Item"
+                          value={line.description}
+                          placeholder={
+                            form.spendingKind === "subscription"
+                              ? "E.g. Starlink Business monthly plan"
+                              : form.spendingKind === "expense"
+                                ? "E.g. Diesel for delivery van"
+                                : "What you bought or were billed for"
+                          }
+                          aria-invalid={Boolean(errors[`lines.${index}.description`]) || undefined}
+                          onChange={(event) => setLine(index, { description: event.target.value })}
+                        />
                       </td>
                       <td>
                         <Input className="num" aria-label="Quantity" inputMode="decimal" value={line.quantity} onChange={(event) => setLine(index, { quantity: event.target.value })} />
@@ -348,23 +481,77 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
               ) : null}
               <div className="bk-add">
                 <Button variant="quiet" icon="plus" onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, blank(vat)] }))}>
-                  Add a line
+                  Add another line
                 </Button>
               </div>
             </>
         </WideSec>
 
-        <FormSec title="Terms" text="When you have to pay.">
+        <FormSec title={draft ? "Terms" : "4. Payment & receipt photo"} text="Say whether this is already paid or due later, and attach a photo of the invoice or receipt if you have one.">
           <div className="field-row">
             <BkField label="Currency">
               {draft ? (
                 // A goods receipt's bill is in the currency it was counted in.
                 <BkSeg label="Currency" value={draft.currency} onChange={() => undefined} options={options.currencies.map((code) => ({ value: code, label: code, disabled: code !== draft.currency }))} />
               ) : (
-                <BkSeg label="Currency" value={form.currency} onChange={(code) => set("currency", code)} options={options.currencies.map((code) => ({ value: code, label: code }))} />
+                <BkSeg
+                  label="Currency"
+                  value={form.currency}
+                  onChange={(code) =>
+                    setForm((current) => ({
+                      ...current,
+                      currency: code,
+                      paidFrom: options.accounts.find((a) => a.currency === code)?.id ?? "",
+                    }))
+                  }
+                  options={options.currencies.map((code) => ({ value: code, label: code }))}
+                />
               )}
             </BkField>
-            <BkField label="Due" htmlFor="bill-due">
+            {!draft ? (
+              <BkField label="Payment status">
+                <BkSeg
+                  label="Payment status"
+                  value={form.paidNow ? "paid" : "later"}
+                  onChange={(mode) =>
+                    setForm((current) => ({
+                      ...current,
+                      paidNow: mode === "paid",
+                      paidFrom: current.paidFrom || defaultAccountFor(current.currency),
+                    }))
+                  }
+                  options={[
+                    { value: "later", label: "To pay later" },
+                    { value: "paid", label: "Already paid" },
+                  ]}
+                />
+              </BkField>
+            ) : null}
+          </div>
+
+          {form.paidNow && !draft ? (
+            <div className="field-row">
+              <BkField label="Paid from (Bank, Mobile Money, or Cash)" htmlFor="bill-paid-from" error={errors.paidFrom}>
+                <Select id="bill-paid-from" value={form.paidFrom ?? ""} onChange={(event) => set("paidFrom", event.target.value)}>
+                  {matchingAccounts.length === 0 ? <option value="">No {form.currency} account found</option> : null}
+                  {matchingAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.label}
+                    </option>
+                  ))}
+                </Select>
+              </BkField>
+              <BkField label="Payment reference (optional)" htmlFor="bill-pay-ref">
+                <Input
+                  id="bill-pay-ref"
+                  value={form.paymentReference ?? ""}
+                  placeholder="EcoCash ref, card, or transfer ref"
+                  onChange={(event) => set("paymentReference", event.target.value)}
+                />
+              </BkField>
+            </div>
+          ) : (
+            <BkField label="When is it due?" htmlFor="bill-due">
               <Select id="bill-due" value={form.dueInDays} onChange={(event) => set("dueInDays", event.target.value)}>
                 {DUE.map((option) => {
                   const day = dueDate(form.billDate, option.days);
@@ -377,9 +564,10 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
                 })}
               </Select>
             </BkField>
-          </div>
+          )}
+
           <div className="field-row">
-            <BkField label="Cost centre" htmlFor="bill-centre">
+            <BkField label="Department / Cost centre (optional)" htmlFor="bill-centre">
               <Select id="bill-centre" value={form.costCenterId} onChange={(event) => set("costCenterId", event.target.value)}>
                 <option value="">None</option>
                 {options.costCentres.map((centre) => (
@@ -412,6 +600,8 @@ function BillFormPage({ options, draft }: { options: Options; draft: BillRecordP
 function RecordBill() {
   const params = useSearchParams();
   const billId = params.get("bill");
+  const rawKind = params.get("kind");
+  const initialKind: BillSpendingKind = rawKind === "expense" || rawKind === "subscription" ? rawKind : "bill";
   const options = useQuery({ queryKey: ["books", "forms", "bill"], queryFn: () => fetchJson<Options>("/api/books/forms?for=bill") });
   const draft = useQuery({ queryKey: ["books", "bill", billId], queryFn: () => fetchJson<BillRecordPage>(`/api/books/bills/${billId}`), enabled: Boolean(billId) });
   if (options.data && (!billId || draft.data)) {
@@ -423,11 +613,11 @@ function RecordBill() {
         </>
       );
     }
-    return <BillFormPage options={options.data} draft={draft.data ?? null} />;
+    return <BillFormPage options={options.data} draft={draft.data ?? null} initialKind={initialKind} />;
   }
   return (
     <>
-      <PageChrome title="New bill" backHref="/books/bills" backLabel="Bills" />
+      <PageChrome title="Record spending" backHref="/books/bills" backLabel="Bills & spending" />
       {options.isError || draft.isError ? <BooksError what="The bill form" onRetry={() => (options.isError ? options.refetch() : draft.refetch())} /> : <BooksLoading />}
     </>
   );

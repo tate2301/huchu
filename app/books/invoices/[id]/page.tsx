@@ -8,6 +8,8 @@ import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { BkInvoiceView } from "@/components/books/bk-invoice-view";
 import { CreditDrawer, type CreditTarget } from "@/components/books/bk-credit-drawer";
+import { ApplyPaymentDrawer, RecordCustomerPaymentDrawer, type UnappliedReceiptTarget } from "@/components/books/bk-payment-drawers";
+import type { ApplyPaymentResult } from "@/lib/books/payment-apply";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { useDocumentActions } from "@/components/crm/documents/document-actions";
 import type { LeadDocument } from "@/components/crm/documents/document-types";
@@ -16,6 +18,7 @@ import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { money } from "@/lib/books/format";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 
 /**
@@ -36,6 +39,8 @@ export default function BooksInvoicePage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [crediting, setCrediting] = React.useState<"credit" | "write-off" | null>(null);
+  const [recordingPayment, setRecordingPayment] = React.useState(false);
+  const [applyingReceipt, setApplyingReceipt] = React.useState<UnappliedReceiptTarget | null>(null);
 
   const invoice = useQuery({
     queryKey: ["books", "invoice", id],
@@ -69,7 +74,12 @@ export default function BooksInvoicePage() {
     setInitial(params.get("do") ?? (params.get("reverse") === "1" ? "void" : null));
   }, []);
 
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }), queryClient.invalidateQueries({ queryKey: ["books", "invoices"] })]);
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["books", "invoice", id] }),
+      queryClient.invalidateQueries({ queryKey: ["books", "invoices"] }),
+      queryClient.invalidateQueries({ queryKey: ["books", "payments"] }),
+    ]);
 
   const docActions = useDocumentActions({
     basePath: `/api/books/crm/${record?.customer.id ?? id}`,
@@ -118,10 +128,39 @@ export default function BooksInvoicePage() {
     : null;
   // An owing invoice has three actions: one group, Record a payment and a caret holding the rest (the owner, 19 Oct).
   const owing = Boolean(record && record.status === "ISSUED" && record.balance > 0.005);
+  const unappliedReceipts = React.useMemo(
+    () => (record?.unappliedReceipts ?? []).filter((r) => r.currency.toUpperCase() === (record?.currency ?? "USD").toUpperCase()),
+    [record?.unappliedReceipts, record?.currency],
+  );
+
+  const openApplyCredit = React.useCallback(
+    (receiptId: string) => {
+      if (!record) return;
+      const found = unappliedReceipts.find((r) => r.id === receiptId) ?? unappliedReceipts[0];
+      if (!found) return;
+      setApplyingReceipt({
+        id: found.id,
+        number: found.number,
+        amount: found.amount,
+        currency: found.currency,
+        customerId: record.customer.id,
+        customerName: record.customer.name,
+      });
+    },
+    [record, unappliedReceipts],
+  );
 
   // ⋯: everything else this invoice allows, each as the one matrix says (books-final §2.2), plus CRM PDF/email/approval/edit actions.
   const menu: MenuEntry[] = [];
   if (record) {
+    if (owing && can?.pay && unappliedReceipts.length > 0) {
+      menu.push({
+        key: "apply-credit",
+        icon: "payments",
+        label: `Use credit on account (${unappliedReceipts[0]!.number})`,
+        onSelect: () => openApplyCredit(unappliedReceipts[0]!.id),
+      });
+    }
     if (crmDoc) {
       menu.push(...docActions.menuEntriesFor(crmDoc, { excludeIds: ["part-payment"] }));
     } else {
@@ -134,7 +173,7 @@ export default function BooksInvoicePage() {
   }
   if (record && owing) menu.push({ key: "remind", icon: "whatsapp", label: "Send a reminder", onSelect: () => remind.mutate() });
   if (record && !draft) {
-    menu.push({ key: "statement", icon: "print", label: "Print a statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
+    menu.push({ key: "statement", icon: "docs", label: "Statement", onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener") });
     if (can?.credit) menu.push({ key: "credit", icon: "invoice", label: "Credit note", onSelect: () => setCrediting("credit") });
     if (can?.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setCrediting("write-off") });
   }
@@ -173,9 +212,9 @@ export default function BooksInvoicePage() {
             {owing ? (
               <ButtonGroup aria-label="Record a payment, and more">
                 {can?.pay ? (
-                  <ButtonLink variant="primary" icon="payments" shortcut="R" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+                  <Button variant="primary" icon="payments" shortcut="R" onClick={() => setRecordingPayment(true)}>
                     Record a payment
-                  </ButtonLink>
+                  </Button>
                 ) : (
                   <Button variant="primary" icon="payments" shortcut="R" disabled title="Your role cannot record payments.">
                     Record a payment
@@ -192,7 +231,7 @@ export default function BooksInvoicePage() {
       <BooksPage screen="bk-a">
         {record ? (
           <>
-            <BkInvoiceView invoice={record} />
+            <BkInvoiceView invoice={record} onUseCredit={can?.pay ? openApplyCredit : undefined} />
             {record.status === "ISSUED" && record.balance > 0.005 ? (
               // On a phone the two things an owing invoice asks for sit at the foot (BkInvoicePhone).
               <div className="bk-ph-acts">
@@ -200,9 +239,9 @@ export default function BooksInvoicePage() {
                   Send a reminder
                 </Button>
                 {can?.pay ? (
-                  <ButtonLink icon="payments" href={`/books/payments/new?invoice=${record.id}&customer=${record.customer.id}`}>
+                  <Button icon="payments" onClick={() => setRecordingPayment(true)}>
                     Record a payment
-                  </ButtonLink>
+                  </Button>
                 ) : null}
               </div>
             ) : null}
@@ -228,6 +267,50 @@ export default function BooksInvoicePage() {
             onOpenChange={(open) => (open ? undefined : setCrediting(null))}
             onDone={async (message) => {
               toast({ ...message, variant: "success" });
+              await refresh();
+            }}
+          />
+          <RecordCustomerPaymentDrawer
+            open={recordingPayment}
+            onOpenChange={setRecordingPayment}
+            initialInvoice={{
+              id: record.id,
+              number: record.number,
+              customerId: record.customer.id,
+              customerName: record.customer.name,
+              balance: record.balance,
+              currency: record.currency,
+            }}
+            unappliedReceipts={unappliedReceipts}
+            onUseCreditInstead={openApplyCredit}
+            onDone={async (done) => {
+              const total = done.receipts.reduce((sum, r) => sum + r.amount, 0);
+              toast({
+                title: `Payment of ${money(total, done.currency)} recorded on ${record.number}`,
+                description:
+                  done.onAccount > 0.005
+                    ? `${money(done.onAccount, done.currency)} over the invoice balance is held on account as credit.`
+                    : `${done.receipts[0]?.number ?? "Receipt"} is saved and posted.`,
+                variant: "success",
+              });
+              await refresh();
+            }}
+          />
+          <ApplyPaymentDrawer
+            receipt={applyingReceipt}
+            targetInvoiceId={record.id}
+            open={applyingReceipt !== null}
+            onOpenChange={(open) => (open ? undefined : setApplyingReceipt(null))}
+            onDone={async (done: ApplyPaymentResult) => {
+              const appliedLabel = done.applied.map((row) => `${money(row.amount, done.currency)} to ${row.invoiceNumber}`).join(", ");
+              toast({
+                title: `Credit from ${done.receiptNumber} applied`,
+                description:
+                  done.onAccount && done.onAccount.amount > 0.005
+                    ? `Applied ${appliedLabel}. ${money(done.onAccount.amount, done.currency)} remains on account.`
+                    : `Applied ${appliedLabel}.`,
+                variant: "success",
+              });
               await refresh();
             }}
           />

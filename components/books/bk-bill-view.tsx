@@ -7,6 +7,7 @@ import type { BillRecord } from "@/lib/books/bill-record";
 import { FDMS_LABEL } from "@/lib/books/bills-labels";
 import type { ExpenseState } from "@/lib/books/expenses";
 import { money, shortDay } from "@/lib/books/format";
+import { parseSpendingMeta, spendingCategoryLabel, SUBSCRIPTION_CYCLE_LABEL } from "@/lib/books/spending-categories";
 
 import { BkState } from "./bk-list";
 import { Bleed, Callout, History, PostingTable, RailSection, RecordHead, Section } from "./bk-record";
@@ -35,6 +36,8 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
   ];
   const waiting = bill.payments.filter((payment) => payment.status === "TO_APPROVE").length;
   const vatWaits = bill.taxTotal > 0.005 && bill.status !== "VOIDED";
+  const spendingMeta = parseSpendingMeta(bill.notes);
+  const categoryName = spendingCategoryLabel(spendingMeta.category);
   return (
     <div className="bk bk-rec">
       <div className="bk-main">
@@ -217,6 +220,13 @@ export function BkBillView({ bill }: { bill: BillRecord }) {
           title="Details"
           rows={[
             ["Supplier", <Link key="s" href={`/books/suppliers/${bill.supplier.id}`}>{bill.supplier.name}</Link>],
+            ...(categoryName ? ([["Category", categoryName]] as Array<[string, React.ReactNode]>) : []),
+            ...(spendingMeta.subscription
+              ? ([
+                  ["Billing cycle", SUBSCRIPTION_CYCLE_LABEL[spendingMeta.subscription.cycle]],
+                  ...(spendingMeta.subscription.nextRenewal ? ([["Next renewal", shortDay(spendingMeta.subscription.nextRenewal)]] as Array<[string, React.ReactNode]>) : []),
+                ] as Array<[string, React.ReactNode]>)
+              : []),
             ["Terms", bill.supplier.terms],
             ["For", bill.details.for ?? "—"],
             ["Order", bill.match?.order ? <Link key="o" href={`/books/orders?q=${encodeURIComponent(bill.match.order.number)}`}>{bill.match.order.number}</Link> : "None"],

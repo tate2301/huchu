@@ -4,6 +4,7 @@ import { z } from "zod";
 import { MONEY_OUT_WHERE, type When } from "./core/money-out-where";
 import { docLabel } from "./doc-number";
 import { count, dayOf, money, monthName, monthStart, shortDay } from "./format";
+import { isSubscriptionCategory, parseSpendingMeta, spendingCategoryLabel, SUBSCRIPTION_CYCLE_LABEL } from "./spending-categories";
 
 /**
  * Books → Bills & spending → All spending (BkSpending): every document that
@@ -12,13 +13,14 @@ import { count, dayOf, money, monthName, monthStart, shortDay } from "./format";
  * is Money's "gone out". Read only: each row opens its own document.
  */
 
-export const SPENDING_VIEWS = ["all", "bills", "requisitions", "claims", "till-payouts", "payroll", "other"] as const;
+export const SPENDING_VIEWS = ["all", "bills", "subscriptions", "requisitions", "claims", "till-payouts", "payroll", "other"] as const;
 export type SpendingView = (typeof SPENDING_VIEWS)[number];
 export type SpendingKind = Exclude<SpendingView, "all">;
 
 export const SPENDING_TAB_LABEL: Record<SpendingView, string> = {
   all: "All",
-  bills: "Bills",
+  bills: "Bills & expenses",
+  subscriptions: "Subscriptions",
   requisitions: "Requisitions",
   claims: "Claims & petty cash",
   "till-payouts": "Till payouts",
@@ -57,6 +59,8 @@ export type SpendingRow = {
   what: string;
   module: SpendingModule;
   kind: SpendingKind;
+  categoryLabel?: string | null;
+  subscriptionBadge?: string | null;
   paidFrom: string | null;
   document: string | null;
   href: string | null;
@@ -86,12 +90,12 @@ const account = (row: { name: string; bankName?: string | null; currency?: strin
   row ? `${row.bankName && !row.name.toLowerCase().includes(row.bankName.toLowerCase()) ? `${row.bankName} ${row.name}` : row.name}${row.currency ? `, ${row.currency}` : ""}` : null;
 
 /** "$6,716.86 has gone out this month, from 5 modules." / "Bills are the most, $3,972.40." */
-export function spendingFinding(total: number, modules: number, byKind: Record<SpendingKind, number>, currency = "USD"): { fact: string; rest: string | null } {
+export function spendingFinding(total: number, modules: number, byKind: Partial<Record<SpendingKind, number>>, currency = "USD"): { fact: string; rest: string | null } {
   if (total <= 0.005) return { fact: "Nothing has gone out this month.", rest: null };
   const fact = `${money(total, currency)} has gone out this month, from ${count(modules, "module")}.`;
-  const [top] = (Object.entries(byKind) as Array<[SpendingKind, number]>).sort((a, b) => b[1] - a[1]);
-  if (!top || top[1] <= 0.005) return { fact, rest: null };
-  const word = SPENDING_TAB_LABEL[top[0]];
+  const [top] = (Object.entries(byKind) as Array<[SpendingKind, number]>).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0));
+  if (!top || (top[1] ?? 0) <= 0.005) return { fact, rest: null };
+  const word = top[0] === "bills" ? "Bills" : SPENDING_TAB_LABEL[top[0]];
   return { fact, rest: `${word} ${word.endsWith("s") ? "are" : "is"} the most, ${money(top[1], currency)}.` };
 }
 
@@ -101,7 +105,7 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
   const [payments, requisitions, claims, vouchers, commission, payouts, payroll] = await Promise.all([
     db.purchasePayment.findMany({
       where: out.supplierPayments(companyId, when, currency, isBase),
-      select: { id: true, paymentNumber: true, groupNo: true, paidAt: true, amount: true, reference: true, vendor: { select: { name: true } }, bankAccount: { select: { name: true, bankName: true, currency: true } }, bill: { select: { id: true, billNumber: true, vendor: { select: { name: true } } } } },
+      select: { id: true, paymentNumber: true, groupNo: true, paidAt: true, amount: true, reference: true, vendor: { select: { name: true } }, bankAccount: { select: { name: true, bankName: true, currency: true } }, bill: { select: { id: true, billNumber: true, notes: true, vendor: { select: { name: true } } } } },
     }),
     db.crmRequisition.findMany({
       where: out.requisitions(companyId, when, currency),
@@ -121,13 +125,23 @@ export async function spendingRows(db: Db, companyId: string, when: When, curren
   };
   for (const payment of payments) {
     const supplier = payment.vendor?.name ?? payment.bill?.vendor.name ?? "A supplier";
+    const meta = parseSpendingMeta(payment.bill?.notes);
+    const isSub = Boolean(meta.subscription || isSubscriptionCategory(meta.category));
+    const categoryLabel = spendingCategoryLabel(meta.category);
+    const subscriptionBadge = meta.subscription
+      ? `${SUBSCRIPTION_CYCLE_LABEL[meta.subscription.cycle]}${meta.subscription.nextRenewal ? ` · renews ${shortDay(meta.subscription.nextRenewal)}` : ""}`
+      : isSub
+        ? "Subscription"
+        : null;
     push({
       key: `pay:${payment.id}`,
       at: payment.paidAt,
       what: payment.bill ? `${supplier}, ${docLabel(payment.bill.billNumber, "bill")}` : `${supplier}${payment.reference ? `, ${payment.reference}` : ""}`,
       // The shop writes its supplier money as a group of rows (`groupNo`); Books' payments are one row each.
       module: payment.groupNo ? "Retail" : "Books",
-      kind: payment.bill ? "bills" : "other",
+      kind: isSub ? "subscriptions" : payment.bill ? "bills" : "other",
+      categoryLabel,
+      subscriptionBadge,
       paidFrom: account(payment.bankAccount),
       document: payment.paymentNumber ?? payment.groupNo,
       href: payment.bill ? `/books/bills/${payment.bill.id}` : `/books/payments-made?q=${encodeURIComponent(payment.paymentNumber ?? payment.groupNo ?? supplier)}`,

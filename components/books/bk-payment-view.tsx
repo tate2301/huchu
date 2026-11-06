@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Icon, Person } from "@/components/core";
+import { Button, Icon, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { InvoiceState } from "@/lib/books/invoice-state";
 import type { PaymentRecordPage } from "@/lib/books/payment-record";
@@ -43,7 +43,7 @@ function Boxed({ children }: { children: React.ReactNode }) {
   return <div className="bk-bleed">{children}</div>;
 }
 
-export function BkPaymentView({ payment }: { payment: PaymentRecordPage }) {
+export function BkPaymentView({ payment, onApply }: { payment: PaymentRecordPage; onApply?: () => void }) {
   const approval = payment.crmDocument?.approval ?? null;
   const bankPill =
     payment.bankLine === "Matched"
@@ -102,8 +102,13 @@ export function BkPaymentView({ payment }: { payment: PaymentRecordPage }) {
             <div className="bk-box bk-callout">
               <Icon name="payments" />
               <span className="grow">
-                <b>Money on account.</b> Held as credit for {payment.customer.name}, ready to apply to an invoice.
+                <b>Money on account (unused credit).</b> Held as credit for {payment.customer.name}, ready to apply to an unpaid invoice.
               </span>
+              {onApply ? (
+                <Button variant="primary" icon="check" onClick={onApply}>
+                  Apply to an invoice
+                </Button>
+              ) : null}
             </div>
           ) : null}
 

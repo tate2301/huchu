@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { BkBillsView } from "@/components/books/bk-bills-view";
 import { downloadCsv } from "@/components/books/bk-list";
+import { PayBillDrawer, type BillToPayTarget } from "@/components/books/bk-payment-drawers";
 import { BkError, BkLoading, BkPage } from "@/components/books/ui";
 import { useBulkUndo } from "@/components/books/undo-dialogs";
 import { useBooksPlan } from "@/components/books/use-books-plan";
@@ -35,6 +36,7 @@ function BooksBills() {
   const { toast } = useToast();
   const client = useQueryClient();
   const { bulk } = useBooksPlan();
+  const [payingBills, setPayingBills] = React.useState<BillToPayTarget[]>([]);
 
   const bills = useQuery({
     queryKey: ["books", "bills", search],
@@ -123,6 +125,20 @@ function BooksBills() {
       <PageChrome title="Bills" primary={NEW_BILL}>
         <Kit contents>
           <MenuButton
+            icon="plus"
+            label="More spending types"
+            items={[
+              { key: "bill", icon: "docs", label: "Supplier bill (stock, goods, services)", onSelect: () => router.push("/books/bills/new?kind=bill") },
+              { key: "expense", icon: "payments", label: "Everyday business expense (paid now)", onSelect: () => router.push("/books/bills/new?kind=expense") },
+              { key: "subscription", icon: "clock", label: "Subscription or recurring cost", onSelect: () => router.push("/books/bills/new?kind=subscription") },
+              { separator: true },
+              { key: "claim", icon: "docs", label: "Staff expense claim (reimburse staff)", onSelect: () => router.push("/books/claims/new") },
+              { key: "float", icon: "bank", label: "Petty cash slip (from cash float)", onSelect: () => router.push("/books/claims/new?paid=float") },
+            ]}
+          >
+            Other spending
+          </MenuButton>
+          <MenuButton
             icon="list"
             iconEnd={undefined}
             label="From a goods receipt"
@@ -142,7 +158,18 @@ function BooksBills() {
             data={bills.data}
             onQuery={onQuery}
             exportHref={`/api/books/bills?${new URLSearchParams([...params.entries(), ["format", "csv"]]).toString()}`}
-            onPay={(rows) => router.push(`/books/payments-made/new?supplier=${rows[0]!.supplier.id}&bills=${rows.map((row) => row.id).join(",")}`)}
+            onPay={(rows) =>
+              setPayingBills(
+                rows.map((row) => ({
+                  id: row.id,
+                  number: row.number,
+                  supplierId: row.supplier.id,
+                  supplierName: row.supplier.name,
+                  balance: row.balance,
+                  currency: row.currency,
+                })),
+              )
+            }
             more={more}
           />
         ) : bills.isError ? (
@@ -152,6 +179,15 @@ function BooksBills() {
         )}
       </BkPage>
       {undo.node}
+      <PayBillDrawer
+        open={payingBills.length > 0}
+        onOpenChange={(open) => (open ? undefined : setPayingBills([]))}
+        bills={payingBills}
+        onDone={async (message) => {
+          toast({ ...message, variant: "success" });
+          await client.invalidateQueries({ queryKey: ["books"] });
+        }}
+      />
     </>
   );
 }

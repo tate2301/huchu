@@ -1,6 +1,7 @@
 import type { InvoiceStatus, PrismaClient } from "@prisma/client";
 import { docLabel } from "@/lib/books/doc-number";
 import type { EnsuredCrmDocument } from "@/lib/books/crm-document-bridge";
+import type { UnappliedReceiptSummary } from "@/lib/books/payment-apply";
 
 import { customerFace, customerImage } from "./faces";
 import { daysBetween, dayOf, money, shortDay, storedDay } from "./format";
@@ -100,6 +101,8 @@ export type InvoiceRecordPage = InvoiceRecord & {
   board?: InvoiceBoardExtras | null;
   /** The CRM document row backing PDF, email, approval links, and in-place editing. */
   crmDocument?: EnsuredCrmDocument | null;
+  /** Unapplied ("on account") payments from this customer that can be applied to this invoice. */
+  unappliedReceipts?: UnappliedReceiptSummary[];
 };
 
 /** The aside's Due on a draft: its terms, and whether they are the customer's usual. */

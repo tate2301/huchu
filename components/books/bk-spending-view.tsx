@@ -103,6 +103,15 @@ export function BkSpendingView({ data, onQuery, exportHref }: { data: SpendingPa
                   <td className="muted">{row.date}</td>
                   <td className="fill truncate">
                     <span className="cell-lead">{row.what}</span>
+                    {row.subscriptionBadge ? (
+                      <span className="pill pill-info" style={{ marginLeft: "var(--space-8)" }}>
+                        {row.subscriptionBadge}
+                      </span>
+                    ) : row.categoryLabel ? (
+                      <span className="muted" style={{ marginLeft: "var(--space-8)", fontSize: 12 }}>
+                        · {row.categoryLabel}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="muted">{row.module}</td>
                   <td className="muted truncate">{row.paidFrom ?? "—"}</td>

@@ -29,10 +29,13 @@ function BooksSpending() {
   });
   const can = spending.data?.can;
   const record: MenuEntry[] = [
-    { key: "bill", icon: "docs", label: "Bill", disabled: can ? !can.bill : false, onSelect: () => router.push("/books/bills/new") },
-    { key: "claim", icon: "takings", label: "Claim", onSelect: () => router.push("/books/claims/new") },
-    { key: "voucher", icon: "expenses", label: "Petty cash voucher", onSelect: () => router.push("/books/claims/new?paid=float") },
-    { key: "requisition", icon: "hand", label: "Requisition", disabled: can ? !can.requisition : false, onSelect: () => router.push("/books/requisitions?new=1") },
+    { key: "bill", icon: "docs", label: "Supplier bill (stock, materials, services)", disabled: can ? !can.bill : false, onSelect: () => router.push("/books/bills/new?kind=bill") },
+    { key: "expense", icon: "payments", label: "Everyday business expense (paid now)", disabled: can ? !can.bill : false, onSelect: () => router.push("/books/bills/new?kind=expense") },
+    { key: "subscription", icon: "clock", label: "Subscription or recurring cost", disabled: can ? !can.bill : false, onSelect: () => router.push("/books/bills/new?kind=subscription") },
+    { separator: true },
+    { key: "claim", icon: "takings", label: "Staff expense claim (reimburse staff)", onSelect: () => router.push("/books/claims/new") },
+    { key: "voucher", icon: "expenses", label: "Petty cash slip (from cash float)", onSelect: () => router.push("/books/claims/new?paid=float") },
+    { key: "requisition", icon: "hand", label: "Cash request (requisition)", disabled: can ? !can.requisition : false, onSelect: () => router.push("/books/requisitions?new=1") },
   ];
   return (
     <>

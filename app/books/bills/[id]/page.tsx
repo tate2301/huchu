@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BkBillView } from "@/components/books/bk-bill-view";
 import { DebitDrawer } from "@/components/books/bk-debit-drawer";
+import { PayBillDrawer } from "@/components/books/bk-payment-drawers";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
@@ -36,6 +37,7 @@ export default function BooksBillPage() {
   const client = useQueryClient();
   const { toast } = useToast();
   const [noting, setNoting] = React.useState<"debit-note" | "write-off" | null>(null);
+  const [paying, setPaying] = React.useState(false);
   const photoInput = React.useRef<HTMLInputElement>(null);
 
   const query = useQuery({
@@ -124,9 +126,9 @@ export default function BooksBillPage() {
       );
     } else if (can.pay) {
       primary = (
-        <ButtonLink variant="primary" icon="payments" shortcut="P" href={`/books/payments-made/new?supplier=${bill.supplier.id}&bills=${id}`}>
-          Pay
-        </ButtonLink>
+        <Button variant="primary" icon="payments" shortcut="P" onClick={() => setPaying(true)}>
+          Record payment
+        </Button>
       );
     }
   }
@@ -162,7 +164,10 @@ export default function BooksBillPage() {
     if (can.check) menu.push({ key: "photo", icon: "camera", label: bill.photo ? "Replace their invoice" : "Add their invoice", onSelect: () => photoInput.current?.click() });
     if (can.note) menu.push({ key: "debit", icon: "invoice", label: "Debit note", onSelect: () => setNoting("debit-note") });
     if (can.writeOff) menu.push({ key: "write-off", icon: "retire", label: "Write off", onSelect: () => setNoting("write-off") });
-    menu.push({ key: "print", icon: "print", label: "Print", onSelect: () => window.print() });
+    menu.push(
+      { key: "view-pdf", icon: "eye", label: "View PDF", onSelect: () => window.open(`/api/books/bills/${bill.id}/pdf`, "_blank", "noopener,noreferrer") },
+      { key: "download-pdf", icon: "export", label: "Download PDF", onSelect: () => { window.location.href = `/api/books/bills/${bill.id}/pdf?download=1`; } },
+    );
     // Revise, Void and Delete: the core says which this person may press, and why not (rule 12).
     menu.push(...undo.entries);
   }
@@ -179,6 +184,9 @@ export default function BooksBillPage() {
       <PageChrome title={bill?.number ?? "Bill"} backHref="/books/bills" backLabel="Bills" phoneMenu={phoneMenu}>
         {bill ? (
           <Kit contents>
+            <ButtonLink icon="export" href={`/api/books/bills/${bill.id}/pdf?download=1`}>
+              PDF
+            </ButtonLink>
             {primary && menu.length ? (
               <ButtonGroup aria-label="The next step, and more">
                 {primary}
@@ -224,6 +232,24 @@ export default function BooksBillPage() {
             target={{ id: bill.id, number: bill.number, supplier: bill.supplier.name, currency: bill.currency, balance: bill.balance, taxRate: bill.subTotal > 0 ? Math.round((bill.taxTotal / bill.subTotal) * 1000) / 10 : 0 }}
             open={noting !== null}
             onOpenChange={(open) => (open ? undefined : setNoting(null))}
+            onDone={async (message) => {
+              toast({ ...message, variant: "success" });
+              await refresh();
+            }}
+          />
+          <PayBillDrawer
+            open={paying}
+            onOpenChange={setPaying}
+            bills={[
+              {
+                id: bill.id,
+                number: bill.number,
+                supplierId: bill.supplier.id,
+                supplierName: bill.supplier.name,
+                balance: bill.balance,
+                currency: bill.currency,
+              },
+            ]}
             onDone={async (message) => {
               toast({ ...message, variant: "success" });
               await refresh();

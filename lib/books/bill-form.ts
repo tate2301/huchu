@@ -5,8 +5,10 @@
  * is kept in its note. Pure.
  */
 import { dueDate, readNumber, type InvoiceFormLine } from "./invoice-form";
+import { formatSpendingNote, nextRenewalDate, type SubscriptionCycle } from "./spending-categories";
 
 export type FdmsResult = "NOT_CHECKED" | "VALID" | "NOT_VALID";
+export type BillSpendingKind = "bill" | "expense" | "subscription";
 
 export type BillForm = {
   vendorId: string;
@@ -19,12 +21,19 @@ export type BillForm = {
   dueInDays: string;
   costCenterId: string;
   lines: InvoiceFormLine[];
+  spendingKind?: BillSpendingKind;
+  category?: string;
+  subscriptionCycle?: SubscriptionCycle;
+  paidNow?: boolean;
+  paidFrom?: string;
+  paymentReference?: string;
 };
 
 export function billFormErrors(form: BillForm): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!form.vendorId) errors.vendorId = "Choose who sent it.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.billDate)) errors.billDate = "The date on their invoice.";
+  if (form.paidNow && !form.paidFrom) errors.paidFrom = "Choose which account it was paid from.";
   const touched = form.lines.filter((line) => line.description.trim() || line.unitPrice.trim());
   if (touched.length === 0) errors.lines = "Add at least one line.";
   form.lines.forEach((line, index) => {
@@ -38,9 +47,19 @@ export function billFormErrors(form: BillForm): Record<string, string> {
   return errors;
 }
 
-/** The FDMS verification code, as the note keeps it: the bill keeps the result, not the code. */
-export function billNote(form: Pick<BillForm, "fdmsCode">): string | undefined {
-  return form.fdmsCode.trim() ? `FDMS code ${form.fdmsCode.trim()}` : undefined;
+/** The FDMS verification code, spending category, and subscription cycle as the note keeps it. */
+export function billNote(form: Pick<BillForm, "fdmsCode" | "category" | "spendingKind" | "subscriptionCycle" | "billDate">): string | undefined {
+  return formatSpendingNote({
+    fdmsCode: form.fdmsCode,
+    category: form.category ?? null,
+    subscription:
+      form.spendingKind === "subscription" && form.subscriptionCycle
+        ? {
+            cycle: form.subscriptionCycle,
+            nextRenewal: form.billDate && /^\d{4}-\d{2}-\d{2}$/.test(form.billDate) ? nextRenewalDate(form.billDate, form.subscriptionCycle) : undefined,
+          }
+        : null,
+  });
 }
 
 /** What the FDMS box under the check says, or null before a check. */
@@ -62,6 +81,14 @@ export function billPayload(form: BillForm, receiveNow: boolean) {
     ...(form.theirNumber.trim() ? { supplierFtiNumber: form.theirNumber.trim() } : {}),
     fdmsStatus: form.fdmsStatus,
     ...(form.costCenterId ? { costCenterId: form.costCenterId } : {}),
+    ...(receiveNow && form.paidNow && form.paidFrom
+      ? {
+          paidNow: {
+            bankAccountId: form.paidFrom,
+            ...(form.paymentReference?.trim() ? { reference: form.paymentReference.trim() } : {}),
+          },
+        }
+      : {}),
     receiveNow,
     lines: form.lines
       .filter((line) => line.description.trim())

@@ -89,8 +89,8 @@ export type PaymentsView = {
   query: PaymentQuery;
 };
 
-/** What the person may do from a row (the route adds it): Void is the owner's. */
-export type PaymentsPage = PaymentsView & { can: { void: boolean } };
+/** What the person may do from a row (the route adds it): Void is the owner's; Issue records/applies payments. */
+export type PaymentsPage = PaymentsView & { can: { void: boolean; issue?: boolean } };
 
 type Db = Pick<PrismaClient, "salesReceipt" | "paymentLedgerEntry" | "customer" | "platformAuditEvent" | "bankAccount">;
 

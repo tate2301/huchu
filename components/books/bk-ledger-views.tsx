@@ -80,9 +80,6 @@ export function BkTrialBalanceView({ data, onQuery, accountantHref, today }: { d
         )}
         {centreChip(data.costCentres, q.cc, (cc) => onQuery({ cc }))}
         <div className="end">
-          <Button icon="print" onClick={() => window.print()}>
-            Print
-          </Button>
           <Button variant="quiet" iconOnly icon="eye" label="Hide zero balances" title={q.zero === "hide" ? "Zero balances are hidden: show them" : "Hide zero balances"} aria-pressed={q.zero === "hide"} onClick={() => onQuery({ zero: q.zero === "hide" ? "show" : "hide" })} />
         </div>
       </div>
@@ -201,13 +198,10 @@ export function BkFinancialsView({ data, onQuery, exportHref }: { data: Financia
             range={data.foot.label}
             sums={data.foot.sums}
             end={
-              <>
-                <a className="btn" href={exportHref} download>
-                  <Icon name="export" />
-                  Export
-                </a>
-                <Button variant="quiet" iconOnly icon="print" label="Print" onClick={() => window.print()} />
-              </>
+              <a className="btn" href={exportHref} download>
+                <Icon name="export" />
+                Export
+              </a>
             }
           />
         }
@@ -291,11 +285,6 @@ export function BkLedgerView({ data, onQuery, exportHref, today }: { data: Ledge
         />
         <BkChip label="Dates" value={data.dates} set items={ranges.map((range) => ({ key: range.key, label: range.label, checked: range.from === q.from && range.to === q.to, onSelect: () => onQuery({ from: range.from, to: range.to }) }))} />
         {centreChip(data.costCentres, q.cc, (cc) => onQuery({ cc }))}
-        <div className="end">
-          <Button icon="print" onClick={() => window.print()}>
-            Print
-          </Button>
-        </div>
       </div>
       <TableShell
         label="General ledger"

@@ -5,6 +5,7 @@ import { Avatar } from "@corelithzw/react";
 
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Download } from "@/lib/icons";
+import { downloadCsv } from "@/components/books/bk-list";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import { cn } from "@/lib/utils";
 
@@ -38,30 +39,6 @@ export type HistoryEvent = {
   /** Free text the event carried, shown under the verb phrase. */
   note?: string | null;
 };
-
-function toCsv(events: HistoryEvent[]): string {
-  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
-  const rows = [
-    ["When", "Who", "What", "Field", "From", "To"].join(","),
-    ...events.flatMap((event) =>
-      event.changes && event.changes.length > 0
-        ? event.changes.map((change) =>
-            [
-              event.occurredAt,
-              event.actorName,
-              event.verb,
-              change.field,
-              change.from ?? "",
-              change.to ?? "",
-            ]
-              .map(escape)
-              .join(","),
-          )
-        : [[event.occurredAt, event.actorName, event.verb, "", "", ""].map(escape).join(",")],
-    ),
-  ];
-  return rows.join("\n");
-}
 
 function HistoryRow({ event }: { event: HistoryEvent }) {
   const [expanded, setExpanded] = useState(false);
@@ -167,13 +144,20 @@ export function HistoryFeed({
   );
 
   const download = () => {
-    const blob = new Blob([toCsv(filtered)], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${exportName}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    const head = ["When", "Who", "What", "Field", "From", "To"];
+    const data: Array<Array<string | number>> = filtered.flatMap((event) =>
+      event.changes && event.changes.length > 0
+        ? event.changes.map((change) => [
+            event.occurredAt,
+            event.actorName,
+            event.verb,
+            change.field,
+            change.from ?? "",
+            change.to ?? "",
+          ])
+        : [[event.occurredAt, event.actorName, event.verb, "", "", ""]],
+    );
+    downloadCsv(`${exportName}.csv`, head, data);
   };
 
   if (events.length === 0) {

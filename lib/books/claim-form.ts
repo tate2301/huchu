@@ -18,15 +18,18 @@ export type ClaimForm = {
 };
 
 export const CLAIM_KINDS: Array<{ value: string; label: string }> = [
-  { value: "FUEL", label: "Fuel" },
-  { value: "TRANSPORT", label: "Transport" },
-  { value: "MATERIALS", label: "Materials" },
-  { value: "SUBSISTENCE", label: "Food" },
-  { value: "AIRTIME", label: "Airtime" },
-  { value: "ACCOMMODATION", label: "Accommodation" },
-  { value: "EQUIPMENT", label: "Equipment" },
-  { value: "LABOUR", label: "Labour" },
-  { value: "OTHER", label: "Other" },
+  { value: "FUEL", label: "Fuel & vehicle" },
+  { value: "TRANSPORT", label: "Transport & delivery" },
+  { value: "MATERIALS", label: "Stock, materials & supplies" },
+  { value: "SUBSISTENCE", label: "Meals & refreshments" },
+  { value: "AIRTIME", label: "Airtime, data & internet" },
+  { value: "ACCOMMODATION", label: "Travel & accommodation" },
+  { value: "EQUIPMENT", label: "Tools, spares & repairs" },
+  { value: "LABOUR", label: "Casual labour & wages" },
+  { value: "UTILITIES", label: "Electricity, water & gas" },
+  { value: "SUBSCRIPTION", label: "Software or subscription" },
+  { value: "OFFICE", label: "Stationery, printing & cleaning" },
+  { value: "OTHER", label: "Other business expense" },
 ];
 
 export function claimFormErrors(form: ClaimForm): Record<string, string> {

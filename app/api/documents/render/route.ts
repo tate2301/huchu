@@ -42,6 +42,8 @@ function resolveFeatureKeys(sourceKey: string): string[] {
   if (sourceKey === "accounting.sales.quotation") return ["accounting.ar", "crm.documents"];
   if (sourceKey === "accounting.sales.receipt") return ["accounting.ar", "crm.documents"];
   if (sourceKey === "accounting.sales.credit-note") return ["accounting.ar"];
+  if (sourceKey === "accounting.purchase.bill") return ["accounting.ap"];
+  if (sourceKey === "accounting.purchase.requisition") return ["accounting.ap", "crm.requisitions"];
   // Iteration 5 — the school's paper. One feature each, and a role check as well;
   // see below.
   if (isSchoolDocumentSourceKey(sourceKey)) {

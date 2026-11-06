@@ -5,6 +5,7 @@ import { creditNoteBody, creditNoteErrors } from "./credit-form";
 import { dueDate, formTotals, invoiceFormErrors, invoicePayload, readNumber, type InvoiceForm } from "./invoice-form";
 import { allocateOldestFirst, onAccount, paymentFormErrors, type OpenInvoice } from "./payment-form";
 import { partyData, partyErrors, EMPTY_PARTY } from "./party-form";
+import { formatSpendingNote, isSubscriptionCategory, nextRenewalDate, parseSpendingMeta, spendingCategoryLabel } from "./spending-categories";
 
 const VAT = { id: "vat", label: "VAT 15.5%", rate: 15.5 };
 
@@ -132,5 +133,50 @@ describe("Record a bill (BkBillNew) and the customer or supplier drawer", () => 
     expect(partyErrors({ ...EMPTY_PARTY, name: "Pomona Offices", email: "accounts@" }).email).toBeTruthy();
     expect(partyErrors({ ...EMPTY_PARTY, name: "Pomona Offices" })).toEqual({});
     expect(partyData({ name: " Pomona Offices ", email: "", vatNumber: "220087431" })).toMatchObject({ name: "Pomona Offices", email: null, vatNumber: "220087431", taxNumber: null });
+  });
+
+  it("supports multi-industry spending categories, subscriptions, and one-step paid expenses", () => {
+    expect(nextRenewalDate("2026-10-17", "monthly")).toBe("2026-11-17");
+    expect(nextRenewalDate("2026-10-17", "quarterly")).toBe("2027-01-17");
+    expect(nextRenewalDate("2026-10-17", "yearly")).toBe("2027-10-17");
+    expect(nextRenewalDate("2026-10-17", "weekly")).toBe("2026-10-24");
+
+    const subNote = formatSpendingNote({
+      fdmsCode: "91B4-0C7E",
+      category: "internet-telecoms",
+      subscription: { cycle: "monthly", nextRenewal: "2026-11-17" },
+    });
+    expect(parseSpendingMeta(subNote)).toEqual({
+      fdmsCode: "91B4-0C7E",
+      category: "internet-telecoms",
+      subscription: { cycle: "monthly", nextRenewal: "2026-11-17" },
+      cleanNote: null,
+    });
+    expect(spendingCategoryLabel("internet-telecoms")).toBe("Internet, Starlink & phone plans");
+    expect(isSubscriptionCategory("software-saas")).toBe(true);
+    expect(isSubscriptionCategory("stock-for-resale")).toBe(false);
+
+    const subForm = {
+      vendorId: "v",
+      theirNumber: "SL-9901",
+      billDate: "2026-10-17",
+      fdmsCode: "",
+      fdmsStatus: "NOT_CHECKED" as const,
+      currency: "USD",
+      dueInDays: "0",
+      costCenterId: "",
+      spendingKind: "subscription" as const,
+      category: "internet-telecoms",
+      subscriptionCycle: "monthly" as const,
+      paidNow: true,
+      paidFrom: "acc-1",
+      paymentReference: "ECOCASH-881",
+      lines: [{ description: "Starlink Business monthly", quantity: "1", unitPrice: "120", taxCodeId: "" }],
+    };
+    expect(billFormErrors({ ...subForm, paidFrom: "" }).paidFrom).toBeTruthy();
+    expect(billFormErrors(subForm)).toEqual({});
+    const payload = billPayload(subForm, true);
+    expect(payload.paidNow).toEqual({ bankAccountId: "acc-1", reference: "ECOCASH-881" });
+    expect(parseSpendingMeta(payload.notes).subscription).toEqual({ cycle: "monthly", nextRenewal: "2026-11-17" });
   });
 });

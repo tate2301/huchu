@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PrintNow } from "@/components/books/print-now";
 import { Kit } from "@/components/core";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { authOptions } from "@/lib/auth";
@@ -28,7 +27,6 @@ export default async function BooksStatementsPage({ searchParams }: { searchPara
     <>
       <PageChrome title="Statements" backHref="/books/invoices" backLabel="Invoices" />
       <Kit>
-        <PrintNow />
         {statements.length === 0 ? (
           <p className="muted" style={{ padding: "var(--space-24)" }}>
             Choose the customers in Invoices, then Print statements.

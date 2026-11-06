@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { Icon, Person } from "@/components/core";
+import { Button, Icon, Person } from "@/components/core";
 import { money } from "@/lib/books/format";
 import type { InvoiceRecordPage } from "@/lib/books/invoice-record";
 import type { InvoiceState } from "@/lib/books/invoice-state";
@@ -36,11 +36,19 @@ function Boxed({ children }: { children: React.ReactNode }) {
  * bank line; what it posted; its history. On the right, the fiscal block and
  * the details. Pure: the page feeds it and holds the actions.
  */
-export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
+export function BkInvoiceView({
+  invoice,
+  onUseCredit,
+}: {
+  invoice: InvoiceRecordPage;
+  onUseCredit?: (receiptId: string) => void;
+}) {
   const board = invoice.board;
   const draft = invoice.status === "DRAFT";
   const credited = invoice.credits.filter((note) => !note.voided).reduce((sum, note) => sum + note.total, 0);
   const writtenOff = Math.max(0, Math.round((invoice.total - invoice.paid - credited - invoice.balance) * 100) / 100);
+  const unapplied = (invoice.unappliedReceipts ?? []).filter((r) => r.currency.toUpperCase() === invoice.currency.toUpperCase());
+  const unappliedTotal = Math.round(unapplied.reduce((s, r) => s + r.amount, 0) * 100) / 100;
   // The sums as the lines table's foot (the board's `sums()`): the label beside its amount, under Amount.
   const sums: Array<{ label: string; amount: number; total?: boolean }> = [
     { label: "Before VAT", amount: invoice.subTotal },
@@ -96,6 +104,18 @@ export function BkInvoiceView({ invoice }: { invoice: InvoiceRecordPage }) {
               </b>{" "}
               {invoice.voided.reason ?? ""}
             </span>
+          </div>
+        ) : !draft && invoice.balance > 0.005 && unapplied.length > 0 ? (
+          <div className="bk-box bk-callout">
+            <Icon name="payments" />
+            <span className="grow">
+              <b>{invoice.customer.name} has {money(unappliedTotal, invoice.currency)} of unused credit on account</b> ({unapplied.map((r) => r.number).join(", ")}). You can use it to pay this invoice.
+            </span>
+            {onUseCredit ? (
+              <Button variant="primary" icon="check" onClick={() => onUseCredit(unapplied[0]!.id)}>
+                Use credit on this invoice
+              </Button>
+            ) : null}
           </div>
         ) : null}
 

@@ -484,6 +484,188 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
   };
 }
 
+async function resolveBill(companyId: string, recordId: string): Promise<SourceResolution> {
+  const bill = await prisma.purchaseBill.findUnique({
+    where: { id: recordId },
+    include: {
+      vendor: true,
+      lines: true,
+    },
+  });
+
+  if (!bill || bill.companyId !== companyId) {
+    throw new Error("Bill not found");
+  }
+
+  const lineRows = financialLineRows(bill.lines);
+  const balance = Math.max(
+    0,
+    bill.total - bill.amountPaid - bill.debitNoteTotal - bill.writeOffTotal,
+  );
+  const badge =
+    bill.status === "PAID"
+      ? { label: "Paid", tone: "positive" as const }
+      : bill.status === "VOIDED"
+        ? { label: "Voided", tone: "negative" as const }
+        : bill.status === "DRAFT"
+          ? { label: "Draft", tone: "neutral" as const }
+          : { label: "Received", tone: "warning" as const };
+
+  const billNumber = bill.billNumber ? docLabel(bill.billNumber, "bill") : "Draft bill";
+
+  const totals = [
+    { label: "Subtotal", value: `${bill.currency} ${fmtMoney(bill.subTotal)}` },
+    ...(bill.taxTotal > 0 ? [{ label: "Tax", value: `${bill.currency} ${fmtMoney(bill.taxTotal)}` }] : []),
+    { label: "Total", value: `${bill.currency} ${fmtMoney(bill.total)}`, emphasis: balance <= 0 },
+    ...(bill.amountPaid > 0
+      ? [{ label: "Amount paid", value: `${bill.currency} ${fmtMoney(bill.amountPaid)}` }]
+      : []),
+    ...(bill.debitNoteTotal > 0
+      ? [{ label: "Debit notes", value: `${bill.currency} ${fmtMoney(bill.debitNoteTotal)}` }]
+      : []),
+    ...(balance > 0 && bill.status !== "DRAFT"
+      ? [{ label: "Balance due", value: `${bill.currency} ${fmtMoney(balance)}`, emphasis: true }]
+      : []),
+  ];
+
+  const vendorParty = {
+    title: "Bill from",
+    lines: [
+      bill.vendor.name,
+      bill.vendor.contactName,
+      bill.vendor.address,
+      bill.vendor.phone,
+      bill.vendor.email,
+      bill.vendor.vatNumber ? `VAT ${bill.vendor.vatNumber}` : bill.vendor.taxNumber ? `Tax ${bill.vendor.taxNumber}` : null,
+    ].filter((line): line is string => Boolean(line)),
+  };
+
+  return {
+    targetType: "RECORD",
+    documentType: "GENERIC_RECORD",
+    sourceKey: "accounting.purchase.bill",
+    fileName: `bill-${bill.billNumber || bill.id}.pdf`,
+    payload: {
+      title: "Bill",
+      subtitle: billNumber,
+      badge,
+      meta: [
+        { label: "Bill No.", value: billNumber },
+        { label: "Date", value: isoDate(bill.billDate) },
+        ...(bill.dueDate ? [{ label: "Due date", value: isoDate(bill.dueDate) }] : []),
+        ...(bill.supplierFtiNumber ? [{ label: "Supplier Invoice", value: bill.supplierFtiNumber }] : []),
+        { label: "Currency", value: bill.currency },
+      ],
+      parties: [vendorParty],
+      totals,
+      notes: bill.notes ? [bill.notes] : [],
+      record: {
+        sections: [],
+        lineColumns: FINANCIAL_LINE_COLUMNS,
+        lines: lineRows,
+      },
+    },
+    rowsForCsv: lineRows,
+  };
+}
+
+async function resolveRequisition(companyId: string, recordId: string): Promise<SourceResolution> {
+  const req = await prisma.crmRequisition.findUnique({
+    where: { id: recordId },
+    include: {
+      requestedBy: { select: { name: true, email: true } },
+      approvedBy: { select: { name: true } },
+      disbursedBy: { select: { name: true } },
+      project: { select: { name: true } },
+      site: { select: { name: true } },
+      costEntries: true,
+    },
+  });
+
+  if (!req || req.companyId !== companyId) {
+    throw new Error("Requisition not found");
+  }
+
+  const reqNo = req.requisitionNo ? `REQ-${req.requisitionNo}` : "Draft requisition";
+  const badge =
+    req.status === "ACQUITTED"
+      ? { label: "Acquitted", tone: "positive" as const }
+      : req.status === "DISBURSED"
+        ? { label: "Disbursed", tone: "neutral" as const }
+        : req.status === "APPROVED"
+          ? { label: "Approved", tone: "positive" as const }
+          : req.status === "REJECTED" || req.status === "CANCELLED"
+            ? { label: req.status === "REJECTED" ? "Rejected" : "Cancelled", tone: "negative" as const }
+            : req.status === "SUBMITTED"
+              ? { label: "Awaiting approval", tone: "warning" as const }
+              : { label: "Draft", tone: "neutral" as const };
+
+  const amountNum = Number(req.amount);
+  const paidNum = req.paidAmount ? Number(req.paidAmount) : null;
+  const spentNum = req.acquittedAmount ? Number(req.acquittedAmount) : null;
+  const changeNum = req.changeAmount ? Number(req.changeAmount) : null;
+
+  const totals = [
+    { label: "Amount requested", value: `${req.currency} ${fmtMoney(amountNum)}`, emphasis: true },
+    ...(paidNum !== null ? [{ label: "Amount disbursed", value: `${req.currency} ${fmtMoney(paidNum)}` }] : []),
+    ...(spentNum !== null ? [{ label: "Amount spent", value: `${req.currency} ${fmtMoney(spentNum)}` }] : []),
+    ...(changeNum !== null ? [{ label: "Change returned", value: `${req.currency} ${fmtMoney(changeNum)}` }] : []),
+  ];
+
+  const lines = req.costEntries.length > 0
+    ? req.costEntries.map((entry) => ({
+        description: entry.description,
+        amount: fmtMoney(Number(entry.amount)),
+        receipt: entry.receiptUrl || entry.receiptPathname ? "Yes" : "No",
+        date: isoDate(entry.createdAt),
+      }))
+    : [
+        {
+          description: req.purpose,
+          amount: fmtMoney(amountNum),
+          receipt: "—",
+          date: isoDate(req.createdAt),
+        },
+      ];
+
+  return {
+    targetType: "RECORD",
+    documentType: "GENERIC_RECORD",
+    sourceKey: "accounting.purchase.requisition",
+    fileName: `requisition-${req.requisitionNo || req.id}.pdf`,
+    payload: {
+      title: "Requisition",
+      subtitle: reqNo,
+      badge,
+      meta: [
+        { label: "Requisition No.", value: reqNo },
+        { label: "Requested by", value: req.requestedBy.name },
+        { label: "Date", value: isoDate(req.createdAt) },
+        ...(req.neededBy ? [{ label: "Needed by", value: isoDate(req.neededBy) }] : []),
+        ...(req.project?.name ? [{ label: "Project", value: req.project.name }] : []),
+        ...(req.site?.name ? [{ label: "Site", value: req.site.name }] : []),
+        ...(req.approvedBy?.name ? [{ label: "Approved by", value: req.approvedBy.name }] : []),
+        ...(req.disbursedBy?.name ? [{ label: "Disbursed by", value: req.disbursedBy.name }] : []),
+        { label: "Currency", value: req.currency },
+      ],
+      parties: [],
+      totals,
+      notes: [req.purpose, ...(req.notes ? [req.notes] : []), ...(req.decisionNote ? [`Decision: ${req.decisionNote}`] : [])],
+      record: {
+        sections: [],
+        lineColumns: [
+          { key: "description", label: "Description / Purpose" },
+          { key: "amount", label: "Amount" },
+          { key: "receipt", label: "Receipt" },
+          { key: "date", label: "Date" },
+        ],
+        lines,
+      },
+    },
+    rowsForCsv: lines,
+  };
+}
+
 async function resolveShiftList(companyId: string, filters: Record<string, string> | undefined): Promise<SourceResolution> {
   const rows = await prisma.shiftReport.findMany({
     where: {
@@ -751,6 +933,12 @@ export async function resolveSourcePayload(
     case "accounting.sales.credit-note":
       if (!input.recordId) throw new Error("recordId is required for credit note export");
       return resolveCreditNote(companyId, input.recordId);
+    case "accounting.purchase.bill":
+      if (!input.recordId) throw new Error("recordId is required for bill export");
+      return resolveBill(companyId, input.recordId);
+    case "accounting.purchase.requisition":
+      if (!input.recordId) throw new Error("recordId is required for requisition export");
+      return resolveRequisition(companyId, input.recordId);
     case "reports.shift":
       return resolveShiftList(companyId, input.filters);
     case "reports.attendance":

@@ -9,7 +9,7 @@ import { BkRequisitionView } from "@/components/books/bk-requisition-view";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
-import { Button, ButtonGroup, Empty, Kit } from "@/components/core";
+import { Button, ButtonGroup, ButtonLink, Empty, Kit } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
@@ -74,6 +74,8 @@ export default function BooksRequisitionPage() {
 
   const menu: MenuEntry[] = record
     ? [
+        { key: "view-pdf", icon: "eye", label: "View PDF", onSelect: () => window.open(`/api/books/requisitions/${record.id}/pdf`, "_blank", "noopener,noreferrer") },
+        { key: "download-pdf", icon: "export", label: "Download PDF", onSelect: () => { window.location.href = `/api/books/requisitions/${record.id}/pdf?download=1`; } },
         { key: "open", icon: "link", label: record.source === "CRM" ? "Open it in the CRM" : "Open it in the shop", onSelect: () => window.location.assign(record.sourceHref) },
         ...(waiting && can?.decide ? [{ key: "reject", icon: "x" as const, label: "Reject", onSelect: () => setRejecting(true) }] : []),
         ...undo.entries,
@@ -82,7 +84,11 @@ export default function BooksRequisitionPage() {
 
   const phoneMenu = React.useMemo<PageMenuItem[] | null>(() => {
     if (!record) return null;
-    return [{ key: "open", label: record.source === "CRM" ? "Open it in the CRM" : "Open it in the shop", onSelect: () => window.location.assign(record.sourceHref) }, { key: "print", label: "Print", onSelect: () => window.print() }];
+    return [
+      { key: "view-pdf", label: "View PDF", onSelect: () => window.open(`/api/books/requisitions/${record.id}/pdf`, "_blank", "noopener,noreferrer") },
+      { key: "download-pdf", label: "Download PDF", onSelect: () => { window.location.href = `/api/books/requisitions/${record.id}/pdf?download=1`; } },
+      { key: "open", label: record.source === "CRM" ? "Open it in the CRM" : "Open it in the shop", onSelect: () => window.location.assign(record.sourceHref) },
+    ];
   }, [record]);
 
   const approve = () => (decide.isPending ? undefined : decide.mutate({ approve: true }));
@@ -92,6 +98,9 @@ export default function BooksRequisitionPage() {
       <PageChrome title={record?.number ?? "Requisition"} backHref="/books/requisitions" backLabel="Requisitions" phoneMenu={phoneMenu}>
         {record ? (
           <Kit contents>
+            <ButtonLink icon="export" href={`/api/books/requisitions/${record.id}/pdf?download=1`}>
+              PDF
+            </ButtonLink>
             {waiting && can?.decide ? (
               <ButtonGroup aria-label="Approve, and more">
                 <Button variant="primary" icon="check" shortcut="A" busy={decide.isPending} onClick={approve}>
@@ -102,9 +111,6 @@ export default function BooksRequisitionPage() {
             ) : (
               <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
             )}
-            <Button variant="quiet" icon="print" onClick={() => window.print()}>
-              Print
-            </Button>
           </Kit>
         ) : null}
       </PageChrome>

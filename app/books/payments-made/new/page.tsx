@@ -32,8 +32,12 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
   const [parties, setParties] = React.useState(options.parties);
   const [adding, setAdding] = React.useState(false);
   const [vendorId, setVendorId] = React.useState(initialSupplier);
-  // The account the last supplier payment left from, chosen to start with.
-  const [bankAccountId, setBankAccountId] = React.useState(() => (options.payFrom && options.accounts.some((candidate) => candidate.id === options.payFrom) ? options.payFrom : ""));
+  // The account the last supplier payment left from, or the first account available, chosen to start with.
+  const [bankAccountId, setBankAccountId] = React.useState(() =>
+    options.payFrom && options.accounts.some((candidate) => candidate.id === options.payFrom)
+      ? options.payFrom
+      : (options.accounts[0]?.id ?? ""),
+  );
   const [paidAt, setPaidAt] = React.useState(todayHarare());
   const [reference, setReference] = React.useState("");
   const [picked, setPicked] = React.useState<Allocation[]>([]);
@@ -92,6 +96,36 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
     }
   }
 
+  const canPayNow = !over || Boolean(options.approval?.youPay);
+
+  const payNow = useMutation({
+    mutationFn: () =>
+      fetchJson<{ supplier: string; total: number }>("/api/books/payments-made", {
+        method: "POST",
+        body: JSON.stringify({
+          vendorId,
+          bankAccountId,
+          paidAt,
+          ...(reference.trim() ? { reference: reference.trim() } : {}),
+          bills: picked.map((row) => ({ billId: row.invoiceId, amount: row.amount })),
+        }),
+      }),
+    onSuccess: async (done) => {
+      toast({
+        title: `Paid ${money(done.total, currency)} to ${done.supplier}`,
+        description: "The payment is recorded and the bill balance is updated.",
+        variant: "success",
+      });
+      await client.invalidateQueries({ queryKey: ["books"] });
+      if (initialBills.length === 1) {
+        router.push(`/books/bills/${initialBills[0]}`);
+      } else {
+        router.push("/books/payments-made");
+      }
+    },
+    onError: (error) => toast({ title: "The payment was not recorded", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
+  });
+
   // Save draft, or Send for approval (D5): a draft per bill; nothing moves until it is approved and paid.
   const pay = useMutation({
     mutationFn: (send: boolean) =>
@@ -106,31 +140,58 @@ function PayForm({ options, initialSupplier, initialBills }: { options: Options;
         variant: "success",
       });
       await client.invalidateQueries({ queryKey: ["books"] });
-      router.push(send ? "/books/payments-made?view=to-approve" : "/books/payments-made");
+      if (initialBills.length === 1) {
+        router.push(`/books/bills/${initialBills[0]}`);
+      } else {
+        router.push(send ? "/books/payments-made?view=to-approve" : "/books/payments-made");
+      }
     },
     onError: (error) => toast({ title: "The payment was not saved", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
 
-  const submit = (send: boolean) => {
+  const hasValidationErrors = () => {
     setShown(true);
-    const problems = !vendorId || !picked.length || !bankAccountId || picked.some((row) => {
-      const bill = bills.find((candidate) => candidate.id === row.invoiceId);
-      return !bill || row.amount > bill.balance + 0.005 || (account && bill.currency !== account.currency);
-    });
-    if (!problems) pay.mutate(send);
+    return (
+      !vendorId ||
+      !picked.length ||
+      !bankAccountId ||
+      picked.some((row) => {
+        const bill = bills.find((candidate) => candidate.id === row.invoiceId);
+        return !bill || row.amount > bill.balance + 0.005 || (account && bill.currency !== account.currency);
+      })
+    );
+  };
+
+  const submitPayNow = () => {
+    if (!hasValidationErrors()) payNow.mutate();
+  };
+
+  const submit = (send: boolean) => {
+    if (!hasValidationErrors()) pay.mutate(send);
   };
   const toggle = (bill: OpenBill, on: boolean) => setPicked((current) => (on ? [...current.filter((row) => row.invoiceId !== bill.id), { invoiceId: bill.id, amount: bill.balance }] : current.filter((row) => row.invoiceId !== bill.id)));
+
+  const busy = pay.isPending || payNow.isPending;
 
   return (
     <>
       <PageChrome
-        title="New payment"
-        backHref="/books/payments-made"
-        backLabel="Payments made"
-        primary={{ label: "Send for approval", icon: "send", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: pay.isPending ? "Saving it" : undefined }}
+        title="Pay a supplier"
+        backHref={initialBills.length === 1 ? `/books/bills/${initialBills[0]}` : "/books/payments-made"}
+        backLabel={initialBills.length === 1 ? "Bill" : "Payments made"}
+        primary={
+          canPayNow
+            ? { label: "Record payment", icon: "payments", shortcut: "Ctrl ↵", onClick: submitPayNow, disabled: busy ? "Recording it" : undefined }
+            : { label: "Send for approval", icon: "send", shortcut: "Ctrl ↵", onClick: () => submit(true), disabled: busy ? "Saving it" : undefined }
+        }
       >
         <Kit contents>
-          <Button icon="docs" disabled={pay.isPending} onClick={() => submit(false)}>
+          {canPayNow ? (
+            <Button icon="send" disabled={busy} onClick={() => submit(true)}>
+              Send for approval
+            </Button>
+          ) : null}
+          <Button icon="docs" disabled={busy} onClick={() => submit(false)}>
             Save draft
           </Button>
         </Kit>

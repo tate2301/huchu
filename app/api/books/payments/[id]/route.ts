@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { booksActor, canDo } from "@/lib/books/core";
+import { booksActor, canDo, guardBooks } from "@/lib/books/core";
+import { ReceiptRefused } from "@/lib/books/core/receipt-facts";
 import { asUndoRefused, deleteDocument } from "@/lib/books/core/undo";
 import { ensureCrmDocument } from "@/lib/books/crm-document-bridge";
+import { applyPaymentSchema, applyReceiptToInvoices } from "@/lib/books/payment-apply";
+import { openInvoicesFor } from "@/lib/books/payment-create";
 import { readPaymentRecord, type PaymentRecordPage } from "@/lib/books/payment-record";
 import { prisma } from "@/lib/prisma";
 
@@ -18,17 +22,45 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!record) return errorResponse("There is no such payment in this workspace", 404);
 
     const actor = await booksActor(session);
+    const isOnAccount = !record.voided && !record.invoice;
+    const openInvoices =
+      isOnAccount && record.customer.id
+        ? (await openInvoicesFor(session.user.companyId, record.customer.id)).filter(
+            (inv) => inv.currency.toUpperCase() === record.currency.toUpperCase(),
+          )
+        : [];
     const page: PaymentRecordPage = {
       ...record,
       can: {
         void: !record.voided && canDo(actor, "void", { kind: "receipt" }).allowed,
+        apply: isOnAccount && canDo(actor, "issue", { kind: "receipt" }).allowed,
       },
+      openInvoices,
       crmDocument: await ensureCrmDocument(session.user.companyId, record.id),
     };
     return successResponse(page);
   } catch (error) {
     console.error("[API] GET /api/books/payments/[id] error:", error);
     return errorResponse("Could not read the payment");
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: Params) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { actor, refused } = await guardBooks(sessionResult.session, "issue", { kind: "receipt" });
+    if (refused) return refused;
+    const { id } = await params;
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const parsed = applyPaymentSchema.parse({ allocations: body?.allocations });
+    const result = await applyReceiptToInvoices(actor, id, parsed.allocations);
+    return successResponse(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) return errorResponse("Select at least one invoice and enter an amount to apply.", 400, error.issues);
+    if (error instanceof ReceiptRefused) return errorResponse(error.message, error.status);
+    console.error("[API] PATCH /api/books/payments/[id] error:", error);
+    return errorResponse("Could not apply the payment to the invoice");
   }
 }
 

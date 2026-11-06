@@ -11,7 +11,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import { ArrowRight, FileText, Plus, Wrench } from "@/lib/icons";
+import { ArrowRight, Download, Eye, FileText, Plus, Wrench } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -836,6 +836,45 @@ export default function SalaryPayrollPage() {
         minSize: 120,
         maxSize: 120,
       },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-1.5">
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              title="View Payslip"
+            >
+              <a
+                href={`/api/payroll/payslips/${row.original.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Eye className="size-3.5 mr-1" />
+                View
+              </a>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              title="Download Payslip PDF"
+            >
+              <a href={`/api/payroll/payslips/${row.original.id}/pdf?download=1`}>
+                <Download className="size-3.5 mr-1" />
+                PDF
+              </a>
+            </Button>
+          </div>
+        ),
+        size: 140,
+        minSize: 140,
+        maxSize: 140,
+      },
     ],
     [],
   );
@@ -923,6 +962,11 @@ export default function SalaryPayrollPage() {
                   sorting: true,
                   globalFilter: true,
                   pagination: true,
+                }}
+                exportConfig={{
+                  enabled: true,
+                  title: "Payroll Periods",
+                  fileName: "payroll-periods",
                 }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search periods"
@@ -1043,6 +1087,11 @@ export default function SalaryPayrollPage() {
                   globalFilter: true,
                   pagination: true,
                 }}
+                exportConfig={{
+                  enabled: true,
+                  title: `Pending Payroll Runs - ${activePeriod.periodKey}`,
+                  fileName: `pending-payroll-runs-${activePeriod.periodKey}`,
+                }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search pending runs"
                 tableClassName="text-sm"
@@ -1080,6 +1129,11 @@ export default function SalaryPayrollPage() {
                   sorting: true,
                   globalFilter: true,
                   pagination: true,
+                }}
+                exportConfig={{
+                  enabled: true,
+                  title: `Archived Payroll Runs - ${activePeriod.periodKey}`,
+                  fileName: `archived-payroll-runs-${activePeriod.periodKey}`,
                 }}
                 pagination={{ enabled: true, server: false }}
                 searchPlaceholder="Search archived runs"
@@ -1443,6 +1497,11 @@ export default function SalaryPayrollPage() {
                     globalFilter: false,
                     pagination: false,
                     sorting: true,
+                  }}
+                  exportConfig={{
+                    enabled: true,
+                    title: `Payroll Run #${runDetails.runNumber}`,
+                    fileName: `payroll-run-${runDetails.runNumber}`,
                   }}
                   maxBodyHeight="45dvh"
                   tableContainerClassName="overflow-auto"

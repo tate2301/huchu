@@ -25,6 +25,7 @@ export function BkPaymentsView({
   exportHref,
   canVoid,
   onVoid,
+  onApply,
   onExport,
   undoEntries,
 }: {
@@ -33,6 +34,7 @@ export function BkPaymentsView({
   exportHref: string;
   canVoid: boolean;
   onVoid: (row: PaymentRow) => void;
+  onApply?: (row: PaymentRow) => void;
   onExport: (rows: PaymentRow[]) => void;
   /** Void and Delete permanently over the selection, as the person's role allows (P4, §5.13). */
   undoEntries?: (rows: PaymentRow[]) => MenuEntry[];
@@ -108,6 +110,11 @@ export function BkPaymentsView({
               onClear: selection.clear,
               actions: (
                 <>
+                  {selected.length === 1 && !selected[0].voided && !selected[0].invoiceId && selected[0].customerId && onApply ? (
+                    <Button variant="primary" icon="check" onClick={() => onApply(selected[0])}>
+                      Apply to invoice
+                    </Button>
+                  ) : null}
                   <Button icon="export" onClick={() => onExport(selected)}>
                     Export
                   </Button>
@@ -116,6 +123,9 @@ export function BkPaymentsView({
                     const singleItems: MenuEntry[] =
                       selected.length === 1
                         ? [
+                            ...(onApply && !selected[0].voided && !selected[0].invoiceId && selected[0].customerId
+                              ? [{ key: "apply", label: "Apply to an invoice", onSelect: () => onApply(selected[0]) }]
+                              : []),
                             { key: "open", label: "Open payment", onSelect: () => router.push(`/books/payments/${selected[0].id}`) },
                             {
                               key: "pdf-view",
@@ -218,7 +228,19 @@ export function BkPaymentsView({
                         {row.invoice}
                       </Link>
                     ) : (
-                      <span className="muted">On account</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-8)" }}>
+                        <span className="pill pill-info">On account</span>
+                        {onApply && row.customerId ? (
+                          <button
+                            type="button"
+                            className="ref"
+                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12 }}
+                            onClick={() => onApply(row)}
+                          >
+                            Apply to invoice
+                          </button>
+                        ) : null}
+                      </span>
                     )}
                   </td>
                   <td className="muted">{row.into}</td>

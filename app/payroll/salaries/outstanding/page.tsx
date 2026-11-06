@@ -332,6 +332,11 @@ export default function OutstandingSalariesPage() {
               setQueryState((prev) => ({ ...prev, ...next }))
             }
             features={{ sorting: true, globalFilter: true, pagination: true }}
+            exportConfig={{
+              enabled: true,
+              title: "Outstanding Salaries",
+              fileName: "outstanding-salaries",
+            }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search employee, period, or source"
             tableClassName="text-sm"

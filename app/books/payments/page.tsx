@@ -7,6 +7,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
 import { downloadCsv } from "@/components/books/bk-list";
+import { ApplyPaymentDrawer, RecordCustomerPaymentDrawer, type UnappliedReceiptTarget } from "@/components/books/bk-payment-drawers";
+import type { ApplyPaymentResult } from "@/lib/books/payment-apply";
 import { BkPaymentsView } from "@/components/books/bk-payments-view";
 import { ButtonLink, Kit } from "@/components/core";
 import { ReceiptVoidDrawer } from "@/components/books/receipt-actions";
@@ -17,9 +19,6 @@ import { fetchJson } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
 import type { PaymentQuery, PaymentsPage } from "@/lib/books/payments";
 import type { ReceiptVoidResult } from "@/lib/books/void-receipt";
-
-/** Books' own form (BkPaymentNew). */
-const RECORD_PAYMENT = { label: "Record a payment", icon: "plus" as const, href: "/books/payments/new", shortcut: "N" };
 
 /** What the toast says once a payment is void: where its money went and what opened again. */
 function voidedSentence(done: ReceiptVoidResult): string {
@@ -47,6 +46,8 @@ function BooksPayments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [voiding, setVoiding] = React.useState<{ id: string; number: string } | null>(null);
+  const [recording, setRecording] = React.useState(false);
+  const [applying, setApplying] = React.useState<UnappliedReceiptTarget | null>(null);
 
   const payments = useQuery({
     queryKey: ["books", "payments", search],
@@ -55,6 +56,7 @@ function BooksPayments() {
   });
 
   const canVoid = Boolean(payments.data?.can.void);
+  const canIssue = payments.data ? payments.data.can.issue !== false : true;
 
   // Void from a void invoice's page opens here with the drawer open.
   const asked = params.get("void");
@@ -95,7 +97,10 @@ function BooksPayments() {
 
   return (
     <>
-      <PageChrome title="Payments received" primary={RECORD_PAYMENT}>
+      <PageChrome
+        title="Payments received"
+        primary={canIssue ? { label: "Record a payment", icon: "plus" as const, shortcut: "N", onClick: () => setRecording(true) } : undefined}
+      >
         <Kit contents>
           <ButtonLink href="/books/bank" icon="match">
             Match bank lines
@@ -109,6 +114,19 @@ function BooksPayments() {
             onQuery={onQuery}
             canVoid={canVoid}
             onVoid={(row) => setVoiding({ id: row.id, number: row.number })}
+            onApply={
+              canIssue
+                ? (row) =>
+                    setApplying({
+                      id: row.id,
+                      number: row.number,
+                      amount: row.amount,
+                      currency: row.currency,
+                      customerId: row.customerId ?? null,
+                      customerName: row.customer,
+                    })
+                : undefined
+            }
             onExport={(rows) =>
               downloadCsv(
                 "payments.csv",
@@ -129,6 +147,45 @@ function BooksPayments() {
       {voiding ? (
         <ReceiptVoidDrawer receiptId={voiding.id} number={voiding.number} open onOpenChange={(open) => (open ? undefined : setVoiding(null))} onDone={voided} />
       ) : null}
+      <RecordCustomerPaymentDrawer
+        open={recording}
+        onOpenChange={setRecording}
+        onDone={async (done) => {
+          const total = done.receipts.reduce((sum, r) => sum + r.amount, 0);
+          toast({
+            title: `Payment from ${done.customer} recorded`,
+            description:
+              done.onAccount > 0.005
+                ? `${money(total, done.currency)} received (${money(done.onAccount, done.currency)} held on account as credit).`
+                : `${money(total, done.currency)} applied to invoices.`,
+            variant: "success",
+          });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["books"] }),
+            queryClient.invalidateQueries({ queryKey: ["accounting"] }),
+          ]);
+        }}
+      />
+      <ApplyPaymentDrawer
+        receipt={applying}
+        open={applying !== null}
+        onOpenChange={(open) => (open ? undefined : setApplying(null))}
+        onDone={async (done: ApplyPaymentResult) => {
+          const appliedLabel = done.applied.map((row) => `${money(row.amount, done.currency)} to ${row.invoiceNumber}`).join(", ");
+          toast({
+            title: `${done.receiptNumber} applied`,
+            description:
+              done.onAccount && done.onAccount.amount > 0.005
+                ? `Applied ${appliedLabel}. ${money(done.onAccount.amount, done.currency)} stays on account (${done.onAccount.receiptNumber}).`
+                : `Applied ${appliedLabel}.`,
+            variant: "success",
+          });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["books"] }),
+            queryClient.invalidateQueries({ queryKey: ["accounting"] }),
+          ]);
+        }}
+      />
     </>
   );
 }

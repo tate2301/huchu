@@ -1250,6 +1250,11 @@ export default function HumanResourcesPage() {
           queryState={queryState}
           onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
           features={{ sorting: false, globalFilter: true, pagination: true }}
+          exportConfig={{
+            enabled: true,
+            title: "Employees Directory",
+            fileName: "employees-directory",
+          }}
           pagination={{ enabled: true, server: false }}
           searchPlaceholder="Search by name, ID, or phone"
           // The row height comes off the tokens rather than being zeroed here:

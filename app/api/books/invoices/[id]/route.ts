@@ -7,6 +7,7 @@ import { deleteInvoice, readInvoiceRemoval } from "@/lib/books/delete-invoice";
 import { readInvoiceExtras } from "@/lib/books/invoice-board";
 import { readInvoiceRecord, type InvoiceRecordPage } from "@/lib/books/invoice-record";
 import { InvoiceChangeRefused } from "@/lib/books/owner";
+import { unappliedReceiptsFor } from "@/lib/books/payment-apply";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
@@ -44,6 +45,11 @@ export async function GET(request: NextRequest, { params }: Params) {
       removal: mayDelete ? await readInvoiceRemoval(session.user.companyId, record.id) : null,
       board: await readInvoiceExtras(prisma, session.user.companyId, record.id),
       crmDocument: await ensureCrmDocument(session.user.companyId, record.id),
+      unappliedReceipts: owing && record.customer.id
+        ? (await unappliedReceiptsFor(session.user.companyId, record.customer.id)).filter(
+            (r) => r.currency.toUpperCase() === record.currency.toUpperCase(),
+          )
+        : [],
     };
     return successResponse(page);
   } catch (error) {

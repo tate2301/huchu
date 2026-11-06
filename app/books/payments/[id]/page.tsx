@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { BooksPage } from "@/components/books/figures";
+import { ApplyPaymentDrawer } from "@/components/books/bk-payment-drawers";
+import type { ApplyPaymentResult } from "@/lib/books/payment-apply";
 import { BkPaymentView } from "@/components/books/bk-payment-view";
 import { useUndoMenu } from "@/components/books/undo-dialogs";
 import { useDocumentActions } from "@/components/crm/documents/document-actions";
@@ -15,6 +17,7 @@ import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome, type PageMenuItem } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson } from "@/lib/api-client";
+import { money } from "@/lib/books/format";
 import type { PaymentRecordPage } from "@/lib/books/payment-record";
 
 export default function BooksPaymentPage() {
@@ -23,6 +26,7 @@ export default function BooksPaymentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [applying, setApplying] = React.useState(false);
 
   const payment = useQuery({
     queryKey: ["books", "payment", id],
@@ -45,7 +49,12 @@ export default function BooksPaymentPage() {
   const [initial, setInitial] = React.useState<string | null>(null);
   React.useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    setInitial(searchParams.get("do"));
+    const doAction = searchParams.get("do");
+    if (doAction === "apply") {
+      setApplying(true);
+    } else {
+      setInitial(doAction);
+    }
   }, []);
 
   const ownerAnchor = record?.dealId ?? record?.leadId ?? record?.customer.id ?? id;
@@ -71,9 +80,13 @@ export default function BooksPaymentPage() {
   });
 
   const notFound = payment.error instanceof ApiError && payment.error.status === 404;
+  const canApply = Boolean(record && record.state.key === "on-account" && record.can.apply !== false && record.customer.id);
 
   const menu: MenuEntry[] = [];
   if (record) {
+    if (canApply) {
+      menu.push({ key: "apply", icon: "check", label: "Apply to an invoice", onSelect: () => setApplying(true) });
+    }
     if (crmDoc) {
       menu.push(...docActions.menuEntriesFor(crmDoc));
     } else {
@@ -85,8 +98,8 @@ export default function BooksPaymentPage() {
     if (record.customer.id) {
       menu.push({
         key: "statement",
-        icon: "print",
-        label: "Print a statement",
+        icon: "docs",
+        label: "Statement",
         onSelect: () => window.open(`/books/statements?customers=${record.customer.id}`, "_blank", "noopener"),
       });
     }
@@ -102,11 +115,15 @@ export default function BooksPaymentPage() {
         : [],
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record, undo.choices]);
+  }, [record, undo.choices, canApply]);
+
+  const primary = canApply
+    ? { label: "Apply to an invoice", icon: "check" as const, shortcut: "A", onClick: () => setApplying(true) }
+    : null;
 
   return (
     <>
-      <PageChrome title={record?.number ?? "Payment"} backHref="/books/payments" backLabel="Payments" phoneMenu={phoneMenu}>
+      <PageChrome title={record?.number ?? "Payment"} backHref="/books/payments" backLabel="Payments" primary={primary} phoneMenu={phoneMenu}>
         {record ? (
           <Kit contents>
             <ButtonLink icon="export" href={`/api/books/payments/${record.id}/pdf?download=1`}>
@@ -114,10 +131,10 @@ export default function BooksPaymentPage() {
             </ButtonLink>
             {crmDoc && !record.voided ? (
               <ButtonGroup aria-label="Send receipt, and more">
-                <Button variant="primary" icon="send" onClick={() => docActions.openEmail(crmDoc)}>
+                <Button variant={canApply ? undefined : "primary"} icon="send" onClick={() => docActions.openEmail(crmDoc)}>
                   Email receipt
                 </Button>
-                <MenuButton variant="primary" iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
+                <MenuButton variant={canApply ? undefined : "primary"} iconOnly icon="down" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
               </ButtonGroup>
             ) : menu.length > 0 ? (
               <MenuButton iconOnly icon="more" iconEnd={undefined} align="end" label="More actions" aria-label="More actions" items={menu} />
@@ -128,15 +145,24 @@ export default function BooksPaymentPage() {
       <BooksPage screen="bk-a">
         {record ? (
           <>
-            <BkPaymentView payment={record} />
-            {crmDoc && !record.voided ? (
+            <BkPaymentView payment={record} onApply={canApply ? () => setApplying(true) : undefined} />
+            {!record.voided ? (
               <div className="bk-ph-acts">
-                <Button variant="primary" icon="send" onClick={() => docActions.openEmail(crmDoc)}>
-                  Email receipt
-                </Button>
-                <Button icon="share" onClick={() => docActions.shareLink(crmDoc)}>
-                  Copy link
-                </Button>
+                {canApply ? (
+                  <Button variant="primary" icon="check" onClick={() => setApplying(true)}>
+                    Apply to an invoice
+                  </Button>
+                ) : null}
+                {crmDoc ? (
+                  <>
+                    <Button variant={canApply ? undefined : "primary"} icon="send" onClick={() => docActions.openEmail(crmDoc)}>
+                      Email receipt
+                    </Button>
+                    <Button icon="share" onClick={() => docActions.shareLink(crmDoc)}>
+                      Copy link
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </>
@@ -154,6 +180,31 @@ export default function BooksPaymentPage() {
         <>
           {undo.node}
           {docActions.surfaces}
+          <ApplyPaymentDrawer
+            receipt={{
+              id: record.id,
+              number: record.number,
+              amount: record.amount,
+              currency: record.currency,
+              customerId: record.customer.id,
+              customerName: record.customer.name,
+              openInvoices: record.openInvoices,
+            }}
+            open={applying}
+            onOpenChange={setApplying}
+            onDone={async (done: ApplyPaymentResult) => {
+              const appliedLabel = done.applied.map((row) => `${money(row.amount, done.currency)} to ${row.invoiceNumber}`).join(", ");
+              toast({
+                title: `${record.number} applied`,
+                description:
+                  done.onAccount && done.onAccount.amount > 0.005
+                    ? `Applied ${appliedLabel}. ${money(done.onAccount.amount, done.currency)} stays on account (${done.onAccount.receiptNumber}).`
+                    : `Applied ${appliedLabel}.`,
+                variant: "success",
+              });
+              await refresh();
+            }}
+          />
         </>
       ) : null}
     </>

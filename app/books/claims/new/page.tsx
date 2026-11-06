@@ -126,14 +126,14 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
   };
 
   const paidWith = (
-    <BkField label="Paid with">
+    <BkField label="How was this paid?">
       <BkSeg
-        label="Paid with"
+        label="How was this paid?"
         value={form.paidWith}
         onChange={(value) => set("paidWith", value)}
         options={[
-          { value: "own", label: "My own money" },
-          { value: "float", label: "Site float", disabled: options.floats.length === 0 },
+          { value: "own", label: "Staff member's money (reimburse)" },
+          { value: "float", label: "Petty cash float", disabled: options.floats.length === 0 },
         ]}
       />
     </BkField>
@@ -142,19 +142,19 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
   // Drawn once for a desk and once for a phone (only one shows): each copy's ids its own.
   const fields = (at: string) => (
     <>
-      <BkField label="Where" htmlFor={`${at}-where`} error={errors.where}>
-        <Input id={`${at}-where`} value={form.where} placeholder="Puma, Msasa" onChange={(event) => set("where", event.target.value)} />
+      <BkField label="Who was paid / what for?" htmlFor={`${at}-where`} error={errors.where}>
+        <Input id={`${at}-where`} value={form.where} placeholder="E.g. Puma Msasa — diesel for delivery" onChange={(event) => set("where", event.target.value)} />
       </BkField>
       <div className="field-row">
-        <BkField label="Amount" htmlFor={`${at}-amount`} error={errors.amount}>
+        <BkField label="Total amount" htmlFor={`${at}-amount`} error={errors.amount}>
           <Input id={`${at}-amount`} className="num" inputMode="decimal" placeholder="0.00" value={form.amount} onChange={(event) => set("amount", event.target.value)} />
         </BkField>
-        <BkField label="VAT" htmlFor={`${at}-vat`} optional error={errors.vat}>
+        <BkField label="VAT included" htmlFor={`${at}-vat`} optional error={errors.vat}>
           <Input id={`${at}-vat`} className="num" inputMode="decimal" placeholder="0.00" value={form.vat} onChange={(event) => set("vat", event.target.value)} />
         </BkField>
       </div>
       <div className="field-row">
-        <BkField label="What" htmlFor={`${at}-kind`}>
+        <BkField label="Spending category" htmlFor={`${at}-kind`}>
           <Select id={`${at}-kind`} value={form.category} onChange={(event) => set("category", event.target.value)}>
             {CLAIM_KINDS.map((kind) => (
               <option key={kind.value} value={kind.value}>
@@ -163,9 +163,9 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
             ))}
           </Select>
         </BkField>
-        <BkField label="For" htmlFor={`${at}-for`} optional>
+        <BkField label="Job or project" htmlFor={`${at}-for`} optional>
           <Select id={`${at}-for`} value={form.projectId} onChange={(event) => set("projectId", event.target.value)}>
-            <option value="">No job</option>
+            <option value="">No specific job</option>
             {options.projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -175,7 +175,7 @@ function ClaimFormPage({ options, asVoucher }: { options: Options; asVoucher: bo
         </BkField>
       </div>
       {form.paidWith === "float" && options.floats.length > 1 ? (
-        <BkField label="Float" htmlFor={`${at}-float`} error={errors.floatId}>
+        <BkField label="Petty cash float" htmlFor={`${at}-float`} error={errors.floatId}>
           <Select id={`${at}-float`} value={form.floatId} onChange={(event) => set("floatId", event.target.value)}>
             {options.floats.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>

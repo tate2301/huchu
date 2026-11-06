@@ -25,7 +25,11 @@ export async function GET(request: NextRequest) {
         },
       });
     }
-    const can = { void: canDo(await booksActor(sessionResult.session), "void", { kind: "receipt" }).allowed };
+    const actor = await booksActor(sessionResult.session);
+    const can = {
+      void: canDo(actor, "void", { kind: "receipt" }).allowed,
+      issue: canDo(actor, "issue", { kind: "receipt" }).allowed,
+    };
     return successResponse({ ...(await readPayments(prisma, companyId, query)), can });
   } catch (error) {
     console.error("[API] GET /api/books/payments error:", error);

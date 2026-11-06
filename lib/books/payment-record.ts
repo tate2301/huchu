@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import type { EnsuredCrmDocument } from "@/lib/books/crm-document-bridge";
 import { docLabel } from "@/lib/books/doc-number";
+import type { OpenInvoice } from "@/lib/books/payment-form";
 
 import { customerFace, customerImage } from "./faces";
 import { dayOf, methodWord, money, shortDay, storedDay } from "./format";
@@ -46,7 +47,9 @@ export type PaymentRecord = {
 export type PaymentRecordPage = PaymentRecord & {
   can: {
     void: boolean;
+    apply?: boolean;
   };
+  openInvoices?: OpenInvoice[];
   crmDocument?: EnsuredCrmDocument | null;
 };
 

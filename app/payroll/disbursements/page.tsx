@@ -697,6 +697,11 @@ export default function DisbursementsPage() {
                 setAvailableRunsQuery((prev) => ({ ...prev, ...next }))
               }
               features={{ sorting: true, globalFilter: true, pagination: true }}
+              exportConfig={{
+                enabled: true,
+                title: "Approved Payroll Runs",
+                fileName: "approved-payroll-runs",
+              }}
               pagination={{ enabled: true, server: false }}
               searchPlaceholder="Search approved runs"
               tableClassName="text-sm"
@@ -724,6 +729,11 @@ export default function DisbursementsPage() {
               setBatchesQuery((prev) => ({ ...prev, ...next }))
             }
             features={{ sorting: true, globalFilter: true, pagination: true }}
+            exportConfig={{
+              enabled: true,
+              title: "Disbursement Batches",
+              fileName: "disbursement-batches",
+            }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search disbursement batches"
             tableClassName="text-sm"
@@ -1068,6 +1078,11 @@ export default function DisbursementsPage() {
                   data={batchDetails.items}
                   columns={batchDetailColumns}
                   features={{ globalFilter: false, pagination: false, sorting: true }}
+                  exportConfig={{
+                    enabled: true,
+                    title: `Disbursement Batch ${batchDetails.code}`,
+                    fileName: `disbursement-batch-${batchDetails.code}`,
+                  }}
                   maxBodyHeight="45dvh"
                   tableClassName="text-sm"
                   tableContainerClassName="overflow-auto"

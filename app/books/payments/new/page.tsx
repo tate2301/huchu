@@ -16,7 +16,7 @@ import { currencyWord, type BooksFormOptions } from "@/lib/books/form-options-vi
 import { allocateOldestFirst, onAccount, paymentFormErrors, readAmount, type Allocation, type OpenInvoice, type PaymentForm } from "@/lib/books/payment-form";
 
 type Options = BooksFormOptions & { openInvoices: OpenInvoice[] };
-type Recorded = { customer: string; currency: string; receipts: Array<{ number: string; invoiceId: string | null; amount: number }>; onAccount: number };
+type Recorded = { customer: string; currency: string; receipts: Array<{ id?: string; number: string; invoiceId: string | null; amount: number }>; onAccount: number };
 
 function lateWords(invoice: OpenInvoice): string {
   if (invoice.daysLate > 0) return `${invoice.daysLate} ${invoice.daysLate === 1 ? "day" : "days"} overdue`;
@@ -27,9 +27,10 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
   const router = useRouter();
   const client = useQueryClient();
   const { toast } = useToast();
+  const defaultAccountFor = (code: string) => options.accounts.find((account) => account.currency === code)?.id ?? "";
   const [form, setForm] = React.useState<PaymentForm>(() => ({
     customerId: initialCustomer,
-    bankAccountId: "",
+    bankAccountId: defaultAccountFor(options.base),
     receivedAt: todayHarare(),
     currency: options.base,
     amount: "",
@@ -58,8 +59,17 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
   React.useEffect(() => {
     if (!initialInvoice || form.amount) return;
     const invoice = open.data?.openInvoices.find((candidate) => candidate.id === initialInvoice);
-    if (invoice) setForm((current) => ({ ...current, amount: invoice.balance.toFixed(2), currency: invoice.currency }));
-  }, [open.data, initialInvoice, form.amount]);
+    if (invoice) {
+      setForm((current) => ({
+        ...current,
+        amount: invoice.balance.toFixed(2),
+        currency: invoice.currency,
+        bankAccountId: options.accounts.some((a) => a.id === current.bankAccountId && a.currency === invoice.currency)
+          ? current.bankAccountId
+          : (options.accounts.find((a) => a.currency === invoice.currency)?.id ?? ""),
+      }));
+    }
+  }, [open.data, initialInvoice, form.amount, options.accounts]);
 
   const accounts = options.accounts.filter((account) => account.currency === form.currency);
   const customer = options.parties.find((party) => party.id === form.customerId);
@@ -111,7 +121,15 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
         variant: "success",
       });
       await client.invalidateQueries({ queryKey: ["books"] });
-      router.push("/books/payments");
+      if (initialInvoice) {
+        router.push(`/books/invoices/${initialInvoice}`);
+      } else if (initialCustomer) {
+        router.push(`/books/customers/${initialCustomer}`);
+      } else if (done.receipts.length === 1 && done.receipts[0]?.id) {
+        router.push(`/books/payments/${done.receipts[0].id}`);
+      } else {
+        router.push("/books/payments");
+      }
     },
     onError: (error) => toast({ title: "The payment was not recorded", description: getApiErrorMessage(error, "Check the connection and try again."), variant: "destructive" }),
   });
@@ -179,7 +197,7 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
           </>
         }
       >
-        <FormSec title="From" text="Who paid.">
+        <FormSec title="1. Who paid you" text="Select the customer who made this payment.">
           <BkField label="Customer" htmlFor="pay-customer" error={errors.customerId}>
             <Select
               id="pay-customer"
@@ -201,19 +219,19 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
             invoices.length ? (
               <BkBox icon="users">
                 <b>
-                  They owe {money(owed, form.currency)} on {invoices.length === 1 ? "1 invoice" : `${invoices.length} invoices`}
+                  Unpaid balance: {money(owed, form.currency)} across {invoices.length === 1 ? "1 invoice" : `${invoices.length} invoices`}
                 </b>
-                {late.length ? `, ${late.length === invoices.length && late.length === 1 ? `${late[0].daysLate} days late` : `${late.length} late`}` : ""}.
+                {late.length ? ` (${late.length === invoices.length && late.length === 1 ? `${late[0].daysLate} days overdue` : `${late.length} overdue`})` : ""}.
               </BkBox>
             ) : (
-              <BkBox icon="check">Nothing is owed in {form.currency}: it all goes on their account.</BkBox>
+              <BkBox icon="check">No unpaid {form.currency} invoices right now — this payment will be saved as credit on their account.</BkBox>
             )
           ) : null}
         </FormSec>
 
-        <FormSec title="Money" text="Where it went in, and how much.">
+        <FormSec title="2. Payment details" text="How much you received and which bank, mobile money, or cash account it went into.">
           <div className="field-row">
-            <BkField label="Into" htmlFor="pay-into" error={errors.bankAccountId}>
+            <BkField label="Paid into (Bank, Mobile Money, or Cash)" htmlFor="pay-into" error={errors.bankAccountId}>
               <Select id="pay-into" value={form.bankAccountId} onChange={(event) => setForm((current) => ({ ...current, bankAccountId: event.target.value }))}>
                 <option value="">Choose an account</option>
                 {accounts.map((account) => (
@@ -223,7 +241,7 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
                 ))}
               </Select>
             </BkField>
-            <BkField label="Date" htmlFor="pay-date" error={errors.receivedAt}>
+            <BkField label="Date received" htmlFor="pay-date" error={errors.receivedAt}>
               <Input id="pay-date" type="date" aria-label="Date" value={form.receivedAt} onChange={(event) => setForm((current) => ({ ...current, receivedAt: event.target.value }))} />
             </BkField>
           </div>
@@ -234,41 +252,43 @@ function PaymentFormPage({ options, initialCustomer, initialInvoice }: { options
                 value={form.currency}
                 onChange={(code) => {
                   setByHand(false);
-                  setForm((current) => ({ ...current, currency: code, bankAccountId: "", allocations: [] }));
+                  setForm((current) => ({ ...current, currency: code, bankAccountId: defaultAccountFor(code), allocations: [] }));
                 }}
                 options={options.currencies.map((code) => ({ value: code, label: code }))}
               />
             </BkField>
-            <BkField label="Amount" htmlFor="pay-amount" error={errors.amount}>
+            <BkField label="Amount received" htmlFor="pay-amount" error={errors.amount}>
               <label className="input-wrap">
                 <span className="muted">{currencyWord(form.currency)}</span>
                 <input id="pay-amount" aria-label="Amount" inputMode="decimal" placeholder="0.00" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} />
               </label>
             </BkField>
           </div>
-          <BkField label="Their reference" htmlFor="pay-ref" optional hint="Matched to the bank line when it comes in">
+          <BkField label="Reference or receipt note" htmlFor="pay-ref" optional hint="E.g. EcoCash reference, bank transfer ref, or receipt number">
             <Input id="pay-ref" aria-label="Their reference" value={form.reference} onChange={(event) => setForm((current) => ({ ...current, reference: event.target.value }))} />
           </BkField>
-          <Check
-            checked={withheld.on}
-            disabled={!customer?.vatAgent}
-            title={customer && !customer.vatAgent ? `${customer.name} is not marked as a VAT withholding agent.` : undefined}
-            onCheckedChange={(on) => setWithheld((current) => ({ ...current, on }))}
-            label="VAT was withheld by the customer"
-          />
-          {withheld.on ? (
-            <div className="field-row">
-              <BkField label="VAT they kept" htmlFor="pay-vat-kept" hint="At most a third of the invoice’s VAT">
-                <Input id="pay-vat-kept" inputMode="decimal" value={withheld.amount} onChange={(event) => setWithheld((current) => ({ ...current, amount: event.target.value.replace(/[^\d.]/g, "") }))} />
-              </BkField>
-              <BkField label="Their certificate" htmlFor="pay-vat-cert">
-                <Input id="pay-vat-cert" value={withheld.certificate} onChange={(event) => setWithheld((current) => ({ ...current, certificate: event.target.value }))} />
-              </BkField>
-            </div>
+          {customer?.vatAgent ? (
+            <>
+              <Check
+                checked={withheld.on}
+                onCheckedChange={(on) => setWithheld((current) => ({ ...current, on }))}
+                label="Customer withheld VAT (appointed VAT withholding agent)"
+              />
+              {withheld.on ? (
+                <div className="field-row">
+                  <BkField label="VAT withheld amount" htmlFor="pay-vat-kept" hint="At most a third of the invoice’s VAT">
+                    <Input id="pay-vat-kept" inputMode="decimal" value={withheld.amount} onChange={(event) => setWithheld((current) => ({ ...current, amount: event.target.value.replace(/[^\d.]/g, "") }))} />
+                  </BkField>
+                  <BkField label="Withholding certificate number" htmlFor="pay-vat-cert">
+                    <Input id="pay-vat-cert" value={withheld.certificate} onChange={(event) => setWithheld((current) => ({ ...current, certificate: event.target.value }))} />
+                  </BkField>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </FormSec>
 
-        <WideSec title="Put it on invoices" text="Oldest first; the rest stays on account.">
+        <WideSec title="3. Which invoices does this pay?" text="Automatically applied to the oldest invoice first. Any extra stays on account as customer credit.">
           {invoices.length === 0 ? (
             <p className="bk-hint bk-add">{form.customerId ? "No open invoice in this currency. It all goes on their account." : "Choose the customer to see what they owe."}</p>
           ) : (
