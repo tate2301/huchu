@@ -100,7 +100,17 @@ export function BkTools({
 }
 
 /** Sort and Export, quiet, at the end of the tools. */
-export function BkQuietTools({ onSort, sortLabel = "Sort", exportHref }: { onSort?: () => void; sortLabel?: string; exportHref?: string }) {
+export function BkQuietTools({
+  onSort,
+  sortLabel = "Sort",
+  exportHref,
+  onExport,
+}: {
+  onSort?: () => void;
+  sortLabel?: string;
+  exportHref?: string;
+  onExport?: () => void;
+}) {
   return (
     <>
       {onSort ? (
@@ -113,6 +123,10 @@ export function BkQuietTools({ onSort, sortLabel = "Sort", exportHref }: { onSor
           <Icon name="export" />
           Export
         </a>
+      ) : onExport ? (
+        <Button variant="quiet" icon="export" onClick={onExport}>
+          Export
+        </Button>
       ) : null}
     </>
   );
@@ -127,12 +141,26 @@ export function BkState({ tone, children }: { tone: "info" | "success" | "warnin
 }
 
 /** Download rows as a CSV file, in the browser: the selection's Export. */
-export function downloadCsv(name: string, head: string[], rows: Array<Array<string | number>>) {
+export function downloadCsv(
+  name: string,
+  headOrRows: string[] | Array<Array<string | number>>,
+  rows?: Array<Array<string | number>>
+) {
+  let head: string[];
+  let bodyRows: Array<Array<string | number>>;
+  if (rows !== undefined) {
+    head = headOrRows as string[];
+    bodyRows = rows;
+  } else {
+    const all = headOrRows as Array<Array<string | number>>;
+    head = (all[0] ?? []).map(String);
+    bodyRows = all.slice(1);
+  }
   const cell = (value: string | number) => {
     const text = String(value);
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
-  const body = [head, ...rows].map((row) => row.map(cell).join(",")).join("\n");
+  const body = [head, ...bodyRows].map((row) => row.map(cell).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([`${body}\n`], { type: "text/csv" }));
   const link = document.createElement("a");
   link.href = url;

@@ -245,7 +245,7 @@ export default function SalaryPayrollPage() {
       actions={
         <div style={{ display: "flex", gap: 8 }}>
           <Button
-            variant="outline"
+            variant="default"
             icon="calendar"
             busy={seedPeriodsMutation.isPending}
             onClick={() => seedPeriodsMutation.mutate()}
@@ -443,7 +443,7 @@ export default function SalaryPayrollPage() {
                               tone={
                                 period.status === "CLOSED"
                                   ? "plain"
-                                  : period.status === "PROCESSING"
+                                  : (period.status as string) === "PROCESSING"
                                   ? "info"
                                   : "success"
                               }
@@ -533,7 +533,7 @@ export default function SalaryPayrollPage() {
                               {
                                 key: "disburse",
                                 label: "Go to disbursements",
-                                icon: "card" as const,
+                                icon: "bank" as const,
                                 onSelect: () => router.push(`/payroll/disbursements?runId=${run.id}`),
                               },
                             ]

@@ -278,7 +278,7 @@ export function StatutoryReturnsContent() {
                     P2 — monthly PAYE ({p2.currency})
                   </h2>
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     disabled={!data.canFile}
                     onClick={() => {
@@ -383,7 +383,7 @@ export function StatutoryReturnsContent() {
                     NSSA schedule ({nssa.currency})
                   </h2>
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     disabled={!data.canFile}
                     onClick={() => {
