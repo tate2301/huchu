@@ -1,572 +1,510 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
   Drawer,
   DrawerSection,
   Field,
   Input,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PeopleShell } from "@/components/people/people-shell";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  fetchEmployees,
-  fetchHrIncidents,
-  fetchSites,
-  type HrIncidentRecord,
-} from "@/lib/api";
+import { fetchEmployees, fetchSites, type Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-type IncidentTab = "open" | "review" | "closed";
-
-const SEVERITY_TONE: Record<string, "plain" | "info" | "warning" | "danger"> = {
-  LOW: "plain",
-  MEDIUM: "info",
-  HIGH: "warning",
-  CRITICAL: "danger",
+type IncidentRow = {
+  id: string;
+  incidentNumber: string;
+  title: string;
+  severity: "MINOR" | "MODERATE" | "CRITICAL";
+  status: "OPEN" | "INVESTIGATING" | "CLOSED";
+  occurredAt: string;
+  description: string;
+  actionTaken: string | null;
+  site: { id: string; name: string } | null;
+  reporter: { id: string; name: string } | null;
 };
 
-export default function IncidentsPage() {
+export default function SafetyIncidentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<IncidentTab>("open");
-  const [severityFilter, setSeverityFilter] = React.useState<string>("all");
+  const [tab, setTab] = React.useState<string>("open");
   const [search, setSearch] = React.useState("");
+  const [severityFilter, setSeverityFilter] = React.useState<string>("ALL");
   const [page, setPage] = React.useState(1);
   const pageSize = 15;
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [selectedIncident, setSelectedIncident] = React.useState<HrIncidentRecord | null>(null);
-  const [formTitle, setFormTitle] = React.useState("");
-  const [formType, setFormType] = React.useState("SAFETY");
-  const [formSeverity, setFormSeverity] = React.useState("MEDIUM");
-  const [formEmployeeId, setFormEmployeeId] = React.useState("");
-  const [formSiteId, setFormSiteId] = React.useState("");
-  const [formDate, setFormDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [formDescription, setFormDescription] = React.useState("");
+  const [title, setTitle] = React.useState("");
+  const [severity, setSeverity] = React.useState<"MINOR" | "MODERATE" | "CRITICAL">("MINOR");
+  const [siteId, setSiteId] = React.useState("");
+  const [reporterId, setReporterId] = React.useState("");
+  const [occurredAt, setOccurredAt] = React.useState(new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = React.useState("");
+  const [actionTaken, setActionTaken] = React.useState("");
 
-  const { data: employeesData } = useQuery({
-    queryKey: ["employees", "incident-picker"],
-    queryFn: () => fetchEmployees({ active: true, limit: 300 }),
+  const incidentsQuery = useQuery({
+    queryKey: ["safety-incidents", tab],
+    queryFn: () =>
+      fetchJson<{ data: IncidentRow[] }>("/api/v2/people/incidents?limit=200"),
   });
-  const employees = React.useMemo(() => employeesData?.data ?? [], [employeesData]);
 
-  const { data: sitesData } = useQuery({
+  const sitesQuery = useQuery({
     queryKey: ["sites"],
     queryFn: () => fetchSites(),
   });
-  const sites = React.useMemo(() => sitesData ?? [], [sitesData]);
 
-  const { data: incidentsData } = useQuery({
-    queryKey: ["hr-incidents", search],
-    queryFn: () =>
-      fetchHrIncidents({
-        search: search.trim() || undefined,
-        limit: 300,
-      }),
+  const employeesQuery = useQuery({
+    queryKey: ["employees", "safety-reporters"],
+    queryFn: () => fetchEmployees({ active: true, limit: 300 }),
   });
-  const incidents = React.useMemo(() => incidentsData?.data ?? [], [incidentsData]);
 
-  // Counts
-  const openCount = React.useMemo(() => incidents.filter((i) => i.status === "OPEN").length, [incidents]);
-  const reviewCount = React.useMemo(() => incidents.filter((i) => i.status === "UNDER_REVIEW").length, [incidents]);
-  const closedCount = React.useMemo(() => incidents.filter((i) => i.status === "CLOSED").length, [incidents]);
-
-  // Filtering
-  const filteredIncidents = React.useMemo(() => {
-    let list = [...incidents];
-    if (tab === "open") list = list.filter((i) => i.status === "OPEN");
-    else if (tab === "review") list = list.filter((i) => i.status === "UNDER_REVIEW");
-    else if (tab === "closed") list = list.filter((i) => i.status === "CLOSED");
-
-    if (severityFilter !== "all") {
-      list = list.filter((i) => i.severity === severityFilter);
-    }
-    return list;
-  }, [incidents, tab, severityFilter]);
-
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, filteredIncidents.length);
-  const pagedIncidents = React.useMemo(
-    () => filteredIncidents.slice((page - 1) * pageSize, page * pageSize),
-    [filteredIncidents, page, pageSize]
+  const records = React.useMemo(() => incidentsQuery.data?.data ?? [], [incidentsQuery.data]);
+  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const employees = React.useMemo(
+    () => employeesQuery.data?.data ?? [],
+    [employeesQuery.data]
   );
 
-  const ids = React.useMemo(() => pagedIncidents.map((i) => i.id), [pagedIncidents]);
-  const selection = useSelection(ids);
+  const filtered = React.useMemo(() => {
+    return records.filter((r) => {
+      if (tab === "open" && r.status === "CLOSED") return false;
+      if (tab === "closed" && r.status !== "CLOSED") return false;
+      if (severityFilter !== "ALL" && r.severity !== severityFilter) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const num = (r.incidentNumber || "").toLowerCase();
+      const t = r.title.toLowerCase();
+      const site = (r.site?.name || "").toLowerCase();
+      return num.includes(q) || t.includes(q) || site.includes(q);
+    });
+  }, [records, tab, severityFilter, search]);
 
-  // Mutations
+  const totalRows = filtered.length;
+  const pageRows = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const selection = useSelection(rowIds);
+
   const createMutation = useMutation({
-    mutationFn: async () =>
-      fetchJson("/api/hr/incidents", {
+    mutationFn: (values: {
+      title: string;
+      severity: "MINOR" | "MODERATE" | "CRITICAL";
+      siteId?: string;
+      reporterId?: string;
+      occurredAt: string;
+      description: string;
+      actionTaken?: string;
+    }) =>
+      fetchJson("/api/v2/people/incidents", {
         method: "POST",
-        body: JSON.stringify({
-          title: formTitle,
-          incidentType: formType,
-          severity: formSeverity,
-          employeeId: formEmployeeId || undefined,
-          siteId: formSiteId || undefined,
-          incidentDate: formDate,
-          description: formDescription,
-        }),
+        body: JSON.stringify(values),
       }),
     onSuccess: () => {
-      toast({ title: "Incident report logged", variant: "success" });
+      toast({ title: "Incident reported successfully" });
       setDrawerOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
+      setTitle("");
+      setDescription("");
+      setActionTaken("");
+      void queryClient.invalidateQueries({ queryKey: ["safety-incidents"] });
     },
     onError: (err) => {
-      toast({ title: "Unable to log incident", description: getApiErrorMessage(err), variant: "destructive" });
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) =>
-      fetchJson(`/api/hr/incidents/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Incident status updated", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
+  const selectedRows = React.useMemo(
+    () => pageRows.filter((r) => selection.isSelected(r.id)),
+    [pageRows, selection]
+  );
+
+  const handleExport = () => {
+    const target = selectedRows.length > 0 ? selectedRows : filtered;
+    downloadCsv(
+      "safety-incidents.csv",
+      ["Incident Ref", "Title", "Severity", "Status", "Site", "Date", "Reporter"],
+      target.map((r) => [
+        r.incidentNumber,
+        r.title,
+        r.severity,
+        r.status,
+        r.site?.name || "",
+        r.occurredAt,
+        r.reporter?.name || "",
+      ])
+    );
+  };
+
+  const openCount = records.filter((r) => r.status !== "CLOSED").length;
+  const criticalCount = records.filter((r) => r.severity === "CRITICAL" && r.status !== "CLOSED").length;
+
+  const columns: Array<WsColumn<IncidentRow>> = [
+    {
+      key: "ref",
+      head: "Ref",
+      className: "muted mono",
+      cell: (r) => <span className="bkw-ref">{r.incidentNumber}</span>,
     },
-  });
-
-  const handleOpenCreate = () => {
-    setFormTitle("");
-    setFormType("SAFETY");
-    setFormSeverity("MEDIUM");
-    setFormEmployeeId(employees[0]?.id || "");
-    setFormSiteId(sites[0]?.id || "");
-    setFormDate(new Date().toISOString().slice(0, 10));
-    setFormDescription("");
-    setDrawerOpen(true);
-  };
-
-  const handleExportCsv = () => {
-    const csv = [
-      ["Title", "Type", "Severity", "Date", "Status", "Employee", "Site", "Description"],
-      ...filteredIncidents.map((i) => [
-        i.title,
-        i.category,
-        i.severity,
-        i.incidentDate.slice(0, 10),
-        i.status,
-        i.employee?.name || "",
-        i.site?.name || "",
-        i.description || "",
-      ]),
-    ];
-    downloadCsv(`workplace-incidents-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-  };
-
-  const severityLabel =
-    severityFilter === "all"
-      ? "All severities"
-      : severityFilter.charAt(0) + severityFilter.slice(1).toLowerCase();
+    {
+      key: "title",
+      head: "Incident / Occurrence",
+      cell: (r) => (
+        <span>
+          <span className="who" style={{ display: "block", fontWeight: 500 }}>
+            {r.title}
+          </span>
+          {r.description ? (
+            <span className="muted" style={{ fontSize: 12 }}>
+              {r.description.slice(0, 60)}...
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      key: "severity",
+      head: "Severity",
+      cell: (r) => {
+        const tone =
+          r.severity === "CRITICAL" ? "bad" : r.severity === "MODERATE" ? "warn" : "info";
+        return <St tone={tone}>{r.severity}</St>;
+      },
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (r) => {
+        const tone =
+          r.status === "CLOSED" ? "done" : r.status === "INVESTIGATING" ? "warn" : "bad";
+        return <St tone={tone}>{r.status}</St>;
+      },
+    },
+    {
+      key: "site",
+      head: "Site / Facility",
+      className: "muted",
+      cell: (r) => r.site?.name || <None />,
+    },
+    {
+      key: "date",
+      head: "Date occurred",
+      className: "muted mono",
+      cell: (r) => new Date(r.occurredAt).toLocaleDateString("en-GB"),
+    },
+    {
+      key: "reporter",
+      head: "Reported by",
+      cell: (r) =>
+        r.reporter ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Person name={r.reporter.name} size={22} />
+            <span className="who">{r.reporter.name}</span>
+          </span>
+        ) : (
+          <None />
+        ),
+    },
+  ];
 
   return (
     <PeopleShell
       activeTab="incidents"
-      title="Workplace Safety & Incidents"
       actions={
-        <Button variant="primary" icon="plus" shortcut="N" onClick={handleOpenCreate}>
+        <Button
+          variant="primary"
+          icon="plus"
+          onClick={() => setDrawerOpen(true)}
+        >
           Report incident
         </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Incident views"
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                setPage(1);
-                selection.clear();
-              }}
-              items={[
-                { value: "open", label: "Open incidents", count: openCount },
-                { value: "review", label: "Under review", count: reviewCount },
-                { value: "closed", label: "Resolved & Closed", count: closedCount },
-              ]}
-            />
+      <BkPage screen="incidents" scroll={false}>
+        <BkFinding
+          fact={`${openCount} safety incidents open or under investigation. ${criticalCount} marked critical.`}
+          rest="Statutory workplace health and safety compliance tracking with immediate supervisor notification."
+        />
 
-            {/* TOOLBAR */}
-            <BkTools
-              find="Search incidents by employee, title, site..."
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
-              }}
-              count={`${filteredIncidents.length} of ${incidents.length}`}
-              chips={
-                <BkChip
-                  label="Severity"
-                  value={severityLabel}
-                  set={severityFilter !== "all"}
-                  items={[
-                    { key: "all", label: "All severities", checked: severityFilter === "all", onSelect: () => setSeverityFilter("all") },
-                    { separator: true },
-                    { key: "LOW", label: "Low", checked: severityFilter === "LOW", onSelect: () => setSeverityFilter("LOW") },
-                    { key: "MEDIUM", label: "Medium", checked: severityFilter === "MEDIUM", onSelect: () => setSeverityFilter("MEDIUM") },
-                    { key: "HIGH", label: "High", checked: severityFilter === "HIGH", onSelect: () => setSeverityFilter("HIGH") },
-                    { key: "CRITICAL", label: "Critical", checked: severityFilter === "CRITICAL", onSelect: () => setSeverityFilter("CRITICAL") },
-                  ]}
-                />
-              }
-              end={<BkQuietTools onExport={handleExportCsv} />}
-            />
+        <BkTabs
+          label="Incident views"
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          items={[
+            { value: "open", label: "Open & Investigating", count: openCount },
+            { value: "all", label: "All incident logs", count: records.length },
+            { value: "closed", label: "Closed / Resolved", count: records.length - openCount },
+          ]}
+        />
 
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Incidents register"
-              foot={
-                <TableFoot
-                  range={filteredIncidents.length === 0 ? "None" : `${from} to ${to} of ${filteredIncidents.length}`}
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < filteredIncidents.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={{
-                    count: selection.selected.size,
-                    onClear: selection.clear,
-                    actions: (
-                      <Button icon="export" onClick={handleExportCsv}>
-                        Export selected
-                      </Button>
-                    ),
-                  }}
-                />
-              }
-            >
-              {filteredIncidents.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No workplace incidents reported</b>
-                  <p className="muted">Use Report incident above to document safety and compliance issues.</p>
-                </div>
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExport}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find="Search incidents by reference, title, site..."
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            filters={
+              <BkFilter
+                label="Severity"
+                value={severityFilter === "ALL" ? "Any" : severityFilter}
+                items={[
+                  {
+                    key: "ALL",
+                    label: "Any severity",
+                    checked: severityFilter === "ALL",
+                    onSelect: () => {
+                      setSeverityFilter("ALL");
+                      setPage(1);
+                    },
+                  },
+                  { separator: true },
+                  {
+                    key: "CRITICAL",
+                    label: "Critical",
+                    checked: severityFilter === "CRITICAL",
+                    onSelect: () => {
+                      setSeverityFilter("CRITICAL");
+                      setPage(1);
+                    },
+                  },
+                  {
+                    key: "MODERATE",
+                    label: "Moderate",
+                    checked: severityFilter === "MODERATE",
+                    onSelect: () => {
+                      setSeverityFilter("MODERATE");
+                      setPage(1);
+                    },
+                  },
+                  {
+                    key: "MINOR",
+                    label: "Minor",
+                    checked: severityFilter === "MINOR",
+                    onSelect: () => {
+                      setSeverityFilter("MINOR");
+                      setPage(1);
+                    },
+                  },
+                ]}
+              />
+            }
+            end={<BkQuietTools onExport={handleExport} />}
+          />
+        )}
+
+        <BkScroll>
+          <Worksheet
+            label="safety incidents"
+            rows={pageRows}
+            rowKey={(r) => r.id}
+            columns={columns}
+            selection={{
+              selected: selection.selected,
+              toggle: selection.toggle,
+              toggleAll: selection.toggleAll,
+              all: selection.all,
+              some: selection.some,
+              labelOf: (r) => r.title,
+            }}
+            empty={
+              incidentsQuery.isLoading ? (
+                "Loading incidents..."
               ) : (
-                <table className="table" aria-label="Incidents register">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 260 }} />
-                    <col style={{ width: 200 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 110 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 60 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all incidents"
-                      />
-                      <th>Incident & Date</th>
-                      <th>Staff involved</th>
-                      <th>Site</th>
-                      <th>Type</th>
-                      <th>Severity</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedIncidents.map((incident) => {
-                      const isSelected = selection.isSelected(incident.id);
-                      const moreEntries: MenuEntry[] = [
-                        {
-                          key: "details",
-                          label: "View details",
-                          icon: "invoice",
-                          onSelect: () => setSelectedIncident(incident),
-                        },
-                        { separator: true },
-                        ...(incident.status === "OPEN"
-                          ? [
-                              {
-                                key: "investigate",
-                                label: "Mark under review",
-                                icon: "edit" as const,
-                                onSelect: () => updateStatusMutation.mutate({ id: incident.id, status: "UNDER_REVIEW" }),
-                              },
-                            ]
-                          : []),
-                        ...(incident.status !== "CLOSED"
-                          ? [
-                              {
-                                key: "close",
-                                label: "Resolve & Close",
-                                icon: "check" as const,
-                                onSelect: () => updateStatusMutation.mutate({ id: incident.id, status: "CLOSED" }),
-                              },
-                            ]
-                          : []),
-                      ];
-
-                      return (
-                        <tr key={incident.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(incident.id)}
-                            label={`Select ${incident.title}`}
-                          />
-                          <td>
-                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {incident.title}
-                            </div>
-                            <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                              {format(new Date(incident.incidentDate), "dd MMM yyyy")}
-                            </div>
-                          </td>
-                          <td>
-                            {incident.employee ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <Person name={incident.employee.name} />
-                                <div>
-                                  <span style={{ fontWeight: 500 }}>{incident.employee.name}</span>
-                                  <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                    {incident.employee.employeeId}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="muted">General / Unassigned</span>
-                            )}
-                          </td>
-                          <td>{incident.site?.name ?? <span className="muted">—</span>}</td>
-                          <td>
-                            <span style={{ fontSize: 13 }}>{incident.category}</span>
-                          </td>
-                          <td>
-                            <BkState tone={SEVERITY_TONE[incident.severity] || "plain"}>
-                              {incident.severity}
-                            </BkState>
-                          </td>
-                          <td>
-                            <BkState
-                              tone={
-                                incident.status === "CLOSED"
-                                  ? "plain"
-                                  : incident.status === "UNDER_REVIEW"
-                                  ? "warning"
-                                  : "danger"
-                              }
-                            >
-                              {incident.status === "UNDER_REVIEW" ? "Under Review" : incident.status}
-                            </BkState>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <MenuButton label="More" items={moreEntries}>
-                              •••
-                            </MenuButton>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
-
-            {/* GUIDED REPORT INCIDENT DRAWER */}
-            <Drawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              title="Report workplace incident"
-              sub="Document safety events, injuries, grievances, or equipment breaches."
-              width={500}
-              footer={
-                <>
-                  <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="primary"
-                    icon="check"
-                    shortcut="Ctrl ↵"
-                    busy={createMutation.isPending}
-                    onClick={() => createMutation.mutate()}
-                  >
-                    Log incident report
-                  </Button>
-                </>
-              }
-            >
-              <DrawerSection title="Incident Details">
-                <Field label="Title / Subject" htmlFor="inc-title">
-                  <Input
-                    id="inc-title"
-                    placeholder="e.g. Forklift safety gate collision"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                    autoFocus
-                  />
-                </Field>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Type" htmlFor="inc-type">
-                    <select
-                      id="inc-type"
-                      className="select"
-                      value={formType}
-                      onChange={(e) => setFormType(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      <option value="SAFETY">Safety Issue</option>
-                      <option value="INJURY">Physical Injury</option>
-                      <option value="EQUIPMENT">Equipment Damage</option>
-                      <option value="CONDUCT">Misconduct</option>
-                      <option value="GRIEVANCE">Grievance</option>
-                    </select>
-                  </Field>
-
-                  <Field label="Severity level" htmlFor="inc-sev">
-                    <select
-                      id="inc-sev"
-                      className="select"
-                      value={formSeverity}
-                      onChange={(e) => setFormSeverity(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
-                  </Field>
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No safety incidents reported.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Log any operational occurrences or near-misses using the action above.
+                  </p>
                 </div>
+              )
+            }
+          />
+        </BkScroll>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Date occurred" htmlFor="inc-date">
-                    <Input
-                      id="inc-date"
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                    />
-                  </Field>
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
 
-                  <Field label="Site" htmlFor="inc-site" optional>
-                    <select
-                      id="inc-site"
-                      className="select"
-                      value={formSiteId}
-                      onChange={(e) => setFormSiteId(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      <option value="">No site specified</option>
-                      {sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
+      {/* Guided Drawer for reporting safety incident */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Report Safety & Health Incident"
+        description="Formal statutory record of incident, severity, location, and remedial actions."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <DrawerSection title="Incident Details">
+            <Field label="Incident Title" required>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Conveyor belt trip near Ball Mill 2"
+              />
+            </Field>
 
-                <Field label="Staff member involved" htmlFor="inc-emp" optional>
-                  <select
-                    id="inc-emp"
-                    className="select"
-                    value={formEmployeeId}
-                    onChange={(e) => setFormEmployeeId(e.target.value)}
-                    style={{ width: "100%", height: 36 }}
-                  >
-                    <option value="">General incident (no individual)</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+            <Field label="Severity Rating" required>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <Button
+                  variant={severity === "MINOR" ? "primary" : "outline"}
+                  onClick={() => setSeverity("MINOR")}
+                >
+                  • Minor
+                </Button>
+                <Button
+                  variant={severity === "MODERATE" ? "primary" : "outline"}
+                  onClick={() => setSeverity("MODERATE")}
+                >
+                  • Moderate
+                </Button>
+                <Button
+                  variant={severity === "CRITICAL" ? "danger" : "outline"}
+                  onClick={() => setSeverity("CRITICAL")}
+                >
+                  • Critical
+                </Button>
+              </div>
+            </Field>
 
-                <Field label="Description & Actions taken" htmlFor="inc-desc">
-                  <Input
-                    id="inc-desc"
-                    placeholder="Details of the event and initial containment..."
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                  />
-                </Field>
-              </DrawerSection>
-            </Drawer>
+            <Field label="Date Occurred" required>
+              <Input
+                type="date"
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
+              />
+            </Field>
+          </DrawerSection>
 
-            {/* INCIDENT DETAILS DRAWER */}
-            <Drawer
-              open={Boolean(selectedIncident)}
-              onOpenChange={(open) => !open && setSelectedIncident(null)}
-              title={selectedIncident?.title || "Incident Report"}
-              sub={selectedIncident ? `${selectedIncident.category} • ${selectedIncident.severity}` : "Detail"}
-              width={480}
-              footer={<Button onClick={() => setSelectedIncident(null)}>Close</Button>}
+          <DrawerSection title="Location & Reporter">
+            <Field label="Operational Site" required>
+              <select
+                className="select"
+                value={siteId}
+                onChange={(e) => setSiteId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Select location site...</option>
+                {sites.map((s: Site) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Reported By">
+              <select
+                className="select"
+                value={reporterId}
+                onChange={(e) => setReporterId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Select staff witness / reporter...</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.firstName} {e.lastName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </DrawerSection>
+
+          <DrawerSection title="Description & Corrective Actions">
+            <Field label="Full Description" required>
+              <textarea
+                className="textarea"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What occurred, equipment involved, personnel impacted..."
+                style={{ width: "100%" }}
+              />
+            </Field>
+
+            <Field label="Immediate Actions Taken">
+              <textarea
+                className="textarea"
+                rows={2}
+                value={actionTaken}
+                onChange={(e) => setActionTaken(e.target.value)}
+                placeholder="e.g. Area cordoned off, supervisor informed, first aid provided"
+                style={{ width: "100%" }}
+              />
+            </Field>
+          </DrawerSection>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <Button variant="quiet" onClick={() => setDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              busy={createMutation.isPending}
+              disabled={!title.trim() || !description.trim() || !siteId}
+              onClick={() => {
+                createMutation.mutate({
+                  title: title.trim(),
+                  severity,
+                  siteId,
+                  reporterId: reporterId || undefined,
+                  occurredAt,
+                  description: description.trim(),
+                  actionTaken: actionTaken.trim() || undefined,
+                });
+              }}
             >
-              {selectedIncident ? (
-                <DrawerSection title="Overview">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span className="muted">Status</span>
-                      <BkState tone={selectedIncident.status === "CLOSED" ? "plain" : "danger"}>
-                        {selectedIncident.status}
-                      </BkState>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span className="muted">Date occurred</span>
-                      <span>{format(new Date(selectedIncident.incidentDate), "dd MMM yyyy")}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span className="muted">Site location</span>
-                      <span>{selectedIncident.site?.name || "—"}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span className="muted">Staff involved</span>
-                      <span>{selectedIncident.employee?.name || "General"}</span>
-                    </div>
-                    {selectedIncident.description ? (
-                      <div style={{ marginTop: 8, padding: 12, borderRadius: 6, background: "var(--color-surface)" }}>
-                        <span className="muted" style={{ display: "block", marginBottom: 4 }}>
-                          Description:
-                        </span>
-                        <p style={{ margin: 0, color: "var(--color-ink)" }}>
-                          {selectedIncident.description}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </DrawerSection>
-              ) : null}
-            </Drawer>
+              Submit incident log
+            </Button>
           </div>
-        </KitScreen>
-      </Kit>
+        </div>
+      </Drawer>
     </PeopleShell>
   );
 }

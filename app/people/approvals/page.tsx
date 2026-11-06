@@ -2,336 +2,330 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
   Drawer,
   DrawerSection,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
-import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@/lib/api";
+import { fetchJson } from "@/lib/api-client";
 
-type DecisionTab = "all" | "approved" | "pending" | "rejected";
+type ApprovalAuditRow = {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  action: "REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+  comment: string | null;
+  createdAt: string;
+  actor: { id: string; name: string; role: string } | null;
+};
 
-function actionTone(action: string): "success" | "warning" | "danger" | "info" | "plain" {
-  if (/approve/i.test(action)) return "success";
-  if (/reject|cancel|deny/i.test(action)) return "danger";
-  if (/submit|pending|review/i.test(action)) return "warning";
-  return "plain";
-}
-
-export default function ApprovalsPage() {
-  const [tab, setTab] = React.useState<DecisionTab>("all");
-  const [entityType, setEntityType] = React.useState<string>("all");
+export default function PeopleApprovalsPage() {
+  const [tab, setTab] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const pageSize = 20;
+  const pageSize = 15;
 
-  const [selectedRecord, setSelectedRecord] = React.useState<ApprovalHistoryRecord | null>(null);
+  const [inspectRow, setInspectRow] = React.useState<ApprovalAuditRow | null>(null);
 
-  const { data } = useQuery({
-    queryKey: ["approval-history", entityType, search],
+  const auditQuery = useQuery({
+    queryKey: ["people-approvals-audit", tab],
     queryFn: () =>
-      fetchApprovalHistory({
-        entityType: entityType === "all" ? undefined : (entityType as ApprovalHistoryRecord["entityType"]),
-        search: search || undefined,
-        limit: 250,
-      }),
+      fetchJson<{ data: ApprovalAuditRow[] }>("/api/v2/people/approvals/audit?limit=200"),
   });
 
-  const records = React.useMemo(() => data?.data ?? [], [data]);
+  const records = React.useMemo(() => auditQuery.data?.data ?? [], [auditQuery.data]);
 
-  // Tab filtering
-  const filteredRecords = React.useMemo(() => {
-    let list = [...records];
-    if (tab === "approved") {
-      list = list.filter((r) => /approve/i.test(r.action));
-    } else if (tab === "pending") {
-      list = list.filter((r) => /submit|pending|review/i.test(r.action));
-    } else if (tab === "rejected") {
-      list = list.filter((r) => /reject|cancel|deny/i.test(r.action));
-    }
-    return list;
-  }, [records, tab]);
+  const filtered = React.useMemo(() => {
+    return records.filter((r) => {
+      if (tab === "approved" && r.action !== "APPROVED") return false;
+      if (tab === "rejected" && r.action !== "REJECTED") return false;
+      if (tab === "pending" && r.action !== "REQUESTED") return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const actor = (r.actor?.name || "").toLowerCase();
+      const type = r.sourceType.toLowerCase();
+      const comment = (r.comment || "").toLowerCase();
+      return actor.includes(q) || type.includes(q) || comment.includes(q);
+    });
+  }, [records, tab, search]);
 
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, filteredRecords.length);
-  const pagedRecords = React.useMemo(
-    () => filteredRecords.slice((page - 1) * pageSize, page * pageSize),
-    [filteredRecords, page, pageSize]
+  const totalRows = filtered.length;
+  const pageRows = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const selection = useSelection(rowIds);
+
+  const selectedRows = React.useMemo(
+    () => pageRows.filter((r) => selection.isSelected(r.id)),
+    [pageRows, selection]
   );
 
-  const ids = React.useMemo(() => pagedRecords.map((r) => r.id), [pagedRecords]);
-  const selection = useSelection(ids);
-
-  const approvedCount = React.useMemo(() => records.filter((r) => /approve/i.test(r.action)).length, [records]);
-  const pendingCount = React.useMemo(() => records.filter((r) => /submit|pending|review/i.test(r.action)).length, [records]);
-  const rejectedCount = React.useMemo(() => records.filter((r) => /reject|cancel|deny/i.test(r.action)).length, [records]);
-
-  const handleExportCsv = () => {
-    const csv = [
-      ["Entity Type", "Entity ID", "Action", "Actor Name", "Actor Role", "Date", "Comments"],
-      ...filteredRecords.map((r) => [
-        r.entityType,
-        r.entityId,
+  const handleExport = () => {
+    const target = selectedRows.length > 0 ? selectedRows : filtered;
+    downloadCsv(
+      "approval-audit-trail.csv",
+      ["Date", "Decision", "Workflow Item", "Approver", "Notes"],
+      target.map((r) => [
+        r.createdAt,
         r.action,
-        r.actedBy?.name || "",
-        r.actedBy?.role || "",
-        format(new Date(r.createdAt), "yyyy-MM-dd HH:mm"),
-        r.note || "",
-      ]),
-    ];
-    downloadCsv(`approvals-history-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        r.sourceType,
+        r.actor?.name || "System",
+        r.comment || "",
+      ])
+    );
   };
 
-  const entityTypeLabel =
-    entityType === "all"
-      ? "All types"
-      : entityType.charAt(0) + entityType.slice(1).toLowerCase();
+  const counts = React.useMemo(() => {
+    const approved = records.filter((r) => r.action === "APPROVED").length;
+    const rejected = records.filter((r) => r.action === "REJECTED").length;
+    const pending = records.filter((r) => r.action === "REQUESTED").length;
+    return { all: records.length, approved, rejected, pending };
+  }, [records]);
+
+  const columns: Array<WsColumn<ApprovalAuditRow>> = [
+    {
+      key: "date",
+      head: "Timestamp",
+      className: "muted mono",
+      cell: (r) => new Date(r.createdAt).toLocaleString("en-GB"),
+    },
+    {
+      key: "decision",
+      head: "Action / Decision",
+      cell: (r) => {
+        const tone =
+          r.action === "APPROVED"
+            ? "done"
+            : r.action === "REJECTED"
+            ? "bad"
+            : r.action === "REQUESTED"
+            ? "warn"
+            : "void";
+        return <St tone={tone}>{r.action}</St>;
+      },
+    },
+    {
+      key: "workflow",
+      head: "Workflow entity",
+      cell: (r) => (
+        <span>
+          <span className="who" style={{ display: "block", fontWeight: 500 }}>
+            {r.sourceType.replace(/_/g, " ")}
+          </span>
+          <span className="muted mono" style={{ fontSize: 11 }}>
+            ID: {r.sourceId.slice(0, 12)}...
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "actor",
+      head: "Decision maker",
+      cell: (r) =>
+        r.actor ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Person name={r.actor.name} size={24} />
+            <span>
+              <span className="who" style={{ display: "block", fontWeight: 500 }}>
+                {r.actor.name}
+              </span>
+              <span className="muted" style={{ fontSize: 11 }}>
+                {r.actor.role}
+              </span>
+            </span>
+          </span>
+        ) : (
+          <span className="muted">Automated Engine</span>
+        ),
+    },
+    {
+      key: "comment",
+      head: "Notes / Justification",
+      className: "muted",
+      cell: (r) => r.comment || <None />,
+    },
+  ];
 
   return (
-    <PeopleShell activeTab="approvals" title="Approval History & Audit Trail">
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Approval views"
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                setPage(1);
-                selection.clear();
-              }}
-              items={[
-                { value: "all", label: "All decisions", count: records.length },
-                { value: "approved", label: "Approved", count: approvedCount },
-                { value: "pending", label: "Under review", count: pendingCount },
-                { value: "rejected", label: "Rejected / Denied", count: rejectedCount },
-              ]}
-            />
+    <PeopleShell activeTab="approvals">
+      <BkPage screen="approvals" scroll={false}>
+        <BkFinding
+          fact={`${counts.approved} approvals recorded, ${counts.rejected} rejected, ${counts.pending} pending action.`}
+          rest="Audit ledger maintains immutable records of staff leave, payroll approvals, and overtime decisions."
+        />
 
-            {/* TOOLBAR */}
-            <BkTools
-              find="Search by actor, entity ID, or comment..."
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
-              }}
-              count={`${filteredRecords.length} of ${records.length}`}
-              chips={
-                <BkChip
-                  label="Type"
-                  value={entityTypeLabel}
-                  set={entityType !== "all"}
-                  items={[
-                    { key: "all", label: "All types", checked: entityType === "all", onSelect: () => setEntityType("all") },
-                    { separator: true },
-                    { key: "LEAVE_REQUEST", label: "Leave Requests", checked: entityType === "LEAVE_REQUEST", onSelect: () => setEntityType("LEAVE_REQUEST") },
-                    { key: "PAYROLL_RUN", label: "Payroll Runs", checked: entityType === "PAYROLL_RUN", onSelect: () => setEntityType("PAYROLL_RUN") },
-                    { key: "OVERTIME", label: "Overtime Requests", checked: entityType === "OVERTIME", onSelect: () => setEntityType("OVERTIME") },
-                    { key: "DISBURSEMENT", label: "Disbursements", checked: entityType === "DISBURSEMENT", onSelect: () => setEntityType("DISBURSEMENT") },
-                  ]}
-                />
-              }
-              end={<BkQuietTools onExport={handleExportCsv} />}
-            />
+        <BkTabs
+          label="Approval audit views"
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          items={[
+            { value: "all", label: "All decisions", count: counts.all },
+            { value: "approved", label: "Approved", count: counts.approved },
+            { value: "pending", label: "Under review", count: counts.pending },
+            { value: "rejected", label: "Rejected", count: counts.rejected },
+          ]}
+        />
 
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Approval decisions"
-              foot={
-                <TableFoot
-                  range={filteredRecords.length === 0 ? "None" : `${from} to ${to} of ${filteredRecords.length}`}
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < filteredRecords.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={{
-                    count: selection.selected.size,
-                    onClear: selection.clear,
-                    actions: (
-                      <Button icon="export" onClick={handleExportCsv}>
-                        Export selected
-                      </Button>
-                    ),
-                  }}
-                />
-              }
-            >
-              {filteredRecords.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No approval decisions match</b>
-                  <p className="muted">Clear the search or entity type filter to see more.</p>
-                </div>
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExport}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find="Search audit trail by approver, entity, notes..."
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            end={<BkQuietTools onExport={handleExport} />}
+          />
+        )}
+
+        <BkScroll>
+          <Worksheet
+            label="approval decisions"
+            rows={pageRows}
+            rowKey={(r) => r.id}
+            columns={columns}
+            selection={{
+              selected: selection.selected,
+              toggle: selection.toggle,
+              toggleAll: selection.toggleAll,
+              all: selection.all,
+              some: selection.some,
+              labelOf: (r) => `${r.sourceType} decision`,
+            }}
+            onOpen={(r) => setInspectRow(r)}
+            empty={
+              auditQuery.isLoading ? (
+                "Loading approval history..."
               ) : (
-                <table className="table" aria-label="Approval history">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 220 }} />
-                    <col style={{ width: 200 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 130 }} />
-                    <col />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all rows"
-                      />
-                      <th>Request / Entity</th>
-                      <th>Decided by</th>
-                      <th>Role</th>
-                      <th>Date</th>
-                      <th>Action</th>
-                      <th>Comments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedRecords.map((record) => {
-                      const isSelected = selection.isSelected(record.id);
-                      return (
-                        <tr
-                          key={record.id}
-                          className={isSelected ? "is-selected" : undefined}
-                          onClick={() => setSelectedRecord(record)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(record.id)}
-                            label={`Select decision ${record.id}`}
-                          />
-                          <td>
-                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {record.entityType.replace(/_/g, " ")}
-                            </div>
-                            <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                              ID: {record.entityId.slice(0, 12)}...
-                            </div>
-                          </td>
-                          <td>
-                            {record.actedBy?.name ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <Person name={record.actedBy.name} />
-                                <span style={{ fontWeight: 500 }}>{record.actedBy.name}</span>
-                              </div>
-                            ) : (
-                              <span className="muted">System Automation</span>
-                            )}
-                          </td>
-                          <td>
-                            <span style={{ fontSize: 13, color: "var(--color-muted)" }}>
-                              {record.actedBy?.role || "—"}
-                            </span>
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {format(new Date(record.createdAt), "dd MMM yyyy HH:mm")}
-                          </td>
-                          <td>
-                            <BkState tone={actionTone(record.action)}>
-                              {record.action.replace(/_/g, " ")}
-                            </BkState>
-                          </td>
-                          <td>
-                            <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                              {record.note || "—"}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No decisions match the filter.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Audit decisions will record as managers act on leave or compensation requests.
+                  </p>
+                </div>
+              )
+            }
+          />
+        </BkScroll>
 
-            {/* DECISION DETAILS DRAWER */}
-            <Drawer
-              open={Boolean(selectedRecord)}
-              onOpenChange={(open) => !open && setSelectedRecord(null)}
-              title="Approval decision detail"
-              sub={selectedRecord ? `${selectedRecord.entityType.replace(/_/g, " ")} • ${selectedRecord.action}` : "Detail"}
-              width={480}
-              footer={<Button onClick={() => setSelectedRecord(null)}>Close</Button>}
-            >
-              {selectedRecord ? (
-                <>
-                  <DrawerSection title="Decision Info">
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Action taken</span>
-                        <BkState tone={actionTone(selectedRecord.action)}>
-                          {selectedRecord.action}
-                        </BkState>
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
+
+      {/* Slideout detail drawer for inspecting audit decision */}
+      <Drawer
+        open={Boolean(inspectRow)}
+        onClose={() => setInspectRow(null)}
+        title="Approval Audit Decision"
+        description="Immutable snapshot of workflow verification."
+      >
+        {inspectRow ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <DrawerSection title="Decision Details">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Outcome</span>
+                  <div style={{ marginTop: 4 }}>
+                    <St
+                      tone={
+                        inspectRow.action === "APPROVED"
+                          ? "done"
+                          : inspectRow.action === "REJECTED"
+                          ? "bad"
+                          : "warn"
+                      }
+                    >
+                      {inspectRow.action}
+                    </St>
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Date & Time</span>
+                  <div style={{ marginTop: 4, fontFamily: "var(--font-mono)", fontSize: 13 }}>
+                    {new Date(inspectRow.createdAt).toLocaleString("en-GB")}
+                  </div>
+                </div>
+              </div>
+            </DrawerSection>
+
+            <DrawerSection title="Entity & Approver">
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Source Type</span>
+                  <div style={{ fontWeight: 500, color: "var(--color-ink)", marginTop: 2 }}>
+                    {inspectRow.sourceType}
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Decision Maker</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <Person name={inspectRow.actor?.name || "System"} size={26} />
+                    <div>
+                      <div style={{ fontWeight: 500 }}>
+                        {inspectRow.actor?.name || "Automated Workflow"}
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Decided by</span>
-                        <b>{selectedRecord.actedBy?.name || "System"}</b>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Role</span>
-                        <span>{selectedRecord.actedBy?.role || "Approver"}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Timestamp</span>
-                        <span className="num">
-                          {format(new Date(selectedRecord.createdAt), "yyyy-MM-dd HH:mm:ss")}
-                        </span>
+                      <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                        {inspectRow.actor?.role || "Engine"}
                       </div>
                     </div>
-                  </DrawerSection>
+                  </div>
+                </div>
+              </div>
+            </DrawerSection>
 
-                  <DrawerSection title="Request Context">
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Entity category</span>
-                        <span>{selectedRecord.entityType}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span className="muted">Entity reference ID</span>
-                        <span className="num" style={{ fontSize: 12 }}>{selectedRecord.entityId}</span>
-                      </div>
-                      {selectedRecord.note ? (
-                        <div style={{ marginTop: 8, padding: 12, borderRadius: 6, background: "var(--color-surface)" }}>
-                          <span className="muted" style={{ display: "block", marginBottom: 4 }}>
-                            Comments / Decision justification:
-                          </span>
-                          <p style={{ margin: 0, color: "var(--color-ink)" }}>
-                            {selectedRecord.note}
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  </DrawerSection>
-                </>
-              ) : null}
-            </Drawer>
+            <DrawerSection title="Notes">
+              <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.5 }}>
+                {inspectRow.comment || "No decision notes entered."}
+              </p>
+            </DrawerSection>
           </div>
-        </KitScreen>
-      </Kit>
+        ) : null}
+      </Drawer>
     </PeopleShell>
   );
 }

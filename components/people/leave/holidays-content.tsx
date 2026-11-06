@@ -4,184 +4,175 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
-import {
-  Kit,
-  KitScreen,
-  TableFoot,
-  TableShell,
-} from "@/components/core";
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 
-type Holiday = {
+type HolidayRow = {
   id: string;
-  date: string;
   name: string;
-  isPaid: boolean;
-  doublePayIfWorked: boolean;
-  siteId: string | null;
-  isSeeded: boolean;
+  date: string;
+  year: number;
+  isObserved: boolean;
 };
 
-function currentYear() {
-  return new Date().getUTCFullYear();
-}
-
 export function HolidaysContent() {
-  const [year, setYear] = React.useState(String(currentYear()));
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = React.useState<number>(currentYear);
   const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 20;
 
   const holidaysQuery = useQuery({
-    queryKey: ["public-holidays", year],
+    queryKey: ["people", "holidays", selectedYear],
     queryFn: () =>
-      fetchJson<{ year: number; holidays: Holiday[] }>(
-        `/api/people/leave/holidays?year=${year}`
+      fetchJson<{ data: HolidayRow[] }>(
+        `/api/v2/people/leave/holidays?year=${selectedYear}`
       ),
   });
 
-  const years = React.useMemo(() => {
-    const base = currentYear();
-    return [base - 1, base, base + 1].map(String);
-  }, []);
+  const holidays = React.useMemo(
+    () => holidaysQuery.data?.data ?? [],
+    [holidaysQuery.data]
+  );
 
-  const holidays = React.useMemo(() => holidaysQuery.data?.holidays ?? [], [holidaysQuery.data]);
-
-  const filteredHolidays = React.useMemo(() => {
-    let list = [...holidays];
-    if (search.trim()) {
+  const filtered = React.useMemo(() => {
+    return holidays.filter((h) => {
+      if (!search.trim()) return true;
       const q = search.toLowerCase();
-      list = list.filter((h) => h.name.toLowerCase().includes(q));
-    }
-    return list;
+      return h.name.toLowerCase().includes(q) || h.date.includes(q);
+    });
   }, [holidays, search]);
 
-  const handleExportCsv = () => {
-    const csv = [
-      ["Date", "Holiday", "Scope", "Double Pay If Worked", "Source"],
-      ...filteredHolidays.map((h) => [
-        h.date.slice(0, 10),
+  const totalRows = filtered.length;
+  const pageRows = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const handleExport = () => {
+    downloadCsv(
+      `statutory-holidays-${selectedYear}.csv`,
+      ["Holiday Name", "Date", "Year", "Observed"],
+      filtered.map((h) => [
         h.name,
-        h.siteId ? "One site" : "Company-wide",
-        h.doublePayIfWorked ? "Yes" : "No",
-        h.isSeeded ? "Seeded" : "Custom",
-      ]),
-    ];
-    downloadCsv(`public-holidays-${year}.csv`, csv);
+        h.date,
+        String(h.year),
+        h.isObserved ? "Yes" : "No",
+      ])
+    );
   };
 
+  const columns: Array<WsColumn<HolidayRow>> = [
+    {
+      key: "name",
+      head: "Holiday name",
+      cell: (h) => <span className="who" style={{ fontWeight: 500 }}>{h.name}</span>,
+    },
+    {
+      key: "date",
+      head: "Date",
+      className: "muted mono",
+      cell: (h) =>
+        new Date(h.date).toLocaleDateString(undefined, {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        }),
+    },
+    {
+      key: "year",
+      head: "Year",
+      className: "muted mono",
+      cell: (h) => h.year,
+    },
+    {
+      key: "observed",
+      head: "Status",
+      cell: (h) => (
+        <St tone={h.isObserved ? "done" : "void"}>
+          {h.isObserved ? "Official Statutory" : "Non-working"}
+        </St>
+      ),
+    },
+  ];
+
   return (
-    <PeopleShell activeTab="holidays" title="Public Holidays & Calendar">
-      {holidaysQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the calendar</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(holidaysQuery.error)}</AlertDescription>
-        </Alert>
-      ) : null}
+    <PeopleShell activeTab="holidays">
+      <BkPage screen="leave" scroll={false}>
+        <BkFinding
+          fact={`${holidays.length} statutory public holidays configured for calendar year ${selectedYear}.`}
+          rest="Statutory holidays are automatically excluded from employee leave working-day balance calculations."
+        />
 
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TOOLBAR */}
-            <BkTools
-              find="Search public holidays..."
-              query={search}
-              onFind={setSearch}
-              count={`${filteredHolidays.length} holidays`}
-              chips={
-                <BkChip
-                  label="Year"
-                  value={year}
-                  set={year !== String(currentYear())}
-                  items={years.map((opt) => ({
-                    key: opt,
-                    label: opt,
-                    checked: year === opt,
-                    onSelect: () => setYear(opt),
-                  }))}
-                />
-              }
-              end={<BkQuietTools onExport={handleExportCsv} />}
+        <BkTools
+          find="Search holidays..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <BkFilter
+              label="Calendar year"
+              value={String(selectedYear)}
+              items={[currentYear - 1, currentYear, currentYear + 1].map((yr) => ({
+                key: String(yr),
+                label: `Year ${yr}`,
+                checked: selectedYear === yr,
+                onSelect: () => {
+                  setSelectedYear(yr);
+                  setPage(1);
+                },
+              }))}
             />
+          }
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Public holidays"
-              foot={
-                <TableFoot
-                  range={`${filteredHolidays.length} holidays in ${year}`}
-                />
-              }
-            >
-              {filteredHolidays.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No holidays found for {year}</b>
-                  <p className="muted">Public holidays and company rest days for this year will appear here.</p>
-                </div>
+        <BkScroll>
+          <Worksheet
+            label="statutory holidays"
+            rows={pageRows}
+            rowKey={(h) => h.id}
+            columns={columns}
+            empty={
+              holidaysQuery.isLoading ? (
+                "Loading holidays..."
               ) : (
-                <table className="table" aria-label="Public holidays">
-                  <colgroup>
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 280 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 140 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Holiday</th>
-                      <th>Scope</th>
-                      <th>If worked</th>
-                      <th>Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredHolidays.map((holiday) => (
-                      <tr key={holiday.id}>
-                        <td className="mono" style={{ fontSize: 13, color: "var(--color-ink)" }}>
-                          {new Date(holiday.date).toLocaleDateString(undefined, {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                            timeZone: "UTC",
-                          })}
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                            {holiday.name}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="muted" style={{ fontSize: 13 }}>
-                            {holiday.siteId ? "One site" : "Company-wide"}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ fontSize: 13 }}>
-                            {holiday.doublePayIfWorked ? "Double pay" : "Normal pay"}
-                          </span>
-                        </td>
-                        <td>
-                          <BkState tone={holiday.isSeeded ? "plain" : "info"}>
-                            {holiday.isSeeded ? "Seeded" : "Custom"}
-                          </BkState>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
-          </div>
-        </KitScreen>
-      </Kit>
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No holidays configured for year {selectedYear}.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Statutory public holidays will be populated by company payroll calendar settings.
+                  </p>
+                </div>
+              )
+            }
+          />
+        </BkScroll>
+
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
     </PeopleShell>
   );
 }

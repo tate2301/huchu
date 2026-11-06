@@ -5,35 +5,22 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BkState } from "@/components/books/bk-list";
-import { Button, Kit, KitScreen, Person, TableShell } from "@/components/core";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { downloadCsv } from "@/components/books/bk-list";
+  Amt,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkScroll,
+  BkTabs,
+  BkTools,
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { Button, Person } from "@/components/core";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-
-/**
- * The monthly returns, and whether they can be filed.
- *
- * Three things on the page and the order is the point.
- *
- * First, **can this be filed at all** — an employee with no BP number is not a
- * gap in the return, it is a return ZIMRA cannot match to a taxpayer. That has to
- * be the first thing seen, not a footnote under the figures.
- *
- * Second, **does it agree with the ledger**. A return that does not equal the
- * credit on its payable account means one of them is wrong, and the operator
- * would rather find out here than when ZIMRA does.
- *
- * Only then the figures. A screen that leads with a confident total and buries
- * the blockers is a screen that gets a return filed wrong.
- */
 
 type P2Boxes = {
   employeesReported: number;
@@ -103,13 +90,6 @@ type ReturnsResponse = {
   };
 };
 
-function money(value: number) {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 function periodOptions() {
   const options: Array<{ value: string; label: string }> = [];
   const now = new Date();
@@ -127,9 +107,13 @@ function periodOptions() {
   return options;
 }
 
+type TabKey = "reconciliation" | "p2" | "nssa";
+
 export function StatutoryReturnsContent() {
   const periods = useMemo(() => periodOptions(), []);
   const [periodKey, setPeriodKey] = useState(periods[1]?.value ?? periods[0].value);
+  const [tab, setTab] = useState<TabKey>("p2");
+  const [search, setSearch] = useState("");
 
   const query = useQuery({
     queryKey: ["hr", "returns", periodKey],
@@ -138,6 +122,7 @@ export function StatutoryReturnsContent() {
   });
 
   const data = query.data;
+
   const blockers = useMemo(
     () => [
       ...(data?.paye.flatMap((row) => row.blockers) ?? []),
@@ -146,327 +131,411 @@ export function StatutoryReturnsContent() {
     [data],
   );
 
+  const selectedPeriodLabel = useMemo(
+    () => periods.find((p) => p.value === periodKey)?.label ?? periodKey,
+    [periods, periodKey]
+  );
+
+  // Flattened schedules
+  const p2Schedules = useMemo(() => {
+    return data?.paye.flatMap((p) => p.schedule.map((s) => ({ ...s, currency: p.currency }))) ?? [];
+  }, [data]);
+
+  const nssaSchedules = useMemo(() => {
+    return data?.nssa.flatMap((n) => n.schedule.map((s) => ({ ...s, currency: n.currency }))) ?? [];
+  }, [data]);
+
+  const filteredP2 = useMemo(() => {
+    let list = p2Schedules;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.employeeNumber.toLowerCase().includes(q));
+    }
+    return list;
+  }, [p2Schedules, search]);
+
+  const filteredNssa = useMemo(() => {
+    let list = nssaSchedules;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.employeeNumber.toLowerCase().includes(q));
+    }
+    return list;
+  }, [nssaSchedules, search]);
+
+  const handleExportCsv = () => {
+    if (tab === "p2") {
+      downloadCsv(
+        `p2-paye-return-${periodKey}.csv`,
+        ["Employee ID", "Employee", "Currency", "Tax (BP) number", "Gross", "Taxable", "PAYE", "AIDS levy"],
+        filteredP2.map((r) => [
+          r.employeeNumber,
+          r.name,
+          r.currency,
+          r.taxNumber || "",
+          String(r.grossEmoluments),
+          String(r.taxableEmoluments),
+          String(r.payeDeducted),
+          String(r.aidsLevy),
+        ])
+      );
+    } else if (tab === "nssa") {
+      downloadCsv(
+        `nssa-schedule-return-${periodKey}.csv`,
+        ["Employee ID", "Member", "Currency", "NSSA number", "Insurable earnings", "Employee", "Employer", "Total"],
+        filteredNssa.map((r) => [
+          r.employeeNumber,
+          r.name,
+          r.currency,
+          r.nssaNumber || "",
+          String(r.insurableEarnings),
+          String(r.employeeContribution),
+          String(r.employerContribution),
+          String(r.total),
+        ])
+      );
+    } else if (data?.reconciliation.lines) {
+      downloadCsv(
+        `ledger-reconciliation-${periodKey}.csv`,
+        ["Liability", "Account Code", "Return Amount", "Ledger Amount", "Difference", "Reconciled"],
+        data.reconciliation.lines.map((l) => [
+          l.label,
+          l.accountCode,
+          String(l.returnAmountBase),
+          String(l.ledgerAmountBase),
+          String(l.difference),
+          l.reconciled ? "Yes" : "No",
+        ])
+      );
+    }
+  };
+
+  // Columns for P2
+  const p2Columns: Array<WsColumn<typeof filteredP2[number]>> = [
+    {
+      key: "employee",
+      head: "Employee",
+      cell: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Person name={r.name} size={24} />
+          <span>
+            <span style={{ display: "block", fontWeight: 500 }}>{r.name}</span>
+            <span className="muted mono" style={{ fontSize: 11 }}>{r.employeeNumber}</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (r) => r.currency,
+    },
+    {
+      key: "taxNumber",
+      head: "Tax (BP) number",
+      cell: (r) =>
+        r.taxNumber ? (
+          <span className="mono">{r.taxNumber}</span>
+        ) : (
+          <St tone="bad">Missing</St>
+        ),
+    },
+    {
+      key: "gross",
+      head: "Gross Emoluments",
+      right: true,
+      cell: (r) => <Amt value={r.grossEmoluments} currency={r.currency} />,
+    },
+    {
+      key: "taxable",
+      head: "Taxable",
+      right: true,
+      cell: (r) => <Amt value={r.taxableEmoluments} currency={r.currency} />,
+    },
+    {
+      key: "paye",
+      head: "PAYE Deducted",
+      right: true,
+      cell: (r) => <Amt value={r.payeDeducted} currency={r.currency} weight={600} />,
+    },
+    {
+      key: "aids",
+      head: "AIDS Levy (3%)",
+      right: true,
+      cell: (r) => <Amt value={r.aidsLevy} currency={r.currency} />,
+    },
+  ];
+
+  // Columns for NSSA
+  const nssaColumns: Array<WsColumn<typeof filteredNssa[number]>> = [
+    {
+      key: "member",
+      head: "Member",
+      cell: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Person name={r.name} size={24} />
+          <span>
+            <span style={{ display: "block", fontWeight: 500 }}>{r.name}</span>
+            <span className="muted mono" style={{ fontSize: 11 }}>{r.employeeNumber}</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (r) => r.currency,
+    },
+    {
+      key: "nssaNumber",
+      head: "NSSA number",
+      cell: (r) =>
+        r.nssaNumber ? (
+          <span className="mono">{r.nssaNumber}</span>
+        ) : (
+          <St tone="bad">Missing</St>
+        ),
+    },
+    {
+      key: "insurable",
+      head: "Insurable earnings",
+      right: true,
+      cell: (r) => <Amt value={r.insurableEarnings} currency={r.currency} />,
+    },
+    {
+      key: "emp",
+      head: "Employee (4.5%)",
+      right: true,
+      cell: (r) => <Amt value={r.employeeContribution} currency={r.currency} />,
+    },
+    {
+      key: "empr",
+      head: "Employer (4.5%)",
+      right: true,
+      cell: (r) => <Amt value={r.employerContribution} currency={r.currency} />,
+    },
+    {
+      key: "total",
+      head: "Total Contribution",
+      right: true,
+      cell: (r) => <Amt value={r.total} currency={r.currency} weight={600} />,
+    },
+  ];
+
+  // Columns for Reconciliation
+  const reconColumns: Array<WsColumn<ReconciliationLine>> = [
+    {
+      key: "label",
+      head: "Liability description",
+      cell: (l) => (
+        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>{l.label}</span>
+      ),
+    },
+    {
+      key: "account",
+      head: "General Ledger Account",
+      className: "muted mono",
+      cell: (l) => l.accountCode,
+    },
+    {
+      key: "returnAmt",
+      head: "Calculated Return",
+      right: true,
+      cell: (l) => <Amt value={l.returnAmountBase} currency="USD" />,
+    },
+    {
+      key: "ledgerAmt",
+      head: "Ledger Balance",
+      right: true,
+      cell: (l) => <Amt value={l.ledgerAmountBase} currency="USD" />,
+    },
+    {
+      key: "diff",
+      head: "Variance / Diff",
+      right: true,
+      cell: (l) =>
+        l.reconciled ? (
+          <None />
+        ) : (
+          <Amt value={l.difference} currency="USD" weight={600} tone="bad" />
+        ),
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (l) => <St tone={l.reconciled ? "done" : "bad"}>{l.reconciled ? "Agrees" : "Mismatch"}</St>,
+    },
+  ];
+
+  const totalPaye = useMemo(() => filteredP2.reduce((s, r) => s + r.payeDeducted, 0), [filteredP2]);
+  const totalNssa = useMemo(() => filteredNssa.reduce((s, r) => s + r.total, 0), [filteredNssa]);
+
+  const p2Totals = [
+    `${filteredP2.length} staff`,
+    null,
+    null,
+    null,
+    null,
+    <Amt key="tot" value={totalPaye} currency="USD" weight={600} />,
+    null,
+  ];
+
+  const nssaTotals = [
+    `${filteredNssa.length} members`,
+    null,
+    null,
+    null,
+    null,
+    null,
+    <Amt key="tot" value={totalNssa} currency="USD" weight={600} />,
+  ];
+
   return (
     <PayrollShell
       activeTab="statutory-returns"
-      title="Statutory returns"
+      title="Statutory Tax Returns"
       actions={
-        <Select value={periodKey} onValueChange={setPeriodKey}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {periods.map((period) => (
-              <SelectItem key={period.value} value={period.value}>
-                {period.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Button variant="default" icon="export" onClick={handleExportCsv}>
+          Export current return
+        </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {query.isPending ? (
-          <>
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-64 w-full" />
-          </>
-        ) : query.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>The returns could not be computed</AlertTitle>
-            <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-          </Alert>
-        ) : !data ? null : data.paye.length === 0 && data.nssa.length === 0 ? (
-          <Alert>
-            <AlertTitle>Nothing to report for this month</AlertTitle>
-            <AlertDescription>
-              A return is built from approved payroll runs. Approve a run for this
-              period and it will appear here — draft runs are deliberately excluded,
-              since their figures still change.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {/* Whether it can be filed, first. */}
-            {blockers.length > 0 ? (
-              <Alert variant="destructive">
-                <AlertTitle>
-                  These returns cannot be filed yet — {blockers.length} employee
-                  {blockers.length === 1 ? "" : "s"} cannot be reported
-                </AlertTitle>
-                <AlertDescription>
-                  <ul className="mt-2 list-disc space-y-1 pl-4">
-                    {blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Alert>
-                <AlertTitle>Every employee can be reported</AlertTitle>
-                <AlertDescription>
-                  All the tax and NSSA numbers these returns need are on file.
-                </AlertDescription>
-              </Alert>
-            )}
+      <BkPage screen="statutory-returns" scroll={false}>
+        <BkFinding
+          fact={
+            blockers.length > 0
+              ? `${blockers.length} validation blocker${blockers.length === 1 ? "" : "s"} prevent filing this return.`
+              : data?.reconciliation.reconciled
+              ? `All figures reconciled cleanly against general ledger accounts for ${selectedPeriodLabel}.`
+              : `Monthly statutory return for ${selectedPeriodLabel} ready for review.`
+          }
+          rest={
+            blockers.length > 0
+              ? "Missing tax or NSSA registration numbers must be entered before filing with ZIMRA/NSSA."
+              : "Check return schedules against banking disbursements prior to submitting P2 remittance."
+          }
+        />
 
-            {/* Then whether it agrees with the books. */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                  Reconciliation against the ledger
-                </h2>
-                {!data.reconciliation.ledgerAvailable ? (
-                  <BkState tone="plain">Not checked</BkState>
-                ) : data.reconciliation.reconciled ? (
-                  <BkState tone="success">Agrees</BkState>
-                ) : (
-                  <BkState tone="danger">Does not agree</BkState>
-                )}
-              </div>
-              {data.reconciliation.ledgerAvailable ? (
-                <TableShell label="Ledger reconciliation">
-                  <table className="table" aria-label="Ledger reconciliation">
-                    <thead>
-                      <tr>
-                        <th>Liability</th>
-                        <th>Account</th>
-                        <th className="num">Return</th>
-                        <th className="num">Ledger</th>
-                        <th className="num">Difference</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.reconciliation.lines.map((line) => (
-                        <tr key={line.accountCode + line.label}>
-                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>{line.label}</td>
-                          <td className="mono" style={{ fontSize: 13, color: "var(--color-muted)" }}>
-                            {line.accountCode}
-                          </td>
-                          <td className="num">
-                            {money(line.returnAmountBase)}
-                          </td>
-                          <td className="num">
-                            {money(line.ledgerAmountBase)}
-                          </td>
-                          <td className="num">
-                            {line.reconciled ? (
-                              <span className="muted">—</span>
-                            ) : (
-                              <span style={{ fontWeight: 600, color: "var(--color-danger)" }}>
-                                {money(line.difference)}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              ) : null}
-            </div>
-
-            {/* One P2 per currency: USD PAYE is remitted in USD and ZWG in ZWG. */}
-            {data.paye.map((p2) => (
-              <div key={`p2-${p2.currency}`} className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                    P2 — monthly PAYE ({p2.currency})
-                  </h2>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    disabled={!data.canFile}
-                    onClick={() => {
-                      const head = [
-                        "Employee ID",
-                        "Employee",
-                        "Tax (BP) number",
-                        "Gross",
-                        "Taxable",
-                        "PAYE",
-                        "AIDS levy",
-                      ];
-                      const rows = p2.schedule.map((row) => [
-                        row.employeeNumber,
-                        row.name,
-                        row.taxNumber ?? "",
-                        row.grossEmoluments.toFixed(2),
-                        row.taxableEmoluments.toFixed(2),
-                        row.payeDeducted.toFixed(2),
-                        row.aidsLevy.toFixed(2),
-                      ]);
-                      downloadCsv(`p2-paye-${p2.currency.toLowerCase()}-${periodKey || "period"}.csv`, head, rows);
-                    }}
-                  >
-                    {data.canFile ? "Export" : "Cannot file yet"}
-                  </Button>
-                </div>
-                <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  {[
-                    ["Gross emoluments", p2.boxes.grossEmoluments],
-                    ["Taxable emoluments", p2.boxes.taxableEmoluments],
-                    ["PAYE before credits", p2.boxes.payeBeforeCredits],
-                    ["Tax credits", p2.boxes.taxCredits],
-                    ["PAYE deducted", p2.boxes.payeDeducted],
-                    ["AIDS levy", p2.boxes.aidsLevy],
-                  ].map(([label, value]) => (
-                    <div key={String(label)} className="rounded-md border p-3">
-                      <dt className="text-sm text-muted-foreground">{label}</dt>
-                      <dd className="mt-1 font-medium tabular-nums">
-                        {money(Number(value))}
-                      </dd>
-                    </div>
+        {blockers.length > 0 ? (
+          <div style={{ padding: "0 16px 8px" }}>
+            <Alert variant="destructive">
+              <AlertTitle>Filing blocked — {blockers.length} issues identified</AlertTitle>
+              <AlertDescription>
+                <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
+                  {blockers.map((b) => (
+                    <li key={b}>{b}</li>
                   ))}
-                </dl>
-
-                <TableShell label={`P2 Schedule ${p2.currency}`}>
-                  <table className="table" aria-label={`P2 PAYE schedule ${p2.currency}`}>
-                    <thead>
-                      <tr>
-                        <th>Employee ID</th>
-                        <th>Employee</th>
-                        <th>Tax (BP) number</th>
-                        <th className="num">Gross</th>
-                        <th className="num">Taxable</th>
-                        <th className="num">PAYE</th>
-                        <th className="num">AIDS levy</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {p2.schedule.map((row) => (
-                        <tr key={row.employeeId}>
-                          <td className="mono" style={{ fontSize: 13 }}>
-                            {row.employeeNumber}
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Person name={row.name} />
-                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                {row.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="num">
-                            {row.taxNumber ?? (
-                              <BkState tone="danger">Missing</BkState>
-                            )}
-                          </td>
-                          <td className="num">
-                            {money(row.grossEmoluments)}
-                          </td>
-                          <td className="num">
-                            {money(row.taxableEmoluments)}
-                          </td>
-                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(row.payeDeducted)}
-                          </td>
-                          <td className="num">
-                            {money(row.aidsLevy)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              </div>
-            ))}
-
-            {data.nssa.map((nssa) => (
-              <div key={`nssa-${nssa.currency}`} className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                    NSSA schedule ({nssa.currency})
-                  </h2>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    disabled={!data.canFile}
-                    onClick={() => {
-                      const head = [
-                        "Employee ID",
-                        "Member",
-                        "NSSA number",
-                        "Insurable earnings",
-                        "Employee",
-                        "Employer",
-                        "Total",
-                      ];
-                      const rows = nssa.schedule.map((row) => [
-                        row.employeeNumber,
-                        row.name,
-                        row.nssaNumber ?? "",
-                        row.insurableEarnings.toFixed(2),
-                        row.employeeContribution.toFixed(2),
-                        row.employerContribution.toFixed(2),
-                        row.total.toFixed(2),
-                      ]);
-                      downloadCsv(`nssa-schedule-${nssa.currency.toLowerCase()}-${periodKey || "period"}.csv`, head, rows);
-                    }}
-                  >
-                    {data.canFile ? "Export" : "Cannot file yet"}
-                  </Button>
-                </div>
-                <TableShell label={`NSSA Schedule ${nssa.currency}`}>
-                  <table className="table" aria-label={`NSSA schedule ${nssa.currency}`}>
-                    <thead>
-                      <tr>
-                        <th>Employee ID</th>
-                        <th>Member</th>
-                        <th>NSSA number</th>
-                        <th className="num">Insurable earnings</th>
-                        <th className="num">Employee</th>
-                        <th className="num">Employer</th>
-                        <th className="num">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {nssa.schedule.map((row) => (
-                        <tr key={row.employeeId}>
-                          <td className="mono" style={{ fontSize: 13 }}>
-                            {row.employeeNumber}
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Person name={row.name} />
-                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                {row.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="num">
-                            {row.nssaNumber ?? (
-                              <BkState tone="danger">Missing</BkState>
-                            )}
-                          </td>
-                          <td className="num">
-                            {money(row.insurableEarnings)}
-                          </td>
-                          <td className="num">
-                            {money(row.employeeContribution)}
-                          </td>
-                          <td className="num">
-                            {money(row.employerContribution)}
-                          </td>
-                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(row.total)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              </div>
-            ))}
-          </>
-        )}
+                </ul>
+              </AlertDescription>
+            </Alert>
           </div>
-        </KitScreen>
-      </Kit>
+        ) : null}
+
+        <BkTabs
+          label="Return views"
+          value={tab}
+          onChange={(next) => setTab(next as TabKey)}
+          items={[
+            { value: "p2", label: "ZIMRA P2 PAYE return", count: p2Schedules.length },
+            { value: "nssa", label: "NSSA schedule return", count: nssaSchedules.length },
+            {
+              value: "reconciliation",
+              label: "General ledger reconciliation",
+              count: data?.reconciliation.lines.length ?? 0,
+            },
+          ]}
+        />
+
+        <BkTools
+          find="Search return schedules by employee name or ID..."
+          query={search}
+          onFind={setSearch}
+          count={
+            tab === "p2"
+              ? filteredP2.length
+              : tab === "nssa"
+              ? filteredNssa.length
+              : data?.reconciliation.lines.length ?? 0
+          }
+          filters={
+            <BkFilter
+              label="Payroll Period"
+              value={selectedPeriodLabel}
+              items={periods.map((p) => ({
+                key: p.value,
+                label: p.label,
+                checked: periodKey === p.value,
+                onSelect: () => setPeriodKey(p.value),
+              }))}
+            />
+          }
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
+
+        <BkScroll>
+          {query.isLoading ? (
+            <div style={{ padding: 48, textAlign: "center" }} className="muted">
+              Calculating statutory returns for {selectedPeriodLabel}...
+            </div>
+          ) : query.isError ? (
+            <div style={{ padding: 48, textAlign: "center", color: "var(--color-danger)" }}>
+              {getApiErrorMessage(query.error)}
+            </div>
+          ) : tab === "p2" ? (
+            <Worksheet
+              label="P2 PAYE schedule"
+              rows={filteredP2}
+              rowKey={(r) => `${r.currency}-${r.employeeId}`}
+              columns={p2Columns}
+              totals={p2Totals}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No P2 return figures for this period.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Statutory returns require at least one approved salary run in this calendar month.
+                  </p>
+                </div>
+              }
+            />
+          ) : tab === "nssa" ? (
+            <Worksheet
+              label="NSSA return schedule"
+              rows={filteredNssa}
+              rowKey={(r) => `${r.currency}-${r.employeeId}`}
+              columns={nssaColumns}
+              totals={nssaTotals}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No NSSA schedule figures for this period.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Approve a payroll run to generate NSSA social security contributions.
+                  </p>
+                </div>
+              }
+            />
+          ) : (
+            <Worksheet
+              label="ledger reconciliation"
+              rows={data?.reconciliation.lines ?? []}
+              rowKey={(l) => `${l.accountCode}-${l.label}`}
+              columns={reconColumns}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No general ledger reconciliation lines.
+                  </p>
+                </div>
+              }
+            />
+          )}
+        </BkScroll>
+      </BkPage>
     </PayrollShell>
   );
 }
