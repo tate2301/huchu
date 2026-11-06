@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { differenceInCalendarDays, format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 
@@ -15,6 +14,7 @@ import {
 } from "@/components/books/bk-list";
 import {
   Button,
+  ButtonLink,
   Kit,
   KitScreen,
   Person,
@@ -126,9 +126,9 @@ export default function OutstandingSalariesPage() {
       activeTab="salaries"
       title="Outstanding Staff Salaries"
       actions={
-        <Button asChild variant="primary">
-          <Link href="/payroll/disbursements">Create disbursement</Link>
-        </Button>
+        <ButtonLink href="/payroll/disbursements" variant="primary">
+          Create disbursement
+        </ButtonLink>
       }
     >
       <Kit contents>
@@ -268,12 +268,12 @@ export default function OutstandingSalariesPage() {
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td className="num">{money(row.amount, row.currency || "USD")}</td>
+                          <td className="num">{money(row.amount, row.unit || "USD")}</td>
                           <td className="num muted">
-                            {money(row.paidAmount ?? 0, row.currency || "USD")}
+                            {money(row.paidAmount ?? 0, row.unit || "USD")}
                           </td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(row.outstandingAmount, row.currency || "USD")}
+                            {money(row.outstandingAmount, row.unit || "USD")}
                           </td>
                           <td>
                             <BkState tone={row.isOverdue ? "danger" : "warning"}>
@@ -281,11 +281,9 @@ export default function OutstandingSalariesPage() {
                             </BkState>
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            <Button asChild size="sm">
-                              <Link href={`/payroll/disbursements?employeeId=${row.employeeId}`}>
-                                Pay now
-                              </Link>
-                            </Button>
+                            <ButtonLink href={`/payroll/disbursements?employeeId=${row.employeeId}`} size="sm">
+                              Pay now
+                            </ButtonLink>
                           </td>
                         </tr>
                       );

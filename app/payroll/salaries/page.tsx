@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 
@@ -14,6 +13,7 @@ import {
 } from "@/components/books/bk-list";
 import {
   Button,
+  ButtonLink,
   Kit,
   KitScreen,
   Person,
@@ -78,7 +78,7 @@ export default function HrSalariesPage() {
     let list = [...batches];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((b) => b.batchNumber.toLowerCase().includes(q) || b.status.toLowerCase().includes(q));
+      list = list.filter((b) => b.code.toLowerCase().includes(q) || b.status.toLowerCase().includes(q));
     }
     return list;
   }, [batches, search]);
@@ -119,13 +119,13 @@ export default function HrSalariesPage() {
     } else if (tab === "batches") {
       const csv = [
         ["Batch Number", "Date", "Status", "Total Amount"],
-        ...filteredBatches.map((b) => [b.batchNumber, b.createdAt.slice(0, 10), b.status, String(b.totalAmount)]),
+        ...filteredBatches.map((b) => [b.code, b.createdAt.slice(0, 10), b.status, String(b.totalAmount)]),
       ];
       downloadCsv(`disbursement-batches-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     } else {
       const csv = [
         ["Employee", "ID", "Amount", "Status", "Date"],
-        ...filteredPayments.map((p) => [p.employee.name, p.employee.employeeId, String(p.netAmount), p.status, p.createdAt.slice(0, 10)]),
+        ...filteredPayments.map((p) => [p.employee.name, p.employee.employeeId, String(p.amount), p.status, p.createdAt.slice(0, 10)]),
       ];
       downloadCsv(`employee-payout-lines-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     }
@@ -134,7 +134,7 @@ export default function HrSalariesPage() {
   const totalSum = React.useMemo(() => {
     if (tab === "awaiting") return filteredAwaiting.reduce((s, r) => s + r.netTotal, 0);
     if (tab === "batches") return filteredBatches.reduce((s, b) => s + Number(b.totalAmount), 0);
-    return filteredPayments.reduce((s, p) => s + Number(p.netAmount), 0);
+    return filteredPayments.reduce((s, p) => s + Number(p.amount), 0);
   }, [tab, filteredAwaiting, filteredBatches, filteredPayments]);
 
   return (
@@ -142,9 +142,9 @@ export default function HrSalariesPage() {
       activeTab="salaries"
       title="Salary Payments & Payout Operations"
       actions={
-        <Button asChild variant="primary">
-          <Link href="/payroll/disbursements">Go to disbursements</Link>
-        </Button>
+        <ButtonLink href="/payroll/disbursements" variant="primary">
+          Go to disbursements
+        </ButtonLink>
       }
     >
       <Kit contents>
@@ -258,11 +258,9 @@ export default function HrSalariesPage() {
                             <BkState tone="success">Ready to Disburse</BkState>
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            <Button asChild size="sm">
-                              <Link href={`/payroll/disbursements?runId=${run.id}`}>
-                                Disburse batch
-                              </Link>
-                            </Button>
+                            <ButtonLink href={`/payroll/disbursements?runId=${run.id}`} size="sm">
+                              Disburse batch
+                            </ButtonLink>
                           </td>
                         </tr>
                       );
@@ -304,18 +302,18 @@ export default function HrSalariesPage() {
                           <SelectCell
                             checked={isSelected}
                             onChange={() => selection.toggle(batch.id)}
-                            label={`Select ${batch.batchNumber}`}
+                            label={`Select ${batch.code}`}
                           />
                           <td>
                             <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {batch.batchNumber}
+                              {batch.code}
                             </div>
                           </td>
                           <td className="muted" style={{ fontSize: 13 }}>
                             {format(new Date(batch.createdAt), "dd MMM yyyy")}
                           </td>
                           <td>
-                            <span style={{ fontSize: 13 }}>{batch.payoutMethod || "Bank Transfer"}</span>
+                            <span style={{ fontSize: 13 }}>{batch.method || "CASH"}</span>
                           </td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
                             {money(Number(batch.totalAmount), "USD")}
@@ -323,10 +321,12 @@ export default function HrSalariesPage() {
                           <td>
                             <BkState
                               tone={
-                                batch.status === "COMPLETED"
+                                batch.status === "PAID"
                                   ? "success"
-                                  : batch.status === "PROCESSING"
+                                  : batch.status === "APPROVED"
                                   ? "info"
+                                  : batch.status === "REJECTED"
+                                  ? "danger"
                                   : "warning"
                               }
                             >
@@ -392,19 +392,19 @@ export default function HrSalariesPage() {
                             {format(new Date(pmt.createdAt), "dd MMM yyyy")}
                           </td>
                           <td>
-                            <span style={{ fontSize: 13 }}>{pmt.payoutMethod || "Bank Payout"}</span>
+                            <span style={{ fontSize: 13 }}>{pmt.unit ? `${pmt.unit} Transfer` : "Direct Transfer"}</span>
                           </td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(Number(pmt.netAmount), "USD")}
+                            {money(Number(pmt.amount), pmt.unit || "USD")}
                           </td>
                           <td>
                             <BkState
                               tone={
                                 pmt.status === "PAID"
                                   ? "success"
-                                  : pmt.status === "FAILED"
-                                  ? "danger"
-                                  : "warning"
+                                  : pmt.status === "PARTIAL"
+                                  ? "warning"
+                                  : "info"
                               }
                             >
                               {pmt.status}
