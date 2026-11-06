@@ -814,43 +814,25 @@ export async function runAccountingSeedPack(input: SeedPackInput): Promise<Accou
         }));
 
         if (existing) {
-          await prisma.postingRule.update({
-            where: { id: existing.id },
-            data: {
-              description: rule.description ?? null,
-              priority: rule.priority ?? 100,
-              scopeType: rule.scopeType ?? "COMPANY",
-              ruleMode: rule.ruleMode ?? "GUIDED",
-              isFallback: rule.isFallback ?? false,
-              isActive: rule.isActive ?? true,
-              lines: {
-                deleteMany: {},
-                create: lineCreates,
-              },
-              conditions: {
-                deleteMany: {},
-                create: conditionCreates,
-              },
-            },
-          });
-        } else {
-          await prisma.postingRule.create({
-            data: {
-              companyId: input.companyId,
-              name: rule.name,
-              sourceType: rule.sourceType,
-              description: rule.description ?? null,
-              priority: rule.priority ?? 100,
-              scopeType: rule.scopeType ?? "COMPANY",
-              ruleMode: rule.ruleMode ?? "GUIDED",
-              isFallback: rule.isFallback ?? false,
-              isActive: rule.isActive ?? true,
-              lines: { create: lineCreates },
-              conditions: { create: conditionCreates },
-            },
-          });
-          createdPostingRules += 1;
+          continue;
         }
+
+        await prisma.postingRule.create({
+          data: {
+            companyId: input.companyId,
+            name: rule.name,
+            sourceType: rule.sourceType,
+            description: rule.description ?? null,
+            priority: rule.priority ?? 100,
+            scopeType: rule.scopeType ?? "COMPANY",
+            ruleMode: rule.ruleMode ?? "GUIDED",
+            isFallback: rule.isFallback ?? false,
+            isActive: rule.isActive ?? true,
+            lines: { create: lineCreates },
+            conditions: { create: conditionCreates },
+          },
+        });
+        createdPostingRules += 1;
       }
 
       let defaultBankAccountId = settings.defaultBankAccountId ?? null;
@@ -942,6 +924,29 @@ export async function previewAccountingSeedPack(input: Omit<SeedPackInput, "mode
 }
 
 export async function ensureAccountingDefaults(companyId: string): Promise<BootstrapSummary> {
+  const settings = await prisma.accountingSettings.findUnique({
+    where: { companyId },
+    select: {
+      defaultBankAccountId: true,
+      defaultTaxCodeId: true,
+      retainedEarningsAccountId: true,
+    },
+  });
+
+  if (settings?.defaultBankAccountId && settings?.defaultTaxCodeId && settings?.retainedEarningsAccountId) {
+    const [ruleCount, accountCount] = await Promise.all([
+      prisma.postingRule.count({ where: { companyId, isActive: true } }),
+      prisma.chartOfAccount.count({ where: { companyId, isActive: true } }),
+    ]);
+    if (ruleCount > 0 && accountCount > 0) {
+      return {
+        createdAccounts: 0,
+        createdTaxCodes: 0,
+        createdPostingRules: 0,
+      };
+    }
+  }
+
   const result = await runAccountingSeedPack({
     companyId,
     mode: "APPLY",

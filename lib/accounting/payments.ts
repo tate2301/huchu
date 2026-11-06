@@ -1,6 +1,7 @@
 import type { AccountingSourceType } from "@prisma/client";
 
 import { recalcPurchaseBillBalance, recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
+import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { freezeRate, realisedAdjustments, settle } from "@/lib/books/core/currency";
 import { nextNumber } from "@/lib/books/core/numbering";
@@ -73,6 +74,8 @@ export async function recordSalesReceipt(input: SalesReceiptInput) {
   // Settling an invoice at another rate than it was issued at (or in another currency): the realised difference.
   const adjustments = await receiptDifference(input, facts);
 
+  await ensureAccountingDefaults(input.companyId);
+
   const { receipt, bankTransactionId } = await prisma.$transaction(async (tx) => {
     const receiptNumber = await nextNumber(tx, input.companyId, "receipt");
     const receipt = await tx.salesReceipt.create({
@@ -106,6 +109,7 @@ export async function recordSalesReceipt(input: SalesReceiptInput) {
       accounts: input.ledgerAccountId ? { moneyAccount: input.ledgerAccountId } : undefined,
       money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "IN", reference: input.reference ?? receipt.receiptNumber } : undefined,
       actor: { userId: input.userId, role: input.role ?? null },
+      defaultsReady: true,
     });
     if (posting.error) console.error(`[Accounting] Sales receipt ${receipt.receiptNumber} waits to post: ${posting.error}`);
     return { receipt, bankTransactionId: posting.bankTransactionId ?? null };
@@ -150,6 +154,8 @@ export async function recordPurchasePayment(input: PurchasePaymentInput) {
   // Tax withheld and the rate frozen as it is paid (D3, D17).
   const facts = await supplierPaymentFacts(input.companyId, { vendorId: bill?.vendorId ?? null, billId: input.billId ?? null, bankAccountId: input.bankAccountId ?? null, amount: input.amount, paidAt: input.paidAt });
 
+  await ensureAccountingDefaults(input.companyId);
+
   const { payment, bankTransactionId } = await prisma.$transaction(async (tx) => {
     const paymentNumber = await nextNumber(tx, input.companyId, "payment");
     const payment = await tx.purchasePayment.create({
@@ -178,6 +184,7 @@ export async function recordPurchasePayment(input: PurchasePaymentInput) {
       ...facts.posting,
       money: input.bankAccountId ? { bankAccountId: input.bankAccountId, direction: "OUT", reference: input.reference ?? payment.paymentNumber, amount: facts.cash } : undefined,
       actor: { userId: input.userId, role: input.role ?? null },
+      defaultsReady: true,
     });
     if (posting.error) console.error(`[Accounting] Purchase payment ${payment.paymentNumber} waits to post: ${posting.error}`);
     return { payment, bankTransactionId: posting.bankTransactionId ?? null };

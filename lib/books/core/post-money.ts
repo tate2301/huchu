@@ -60,6 +60,7 @@ export type MoneyEvent = {
   periodOverrideReason?: string | null;
   /** A shop that posts at the end of the day defers its retail events; true posts now regardless. */
   postNow?: boolean;
+  defaultsReady?: boolean;
 };
 
 export type PostMoneyResult = PostingResult & { bankTransactionId?: string };
@@ -138,7 +139,7 @@ export async function postMoney(db: Db, event: MoneyEvent): Promise<PostMoneyRes
       inventory: event.inventory,
     },
     db,
-    { postNow: event.postNow },
+    { postNow: event.postNow, defaultsReady: event.defaultsReady ?? true },
   );
 
   // The money moved whether or not its journal could post yet (a missing rule
