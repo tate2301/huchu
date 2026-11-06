@@ -1,4 +1,4 @@
-import type { RetailBusinessType } from "@prisma/client";
+import type { RetailBusinessType, WorkspaceProfile } from "@prisma/client";
 
 import { baseCurrencyChangeRefusal } from "@/lib/books/core/currency";
 import { prisma } from "@/lib/prisma";
@@ -123,7 +123,7 @@ export const companySettings: SettingsStore = {
       if ((validProfiles as readonly string[]).includes(changes.workspaceProfile)) {
         await tx.company.update({
           where: { id: companyId },
-          data: { workspaceProfile: changes.workspaceProfile as any },
+          data: { workspaceProfile: changes.workspaceProfile as WorkspaceProfile },
         });
         await ensureWorkspaceCategories(tx, companyId, changes.workspaceProfile);
       }
