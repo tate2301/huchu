@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Button, Icon } from "@/components/core";
+import { Button, Icon, type IconName } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 
 /**
@@ -20,7 +20,7 @@ export function BkTabs<V extends string>({
   className,
 }: {
   label: string;
-  items: Array<{ value: V; label: string; count?: number | null }>;
+  items: Array<{ value: V; label: string; count?: number | null; icon?: IconName }>;
   value: V;
   onChange: (value: V) => void;
   /** `bk-rtabs` on a record page: the tabs under its figures, their line edge to edge. */
@@ -30,6 +30,7 @@ export function BkTabs<V extends string>({
     <div className={className ? `tabs bk-tabs ${className}` : "tabs bk-tabs"} role="tablist" aria-label={label}>
       {items.map((item) => (
         <button key={item.value} type="button" className="tab" role="tab" aria-selected={item.value === value} tabIndex={item.value === value ? 0 : -1} onClick={() => onChange(item.value)}>
+          {item.icon ? <Icon name={item.icon} /> : null}
           {item.label}
           {item.count !== undefined && item.count !== null ? <span className="n"> {item.count.toLocaleString("en-GB")}</span> : null}
         </button>

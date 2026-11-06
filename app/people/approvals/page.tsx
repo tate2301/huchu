@@ -183,37 +183,23 @@ export default function PeopleApprovalsPage() {
             setPage(1);
           }}
           items={[
-            { value: "all", label: "All decisions", count: counts.all },
-            { value: "approved", label: "Approved", count: counts.approved },
-            { value: "pending", label: "Under review", count: counts.pending },
-            { value: "rejected", label: "Rejected", count: counts.rejected },
+            { value: "all", label: "All decisions", count: counts.all, icon: "list" },
+            { value: "approved", label: "Approved", count: counts.approved, icon: "done" },
+            { value: "pending", label: "Under review", count: counts.pending, icon: "clock" },
+            { value: "rejected", label: "Rejected", count: counts.rejected, icon: "issue" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExport}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search audit trail by approver, entity, notes..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            end={<BkQuietTools onExport={handleExport} />}
-          />
-        )}
+        <BkTools
+          find="Search audit trail by approver, entity, notes..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -253,14 +239,23 @@ export default function PeopleApprovalsPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExport}>
+            Export ({selection.selected.size})
+          </Button>
+        </BkSelectionBar>
       </BkPage>
 
       {/* Slideout detail drawer for inspecting audit decision */}
       <Drawer
         open={Boolean(inspectRow)}
-        onClose={() => setInspectRow(null)}
+        onOpenChange={(open) => !open && setInspectRow(null)}
         title="Approval Audit Decision"
-        description="Immutable snapshot of workflow verification."
+        sub="Immutable snapshot of workflow verification."
       >
         {inspectRow ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -304,7 +299,7 @@ export default function PeopleApprovalsPage() {
                 <div>
                   <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Decision Maker</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    <Person name={inspectRow.actor?.name || "System"} size={26} />
+                    <Person name={inspectRow.actor?.name || "System"} size={28} />
                     <div>
                       <div style={{ fontWeight: 500 }}>
                         {inspectRow.actor?.name || "Automated Workflow"}

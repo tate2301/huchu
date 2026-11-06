@@ -18,7 +18,7 @@ import {
   Worksheet,
   type WsColumn,
 } from "@/components/books/ui";
-import { Button, Person } from "@/components/core";
+import { Person } from "@/components/core";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
@@ -257,7 +257,7 @@ export function StatutoryReturnsContent() {
       key: "paye",
       head: "PAYE Deducted",
       right: true,
-      cell: (r) => <Amt value={r.payeDeducted} currency={r.currency} weight={600} />,
+      cell: (r) => <Amt value={r.payeDeducted} currency={r.currency} className="font-medium" />,
     },
     {
       key: "aids",
@@ -320,7 +320,7 @@ export function StatutoryReturnsContent() {
       key: "total",
       head: "Total Contribution",
       right: true,
-      cell: (r) => <Amt value={r.total} currency={r.currency} weight={600} />,
+      cell: (r) => <Amt value={r.total} currency={r.currency} className="font-medium" />,
     },
   ];
 
@@ -359,7 +359,7 @@ export function StatutoryReturnsContent() {
         l.reconciled ? (
           <None />
         ) : (
-          <Amt value={l.difference} currency="USD" weight={600} tone="bad" />
+          <Amt value={l.difference} currency="USD" className="font-medium text-danger" />
         ),
     },
     {
@@ -378,7 +378,7 @@ export function StatutoryReturnsContent() {
     null,
     null,
     null,
-    <Amt key="tot" value={totalPaye} currency="USD" weight={600} />,
+    <Amt key="tot" value={totalPaye} currency="USD" className="font-medium" />,
     null,
   ];
 
@@ -389,18 +389,19 @@ export function StatutoryReturnsContent() {
     null,
     null,
     null,
-    <Amt key="tot" value={totalNssa} currency="USD" weight={600} />,
+    <Amt key="tot" value={totalNssa} currency="USD" className="font-medium" />,
   ];
 
   return (
     <PayrollShell
       activeTab="statutory-returns"
       title="Statutory Tax Returns"
-      actions={
-        <Button variant="default" icon="export" onClick={handleExportCsv}>
-          Export current return
-        </Button>
-      }
+      primary={{
+        label: "Export return",
+        icon: "export",
+        shortcut: "E",
+        onClick: handleExportCsv,
+      }}
     >
       <BkPage screen="statutory-returns" scroll={false}>
         <BkFinding
@@ -438,12 +439,13 @@ export function StatutoryReturnsContent() {
           value={tab}
           onChange={(next) => setTab(next as TabKey)}
           items={[
-            { value: "p2", label: "ZIMRA P2 PAYE return", count: p2Schedules.length },
-            { value: "nssa", label: "NSSA schedule return", count: nssaSchedules.length },
+            { value: "p2", label: "ZIMRA P2 PAYE return", count: p2Schedules.length, icon: "docs" },
+            { value: "nssa", label: "NSSA schedule return", count: nssaSchedules.length, icon: "users" },
             {
               value: "reconciliation",
               label: "General ledger reconciliation",
               count: data?.reconciliation.lines.length ?? 0,
+              icon: "done",
             },
           ]}
         />

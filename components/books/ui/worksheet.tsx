@@ -282,7 +282,23 @@ export function BkPager({ page, size, total, onPage }: { page: number; size: num
 }
 
 /** The selection bar over a list's foot (`.k-sel`): how many, their sum, and what to do with them. */
-export function BkSelectionBar({ count, sum, children, onClear }: { count: number; sum?: React.ReactNode; children: React.ReactNode; onClear: () => void }) {
+export function BkSelectionBar({
+  count: countProp,
+  sum,
+  children,
+  onClear: onClearProp,
+  selection,
+  actions,
+}: {
+  count?: number;
+  sum?: React.ReactNode;
+  children?: React.ReactNode;
+  onClear?: () => void;
+  selection?: { count: number; clear: () => void };
+  actions?: React.ReactNode;
+}) {
+  const count = countProp ?? selection?.count ?? 0;
+  const onClear = onClearProp ?? selection?.clear ?? (() => {});
   useShortcut("Escape", onClear, { enabled: count > 0 });
   if (count === 0) return null;
   return (
@@ -292,7 +308,7 @@ export function BkSelectionBar({ count, sum, children, onClear }: { count: numbe
       </span>
       {sum ? <span className="k-ss">{sum}</span> : null}
       <div className="btn-group" role="group" aria-label="Do with the selection">
-        {children}
+        {children ?? actions}
       </div>
       <div className="k-sx">
         <Button variant="quiet" shortcut="Escape" onClick={onClear}>

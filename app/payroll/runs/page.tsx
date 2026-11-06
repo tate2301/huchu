@@ -236,6 +236,21 @@ export default function SalaryPayrollPage() {
     }
   };
 
+  const handleBulkApprove = async () => {
+    try {
+      await Promise.all(
+        Array.from(selection.selected).map((id) =>
+          fetchJson(`/api/payroll/runs/${id}/approve`, { method: "POST" })
+        )
+      );
+      toast({ title: `Approved ${selection.selected.size} payroll run${selection.selected.size > 1 ? "s" : ""}` });
+      selection.clear();
+      void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+    } catch (err) {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    }
+  };
+
   const totalNetSum = React.useMemo(() => {
     return filteredRuns.reduce((sum, r) => sum + r.netTotal, 0);
   }, [filteredRuns]);
@@ -349,7 +364,7 @@ export default function SalaryPayrollPage() {
       key: "netTotal",
       head: "Net Payout",
       right: true,
-      cell: (r) => <Amt value={r.netTotal} currency="USD" weight={600} />,
+      cell: (r) => <Amt value={r.netTotal} currency="USD" className="font-medium" />,
     },
     {
       key: "status",
@@ -460,7 +475,7 @@ export default function SalaryPayrollPage() {
     `${filteredRuns.length} runs`,
     null,
     null,
-    <Amt key="net" value={totalNetSum} currency="USD" weight={600} />,
+    <Amt key="net" value={totalNetSum} currency="USD" className="font-medium" />,
     `${pendingRuns.length} pending`,
     null,
   ];
@@ -469,30 +484,26 @@ export default function SalaryPayrollPage() {
     <PayrollShell
       activeTab="runs"
       title="Salary Payroll Runs"
+      primary={{
+        label: "New pay run",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => {
+          if (periods.length > 0) {
+            setSelectedPeriodForRun(periods[0]!.id);
+          }
+          setGenerateDrawerOpen(true);
+        },
+      }}
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
-          <Button
-            variant="default"
-            icon="calendar"
-            busy={seedPeriodsMutation.isPending}
-            onClick={() => seedPeriodsMutation.mutate()}
-          >
-            Generate future periods
-          </Button>
-          <Button
-            variant="primary"
-            icon="plus"
-            shortcut="N"
-            onClick={() => {
-              if (periods.length > 0) {
-                setSelectedPeriodForRun(periods[0]!.id);
-              }
-              setGenerateDrawerOpen(true);
-            }}
-          >
-            New payroll run
-          </Button>
-        </div>
+        <Button
+          variant="quiet"
+          icon="calendar"
+          busy={seedPeriodsMutation.isPending}
+          onClick={() => seedPeriodsMutation.mutate()}
+        >
+          Generate future periods
+        </Button>
       }
     >
       <BkPage screen="payroll-runs" scroll={false}>
@@ -516,74 +527,60 @@ export default function SalaryPayrollPage() {
             selection.clear();
           }}
           items={[
-            { value: "periods", label: "Payroll periods", count: openPeriods.length },
-            { value: "pending", label: "Pending runs", count: pendingRuns.length },
-            { value: "archived", label: "Approved & Posted", count: archivedRuns.length },
+            { value: "periods", label: "Payroll periods", count: openPeriods.length, icon: "calendar" },
+            { value: "pending", label: "Pending runs", count: pendingRuns.length, icon: "clock" },
+            { value: "archived", label: "Approved & Posted", count: archivedRuns.length, icon: "done" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find={tab === "periods" ? "Search periods by key or note..." : "Search runs..."}
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              tab === "periods" ? (
-                <BkFilter
-                  label="Cycle"
-                  value={cycleFilter ? (cycleFilter === "MONTHLY" ? "Monthly" : "Fortnightly") : "Any"}
-                  items={[
-                    {
-                      key: "any-cycle",
-                      label: "Any cycle",
-                      checked: !cycleFilter,
-                      onSelect: () => {
-                        setCycleFilter(null);
-                        setPage(1);
-                      },
+        <BkTools
+          find={tab === "periods" ? "Search periods by key or note..." : "Search runs..."}
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            tab === "periods" ? (
+              <BkFilter
+                label="Cycle"
+                value={cycleFilter ? (cycleFilter === "MONTHLY" ? "Monthly" : "Fortnightly") : "Any"}
+                items={[
+                  {
+                    key: "any-cycle",
+                    label: "Any cycle",
+                    checked: !cycleFilter,
+                    onSelect: () => {
+                      setCycleFilter(null);
+                      setPage(1);
                     },
-                    { separator: true },
-                    {
-                      key: "monthly",
-                      label: "Monthly",
-                      checked: cycleFilter === "MONTHLY",
-                      onSelect: () => {
-                        setCycleFilter("MONTHLY");
-                        setPage(1);
-                      },
+                  },
+                  { separator: true },
+                  {
+                    key: "monthly",
+                    label: "Monthly",
+                    checked: cycleFilter === "MONTHLY",
+                    onSelect: () => {
+                      setCycleFilter("MONTHLY");
+                      setPage(1);
                     },
-                    {
-                      key: "fortnightly",
-                      label: "Fortnightly",
-                      checked: cycleFilter === "FORTNIGHTLY",
-                      onSelect: () => {
-                        setCycleFilter("FORTNIGHTLY");
-                        setPage(1);
-                      },
+                  },
+                  {
+                    key: "fortnightly",
+                    label: "Fortnightly",
+                    checked: cycleFilter === "FORTNIGHTLY",
+                    onSelect: () => {
+                      setCycleFilter("FORTNIGHTLY");
+                      setPage(1);
                     },
-                  ]}
-                />
-              ) : undefined
-            }
-            end={<BkQuietTools onExport={handleExportCsv} />}
-          />
-        )}
+                  },
+                ]}
+              />
+            ) : undefined
+          }
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
 
         <BkScroll>
           {tab === "periods" ? (
@@ -654,6 +651,20 @@ export default function SalaryPayrollPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExportCsv}>
+            Export ({selection.selected.size})
+          </Button>
+          {tab === "pending" ? (
+            <Button icon="done" onClick={() => void handleBulkApprove()}>
+              Approve
+            </Button>
+          ) : null}
+        </BkSelectionBar>
       </BkPage>
 
       {/* GUIDED GENERATE RUN DRAWER */}
@@ -784,7 +795,7 @@ export default function SalaryPayrollPage() {
                       −{money(item.deductionsTotal, "USD")}
                     </td>
                     <td className="num" style={{ fontWeight: 600 }}>
-                      <Amt value={item.netAmount} currency="USD" weight={600} />
+                      <Amt value={item.netAmount} currency="USD" className="font-medium" />
                     </td>
                   </tr>
                 ))}

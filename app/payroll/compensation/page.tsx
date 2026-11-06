@@ -143,7 +143,7 @@ export default function CompensationPage() {
     let list = [...templates];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((t) => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q));
+      list = list.filter((t) => t.name.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q)));
     }
     return list;
   }, [templates, search]);
@@ -152,7 +152,7 @@ export default function CompensationPage() {
     let list = [...rules];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q));
     }
     return list;
   }, [rules, search]);
@@ -189,14 +189,14 @@ export default function CompensationPage() {
     } else if (tab === "templates") {
       downloadCsv(
         `salary-templates-${new Date().toISOString().slice(0, 10)}.csv`,
-        ["Template Name", "Code", "Currency", "Active"],
-        filteredTemplates.map((t) => [t.name, t.code, t.currency, t.isActive ? "Yes" : "No"])
+        ["Template Name", "Currency", "Base Amount", "Active"],
+        filteredTemplates.map((t) => [t.name, t.currency, String(t.baseAmount), t.isActive ? "Yes" : "No"])
       );
     } else {
       downloadCsv(
         `compensation-rules-${new Date().toISOString().slice(0, 10)}.csv`,
-        ["Rule Name", "Code", "Category", "Calculation Type", "Rate/Amount"],
-        filteredRules.map((r) => [r.name, r.code, r.category, r.calcType, String(r.amount)])
+        ["Rule Name", "Type", "Method", "Value"],
+        filteredRules.map((r) => [r.name, r.type, r.calcMethod, String(r.value)])
       );
     }
   };
@@ -229,7 +229,7 @@ export default function CompensationPage() {
       key: "baseAmount",
       head: "Base Salary",
       right: true,
-      cell: (p) => <Amt value={p.baseAmount} currency={p.currency} weight={600} />,
+      cell: (p) => <Amt value={p.baseAmount} currency={p.currency} className="font-semibold" />,
     },
     {
       key: "currency",
@@ -258,8 +258,8 @@ export default function CompensationPage() {
           {
             key: "delete",
             label: "Remove profile",
-            icon: "trash",
-            tone: "danger",
+            icon: "retire",
+            danger: true,
             onSelect: () => deleteProfileMutation.mutate(p.id),
           },
         ];
@@ -280,7 +280,7 @@ export default function CompensationPage() {
       cell: (t) => (
         <div>
           <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{t.name}</div>
-          <div className="muted mono" style={{ fontSize: 11 }}>{t.code}</div>
+          {t.description ? <div className="muted" style={{ fontSize: 11 }}>{t.description}</div> : null}
         </div>
       ),
     },
@@ -305,20 +305,20 @@ export default function CompensationPage() {
       cell: (r) => (
         <div>
           <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{r.name}</div>
-          <div className="muted mono" style={{ fontSize: 11 }}>{r.code}</div>
+          <div className="muted mono" style={{ fontSize: 11 }}>{r.taxable ? "Taxable" : "Non-taxable"}</div>
         </div>
       ),
     },
     {
-      key: "category",
-      head: "Category",
-      cell: (r) => <St tone={r.category === "ALLOWANCE" ? "done" : "bad"}>{r.category}</St>,
+      key: "type",
+      head: "Type",
+      cell: (r) => <St tone={r.type === "ALLOWANCE" ? "done" : "bad"}>{r.type}</St>,
     },
     {
       key: "calc",
       head: "Calculation",
       className: "muted mono",
-      cell: (r) => `${r.calcType} (${r.amount})`,
+      cell: (r) => `${r.calcMethod} (${r.value})`,
     },
   ];
 
@@ -334,25 +334,21 @@ export default function CompensationPage() {
     <PayrollShell
       activeTab="compensation"
       title="Staff Compensation Packages"
-      actions={
-        <Button
-          variant="primary"
-          icon="plus"
-          shortcut="N"
-          onClick={() => {
-            setEditingProfile(null);
-            if (employees.length > 0) {
-              setEmployeeId(employees[0]!.id);
-            }
-            setBaseAmount("1000");
-            setCurrency("USD");
-            setEffectiveFrom(new Date().toISOString().slice(0, 10));
-            setDrawerOpen(true);
-          }}
-        >
-          Assign compensation
-        </Button>
-      }
+      primary={{
+        label: "Assign compensation",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => {
+          setEditingProfile(null);
+          if (employees.length > 0) {
+            setEmployeeId(employees[0]!.id);
+          }
+          setBaseAmount("1000");
+          setCurrency("USD");
+          setEffectiveFrom(new Date().toISOString().slice(0, 10));
+          setDrawerOpen(true);
+        },
+      }}
     >
       <BkPage screen="payroll-compensation" scroll={false}>
         <BkFinding
@@ -375,42 +371,28 @@ export default function CompensationPage() {
             selection.clear();
           }}
           items={[
-            { value: "profiles", label: "Employee profiles", count: profiles.length },
-            { value: "templates", label: "Salary templates", count: templates.length },
-            { value: "rules", label: "Pay rules & allowances", count: rules.length },
+            { value: "profiles", label: "Employee profiles", count: profiles.length, icon: "person" },
+            { value: "templates", label: "Salary templates", count: templates.length, icon: "docs" },
+            { value: "rules", label: "Pay rules & allowances", count: rules.length, icon: "figure" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find={
-              tab === "profiles"
-                ? "Search compensation profiles by employee name or ID..."
-                : tab === "templates"
-                ? "Search templates by name or code..."
-                : "Search rules by name or code..."
-            }
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            end={<BkQuietTools onExport={handleExportCsv} />}
-          />
-        )}
+        <BkTools
+          find={
+            tab === "profiles"
+              ? "Search compensation profiles by employee name or ID..."
+              : tab === "templates"
+              ? "Search templates by name..."
+              : "Search rules by name..."
+          }
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
 
         <BkScroll>
           {tab === "profiles" ? (
@@ -495,6 +477,16 @@ export default function CompensationPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+          actions={
+            <Button variant="quiet" icon="export" onClick={handleExportCsv}>
+              Export selected ({selection.selected.size})
+            </Button>
+          }
+        />
       </BkPage>
 
       {/* GUIDED COMPENSATION PROFILE DRAWER */}
@@ -533,7 +525,7 @@ export default function CompensationPage() {
               >
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName} ({e.employeeNumber || "No ID"})
+                    {e.name} ({e.employeeId || "No ID"})
                   </option>
                 ))}
               </select>

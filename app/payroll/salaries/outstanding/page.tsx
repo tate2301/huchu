@@ -178,8 +178,7 @@ export default function OutstandingSalariesPage() {
         <Amt
           value={r.outstandingAmount}
           currency="USD"
-          weight={600}
-          tone={r.isOverdue ? "bad" : undefined}
+          className={r.isOverdue ? "font-medium text-danger" : "font-medium"}
         />
       ),
     },
@@ -199,7 +198,7 @@ export default function OutstandingSalariesPage() {
     null,
     null,
     null,
-    <Amt key="tot" value={totalOutstanding} currency="USD" weight={600} />,
+    <Amt key="tot" value={totalOutstanding} currency="USD" className="font-medium" />,
     null,
   ];
 
@@ -207,15 +206,16 @@ export default function OutstandingSalariesPage() {
     <PayrollShell
       activeTab="salaries"
       title="Outstanding Salary Balances"
+      primary={{
+        label: "Pay via disbursements",
+        icon: "payments",
+        shortcut: "N",
+        href: "/payroll/disbursements",
+      }}
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
-          <ButtonLink href="/payroll/salaries" variant="default">
-            Back to operations
-          </ButtonLink>
-          <ButtonLink href="/payroll/disbursements" variant="primary">
-            Pay via disbursements
-          </ButtonLink>
-        </div>
+        <ButtonLink href="/payroll/salaries" variant="quiet" icon="back">
+          Back to operations
+        </ButtonLink>
       }
     >
       <BkPage screen="payroll-outstanding" scroll={false}>
@@ -233,71 +233,57 @@ export default function OutstandingSalariesPage() {
             selection.clear();
           }}
           items={[
-            { value: "overdue", label: "Overdue payments", count: overdueCount },
-            { value: "all", label: "All outstanding balances", count: outstandingRows.length },
+            { value: "overdue", label: "Overdue payments", count: overdueCount, icon: "warn" },
+            { value: "all", label: "All outstanding balances", count: outstandingRows.length, icon: "list" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search outstanding payments by staff name or ID..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <BkFilter
-                label="Payment status"
-                value={statusFilter === "ALL" ? "All balances" : statusFilter === "PARTIAL" ? "Partially paid" : "Unpaid"}
-                items={[
-                  {
-                    key: "all",
-                    label: "All balances",
-                    checked: statusFilter === "ALL",
-                    onSelect: () => {
-                      setStatusFilter("ALL");
-                      setPage(1);
-                    },
+        <BkTools
+          find="Search outstanding payments by staff name or ID..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <BkFilter
+              label="Payment status"
+              value={statusFilter === "ALL" ? "All balances" : statusFilter === "PARTIAL" ? "Partially paid" : "Unpaid"}
+              items={[
+                {
+                  key: "all",
+                  label: "All balances",
+                  checked: statusFilter === "ALL",
+                  onSelect: () => {
+                    setStatusFilter("ALL");
+                    setPage(1);
                   },
-                  { separator: true },
-                  {
-                    key: "partial",
-                    label: "Partially paid",
-                    checked: statusFilter === "PARTIAL",
-                    onSelect: () => {
-                      setStatusFilter("PARTIAL");
-                      setPage(1);
-                    },
+                },
+                { separator: true },
+                {
+                  key: "partial",
+                  label: "Partially paid",
+                  checked: statusFilter === "PARTIAL",
+                  onSelect: () => {
+                    setStatusFilter("PARTIAL");
+                    setPage(1);
                   },
-                  {
-                    key: "unpaid",
-                    label: "Unpaid (Zero payments)",
-                    checked: statusFilter === "UNPAID",
-                    onSelect: () => {
-                      setStatusFilter("UNPAID");
-                      setPage(1);
-                    },
+                },
+                {
+                  key: "unpaid",
+                  label: "Unpaid (Zero payments)",
+                  checked: statusFilter === "UNPAID",
+                  onSelect: () => {
+                    setStatusFilter("UNPAID");
+                    setPage(1);
                   },
-                ]}
-              />
-            }
-            end={<BkQuietTools onExport={handleExportCsv} />}
-          />
-        )}
+                },
+              ]}
+            />
+          }
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -332,6 +318,16 @@ export default function OutstandingSalariesPage() {
           size={pageSize}
           total={totalRows}
           onPage={setPage}
+        />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+          actions={
+            <Button variant="quiet" icon="export" onClick={handleExportCsv}>
+              Export selected ({selection.selected.size})
+            </Button>
+          }
         />
       </BkPage>
     </PayrollShell>

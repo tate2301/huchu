@@ -145,7 +145,7 @@ export default function HrSalariesPage() {
         filteredPayments.map((p) => [
           p.employee.name,
           p.employee.employeeId,
-          p.type,
+          "Salary",
           p.dueDate ? String(p.dueDate).slice(0, 10) : "",
           String(p.amount),
           String(p.paidAmount ?? 0),
@@ -189,7 +189,7 @@ export default function HrSalariesPage() {
       key: "netTotal",
       head: "Net Payout",
       right: true,
-      cell: (r) => <Amt value={r.netTotal} currency="USD" weight={600} />,
+      cell: (r) => <Amt value={r.netTotal} currency="USD" className="font-medium" />,
     },
     {
       key: "status",
@@ -240,7 +240,7 @@ export default function HrSalariesPage() {
       key: "amount",
       head: "Total Amount",
       right: true,
-      cell: (b) => <Amt value={b.totalAmount} currency="USD" weight={600} />,
+      cell: (b) => <Amt value={b.totalAmount} currency="USD" className="font-medium" />,
     },
     {
       key: "status",
@@ -281,7 +281,7 @@ export default function HrSalariesPage() {
       key: "type",
       head: "Payment type",
       className: "muted",
-      cell: (p) => p.type,
+      cell: () => "Salary",
     },
     {
       key: "dueDate",
@@ -326,7 +326,7 @@ export default function HrSalariesPage() {
           `${filteredAwaiting.length} runs`,
           null,
           null,
-          <Amt key="tot" value={awaitingSum} currency="USD" weight={600} />,
+          <Amt key="tot" value={awaitingSum} currency="USD" className="font-medium" />,
           null,
           null,
         ]
@@ -335,7 +335,7 @@ export default function HrSalariesPage() {
           `${filteredBatches.length} batches`,
           null,
           null,
-          <Amt key="tot" value={batchesSum} currency="USD" weight={600} />,
+          <Amt key="tot" value={batchesSum} currency="USD" className="font-medium" />,
           null,
           null,
         ]
@@ -345,15 +345,16 @@ export default function HrSalariesPage() {
     <PayrollShell
       activeTab="salaries"
       title="Salary Payments & Operations"
+      primary={{
+        label: "Open disbursements",
+        icon: "plus",
+        shortcut: "N",
+        href: "/payroll/disbursements",
+      }}
       actions={
-        <div style={{ display: "flex", gap: 8 }}>
-          <ButtonLink href="/payroll/salaries/outstanding" variant="default" icon="calendar">
-            Outstanding aging
-          </ButtonLink>
-          <ButtonLink href="/payroll/disbursements" variant="primary" icon="plus">
-            Open disbursements
-          </ButtonLink>
-        </div>
+        <ButtonLink href="/payroll/salaries/outstanding" variant="quiet" icon="calendar">
+          Outstanding aging
+        </ButtonLink>
       }
     >
       <BkPage screen="payroll-salaries" scroll={false}>
@@ -377,42 +378,28 @@ export default function HrSalariesPage() {
             selection.clear();
           }}
           items={[
-            { value: "awaiting", label: "Awaiting disbursement", count: awaitingRuns.length },
-            { value: "batches", label: "Disbursement batches", count: batches.length },
-            { value: "lines", label: "All payment lines", count: payments.length },
+            { value: "awaiting", label: "Awaiting disbursement", count: awaitingRuns.length, icon: "clock" },
+            { value: "batches", label: "Disbursement batches", count: batches.length, icon: "payments" },
+            { value: "lines", label: "All payment lines", count: payments.length, icon: "list" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find={
-              tab === "awaiting"
-                ? "Search approved runs..."
-                : tab === "batches"
-                ? "Search batches by code or status..."
-                : "Search payments by staff name or ID..."
-            }
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            end={<BkQuietTools onExport={handleExportCsv} />}
-          />
-        )}
+        <BkTools
+          find={
+            tab === "awaiting"
+              ? "Search approved runs..."
+              : tab === "batches"
+              ? "Search batches by code or status..."
+              : "Search payments by staff name or ID..."
+          }
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
 
         <BkScroll>
           {tab === "awaiting" ? (
@@ -502,6 +489,15 @@ export default function HrSalariesPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExportCsv}>
+            Export ({selection.selected.size})
+          </Button>
+        </BkSelectionBar>
       </BkPage>
     </PayrollShell>
   );

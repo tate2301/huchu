@@ -271,6 +271,27 @@ export function LeaveContent() {
     );
   };
 
+  const handleBulkAction = async (decision: "APPROVE" | "REJECT") => {
+    try {
+      await Promise.all(
+        selectedRows.map((r) =>
+          fetchJson(`/api/v2/people/leave/requests/${r.id}/decision`, {
+            method: "POST",
+            body: JSON.stringify({ decision }),
+          })
+        )
+      );
+      toast({
+        title: `${decision === "APPROVE" ? "Approved" : "Rejected"} ${selectedRows.length} leave request${selectedRows.length > 1 ? "s" : ""}`,
+      });
+      selection.clear();
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-balances"] });
+    } catch (err) {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    }
+  };
+
   const currentEmployeeName = React.useMemo(
     () => employees.find((e) => e.id === employeeId)?.name || "All Staff",
     [employees, employeeId]
@@ -285,7 +306,7 @@ export function LeaveContent() {
       head: "Employee",
       cell: (r) => (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.employee?.name || "Staff"} size={26} />
+          <Person name={r.employee?.name || "Staff"} size={24} />
           <span className="who" style={{ fontWeight: 500 }}>
             {r.employee?.name || "—"}
           </span>
@@ -352,7 +373,7 @@ export function LeaveContent() {
         r.status === "SUBMITTED" ? (
           <div style={{ display: "inline-flex", gap: 6 }}>
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
               busy={decideMutation.isPending}
               onClick={() => decideMutation.mutate({ id: r.id, decision: "APPROVE" })}
@@ -429,18 +450,15 @@ export function LeaveContent() {
   return (
     <PeopleShell
       activeTab="leave"
-      actions={
-        <Button
-          variant="primary"
-          icon="plus"
-          onClick={() => {
-            setReqEmployeeId(employeeId || employees[0]?.id || "");
-            setRequestDrawerOpen(true);
-          }}
-        >
-          Request leave
-        </Button>
-      }
+      primary={{
+        label: "Request leave",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => {
+          setReqEmployeeId(employeeId || employees[0]?.id || "");
+          setRequestDrawerOpen(true);
+        },
+      }}
     >
       <BkPage screen="leave" scroll={false}>
         <BkFinding
@@ -456,110 +474,96 @@ export function LeaveContent() {
             setPage(1);
           }}
           items={[
-            { value: "requests", label: "Leave requests", count: requests.length },
-            { value: "balances", label: "Staff balances", count: balances.length },
+            { value: "requests", label: "Leave requests", count: requests.length, icon: "calendar" },
+            { value: "balances", label: "Staff balances", count: balances.length, icon: "users" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExport}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find={activeTab === "requests" ? "Search requests by employee, type..." : "Search staff..."}
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <>
+        <BkTools
+          find={activeTab === "requests" ? "Search requests by employee, type..." : "Search staff..."}
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <>
+              <BkFilter
+                label="Employee"
+                value={currentEmployeeName}
+                items={[
+                  {
+                    key: "all",
+                    label: "All employees",
+                    checked: !employeeId,
+                    onSelect: () => {
+                      setEmployeeId("");
+                      setPage(1);
+                    },
+                  },
+                  { separator: true },
+                  ...employees.map((e) => ({
+                    key: e.id,
+                    label: `${e.name} (${e.employeeId || "No ID"})`,
+                    checked: employeeId === e.id,
+                    onSelect: () => {
+                      setEmployeeId(e.id);
+                      setPage(1);
+                    },
+                  })),
+                ]}
+              />
+
+              {activeTab === "requests" ? (
                 <BkFilter
-                  label="Employee"
-                  value={currentEmployeeName}
+                  label="Status"
+                  value={statusFilter === "ALL" ? "Any" : statusFilter}
                   items={[
                     {
-                      key: "all",
-                      label: "All employees",
-                      checked: !employeeId,
+                      key: "ALL",
+                      label: "Any status",
+                      checked: statusFilter === "ALL",
                       onSelect: () => {
-                        setEmployeeId("");
+                        setStatusFilter("ALL");
                         setPage(1);
                       },
                     },
                     { separator: true },
-                    ...employees.map((e) => ({
-                      key: e.id,
-                      label: `${e.name} (${e.employeeId || "No ID"})`,
-                      checked: employeeId === e.id,
+                    {
+                      key: "SUBMITTED",
+                      label: "Pending (Submitted)",
+                      checked: statusFilter === "SUBMITTED",
                       onSelect: () => {
-                        setEmployeeId(e.id);
+                        setStatusFilter("SUBMITTED");
                         setPage(1);
                       },
-                    })),
+                    },
+                    {
+                      key: "APPROVED",
+                      label: "Approved",
+                      checked: statusFilter === "APPROVED",
+                      onSelect: () => {
+                        setStatusFilter("APPROVED");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "REJECTED",
+                      label: "Rejected",
+                      checked: statusFilter === "REJECTED",
+                      onSelect: () => {
+                        setStatusFilter("REJECTED");
+                        setPage(1);
+                      },
+                    },
                   ]}
                 />
-
-                {activeTab === "requests" ? (
-                  <BkFilter
-                    label="Status"
-                    value={statusFilter === "ALL" ? "Any" : statusFilter}
-                    items={[
-                      {
-                        key: "ALL",
-                        label: "Any status",
-                        checked: statusFilter === "ALL",
-                        onSelect: () => {
-                          setStatusFilter("ALL");
-                          setPage(1);
-                        },
-                      },
-                      { separator: true },
-                      {
-                        key: "SUBMITTED",
-                        label: "Pending (Submitted)",
-                        checked: statusFilter === "SUBMITTED",
-                        onSelect: () => {
-                          setStatusFilter("SUBMITTED");
-                          setPage(1);
-                        },
-                      },
-                      {
-                        key: "APPROVED",
-                        label: "Approved",
-                        checked: statusFilter === "APPROVED",
-                        onSelect: () => {
-                          setStatusFilter("APPROVED");
-                          setPage(1);
-                        },
-                      },
-                      {
-                        key: "REJECTED",
-                        label: "Rejected",
-                        checked: statusFilter === "REJECTED",
-                        onSelect: () => {
-                          setStatusFilter("REJECTED");
-                          setPage(1);
-                        },
-                      },
-                    ]}
-                  />
-                ) : null}
-              </>
-            }
-            end={<BkQuietTools onExport={handleExport} />}
-          />
-        )}
+              ) : null}
+            </>
+          }
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
         <BkScroll>
           {activeTab === "requests" ? (
@@ -621,18 +625,37 @@ export function LeaveContent() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExport}>
+            Export ({selection.selected.size})
+          </Button>
+          {activeTab === "requests" ? (
+            <>
+              <Button icon="done" onClick={() => void handleBulkAction("APPROVE")}>
+                Approve
+              </Button>
+              <Button icon="x" onClick={() => void handleBulkAction("REJECT")}>
+                Reject
+              </Button>
+            </>
+          ) : null}
+        </BkSelectionBar>
       </BkPage>
 
       {/* Guided Drawer for requesting leave */}
       <Drawer
         open={requestDrawerOpen}
-        onClose={() => setRequestDrawerOpen(false)}
+        onOpenChange={setRequestDrawerOpen}
         title="Submit Leave Request"
-        description="Select employee, leave policy type, and target date range."
+        sub="Select employee, leave policy type, and target date range."
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <DrawerSection title="Staff Member & Leave Type">
-            <Field label="Employee" required>
+            <Field label="Employee">
               <select
                 className="select"
                 value={reqEmployeeId}
@@ -648,7 +671,7 @@ export function LeaveContent() {
               </select>
             </Field>
 
-            <Field label="Leave Policy Type" required>
+            <Field label="Leave Policy Type">
               <select
                 className="select"
                 value={reqLeaveTypeId}
@@ -667,7 +690,7 @@ export function LeaveContent() {
 
           <DrawerSection title="Date Range & Working Days">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Field label="Start Date" required>
+              <Field label="Start Date">
                 <Input
                   type="date"
                   value={reqStartDate}
@@ -675,7 +698,7 @@ export function LeaveContent() {
                 />
               </Field>
 
-              <Field label="End Date" required>
+              <Field label="End Date">
                 <Input
                   type="date"
                   value={reqEndDate}
@@ -725,7 +748,7 @@ export function LeaveContent() {
               </select>
             </Field>
 
-            <Field label="Reason / Notes" required>
+            <Field label="Reason / Notes">
               <textarea
                 className="textarea"
                 rows={3}

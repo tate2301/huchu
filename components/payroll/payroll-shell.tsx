@@ -1,5 +1,6 @@
 "use client";
 
+import type { PagePrimary } from "@/components/layout/page-chrome";
 import { ModuleShell } from "@/components/shared/module-shell";
 import {
   PAYROLL_CATEGORIES,
@@ -10,11 +11,13 @@ import {
 export function PayrollShell({
   activeTab,
   actions,
+  primary,
   children,
   title,
 }: {
-  activeTab: PayrollTab;
+  activeTab?: PayrollTab;
   actions?: React.ReactNode;
+  primary?: PagePrimary;
   children: React.ReactNode;
   title?: string;
 }) {
@@ -26,6 +29,7 @@ export function PayrollShell({
       activeTab={activeTab}
       railLabel="Payroll"
       actions={actions}
+      primary={primary}
       title={title}
     >
       {children}

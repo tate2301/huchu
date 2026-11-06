@@ -110,7 +110,15 @@ export function HolidaysContent() {
   ];
 
   return (
-    <PeopleShell activeTab="holidays">
+    <PeopleShell
+      activeTab="holidays"
+      primary={{
+        label: "Export holidays",
+        icon: "export",
+        shortcut: "E",
+        onClick: handleExport,
+      }}
+    >
       <BkPage screen="leave" scroll={false}>
         <BkFinding
           fact={`${holidays.length} statutory public holidays configured for calendar year ${selectedYear}.`}

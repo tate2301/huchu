@@ -34,6 +34,7 @@ import {
   fetchAttendance,
   fetchEmployees,
   fetchSites,
+  type AttendanceRecord,
   type Site,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -98,7 +99,7 @@ export default function AttendancePage() {
     () => attendanceQuery.data?.data ?? [],
     [attendanceQuery.data]
   );
-  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const sites = React.useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = React.useMemo(
     () => employeesQuery.data?.data ?? [],
     [employeesQuery.data]
@@ -111,7 +112,7 @@ export default function AttendancePage() {
       if (!search.trim()) return true;
       const q = search.toLowerCase();
       const empName = (rec.employee?.name || "").toLowerCase();
-      const shift = (rec.shiftName || "").toLowerCase();
+      const shift = (rec.shift || "").toLowerCase();
       const site = (rec.site?.name || "").toLowerCase();
       return empName.includes(q) || shift.includes(q) || site.includes(q);
     });
@@ -126,7 +127,7 @@ export default function AttendancePage() {
       if (r.status === "PRESENT") present++;
       else if (r.status === "LATE") late++;
       else if (r.status === "ABSENT") absent++;
-      if (r.overtimeMinutes) overtimeHours += r.overtimeMinutes / 60;
+      if (r.overtime) overtimeHours += r.overtime;
     }
     return { present, late, absent, overtimeHours: Math.round(overtimeHours * 10) / 10 };
   }, [records]);
@@ -151,9 +152,20 @@ export default function AttendancePage() {
       siteId?: string;
       shiftName?: string;
     }) =>
-      fetchJson("/api/attendance", {
+      fetchJson("/api/people/attendance", {
         method: "POST",
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          date: values.date,
+          shift: values.shiftName || "DAY SHIFT",
+          siteId: values.siteId || undefined,
+          records: [
+            {
+              employeeId: values.employeeId,
+              status: values.status,
+              overtime: (values.overtimeMinutes ?? 0) / 60,
+            },
+          ],
+        }),
       }),
     onSuccess: () => {
       toast({ title: "Attendance recorded successfully" });
@@ -172,31 +184,54 @@ export default function AttendancePage() {
     [pageRows, selection]
   );
 
+  const handleBulkStatus = async (status: "PRESENT" | "ABSENT") => {
+    try {
+      const recordsToUpdate = selectedRows.map((r) => ({
+        employeeId: r.employee.id,
+        status,
+        overtime: r.overtime || 0,
+      }));
+      await fetchJson("/api/people/attendance", {
+        method: "POST",
+        body: JSON.stringify({
+          date: attendanceDate,
+          shift: "DAY SHIFT",
+          records: recordsToUpdate,
+        }),
+      });
+      toast({
+        title: `Marked ${recordsToUpdate.length} record${recordsToUpdate.length > 1 ? "s" : ""} as ${status.toLowerCase()}`,
+      });
+      selection.clear();
+      void queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    } catch (err) {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    }
+  };
+
   const handleExport = () => {
     const target = selectedRows.length > 0 ? selectedRows : filtered;
     downloadCsv(
       `attendance-${attendanceDate}.csv`,
-      ["Date", "Employee", "Status", "Check In", "Check Out", "Overtime (hrs)", "Shift", "Site"],
+      ["Date", "Employee", "Status", "Overtime (hrs)", "Shift", "Site"],
       target.map((r) => [
         r.date,
         r.employee?.name || "",
-        ATTENDANCE_STATUS_LABELS[r.status] || r.status,
-        r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
-        r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
-        r.overtimeMinutes ? (r.overtimeMinutes / 60).toFixed(1) : "0.0",
-        r.shiftName || "",
+        (ATTENDANCE_STATUS_LABELS as Record<string, string>)[r.status] || r.status,
+        r.overtime ? String(r.overtime) : "0.0",
+        r.shift || "",
         r.site?.name || "",
       ])
     );
   };
 
-  const columns: Array<WsColumn<typeof pageRows[number]>> = [
+  const columns: Array<WsColumn<AttendanceRecord>> = [
     {
       key: "employee",
       head: "Employee",
       cell: (r) => (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.employee?.name || "Staff"} size={26} />
+          <Person name={r.employee?.name || "Staff"} size={28} />
           <span className="who" style={{ fontWeight: 500 }}>
             {r.employee?.name || "—"}
           </span>
@@ -223,32 +258,10 @@ export default function AttendancePage() {
             : "void";
         return (
           <St tone={tone}>
-            {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
+            {(ATTENDANCE_STATUS_LABELS as Record<string, string>)[r.status] || r.status}
           </St>
         );
       },
-    },
-    {
-      key: "checkIn",
-      head: "Check in",
-      className: "muted mono",
-      cell: (r) =>
-        r.checkIn ? (
-          new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        ) : (
-          <None />
-        ),
-    },
-    {
-      key: "checkOut",
-      head: "Check out",
-      className: "muted mono",
-      cell: (r) =>
-        r.checkOut ? (
-          new Date(r.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        ) : (
-          <None />
-        ),
     },
     {
       key: "overtime",
@@ -256,9 +269,9 @@ export default function AttendancePage() {
       right: true,
       className: "mono",
       cell: (r) =>
-        r.overtimeMinutes ? (
+        r.overtime ? (
           <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-            {(r.overtimeMinutes / 60).toFixed(1)}h
+            {r.overtime.toFixed(1)}h
           </span>
         ) : (
           <None />
@@ -270,7 +283,7 @@ export default function AttendancePage() {
       className: "muted",
       cell: (r) => (
         <span>
-          {r.shiftName || "Standard"} {r.site?.name ? `• ${r.site.name}` : ""}
+          {r.shift || "Standard"} {r.site?.name ? `• ${r.site.name}` : ""}
         </span>
       ),
     },
@@ -280,8 +293,6 @@ export default function AttendancePage() {
     `${totalRows} logs`,
     null,
     `${counts.present} present`,
-    null,
-    null,
     `${counts.overtimeHours.toFixed(1)}h OT`,
     null,
   ];
@@ -289,19 +300,18 @@ export default function AttendancePage() {
   return (
     <PeopleShell
       activeTab="attendance"
-      actions={
-        canManage ? (
-          <Button
-            variant="primary"
-            icon="plus"
-            onClick={() => {
-              setMarkDate(attendanceDate);
-              setMarkDrawerOpen(true);
-            }}
-          >
-            Mark attendance
-          </Button>
-        ) : null
+      primary={
+        canManage
+          ? {
+              label: "Mark attendance",
+              icon: "plus",
+              shortcut: "N",
+              onClick: () => {
+                setMarkDate(attendanceDate);
+                setMarkDrawerOpen(true);
+              },
+            }
+          : undefined
       }
     >
       <BkPage screen="attendance" scroll={false}>
@@ -318,101 +328,87 @@ export default function AttendancePage() {
             setPage(1);
           }}
           items={[
-            { value: "today", label: "Today's logs", count: tab === "today" ? totalRows : undefined },
-            { value: "all", label: "Date picker / History", count: tab === "all" ? totalRows : undefined },
+            { value: "today", label: "Today's logs", count: tab === "today" ? totalRows : undefined, icon: "clock" },
+            { value: "all", label: "Date picker / History", count: tab === "all" ? totalRows : undefined, icon: "calendar" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExport}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search by employee, shift, or site..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <>
-                {tab === "all" ? (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 13, color: "var(--color-muted)" }}>Date:</span>
-                    <Input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => {
-                        setSelectedDate(e.target.value);
-                        setPage(1);
-                      }}
-                      style={{ height: 32, fontSize: 13, width: 140 }}
-                    />
-                  </div>
-                ) : null}
+        <BkTools
+          find="Search by employee, shift, or site..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <>
+              {tab === "all" ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 13, color: "var(--color-muted)" }}>Date:</span>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setPage(1);
+                    }}
+                    style={{ height: 32, fontSize: 13, width: 140 }}
+                  />
+                </div>
+              ) : null}
 
-                <BkFilter
-                  label="Status"
-                  value={
-                    statusFilter === "ALL"
-                      ? "Any"
-                      : ATTENDANCE_STATUS_LABELS[statusFilter] || statusFilter
-                  }
-                  items={[
-                    {
-                      key: "ALL",
-                      label: "Any status",
-                      checked: statusFilter === "ALL",
-                      onSelect: () => {
-                        setStatusFilter("ALL");
-                        setPage(1);
-                      },
+              <BkFilter
+                label="Status"
+                value={
+                  statusFilter === "ALL"
+                    ? "Any"
+                    : (ATTENDANCE_STATUS_LABELS as Record<string, string>)[statusFilter] || statusFilter
+                }
+                items={[
+                  {
+                    key: "ALL",
+                    label: "Any status",
+                    checked: statusFilter === "ALL",
+                    onSelect: () => {
+                      setStatusFilter("ALL");
+                      setPage(1);
                     },
-                    { separator: true },
-                    {
-                      key: "PRESENT",
-                      label: "Present",
-                      checked: statusFilter === "PRESENT",
-                      onSelect: () => {
-                        setStatusFilter("PRESENT");
-                        setPage(1);
-                      },
+                  },
+                  { separator: true },
+                  {
+                    key: "PRESENT",
+                    label: "Present",
+                    checked: statusFilter === "PRESENT",
+                    onSelect: () => {
+                      setStatusFilter("PRESENT");
+                      setPage(1);
                     },
-                    {
-                      key: "LATE",
-                      label: "Late",
-                      checked: statusFilter === "LATE",
-                      onSelect: () => {
-                        setStatusFilter("LATE");
-                        setPage(1);
-                      },
+                  },
+                  {
+                    key: "LATE",
+                    label: "Late",
+                    checked: statusFilter === "LATE",
+                    onSelect: () => {
+                      setStatusFilter("LATE");
+                      setPage(1);
                     },
-                    {
-                      key: "ABSENT",
-                      label: "Absent",
-                      checked: statusFilter === "ABSENT",
-                      onSelect: () => {
-                        setStatusFilter("ABSENT");
-                        setPage(1);
-                      },
+                  },
+                  {
+                    key: "ABSENT",
+                    label: "Absent",
+                    checked: statusFilter === "ABSENT",
+                    onSelect: () => {
+                      setStatusFilter("ABSENT");
+                      setPage(1);
                     },
-                  ]}
-                />
-              </>
-            }
-            end={<BkQuietTools onExport={handleExport} />}
-          />
-        )}
+                  },
+                ]}
+              />
+            </>
+          }
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -452,18 +448,62 @@ export default function AttendancePage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExport}>
+            Export ({selection.selected.size})
+          </Button>
+          {canManage ? (
+            <>
+              <Button icon="done" onClick={() => void handleBulkStatus("PRESENT")}>
+                Mark Present
+              </Button>
+              <Button icon="x" onClick={() => void handleBulkStatus("ABSENT")}>
+                Mark Absent
+              </Button>
+            </>
+          ) : null}
+        </BkSelectionBar>
       </BkPage>
 
       {/* Guided Drawer for marking attendance */}
       <Drawer
         open={markDrawerOpen}
-        onClose={() => setMarkDrawerOpen(false)}
+        onOpenChange={setMarkDrawerOpen}
         title="Mark Attendance Record"
-        description="Log employee shift status, check-in, and overtime hours for payroll."
+        sub="Log employee shift status, check-in, and overtime hours for payroll."
+        footer={
+          <>
+            <Button variant="quiet" onClick={() => setMarkDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              busy={markMutation.isPending}
+              disabled={!markEmployeeId}
+              onClick={() => {
+                const ot = parseFloat(markOvertime) || 0;
+                markMutation.mutate({
+                  employeeId: markEmployeeId,
+                  date: markDate,
+                  status: markStatus,
+                  overtimeMinutes: Math.round(ot * 60),
+                  shiftName: markShift || undefined,
+                  siteId: markSiteId || undefined,
+                });
+              }}
+            >
+              Save attendance
+            </Button>
+          </>
+        }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <DrawerSection title="Staff Member & Date">
-            <Field label="Employee" required>
+            <Field label="Employee">
               <select
                 className="select"
                 value={markEmployeeId}
@@ -473,13 +513,13 @@ export default function AttendancePage() {
                 <option value="">Select an employee...</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName} ({e.employeeNumber || "No ID"})
+                    {e.name} ({e.employeeId || "No ID"})
                   </option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Date" required>
+            <Field label="Date">
               <Input
                 type="date"
                 value={markDate}
@@ -489,22 +529,22 @@ export default function AttendancePage() {
           </DrawerSection>
 
           <DrawerSection title="Status & Hours">
-            <Field label="Attendance Status" required>
+            <Field label="Attendance Status">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <Button
-                  variant={markStatus === "PRESENT" ? "primary" : "outline"}
+                  variant={markStatus === "PRESENT" ? "primary" : "default"}
                   onClick={() => setMarkStatus("PRESENT")}
                 >
                   • Present
                 </Button>
                 <Button
-                  variant={markStatus === "LATE" ? "primary" : "outline"}
+                  variant={markStatus === "LATE" ? "primary" : "default"}
                   onClick={() => setMarkStatus("LATE")}
                 >
                   • Late
                 </Button>
                 <Button
-                  variant={markStatus === "ABSENT" ? "danger" : "outline"}
+                  variant={markStatus === "ABSENT" ? "danger" : "default"}
                   onClick={() => setMarkStatus("ABSENT")}
                 >
                   • Absent
@@ -512,7 +552,7 @@ export default function AttendancePage() {
               </div>
             </Field>
 
-            <Field label="Overtime (hours)" hint="Will be converted to minutes for payroll addition">
+            <Field label="Overtime (hours)" help="Will be converted to minutes for payroll addition">
               <Input
                 type="number"
                 min="0"
@@ -549,30 +589,6 @@ export default function AttendancePage() {
               </select>
             </Field>
           </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-            <Button variant="quiet" onClick={() => setMarkDrawerOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              busy={markMutation.isPending}
-              disabled={!markEmployeeId}
-              onClick={() => {
-                const ot = parseFloat(markOvertime) || 0;
-                markMutation.mutate({
-                  employeeId: markEmployeeId,
-                  date: markDate,
-                  status: markStatus,
-                  overtimeMinutes: Math.round(ot * 60),
-                  shiftName: markShift || undefined,
-                  siteId: markSiteId || undefined,
-                });
-              }}
-            >
-              Save attendance
-            </Button>
-          </div>
         </div>
       </Drawer>
     </PeopleShell>

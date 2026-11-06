@@ -47,6 +47,7 @@ type BatchDetails = {
   totalAmount: number;
   itemCount: number;
   notes?: string | null;
+  createdAt?: string | null;
   payrollRun?: {
     runNumber: number;
   };
@@ -225,7 +226,7 @@ export default function DisbursementsPage() {
       key: "amount",
       head: "Total Amount",
       right: true,
-      cell: (b) => <Amt value={b.totalAmount} currency="USD" weight={600} />,
+      cell: (b) => <Amt value={b.totalAmount} currency="USD" className="font-medium" />,
     },
     {
       key: "status",
@@ -302,7 +303,7 @@ export default function DisbursementsPage() {
     `${totalRows} batches`,
     null,
     null,
-    <Amt key="tot" value={totalSum} currency="USD" weight={600} />,
+    <Amt key="tot" value={totalSum} currency="USD" className="font-medium" />,
     `${pendingBatches.length} pending`,
     null,
   ];
@@ -311,21 +312,17 @@ export default function DisbursementsPage() {
     <PayrollShell
       activeTab="disbursements"
       title="Salary Disbursements"
-      actions={
-        <Button
-          variant="primary"
-          icon="plus"
-          shortcut="N"
-          onClick={() => {
-            if (approvedRuns.length > 0 && !selectedRunId) {
-              setSelectedRunId(approvedRuns[0]!.id);
-            }
-            setCreateDrawerOpen(true);
-          }}
-        >
-          New disbursement batch
-        </Button>
-      }
+      primary={{
+        label: "New disbursement batch",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => {
+          if (approvedRuns.length > 0 && !selectedRunId) {
+            setSelectedRunId(approvedRuns[0]!.id);
+          }
+          setCreateDrawerOpen(true);
+        },
+      }}
     >
       <BkPage screen="payroll-disbursements" scroll={false}>
         <BkFinding
@@ -348,36 +345,22 @@ export default function DisbursementsPage() {
             selection.clear();
           }}
           items={[
-            { value: "pending", label: "Pending batches", count: pendingBatches.length },
-            { value: "paid", label: "Paid batches", count: paidBatches.length },
-            { value: "all", label: "All batches", count: batches.length },
+            { value: "pending", label: "Pending batches", count: pendingBatches.length, icon: "clock" },
+            { value: "paid", label: "Paid batches", count: paidBatches.length, icon: "done" },
+            { value: "all", label: "All batches", count: batches.length, icon: "list" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search batches by code, status, or reference..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            end={<BkQuietTools onExport={handleExportCsv} />}
-          />
-        )}
+        <BkTools
+          find="Search batches by code, status, or reference..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -413,6 +396,16 @@ export default function DisbursementsPage() {
           size={pageSize}
           total={totalRows}
           onPage={setPage}
+        />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+          actions={
+            <Button variant="quiet" icon="export" onClick={handleExportCsv}>
+              Export selected ({selection.selected.size})
+            </Button>
+          }
         />
       </BkPage>
 
@@ -509,7 +502,7 @@ export default function DisbursementsPage() {
                       </div>
                     </td>
                     <td className="num">
-                      <Amt value={item.amount} currency="USD" weight={600} />
+                      <Amt value={item.amount} currency="USD" className="font-medium" />
                     </td>
                   </tr>
                 ))}

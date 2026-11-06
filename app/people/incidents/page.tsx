@@ -82,7 +82,7 @@ export default function SafetyIncidentsPage() {
   });
 
   const records = React.useMemo(() => incidentsQuery.data?.data ?? [], [incidentsQuery.data]);
-  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const sites = React.useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = React.useMemo(
     () => employeesQuery.data?.data ?? [],
     [employeesQuery.data]
@@ -121,7 +121,7 @@ export default function SafetyIncidentsPage() {
       description: string;
       actionTaken?: string;
     }) =>
-      fetchJson("/api/v2/people/incidents", {
+      fetchJson("/api/hr/incidents", {
         method: "POST",
         body: JSON.stringify(values),
       }),
@@ -158,6 +158,26 @@ export default function SafetyIncidentsPage() {
         r.reporter?.name || "",
       ])
     );
+  };
+
+  const handleBulkResolve = async () => {
+    try {
+      await Promise.all(
+        selectedRows.map((r) =>
+          fetchJson(`/api/hr/incidents/${r.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "RESOLVED" }),
+          })
+        )
+      );
+      toast({
+        title: `Resolved ${selectedRows.length} incident record${selectedRows.length > 1 ? "s" : ""}`,
+      });
+      selection.clear();
+      void queryClient.invalidateQueries({ queryKey: ["safety-incidents"] });
+    } catch (err) {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    }
   };
 
   const openCount = records.filter((r) => r.status !== "CLOSED").length;
@@ -222,7 +242,7 @@ export default function SafetyIncidentsPage() {
       cell: (r) =>
         r.reporter ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Person name={r.reporter.name} size={22} />
+            <Person name={r.reporter.name} size={24} />
             <span className="who">{r.reporter.name}</span>
           </span>
         ) : (
@@ -234,15 +254,12 @@ export default function SafetyIncidentsPage() {
   return (
     <PeopleShell
       activeTab="incidents"
-      actions={
-        <Button
-          variant="primary"
-          icon="plus"
-          onClick={() => setDrawerOpen(true)}
-        >
-          Report incident
-        </Button>
-      }
+      primary={{
+        label: "Report incident",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => setDrawerOpen(true),
+      }}
     >
       <BkPage screen="incidents" scroll={false}>
         <BkFinding
@@ -258,81 +275,67 @@ export default function SafetyIncidentsPage() {
             setPage(1);
           }}
           items={[
-            { value: "open", label: "Open & Investigating", count: openCount },
-            { value: "all", label: "All incident logs", count: records.length },
-            { value: "closed", label: "Closed / Resolved", count: records.length - openCount },
+            { value: "open", label: "Open & Investigating", count: openCount, icon: "issue" },
+            { value: "all", label: "All incident logs", count: records.length, icon: "list" },
+            { value: "closed", label: "Closed / Resolved", count: records.length - openCount, icon: "done" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExport}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search incidents by reference, title, site..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <BkFilter
-                label="Severity"
-                value={severityFilter === "ALL" ? "Any" : severityFilter}
-                items={[
-                  {
-                    key: "ALL",
-                    label: "Any severity",
-                    checked: severityFilter === "ALL",
-                    onSelect: () => {
-                      setSeverityFilter("ALL");
-                      setPage(1);
-                    },
+        <BkTools
+          find="Search incidents by reference, title, site..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <BkFilter
+              label="Severity"
+              value={severityFilter === "ALL" ? "Any" : severityFilter}
+              items={[
+                {
+                  key: "ALL",
+                  label: "Any severity",
+                  checked: severityFilter === "ALL",
+                  onSelect: () => {
+                    setSeverityFilter("ALL");
+                    setPage(1);
                   },
-                  { separator: true },
-                  {
-                    key: "CRITICAL",
-                    label: "Critical",
-                    checked: severityFilter === "CRITICAL",
-                    onSelect: () => {
-                      setSeverityFilter("CRITICAL");
-                      setPage(1);
-                    },
+                },
+                { separator: true },
+                {
+                  key: "CRITICAL",
+                  label: "Critical",
+                  checked: severityFilter === "CRITICAL",
+                  onSelect: () => {
+                    setSeverityFilter("CRITICAL");
+                    setPage(1);
                   },
-                  {
-                    key: "MODERATE",
-                    label: "Moderate",
-                    checked: severityFilter === "MODERATE",
-                    onSelect: () => {
-                      setSeverityFilter("MODERATE");
-                      setPage(1);
-                    },
+                },
+                {
+                  key: "MODERATE",
+                  label: "Moderate",
+                  checked: severityFilter === "MODERATE",
+                  onSelect: () => {
+                    setSeverityFilter("MODERATE");
+                    setPage(1);
                   },
-                  {
-                    key: "MINOR",
-                    label: "Minor",
-                    checked: severityFilter === "MINOR",
-                    onSelect: () => {
-                      setSeverityFilter("MINOR");
-                      setPage(1);
-                    },
+                },
+                {
+                  key: "MINOR",
+                  label: "Minor",
+                  checked: severityFilter === "MINOR",
+                  onSelect: () => {
+                    setSeverityFilter("MINOR");
+                    setPage(1);
                   },
-                ]}
-              />
-            }
-            end={<BkQuietTools onExport={handleExport} />}
-          />
-        )}
+                },
+              ]}
+            />
+          }
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -371,18 +374,30 @@ export default function SafetyIncidentsPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExport}>
+            Export ({selection.selected.size})
+          </Button>
+          <Button icon="done" onClick={() => void handleBulkResolve()}>
+            Mark Resolved
+          </Button>
+        </BkSelectionBar>
       </BkPage>
 
       {/* Guided Drawer for reporting safety incident */}
       <Drawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onOpenChange={setDrawerOpen}
         title="Report Safety & Health Incident"
-        description="Formal statutory record of incident, severity, location, and remedial actions."
+        sub="Formal statutory record of incident, severity, location, and remedial actions."
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <DrawerSection title="Incident Details">
-            <Field label="Incident Title" required>
+            <Field label="Incident Title">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -390,22 +405,22 @@ export default function SafetyIncidentsPage() {
               />
             </Field>
 
-            <Field label="Severity Rating" required>
+            <Field label="Severity Rating">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <Button
-                  variant={severity === "MINOR" ? "primary" : "outline"}
+                  variant={severity === "MINOR" ? "primary" : "default"}
                   onClick={() => setSeverity("MINOR")}
                 >
                   • Minor
                 </Button>
                 <Button
-                  variant={severity === "MODERATE" ? "primary" : "outline"}
+                  variant={severity === "MODERATE" ? "primary" : "default"}
                   onClick={() => setSeverity("MODERATE")}
                 >
                   • Moderate
                 </Button>
                 <Button
-                  variant={severity === "CRITICAL" ? "danger" : "outline"}
+                  variant={severity === "CRITICAL" ? "danger" : "default"}
                   onClick={() => setSeverity("CRITICAL")}
                 >
                   • Critical
@@ -413,7 +428,7 @@ export default function SafetyIncidentsPage() {
               </div>
             </Field>
 
-            <Field label="Date Occurred" required>
+            <Field label="Date Occurred">
               <Input
                 type="date"
                 value={occurredAt}
@@ -423,7 +438,7 @@ export default function SafetyIncidentsPage() {
           </DrawerSection>
 
           <DrawerSection title="Location & Reporter">
-            <Field label="Operational Site" required>
+            <Field label="Operational Site">
               <select
                 className="select"
                 value={siteId}
@@ -449,7 +464,7 @@ export default function SafetyIncidentsPage() {
                 <option value="">Select staff witness / reporter...</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName}
+                    {e.name}
                   </option>
                 ))}
               </select>
@@ -457,7 +472,7 @@ export default function SafetyIncidentsPage() {
           </DrawerSection>
 
           <DrawerSection title="Description & Corrective Actions">
-            <Field label="Full Description" required>
+            <Field label="Full Description">
               <textarea
                 className="textarea"
                 rows={3}

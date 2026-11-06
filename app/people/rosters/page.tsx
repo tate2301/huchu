@@ -32,8 +32,9 @@ import { PeopleShell } from "@/components/people/people-shell";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchEmployees,
-  fetchRosterCrews,
+  fetchShiftGroups,
   fetchSites,
+  type ShiftGroupRecord,
   type Site,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -68,8 +69,8 @@ export default function RostersPage() {
   const crewsQuery = useQuery({
     queryKey: ["roster-crews", tab],
     queryFn: () =>
-      fetchRosterCrews({
-        activeOnly: tab === "active",
+      fetchShiftGroups({
+        active: tab === "active" ? true : undefined,
         limit: 100,
       }),
   });
@@ -84,15 +85,15 @@ export default function RostersPage() {
     queryFn: () => fetchEmployees({ active: true, limit: 300 }),
   });
 
-  const crews = React.useMemo(() => crewsQuery.data?.data ?? [], [crewsQuery.data]);
-  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const crews: ShiftGroupRecord[] = React.useMemo(() => crewsQuery.data?.data ?? [], [crewsQuery.data]);
+  const sites = React.useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = React.useMemo(
     () => employeesQuery.data?.data ?? [],
     [employeesQuery.data]
   );
 
   const filtered = React.useMemo(() => {
-    return crews.filter((c) => {
+    return crews.filter((c: ShiftGroupRecord) => {
       if (siteFilter !== "ALL" && c.siteId !== siteFilter) return false;
       if (!search.trim()) return true;
       const q = search.toLowerCase();
@@ -110,7 +111,7 @@ export default function RostersPage() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
 
-  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const rowIds = React.useMemo(() => pageRows.map((r: ShiftGroupRecord) => r.id), [pageRows]);
   const selection = useSelection(rowIds);
 
   // Mutations
@@ -118,11 +119,10 @@ export default function RostersPage() {
     mutationFn: (values: {
       name: string;
       code?: string;
-      siteId?: string;
-      leaderId?: string;
-      description?: string;
+      siteId?: string | null;
+      leaderEmployeeId: string;
     }) =>
-      fetchJson("/api/rosters/crews", {
+      fetchJson("/api/people/rosters", {
         method: "POST",
         body: JSON.stringify(values),
       }),
@@ -131,7 +131,7 @@ export default function RostersPage() {
       setCreateDrawerOpen(false);
       setCrewName("");
       setCrewCode("");
-      setCrewDescription("");
+      setCrewLeaderId("");
       void queryClient.invalidateQueries({ queryKey: ["roster-crews"] });
     },
     onError: (err) => {
@@ -140,7 +140,7 @@ export default function RostersPage() {
   });
 
   const selectedRows = React.useMemo(
-    () => pageRows.filter((r) => selection.isSelected(r.id)),
+    () => pageRows.filter((r: ShiftGroupRecord) => selection.isSelected(r.id)),
     [pageRows, selection]
   );
 
@@ -149,15 +149,21 @@ export default function RostersPage() {
     downloadCsv(
       "crews-and-rosters.csv",
       ["Crew Name", "Code", "Site", "Shift Leader", "Staff Count", "Status"],
-      target.map((c) => [
+      target.map((c: ShiftGroupRecord) => [
         c.name,
         c.code || "",
         c.site?.name || "",
         c.leader?.name || "",
-        String(c.memberCount ?? 0),
+        String(c._count?.members ?? 0),
         c.isActive ? "Active" : "Archived",
       ])
     );
+  };
+
+  const handleCopyCodes = () => {
+    const codes = selectedRows.map((c: ShiftGroupRecord) => `${c.name}: ${c.code || "—"}`).join("\n");
+    void navigator.clipboard.writeText(codes);
+    toast({ title: `Copied ${selectedRows.length} crew roster code${selectedRows.length > 1 ? "s" : ""} to clipboard` });
   };
 
   const currentSiteName = React.useMemo(
@@ -165,22 +171,15 @@ export default function RostersPage() {
     [sites, siteFilter]
   );
 
-  const activeCount = crews.filter((c) => c.isActive).length;
+  const activeCount = crews.filter((c: ShiftGroupRecord) => c.isActive).length;
 
-  const columns: Array<WsColumn<typeof pageRows[number]>> = [
+  const columns: Array<WsColumn<ShiftGroupRecord>> = [
     {
       key: "name",
       head: "Crew / Roster",
       cell: (c) => (
-        <span>
-          <span className="who" style={{ display: "block", fontWeight: 500 }}>
-            {c.name}
-          </span>
-          {c.description ? (
-            <span className="muted" style={{ fontSize: 12 }}>
-              {c.description}
-            </span>
-          ) : null}
+        <span className="who" style={{ display: "block", fontWeight: 500 }}>
+          {c.name}
         </span>
       ),
     },
@@ -218,7 +217,7 @@ export default function RostersPage() {
       className: "mono",
       cell: (c) => (
         <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {c.memberCount ?? 0}
+          {c._count?.members ?? 0}
         </span>
       ),
     },
@@ -235,17 +234,16 @@ export default function RostersPage() {
 
   return (
     <PeopleShell
-      activeTab="rosters"
-      actions={
-        canManage ? (
-          <Button
-            variant="primary"
-            icon="plus"
-            onClick={() => setCreateDrawerOpen(true)}
-          >
-            New crew
-          </Button>
-        ) : null
+      activeTab="shift-groups"
+      primary={
+        canManage
+          ? {
+              label: "New crew",
+              icon: "plus",
+              shortcut: "N",
+              onClick: () => setCreateDrawerOpen(true),
+            }
+          : undefined
       }
     >
       <BkPage screen="rosters" scroll={false}>
@@ -262,62 +260,48 @@ export default function RostersPage() {
             setPage(1);
           }}
           items={[
-            { value: "active", label: "Active crews", count: activeCount },
-            { value: "all", label: "All rosters", count: crews.length },
+            { value: "active", label: "Active crews", count: activeCount, icon: "check" },
+            { value: "all", label: "All rosters", count: crews.length, icon: "list" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExport}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search crews by name, code, site, or leader..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <BkFilter
-                label="Site"
-                value={siteFilter === "ALL" ? "Any" : currentSiteName}
-                items={[
-                  {
-                    key: "ALL",
-                    label: "Any site",
-                    checked: siteFilter === "ALL",
-                    onSelect: () => {
-                      setSiteFilter("ALL");
-                      setPage(1);
-                    },
+        <BkTools
+          find="Search crews by name, code, site, or leader..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <BkFilter
+              label="Site"
+              value={siteFilter === "ALL" ? "Any" : currentSiteName}
+              items={[
+                {
+                  key: "ALL",
+                  label: "Any site",
+                  checked: siteFilter === "ALL",
+                  onSelect: () => {
+                    setSiteFilter("ALL");
+                    setPage(1);
                   },
-                  { separator: true },
-                  ...sites.map((s: Site) => ({
-                    key: s.id,
-                    label: s.name,
-                    checked: siteFilter === s.id,
-                    onSelect: () => {
-                      setSiteFilter(s.id);
-                      setPage(1);
-                    },
-                  })),
-                ]}
-              />
-            }
-            end={<BkQuietTools onExport={handleExport} />}
-          />
-        )}
+                },
+                { separator: true },
+                ...sites.map((s: Site) => ({
+                  key: s.id,
+                  label: s.name,
+                  checked: siteFilter === s.id,
+                  onSelect: () => {
+                    setSiteFilter(s.id);
+                    setPage(1);
+                  },
+                })),
+              ]}
+            />
+          }
+          end={<BkQuietTools onExport={handleExport} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -356,18 +340,30 @@ export default function RostersPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExport}>
+            Export ({selection.selected.size})
+          </Button>
+          <Button icon="docs" onClick={handleCopyCodes}>
+            Copy Codes
+          </Button>
+        </BkSelectionBar>
       </BkPage>
 
       {/* Guided Drawer for creating new crew */}
       <Drawer
         open={createDrawerOpen}
-        onClose={() => setCreateDrawerOpen(false)}
+        onOpenChange={setCreateDrawerOpen}
         title="Create Shift Crew Roster"
-        description="Establish operational shift team, location, and assigned supervisor."
+        sub="Establish operational shift team, location, and assigned supervisor."
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <DrawerSection title="Crew Identity">
-            <Field label="Crew Name" required>
+            <Field label="Crew Name">
               <Input
                 value={crewName}
                 onChange={(e) => {
@@ -385,7 +381,7 @@ export default function RostersPage() {
               />
             </Field>
 
-            <Field label="Shift Code" hint="Short identifier for attendance & kiosk punch">
+            <Field label="Shift Code" help="Short identifier for attendance & kiosk punch">
               <Input
                 value={crewCode}
                 onChange={(e) => setCrewCode(e.target.value.toUpperCase())}
@@ -395,7 +391,7 @@ export default function RostersPage() {
           </DrawerSection>
 
           <DrawerSection title="Site & Leadership">
-            <Field label="Operational Site" required>
+            <Field label="Operational Site">
               <select
                 className="select"
                 value={crewSiteId}
@@ -421,7 +417,7 @@ export default function RostersPage() {
                 <option value="">Select crew supervisor...</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName} ({e.position || "Staff"})
+                    {e.name} ({e.position || "Staff"})
                   </option>
                 ))}
               </select>
@@ -448,14 +444,13 @@ export default function RostersPage() {
             <Button
               variant="primary"
               busy={createMutation.isPending}
-              disabled={!crewName.trim()}
+              disabled={!crewName.trim() || !crewLeaderId}
               onClick={() => {
                 createMutation.mutate({
                   name: crewName.trim(),
                   code: crewCode.trim() || undefined,
                   siteId: crewSiteId || undefined,
-                  leaderId: crewLeaderId || undefined,
-                  description: crewDescription.trim() || undefined,
+                  leaderEmployeeId: crewLeaderId,
                 });
               }}
             >

@@ -18,7 +18,6 @@ import {
   Worksheet,
   type WsColumn,
 } from "@/components/books/ui";
-import { Button } from "@/components/core";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
@@ -388,7 +387,7 @@ export function StatutoryTablesContent() {
         c.ratePercent ? (
           <span className="mono">{Number(c.ratePercent).toFixed(2)}% of cost</span>
         ) : (
-          <Amt value={parseFloat(c.amount ?? "0")} currency={c.currency} weight={600} />
+          <Amt value={parseFloat(c.amount ?? "0")} currency={c.currency} className="font-medium" />
         ),
     },
     {
@@ -441,11 +440,12 @@ export function StatutoryTablesContent() {
     <PayrollShell
       activeTab="statutory-tables"
       title="Statutory Tables & Tax Rates"
-      actions={
-        <Button variant="default" icon="export" onClick={handleExportCsv}>
-          Export tax tables
-        </Button>
-      }
+      primary={{
+        label: "Export tax tables",
+        icon: "export",
+        shortcut: "E",
+        onClick: handleExportCsv,
+      }}
     >
       <BkPage screen="statutory-tables" scroll={false}>
         <BkFinding
@@ -474,10 +474,10 @@ export function StatutoryTablesContent() {
           value={tab}
           onChange={(next) => setTab(next as TabView)}
           items={[
-            { value: "paye", label: "PAYE tax bands", count: flattenedBands.length },
-            { value: "rates", label: "NSSA & statutory levies", count: data?.rates.length ?? 0 },
-            { value: "credits", label: "Tax credits", count: data?.credits.length ?? 0 },
-            { value: "nec", label: "NEC agreements", count: data?.necAgreements.length ?? 0 },
+            { value: "paye", label: "PAYE tax bands", count: flattenedBands.length, icon: "docs" },
+            { value: "rates", label: "NSSA & statutory levies", count: data?.rates.length ?? 0, icon: "figure" },
+            { value: "credits", label: "Tax credits", count: data?.credits.length ?? 0, icon: "payments" },
+            { value: "nec", label: "NEC agreements", count: data?.necAgreements.length ?? 0, icon: "users" },
           ]}
         />
 

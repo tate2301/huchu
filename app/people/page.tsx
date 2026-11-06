@@ -48,7 +48,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   getEmployeePositionOptions,
 } from "@/lib/platform/vertical-defaults";
-import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles";
 
 type StatusTab = "active" | "all" | "inactive";
 
@@ -98,15 +97,14 @@ export default function HumanResourcesPage() {
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures ?? [],
     [session]
   );
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
 
   const positionOptions = React.useMemo(() => {
-    const profile = resolveWorkspaceProfileForRoles({
+    return getEmployeePositionOptions({
+      workspaceProfile,
       enabledFeatures,
-      userRole,
     });
-    return getEmployeePositionOptions(profile);
-  }, [enabledFeatures, userRole]);
+  }, [workspaceProfile, enabledFeatures]);
 
   const employees = React.useMemo(
     () => employeesQuery.data?.data ?? [],
@@ -124,8 +122,8 @@ export default function HumanResourcesPage() {
       if (employmentFilter && emp.employmentType !== employmentFilter) return false;
       if (!search.trim()) return true;
       const q = search.toLowerCase();
-      const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
-      const num = (emp.employeeNumber || "").toLowerCase();
+      const name = (emp.name || "").toLowerCase();
+      const num = (emp.employeeId || "").toLowerCase();
       const pos = (emp.position || "").toLowerCase();
       const dept = (emp.department?.name || "").toLowerCase();
       return name.includes(q) || num.includes(q) || pos.includes(q) || dept.includes(q);
@@ -211,18 +209,37 @@ export default function HumanResourcesPage() {
     const targets = selectedRows.length > 0 ? selectedRows : filtered;
     downloadCsv(
       "staff-directory.csv",
-      ["Employee No", "First Name", "Last Name", "Department", "Position", "Type", "Status", "Hire Date"],
+      ["Employee ID", "Name", "Department", "Position", "Type", "Status", "Hire Date"],
       targets.map((e) => [
-        e.employeeNumber || "",
-        e.firstName,
-        e.lastName,
+        e.employeeId || "",
+        e.name,
         e.department?.name || "",
         e.position || "",
-        EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType,
+        (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType : ""),
         e.isActive ? "Active" : "Inactive",
         e.hireDate || "",
       ])
     );
+  };
+
+  const handleBulkStatus = async (isActive: boolean) => {
+    try {
+      await Promise.all(
+        Array.from(selection.selected).map((id) =>
+          fetchJson(`/api/employees/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ isActive }),
+          })
+        )
+      );
+      toast({
+        title: `Updated ${selection.selected.size} staff member${selection.selected.size > 1 ? "s" : ""} to ${isActive ? "active" : "inactive"}`,
+      });
+      selection.clear();
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err) {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    }
   };
 
   const departmentName = React.useMemo(
@@ -236,13 +253,13 @@ export default function HumanResourcesPage() {
       head: "Staff member",
       cell: (emp) => (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <Person name={`${emp.firstName} ${emp.lastName}`} size={28} />
+          <Person name={emp.name} size={28} />
           <span>
             <span className="who" style={{ display: "block", fontWeight: 500 }}>
-              {emp.firstName} {emp.lastName}
+              {emp.name}
             </span>
             <span className="muted mono" style={{ fontSize: 11 }}>
-              {emp.employeeNumber || "—"}
+              {emp.employeeId || "—"}
             </span>
           </span>
         </span>
@@ -272,7 +289,7 @@ export default function HumanResourcesPage() {
       key: "type",
       head: "Employment",
       className: "muted",
-      cell: (emp) => EMPLOYMENT_TYPE_LABEL[emp.employmentType] || emp.employmentType,
+      cell: (emp) => (emp.employmentType ? EMPLOYMENT_TYPE_LABEL[emp.employmentType] || emp.employmentType : <None />),
     },
     {
       key: "hired",
@@ -298,8 +315,8 @@ export default function HumanResourcesPage() {
           {
             key: "delete",
             label: "Delete record",
-            icon: "trash",
-            tone: "danger",
+            icon: "retire",
+            danger: true,
             onSelect: () => setDeletingId(emp.id),
           },
         ];
@@ -320,19 +337,16 @@ export default function HumanResourcesPage() {
 
   return (
     <PeopleShell
-      activeTab="directory"
-      actions={
-        <Button
-          variant="primary"
-          icon="plus"
-          onClick={() => {
-            setEditingEmployee(null);
-            setDrawerOpen(true);
-          }}
-        >
-          New employee
-        </Button>
-      }
+      activeTab="employees"
+      primary={{
+        label: "New employee",
+        icon: "plus",
+        shortcut: "N",
+        onClick: () => {
+          setEditingEmployee(null);
+          setDrawerOpen(true);
+        },
+      }}
     >
       <BkPage screen="people" scroll={false}>
         <BkFinding
@@ -348,121 +362,107 @@ export default function HumanResourcesPage() {
             setPage(1);
           }}
           items={[
-            { value: "active", label: "Active staff", count: counts.active },
-            { value: "all", label: "All records", count: counts.all },
-            { value: "inactive", label: "Inactive / Departed", count: counts.inactive },
+            { value: "active", label: "Active staff", count: counts.active, icon: "users" },
+            { value: "all", label: "All records", count: counts.all, icon: "list" },
+            { value: "inactive", label: "Inactive / Departed", count: counts.inactive, icon: "retire" },
           ]}
         />
 
-        {selection.selected.size > 0 ? (
-          <BkSelectionBar
-            selection={{
-              count: selection.selected.size,
-              clear: selection.clear,
-            }}
-            actions={
-              <Button variant="quiet" icon="export" onClick={handleExportSelected}>
-                Export selected ({selection.selected.size})
-              </Button>
-            }
-          />
-        ) : (
-          <BkTools
-            find="Search staff by name, number, or position..."
-            query={search}
-            onFind={(q) => {
-              setSearch(q);
-              setPage(1);
-            }}
-            count={totalRows}
-            filters={
-              <>
-                <BkFilter
-                  label="Department"
-                  value={departmentName}
-                  items={[
-                    {
-                      key: "any",
-                      label: "Any department",
-                      checked: !departmentFilter,
-                      onSelect: () => {
-                        setDepartmentFilter(null);
-                        setPage(1);
-                      },
+        <BkTools
+          find="Search staff by name, number, or position..."
+          query={search}
+          onFind={(q) => {
+            setSearch(q);
+            setPage(1);
+          }}
+          count={totalRows}
+          filters={
+            <>
+              <BkFilter
+                label="Department"
+                value={departmentName}
+                items={[
+                  {
+                    key: "any",
+                    label: "Any department",
+                    checked: !departmentFilter,
+                    onSelect: () => {
+                      setDepartmentFilter(null);
+                      setPage(1);
                     },
-                    { separator: true },
-                    ...departments.map((d) => ({
-                      key: d.id,
-                      label: d.name,
-                      checked: departmentFilter === d.id,
-                      onSelect: () => {
-                        setDepartmentFilter(d.id);
-                        setPage(1);
-                      },
-                    })),
-                  ]}
-                />
-                <BkFilter
-                  label="Employment"
-                  value={
-                    employmentFilter
-                      ? EMPLOYMENT_TYPE_LABEL[employmentFilter] || employmentFilter
-                      : "Any"
-                  }
-                  items={[
-                    {
-                      key: "any",
-                      label: "Any type",
-                      checked: !employmentFilter,
-                      onSelect: () => {
-                        setEmploymentFilter(null);
-                        setPage(1);
-                      },
+                  },
+                  { separator: true },
+                  ...departments.map((d) => ({
+                    key: d.id,
+                    label: d.name,
+                    checked: departmentFilter === d.id,
+                    onSelect: () => {
+                      setDepartmentFilter(d.id);
+                      setPage(1);
                     },
-                    { separator: true },
-                    {
-                      key: "FULL_TIME",
-                      label: "Full-time",
-                      checked: employmentFilter === "FULL_TIME",
-                      onSelect: () => {
-                        setEmploymentFilter("FULL_TIME");
-                        setPage(1);
-                      },
+                  })),
+                ]}
+              />
+              <BkFilter
+                label="Employment"
+                value={
+                  employmentFilter
+                    ? EMPLOYMENT_TYPE_LABEL[employmentFilter] || employmentFilter
+                    : "Any"
+                }
+                items={[
+                  {
+                    key: "any",
+                    label: "Any type",
+                    checked: !employmentFilter,
+                    onSelect: () => {
+                      setEmploymentFilter(null);
+                      setPage(1);
                     },
-                    {
-                      key: "PART_TIME",
-                      label: "Part-time",
-                      checked: employmentFilter === "PART_TIME",
-                      onSelect: () => {
-                        setEmploymentFilter("PART_TIME");
-                        setPage(1);
-                      },
+                  },
+                  { separator: true },
+                  {
+                    key: "FULL_TIME",
+                    label: "Full-time",
+                    checked: employmentFilter === "FULL_TIME",
+                    onSelect: () => {
+                      setEmploymentFilter("FULL_TIME");
+                      setPage(1);
                     },
-                    {
-                      key: "CONTRACT",
-                      label: "Contract",
-                      checked: employmentFilter === "CONTRACT",
-                      onSelect: () => {
-                        setEmploymentFilter("CONTRACT");
-                        setPage(1);
-                      },
+                  },
+                  {
+                    key: "PART_TIME",
+                    label: "Part-time",
+                    checked: employmentFilter === "PART_TIME",
+                    onSelect: () => {
+                      setEmploymentFilter("PART_TIME");
+                      setPage(1);
                     },
-                    {
-                      key: "CASUAL",
-                      label: "Casual",
-                      checked: employmentFilter === "CASUAL",
-                      onSelect: () => {
-                        setEmploymentFilter("CASUAL");
-                        setPage(1);
-                      },
+                  },
+                  {
+                    key: "CONTRACT",
+                    label: "Contract",
+                    checked: employmentFilter === "CONTRACT",
+                    onSelect: () => {
+                      setEmploymentFilter("CONTRACT");
+                      setPage(1);
                     },
-                  ]}
-                />
-              </>
-            }
-            end={<BkQuietTools onExport={handleExportSelected} />}
-          />
-        )}
+                  },
+                  {
+                    key: "CASUAL",
+                    label: "Casual",
+                    checked: employmentFilter === "CASUAL",
+                    onSelect: () => {
+                      setEmploymentFilter("CASUAL");
+                      setPage(1);
+                    },
+                  },
+                ]}
+              />
+            </>
+          }
+          end={<BkQuietTools onExport={handleExportSelected} />}
+        />
 
         <BkScroll>
           <Worksheet
@@ -476,7 +476,7 @@ export default function HumanResourcesPage() {
               toggleAll: selection.toggleAll,
               all: selection.all,
               some: selection.some,
-              labelOf: (emp) => `${emp.firstName} ${emp.lastName}`,
+              labelOf: (emp) => emp.name,
             }}
             onOpen={(emp) => {
               setEditingEmployee(emp);
@@ -506,48 +506,49 @@ export default function HumanResourcesPage() {
           total={totalRows}
           onPage={setPage}
         />
+
+        <BkSelectionBar
+          count={selection.selected.size}
+          onClear={selection.clear}
+        >
+          <Button icon="export" onClick={handleExportSelected}>
+            Export ({selection.selected.size})
+          </Button>
+          <Button
+            icon="done"
+            onClick={() => void handleBulkStatus(true)}
+          >
+            Mark Active
+          </Button>
+          <Button
+            icon="retire"
+            onClick={() => void handleBulkStatus(false)}
+          >
+            Mark Inactive
+          </Button>
+        </BkSelectionBar>
       </BkPage>
 
       {/* Guided Slideout Employee Drawer */}
       <EmployeeDrawer
         open={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          setEditingEmployee(null);
+        onOpenChange={(v) => {
+          setDrawerOpen(v);
+          if (!v) setEditingEmployee(null);
         }}
-        initialData={
-          editingEmployee
-            ? {
-                firstName: editingEmployee.firstName,
-                lastName: editingEmployee.lastName,
-                email: editingEmployee.email ?? "",
-                phone: editingEmployee.phone ?? "",
-                departmentId: editingEmployee.department?.id ?? "",
-                position: editingEmployee.position ?? "",
-                employmentType: editingEmployee.employmentType,
-                hireDate: editingEmployee.hireDate ?? "",
-                nationalId: editingEmployee.nationalId ?? "",
-                compensation: editingEmployee.compensation
-                  ? {
-                      currency: editingEmployee.compensation.currency,
-                      baseSalary: Number(editingEmployee.compensation.baseSalary),
-                    }
-                  : undefined,
-              }
-            : undefined
-        }
+        employee={editingEmployee}
         departments={departments}
+        grades={gradesQuery.data?.data ?? []}
+        templates={templatesQuery.data?.data ?? []}
+        supervisors={employees}
         positionOptions={positionOptions}
-        jobGrades={gradesQuery.data?.data ?? []}
-        compensationTemplates={templatesQuery.data?.data ?? []}
-        onSubmit={(values) => {
-          if (editingEmployee) {
-            updateMutation.mutate({ id: editingEmployee.id, values });
+        onSaved={async (values, isEdit) => {
+          if (isEdit && editingEmployee) {
+            await updateMutation.mutateAsync({ id: editingEmployee.id, values });
           } else {
-            createMutation.mutate(values);
+            await createMutation.mutateAsync(values);
           }
         }}
-        submitting={createMutation.isPending || updateMutation.isPending}
       />
 
       {/* Delete confirmation dialog */}
