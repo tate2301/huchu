@@ -10,7 +10,7 @@ import { ArrowRight, FileText, Plus } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import {
@@ -475,9 +475,9 @@ export default function DisbursementsPage() {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "PAID" ? "success" : "warning"}>
+          <BkState tone={row.original.status === "PAID" ? "success" : "warning"}>
             {row.original.status}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -613,9 +613,9 @@ export default function DisbursementsPage() {
         header: "Status",
         accessorKey: "status",
         cell: ({ row }) => (
-          <Badge variant={row.original.status === "PAID" ? "success" : "warning"}>
+          <BkState tone={row.original.status === "PAID" ? "success" : "warning"}>
             {row.original.status}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -956,9 +956,9 @@ export default function DisbursementsPage() {
                         />
                       </div>
                       <div className="flex items-center justify-end gap-2">
-                        <Badge variant={state === "PAID" ? "success" : state === "PARTIAL" ? "warning" : "neutral"}>
+                        <BkState tone={state === "PAID" ? "success" : state === "PARTIAL" ? "warning" : "plain"}>
                           {state}
-                        </Badge>
+                        </BkState>
                         <Button
                           type="button"
                           size="sm"

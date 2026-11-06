@@ -9,7 +9,7 @@ import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { RecordMark } from "@/components/records/record-mark"
 import { PeopleShell } from "@/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
+import { BkState } from "@/components/books/bk-list"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -593,9 +593,9 @@ export default function HrShiftGroupsPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+          <BkState tone={row.original.isActive ? "success" : "plain"}>
             {row.original.isActive ? "Active" : "Inactive"}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -1063,9 +1063,9 @@ export default function HrShiftGroupsPage() {
                         <span className="font-mono text-sm text-muted-foreground">{member.employeeId}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={member.id === groupForm.leaderEmployeeId ? "default" : "secondary"}>
+                        <BkState tone={member.id === groupForm.leaderEmployeeId ? "info" : "plain"}>
                           {member.id === groupForm.leaderEmployeeId ? "Leader" : "Member"}
-                        </Badge>
+                        </BkState>
                         <Button
                           type="button"
                           size="sm"

@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
   Alert,
-  Badge,
   Button,
   Drawer,
   Field,
@@ -16,6 +15,8 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { BkState } from "@/components/books/bk-list";
+import { RecordMark } from "@/components/records/record-mark";
 import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -244,10 +245,13 @@ export function UsersPreferences() {
         render: (row) => (
           <Link
             href={`/preferences/organization/users/${row.id}`}
-            className="block underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text)]"
+            className="flex items-center gap-2.5 underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text)]"
           >
-            <div>{row.name}</div>
-            <div className="t-caption t-muted">{row.email}</div>
+            <RecordMark kind="person" name={row.name} size="sm" />
+            <div>
+              <div>{row.name}</div>
+              <div className="t-caption t-muted">{row.email}</div>
+            </div>
           </Link>
         ),
       },
@@ -255,16 +259,16 @@ export function UsersPreferences() {
         key: "role",
         header: "Role",
         width: "12rem",
-        render: (row) => <Badge tone="outline">{row.role}</Badge>,
+        render: (row) => <span className="font-mono text-xs uppercase text-[var(--color-ink-2)]">{row.role}</span>,
       },
       {
         key: "status",
         header: "Status",
         width: "8rem",
         render: (row) => (
-          <Badge tone={row.isActive ? "success" : "outline"}>
+          <BkState tone={row.isActive ? "success" : "plain"}>
             {row.isActive ? "Active" : "Inactive"}
-          </Badge>
+          </BkState>
         ),
       },
       {

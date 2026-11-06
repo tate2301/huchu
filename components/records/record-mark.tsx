@@ -23,6 +23,7 @@ import {
 } from "@/components/books/icons/glyphs";
 import type { LucideIcon } from "@/lib/icons";
 import { recordAccent } from "@/lib/ui/record-accent";
+import { cn } from "@/lib/utils";
 
 /**
  * The mark that stands for a record in a list, a card or a page header.
@@ -158,18 +159,18 @@ export function RecordMark({
         size={AVATAR_SIZE[size]}
         src={avatarUrl}
         name={name ?? undefined}
-        className={className}
+        className={cn("rounded-full", className)}
       />
     );
   }
 
-  if (isPerson) {
+  if (isPerson || (name && !emoji)) {
     return (
       <Avatar
         size={AVATAR_SIZE[size]}
         name={name || "?"}
         accent={hue}
-        className={className}
+        className={cn("rounded-full", className)}
       />
     );
   }
@@ -178,7 +179,7 @@ export function RecordMark({
     <IconTile
       accent={hue}
       size={TILE_SIZE[size]}
-      className={className}
+      className={cn("rounded-full [&]:rounded-full", className)}
       role={emoji ? "img" : undefined}
       aria-label={emoji ? (name ?? undefined) : undefined}
     >

@@ -15,7 +15,7 @@ import { RecordMark } from "@/components/records/record-mark";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import {
@@ -102,13 +102,13 @@ type CrewStatusState = {
   overtime: string;
 };
 
-const STATUS_TONE: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  PRESENT: "default",
-  LATE: "secondary",
-  ABSENT: "destructive",
-  ON_LEAVE: "outline",
-  REST_DAY: "outline",
-  HOLIDAY: "outline",
+const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "plain"> = {
+  PRESENT: "success",
+  LATE: "warning",
+  ABSENT: "danger",
+  ON_LEAVE: "plain",
+  REST_DAY: "plain",
+  HOLIDAY: "plain",
 };
 
 function today() {
@@ -408,10 +408,10 @@ export default function AttendancePage() {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={STATUS_TONE[row.original.status] ?? "outline"}>
+          <BkState tone={STATUS_TONE[row.original.status] ?? "plain"}>
             {ATTENDANCE_STATUS_LABELS[row.original.status as AttendanceStatus] ??
               row.original.status}
-          </Badge>
+          </BkState>
         ),
       },
       {

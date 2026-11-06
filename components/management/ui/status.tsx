@@ -53,7 +53,7 @@ export function StatusBadge({
   if (context === "header" && tone === "success") return null;
 
   return (
-    <span data-tone={tone} className={cn(styles.statusBadge, className)}>
+    <span data-tone={tone} className={cn(styles.statusDot, className)}>
       {children}
     </span>
   );

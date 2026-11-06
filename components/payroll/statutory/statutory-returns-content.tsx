@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -227,11 +227,11 @@ export function StatutoryReturnsContent() {
                   Reconciliation against the ledger
                 </h2>
                 {!data.reconciliation.ledgerAvailable ? (
-                  <Badge variant="outline">Not checked</Badge>
+                  <BkState tone="plain">Not checked</BkState>
                 ) : data.reconciliation.reconciled ? (
-                  <Badge variant="secondary">Agrees</Badge>
+                  <BkState tone="success">Agrees</BkState>
                 ) : (
-                  <Badge variant="destructive">Does not agree</Badge>
+                  <BkState tone="danger">Does not agree</BkState>
                 )}
               </div>
               {data.reconciliation.ledgerAvailable ? (
@@ -263,9 +263,9 @@ export function StatutoryReturnsContent() {
                             {line.reconciled ? (
                               <span className="text-muted-foreground">—</span>
                             ) : (
-                              <Badge variant="destructive">
+                              <span className="font-mono text-sm font-medium text-[var(--color-danger)]">
                                 {money(line.difference)}
-                              </Badge>
+                              </span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -334,7 +334,7 @@ export function StatutoryReturnsContent() {
                           </TableCell>
                           <TableCell className="tabular-nums">
                             {row.taxNumber ?? (
-                              <Badge variant="destructive">Missing</Badge>
+                              <BkState tone="danger">Missing</BkState>
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
@@ -398,7 +398,7 @@ export function StatutoryReturnsContent() {
                           </TableCell>
                           <TableCell className="tabular-nums">
                             {row.nssaNumber ?? (
-                              <Badge variant="destructive">Missing</Badge>
+                              <BkState tone="danger">Missing</BkState>
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">

@@ -19,29 +19,6 @@ import { ColumnsMenu, GroupByMenu, SortMenu } from "./toolbar-menus";
 import type { RegisterHandle } from "./use-register";
 import { ViewsMenu } from "./views-menu";
 import { CrmFinding } from "@/components/crm/crm-finding";
-import {
-  ci_alert,
-  ci_apps,
-  ci_calendar_clock,
-  ci_check_circle,
-  ci_pipeline,
-  ci_table,
-  ci_user,
-  ci_x_circle,
-} from "@/components/books/icons/glyphs";
-import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
-
-function getViewGlyph(name: string) {
-  const lower = name.toLowerCase();
-  if (lower.includes("all")) return ci_apps;
-  if (lower.includes("my") || lower.includes("mine")) return ci_user;
-  if (lower.includes("won") || lower.includes("done") || lower.includes("complete")) return ci_check_circle;
-  if (lower.includes("lost") || lower.includes("archived")) return ci_x_circle;
-  if (lower.includes("pipeline") || lower.includes("open") || lower.includes("deal")) return ci_pipeline;
-  if (lower.includes("scheduled") || lower.includes("upcoming")) return ci_calendar_clock;
-  if (lower.includes("urgent") || lower.includes("overdue") || lower.includes("attention")) return ci_alert;
-  return ci_table;
-}
 
 /** The list's search box, for `/` to find. */
 function searchInputId(def: RegisterDef): string {
@@ -138,7 +115,6 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
         <div className="crm-bk-tabs" role="tablist" aria-label={`${def.noun.many} views`}>
           {register.views.map((v) => {
             const active = register.view.key === v.key;
-            const glyph = getViewGlyph(v.name);
             return (
               <button
                 key={v.key}
@@ -148,7 +124,6 @@ export function RegisterToolbar({ register, display }: { register: RegisterHandl
                 className="crm-bk-tab"
                 onClick={() => register.applyView(v)}
               >
-                <CiGlyphIcon glyph={glyph} size={16} className="shrink-0" />
                 <span>{v.name}</span>
                 {active && register.count ? (
                   <span className="n">{register.count.total.toLocaleString("en-US")}</span>
