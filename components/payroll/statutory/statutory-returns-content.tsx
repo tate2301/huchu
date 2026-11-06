@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BkState } from "@/components/books/bk-list";
-import { Button } from "@/components/ui/button";
+import { Button, Kit, KitScreen, Person, TableShell } from "@/components/core";
 import {
   Select,
   SelectContent,
@@ -16,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
@@ -167,7 +165,9 @@ export function StatutoryReturnsContent() {
         </Select>
       }
     >
-      <div className="flex flex-col gap-4">
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {query.isPending ? (
           <>
             <Skeleton className="h-20 w-full" />
@@ -229,44 +229,44 @@ export function StatutoryReturnsContent() {
                 )}
               </div>
               {data.reconciliation.ledgerAvailable ? (
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Liability</TableHead>
-                        <TableHead>Account</TableHead>
-                        <TableHead className="text-right">Return</TableHead>
-                        <TableHead className="text-right">Ledger</TableHead>
-                        <TableHead className="text-right">Difference</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label="Ledger reconciliation">
+                  <table className="table" aria-label="Ledger reconciliation">
+                    <thead>
+                      <tr>
+                        <th>Liability</th>
+                        <th>Account</th>
+                        <th className="num">Return</th>
+                        <th className="num">Ledger</th>
+                        <th className="num">Difference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {data.reconciliation.lines.map((line) => (
-                        <TableRow key={line.accountCode + line.label}>
-                          <TableCell className="font-medium">{line.label}</TableCell>
-                          <TableCell className="tabular-nums text-muted-foreground">
+                        <tr key={line.accountCode + line.label}>
+                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>{line.label}</td>
+                          <td className="mono" style={{ fontSize: 13, color: "var(--color-muted)" }}>
                             {line.accountCode}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(line.returnAmountBase)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(line.ledgerAmountBase)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {line.reconciled ? (
-                              <span className="text-muted-foreground">—</span>
+                              <span className="muted">—</span>
                             ) : (
-                              <span className="font-mono text-sm font-medium text-[var(--color-danger)]">
+                              <span style={{ fontWeight: 600, color: "var(--color-danger)" }}>
                                 {money(line.difference)}
                               </span>
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               ) : null}
             </div>
 
@@ -324,55 +324,55 @@ export function StatutoryReturnsContent() {
                   ))}
                 </dl>
 
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee ID</TableHead>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Tax (BP) number</TableHead>
-                        <TableHead className="text-right">Gross</TableHead>
-                        <TableHead className="text-right">Taxable</TableHead>
-                        <TableHead className="text-right">PAYE</TableHead>
-                        <TableHead className="text-right">AIDS levy</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label={`P2 Schedule ${p2.currency}`}>
+                  <table className="table" aria-label={`P2 PAYE schedule ${p2.currency}`}>
+                    <thead>
+                      <tr>
+                        <th>Employee ID</th>
+                        <th>Employee</th>
+                        <th>Tax (BP) number</th>
+                        <th className="num">Gross</th>
+                        <th className="num">Taxable</th>
+                        <th className="num">PAYE</th>
+                        <th className="num">AIDS levy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {p2.schedule.map((row) => (
-                        <TableRow key={row.employeeId}>
-                          <TableCell className="font-mono text-sm text-[var(--color-ink-2)]">
+                        <tr key={row.employeeId}>
+                          <td className="mono" style={{ fontSize: 13 }}>
                             {row.employeeNumber}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <RecordMark kind="person" name={row.name} size="sm" />
-                              <span className="truncate font-medium text-[var(--color-ink)]">
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Person name={row.name} />
+                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                                 {row.name}
                               </span>
                             </div>
-                          </TableCell>
-                          <TableCell className="tabular-nums">
+                          </td>
+                          <td className="num">
                             {row.taxNumber ?? (
                               <BkState tone="danger">Missing</BkState>
                             )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.grossEmoluments)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.taxableEmoluments)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
                             {money(row.payeDeducted)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.aidsLevy)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               </div>
             ))}
 
@@ -411,62 +411,62 @@ export function StatutoryReturnsContent() {
                     {data.canFile ? "Export" : "Cannot file yet"}
                   </Button>
                 </div>
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee ID</TableHead>
-                        <TableHead>Member</TableHead>
-                        <TableHead>NSSA number</TableHead>
-                        <TableHead className="text-right">
-                          Insurable earnings
-                        </TableHead>
-                        <TableHead className="text-right">Employee</TableHead>
-                        <TableHead className="text-right">Employer</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label={`NSSA Schedule ${nssa.currency}`}>
+                  <table className="table" aria-label={`NSSA schedule ${nssa.currency}`}>
+                    <thead>
+                      <tr>
+                        <th>Employee ID</th>
+                        <th>Member</th>
+                        <th>NSSA number</th>
+                        <th className="num">Insurable earnings</th>
+                        <th className="num">Employee</th>
+                        <th className="num">Employer</th>
+                        <th className="num">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {nssa.schedule.map((row) => (
-                        <TableRow key={row.employeeId}>
-                          <TableCell className="font-mono text-sm text-[var(--color-ink-2)]">
+                        <tr key={row.employeeId}>
+                          <td className="mono" style={{ fontSize: 13 }}>
                             {row.employeeNumber}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <RecordMark kind="person" name={row.name} size="sm" />
-                              <span className="truncate font-medium text-[var(--color-ink)]">
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Person name={row.name} />
+                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                                 {row.name}
                               </span>
                             </div>
-                          </TableCell>
-                          <TableCell className="tabular-nums">
+                          </td>
+                          <td className="num">
                             {row.nssaNumber ?? (
                               <BkState tone="danger">Missing</BkState>
                             )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.insurableEarnings)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.employeeContribution)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {money(row.employerContribution)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium tabular-nums">
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
                             {money(row.total)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               </div>
             ))}
           </>
         )}
-      </div>
+          </div>
+        </KitScreen>
+      </Kit>
     </PayrollShell>
   );
 }

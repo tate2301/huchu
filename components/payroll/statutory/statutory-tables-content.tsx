@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BkState } from "@/components/books/bk-list";
+import { Kit, KitScreen, TableShell } from "@/components/core";
 import {
   Select,
   SelectContent,
@@ -14,14 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 /**
@@ -188,7 +181,9 @@ export function StatutoryTablesContent() {
         </Select>
       }
     >
-      <div className="flex flex-col gap-4">
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {query.isPending ? (
           <>
             <Skeleton className="h-24 w-full" />
@@ -240,30 +235,30 @@ export function StatutoryTablesContent() {
                   </h2>
                   <span className="font-mono text-xs uppercase text-[var(--color-ink-3)]">{table.cycle.toLowerCase()}</span>
                 </div>
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Taxable gross</TableHead>
-                        <TableHead className="text-right">Rate</TableHead>
-                        <TableHead className="text-right">Deduct</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label={`PAYE ${table.currency}`}>
+                  <table className="table" aria-label={`PAYE bands ${table.currency}`}>
+                    <thead>
+                      <tr>
+                        <th>Taxable gross</th>
+                        <th className="num">Rate</th>
+                        <th className="num">Deduct</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {table.bands.map((row) => (
-                        <TableRow key={row.lowerBound}>
-                          <TableCell className="font-medium">{band(row)}</TableCell>
-                          <TableCell className="text-right tabular-nums">
+                        <tr key={row.lowerBound}>
+                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>{band(row)}</td>
+                          <td className="num">
                             {Number(row.ratePercent).toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {Number(row.deductAmount).toFixed(2)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
                 {table.source ? (
                   <p className="text-sm text-muted-foreground">{table.source}</p>
                 ) : null}
@@ -279,53 +274,55 @@ export function StatutoryTablesContent() {
                   No rates cover this month. A payroll run will refuse.
                 </p>
               ) : (
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Levy</TableHead>
-                        <TableHead>Currency</TableHead>
-                        <TableHead className="text-right">Rate</TableHead>
-                        <TableHead className="text-right">Ceiling</TableHead>
-                        <TableHead>Charged on</TableHead>
-                        <TableHead>From</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label="Levies & contributions">
+                  <table className="table" aria-label="Levies and contributions">
+                    <thead>
+                      <tr>
+                        <th>Levy</th>
+                        <th>Currency</th>
+                        <th className="num">Rate</th>
+                        <th className="num">Ceiling</th>
+                        <th>Charged on</th>
+                        <th>From</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {data.rates.map((rate) => (
-                        <TableRow key={rate.id}>
-                          <TableCell className="font-medium">
-                            <span className="flex items-center gap-2">
-                              {RATE_LABELS[rate.key] ?? rate.key}
+                        <tr key={rate.id}>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                                {RATE_LABELS[rate.key] ?? rate.key}
+                              </span>
                               {rate.isSeeded ? (
                                 <BkState tone="plain">Seeded</BkState>
                               ) : null}
-                            </span>
-                          </TableCell>
-                          <TableCell>
+                            </div>
+                          </td>
+                          <td>
                             {rate.currency ?? (
-                              <span className="text-muted-foreground">Any</span>
+                              <span className="muted">Any</span>
                             )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {Number(rate.ratePercent).toFixed(2)}%
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {rate.ceilingAmount
                               ? Number(rate.ceilingAmount).toLocaleString()
                               : "—"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
                             {RATE_BASIS[rate.key] ?? ""}
-                          </TableCell>
-                          <TableCell className="tabular-nums">
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
                             {day(rate.effectiveFrom)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               )}
             </div>
 
@@ -338,36 +335,36 @@ export function StatutoryTablesContent() {
                   No credits on file for this month.
                 </p>
               ) : (
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Credit</TableHead>
-                        <TableHead>Currency</TableHead>
-                        <TableHead className="text-right">Worth</TableHead>
-                        <TableHead>From</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label="Tax credits">
+                  <table className="table" aria-label="Tax credits">
+                    <thead>
+                      <tr>
+                        <th>Credit</th>
+                        <th>Currency</th>
+                        <th className="num">Worth</th>
+                        <th>From</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {data.credits.map((credit) => (
-                        <TableRow key={credit.id}>
-                          <TableCell className="font-medium">
+                        <tr key={credit.id}>
+                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                             {CREDIT_LABELS[credit.key] ?? credit.key}
-                          </TableCell>
-                          <TableCell>{credit.currency}</TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td>{credit.currency}</td>
+                          <td className="num">
                             {credit.ratePercent
                               ? `${Number(credit.ratePercent).toFixed(2)}% of contributions`
                               : Number(credit.amount ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="tabular-nums">
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
                             {day(credit.effectiveFrom)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               )}
             </div>
 
@@ -381,47 +378,49 @@ export function StatutoryTablesContent() {
                   dues so they appear on payslips and in the returns.
                 </p>
               ) : (
-                <div className="overflow-x-auto border-y border-[var(--color-line)]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Council</TableHead>
-                        <TableHead>Currency</TableHead>
-                        <TableHead className="text-right">Employee</TableHead>
-                        <TableHead className="text-right">Employer</TableHead>
-                        <TableHead>From</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <TableShell label="NEC agreement">
+                  <table className="table" aria-label="NEC agreement">
+                    <thead>
+                      <tr>
+                        <th>Council</th>
+                        <th>Currency</th>
+                        <th className="num">Employee</th>
+                        <th className="num">Employer</th>
+                        <th>From</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {data.necAgreements.map((nec) => (
-                        <TableRow key={nec.id}>
-                          <TableCell className="font-medium">
+                        <tr key={nec.id}>
+                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                             {nec.councilName}
-                          </TableCell>
-                          <TableCell>{nec.currency}</TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td>{nec.currency}</td>
+                          <td className="num">
                             {nec.employeeRatePercent
                               ? `${Number(nec.employeeRatePercent).toFixed(2)}%`
                               : Number(nec.employeeFixedAmount ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
+                          </td>
+                          <td className="num">
                             {nec.employerRatePercent
                               ? `${Number(nec.employerRatePercent).toFixed(2)}%`
                               : Number(nec.employerFixedAmount ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="tabular-nums">
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
                             {day(nec.effectiveFrom)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    </tbody>
+                  </table>
+                </TableShell>
               )}
             </div>
           </>
         )}
-      </div>
+          </div>
+        </KitScreen>
+      </Kit>
     </PayrollShell>
   );
 }

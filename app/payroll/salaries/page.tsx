@@ -1,563 +1,425 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useMemo, useState } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
-import { useQuery } from "@tanstack/react-query"
-import { format } from "date-fns"
-import { ArrowRight } from "@/lib/icons"
-import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { RecordMark } from "@/components/records/record-mark";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BkState } from "@/components/books/bk-list"
-import { Button } from "@/components/ui/button"
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
-import { NumericCell } from "@/components/ui/numeric-cell"
-import { Skeleton } from "@/components/ui/skeleton"
-import { VerticalDataViews } from "@/components/ui/vertical-data-views"
+import * as React from "react";
+import Link from "next/link";
+import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+
 import {
-  type DisbursementBatchRecord,
-  type EmployeePayment,
-  type PayrollPeriodRecord,
-  type PayrollRunRecord,
+  BkQuietTools,
+  BkState,
+  BkTabs,
+  BkTools,
+  downloadCsv,
+} from "@/components/books/bk-list";
+import {
+  Button,
+  Kit,
+  KitScreen,
+  Person,
+  SelectCell,
+  TableFoot,
+  TableShell,
+  useSelection,
+} from "@/components/core";
+import { PayrollShell } from "@/components/payroll/payroll-shell";
+import {
   fetchDisbursementBatches,
   fetchEmployeePayments,
-  fetchPayrollPeriods,
   fetchPayrollRuns,
-} from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+  type DisbursementBatchRecord,
+  type EmployeePayment,
+  type PayrollRunRecord,
+} from "@/lib/api";
+import { money } from "@/lib/books/format";
+
+type SalaryTab = "awaiting" | "batches" | "lines";
 
 export default function HrSalariesPage() {
-  const [activeView, setActiveView] = useState<"periods" | "awaiting" | "batches" | "lines">("periods")
-  const [periodsQuery, setPeriodsQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  })
-  const [awaitingQuery, setAwaitingQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  })
-  const [batchesQuery, setBatchesQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  })
-  const [linesQuery, setLinesQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  })
-  const { data: periodsData, isLoading: periodsLoading, error: periodsError } = useQuery({
-    queryKey: ["payroll-periods", "salary-ops"],
-    queryFn: () => fetchPayrollPeriods({ limit: 200 }),
-  })
+  const [tab, setTab] = React.useState<SalaryTab>("awaiting");
+  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
 
-  const { data: runsData, isLoading: runsLoading, error: runsError } = useQuery({
-    queryKey: ["payroll-runs", "salary-approved"],
-    queryFn: () => fetchPayrollRuns({ status: "APPROVED", limit: 200 }),
-  })
+  const { data: runsData } = useQuery({
+    queryKey: ["payroll-runs", "salary-ops"],
+    queryFn: () => fetchPayrollRuns({ limit: 200 }),
+  });
+  const runs = React.useMemo(() => runsData?.data ?? [], [runsData]);
 
-  const { data: batchesData, isLoading: batchesLoading, error: batchesError } = useQuery({
+  const awaitingRuns = React.useMemo(
+    () => runs.filter((r) => r.status === "APPROVED"),
+    [runs]
+  );
+
+  const { data: batchesData } = useQuery({
     queryKey: ["disbursement-batches", "salary-ops"],
-    queryFn: () => fetchDisbursementBatches({ limit: 500 }),
-  })
+    queryFn: () => fetchDisbursementBatches({ limit: 100 }),
+  });
+  const batches = React.useMemo(() => batchesData?.data ?? [], [batchesData]);
 
-  const { data: paidPaymentsData, isLoading: paidPaymentsLoading, error: paidPaymentsError } =
-    useQuery({
-      queryKey: ["employee-payments", "salary-paid"],
-      queryFn: () => fetchEmployeePayments({ type: "SALARY", status: "PAID", limit: 1000 }),
-    })
+  const { data: paymentsData } = useQuery({
+    queryKey: ["employee-payments", "salary-ops"],
+    queryFn: () => fetchEmployeePayments({ limit: 250 }),
+  });
+  const payments = React.useMemo(() => paymentsData?.data ?? [], [paymentsData]);
 
-  const periods = useMemo(() => periodsData?.data ?? [], [periodsData])
-  const approvedRuns = useMemo(() => runsData?.data ?? [], [runsData])
-  const allBatches = useMemo(() => batchesData?.data ?? [], [batchesData])
-  const paidPayments = useMemo(() => paidPaymentsData?.data ?? [], [paidPaymentsData])
+  // Filtering
+  const filteredAwaiting = React.useMemo(() => {
+    let list = [...awaitingRuns];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) => String(r.runNumber).includes(q) || r.status.toLowerCase().includes(q));
+    }
+    return list;
+  }, [awaitingRuns, search]);
 
-  const salaryBatches = useMemo(
-    () => allBatches,
-    [allBatches],
-  )
-  const paidSalaryBatches = useMemo(
-    () => salaryBatches.filter((batch) => batch.status === "PAID"),
-    [salaryBatches],
-  )
+  const filteredBatches = React.useMemo(() => {
+    let list = [...batches];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((b) => b.batchNumber.toLowerCase().includes(q) || b.status.toLowerCase().includes(q));
+    }
+    return list;
+  }, [batches, search]);
 
-  const blockedRunIds = useMemo(
-    () =>
-      new Set(
-        salaryBatches
-          .filter((batch) => batch.status !== "REJECTED")
-          .map((batch) => batch.payrollRunId),
-      ),
-    [salaryBatches],
-  )
+  const filteredPayments = React.useMemo(() => {
+    let list = [...payments];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((p) => p.employee.name.toLowerCase().includes(q) || p.employee.employeeId.toLowerCase().includes(q));
+    }
+    return list;
+  }, [payments, search]);
 
-  const runsAwaitingDisbursement = useMemo(
-    () => approvedRuns.filter((run) => !blockedRunIds.has(run.id)),
-    [approvedRuns, blockedRunIds],
-  )
+  const activeItems =
+    tab === "awaiting"
+      ? filteredAwaiting
+      : tab === "batches"
+      ? filteredBatches
+      : filteredPayments;
 
-  const upcomingPeriods = useMemo(() => {
-    const now = new Date()
-    return periods
-      .filter((period) => new Date(period.endDate) >= now)
-      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-      .slice(0, 12)
-  }, [periods])
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, activeItems.length);
+  const pagedItems = React.useMemo(
+    () => activeItems.slice((page - 1) * pageSize, page * pageSize),
+    [activeItems, page, pageSize]
+  );
 
-  const recentPaidLines = useMemo(
-    () =>
-      [...paidPayments]
-        .sort((a, b) => {
-          const left = a.paidAt ? new Date(a.paidAt).getTime() : 0
-          const right = b.paidAt ? new Date(b.paidAt).getTime() : 0
-          return right - left
-        })
-        .slice(0, 20),
-    [paidPayments],
-  )
+  const ids = React.useMemo(() => pagedItems.map((item) => item.id), [pagedItems]);
+  const selection = useSelection(ids);
 
-  const periodColumns = useMemo<ColumnDef<PayrollPeriodRecord>[]>(
-    () => [
-      {
-        id: "period",
-        header: "Period",
-        accessorKey: "periodKey",
-        cell: ({ row }) => <NumericCell align="left">{row.original.periodKey}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "window",
-        header: "Window",
-        accessorFn: (row) => `${row.startDate} ${row.endDate}`,
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {format(new Date(row.original.startDate), "yyyy-MM-dd")} to{" "}
-            {format(new Date(row.original.endDate), "yyyy-MM-dd")}
-          </NumericCell>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "dueDate",
-        header: "Due Date",
-        accessorKey: "dueDate",
-        cell: ({ row }) => (
-          <NumericCell align="left">{format(new Date(row.original.dueDate), "yyyy-MM-dd")}</NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "status",
-        header: "Status",
-        accessorKey: "status",
-        cell: ({ row }) => (
-          <BkState tone={row.original.status === "APPROVED" ? "success" : "warning"}>
-            {row.original.status}
-          </BkState>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "source",
-        header: "Source",
-        accessorFn: (row) => (row.isAutoGenerated ? "Auto" : "Manual"),
-        cell: ({ row }) => (
-          <BkState tone={row.original.isAutoGenerated ? "info" : "plain"}>
-            {row.original.isAutoGenerated ? "Auto" : "Manual"}
-          </BkState>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-    ],
-    [],
-  )
+  const handleExportCsv = () => {
+    if (tab === "awaiting") {
+      const csv = [
+        ["Run #", "Date", "Status", "Net Total"],
+        ...filteredAwaiting.map((r) => [String(r.runNumber), r.createdAt.slice(0, 10), r.status, String(r.netTotal)]),
+      ];
+      downloadCsv(`awaiting-payouts-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    } else if (tab === "batches") {
+      const csv = [
+        ["Batch Number", "Date", "Status", "Total Amount"],
+        ...filteredBatches.map((b) => [b.batchNumber, b.createdAt.slice(0, 10), b.status, String(b.totalAmount)]),
+      ];
+      downloadCsv(`disbursement-batches-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    } else {
+      const csv = [
+        ["Employee", "ID", "Amount", "Status", "Date"],
+        ...filteredPayments.map((p) => [p.employee.name, p.employee.employeeId, String(p.netAmount), p.status, p.createdAt.slice(0, 10)]),
+      ];
+      downloadCsv(`employee-payout-lines-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    }
+  };
 
-  const awaitingColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
-    () => [
-      {
-        id: "run",
-        header: "Run",
-        accessorFn: (row) => row.runNumber,
-        cell: ({ row }) => <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>,
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "period",
-        header: "Period",
-        accessorFn: (row) => row.period.periodKey,
-        cell: ({ row }) => row.original.period.periodKey,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "status",
-        header: "Status",
-        accessorKey: "status",
-        cell: ({ row }) => <BkState tone={row.original.status === "APPROVED" ? "success" : "warning"}>{row.original.status}</BkState>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "netTotal",
-        header: "Net Total",
-        accessorKey: "netTotal",
-        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "action",
-        header: "",
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button asChild size="sm">
-              <Link href={`/payroll/disbursements?runId=${row.original.id}`}>
-                Disburse
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </div>
-        ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
-    ],
-    [],
-  )
-
-  const batchColumns = useMemo<ColumnDef<DisbursementBatchRecord>[]>(
-    () => [
-      {
-        id: "batch",
-        header: "Batch",
-        accessorKey: "code",
-        cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
-        size: 112,
-        minSize: 112,
-        maxSize: 112},
-      {
-        id: "run",
-        header: "Run",
-        accessorFn: (row) => row.payrollRun.runNumber,
-        cell: ({ row }) => <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>,
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "period",
-        header: "Period",
-        accessorFn: (row) => row.payrollRun.period?.periodKey ?? "",
-        cell: ({ row }) => row.original.payrollRun.period?.periodKey ?? "-",
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "amount",
-        header: "Amount",
-        accessorKey: "totalAmount",
-        cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "paidAt",
-        header: "Paid At",
-        accessorFn: (row) => row.paidAt ?? "",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "items",
-        header: "Items",
-        accessorKey: "itemCount",
-        cell: ({ row }) => <NumericCell>{row.original.itemCount}</NumericCell>,
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "action",
-        header: "",
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/payroll/disbursements?batchId=${row.original.id}`}>View Batch</Link>
-            </Button>
-          </div>
-        ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
-    ],
-    [],
-  )
-
-  const lineColumns = useMemo<ColumnDef<EmployeePayment>[]>(
-    () => [
-      {
-        id: "employeeId",
-        header: "Employee ID",
-        accessorFn: (row) => row.employee.employeeId,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm text-[var(--color-ink-2)]">
-            {row.original.employee.employeeId}
-          </span>
-        ),
-        size: 130,
-        minSize: 110,
-        maxSize: 160},
-      {
-        id: "employee",
-        header: "Employee",
-        accessorFn: (row) => row.employee.name,
-        cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2.5">
-            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
-            <span className="truncate font-medium text-[var(--color-ink)]">
-              {row.original.employee.name}
-            </span>
-          </div>
-        ),
-        size: 200,
-        minSize: 160,
-        maxSize: 280},
-      {
-        id: "period",
-        header: "Period",
-        accessorFn: (row) => `${row.periodStart} ${row.periodEnd}`,
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
-            {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "run",
-        header: "Run",
-        accessorFn: (row) => row.payrollRun?.runNumber ?? 0,
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {row.original.payrollRun ? `#${row.original.payrollRun.runNumber}` : "-"}
-          </NumericCell>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "batch",
-        header: "Batch",
-        accessorFn: (row) => row.disbursementBatch?.code ?? "",
-        cell: ({ row }) => row.original.disbursementBatch?.code ?? "-",
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "amount",
-        header: "Amount",
-        accessorFn: (row) => row.amount,
-        cell: ({ row }) => <NumericCell>{row.original.unit} {row.original.amount.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "paidAmount",
-        header: "Paid Amount",
-        accessorFn: (row) => row.paidAmount ?? 0,
-        cell: ({ row }) => (
-          <NumericCell>{row.original.unit} {(row.original.paidAmount ?? 0).toFixed(2)}</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "paidAt",
-        header: "Paid At",
-        accessorFn: (row) => row.paidAt ?? "",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-    ],
-    [],
-  )
+  const totalSum = React.useMemo(() => {
+    if (tab === "awaiting") return filteredAwaiting.reduce((s, r) => s + r.netTotal, 0);
+    if (tab === "batches") return filteredBatches.reduce((s, b) => s + Number(b.totalAmount), 0);
+    return filteredPayments.reduce((s, p) => s + Number(p.netAmount), 0);
+  }, [tab, filteredAwaiting, filteredBatches, filteredPayments]);
 
   return (
     <PayrollShell
       activeTab="salaries"
-      title="Salary Operations"
+      title="Salary Payments & Payout Operations"
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/payroll/runs">
-              Open Salary Payroll
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/payroll/disbursements">
-              Open Disbursements
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/payroll/salaries/outstanding">
-              Outstanding Salaries
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </div>
+        <Button asChild variant="primary">
+          <Link href="/payroll/disbursements">Go to disbursements</Link>
+        </Button>
       }
     >
-      {(periodsError || runsError || batchesError || paidPaymentsError) && (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load salary operations</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(periodsError || runsError || batchesError || paidPaymentsError)}
-          </AlertDescription>
-        </Alert>
-      )}
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk">
+            {/* TABS */}
+            <BkTabs
+              label="Salary views"
+              value={tab}
+              onChange={(next) => {
+                setTab(next);
+                setPage(1);
+                selection.clear();
+              }}
+              items={[
+                { value: "awaiting", label: "Awaiting payout", count: awaitingRuns.length },
+                { value: "batches", label: "Disbursement batches", count: batches.length },
+                { value: "lines", label: "Employee lines", count: payments.length },
+              ]}
+            />
 
-      <VerticalDataViews
-        items={[
-          { id: "periods", label: "Upcoming Periods", count: upcomingPeriods.length },
-          { id: "awaiting", label: "Awaiting Disbursement", count: runsAwaitingDisbursement.length },
-          { id: "batches", label: "Paid Batches", count: paidSalaryBatches.length },
-          { id: "lines", label: "Paid Lines", count: recentPaidLines.length },
-        ]}
-        value={activeView}
-        onValueChange={(value) => setActiveView(value as "periods" | "awaiting" | "batches" | "lines")}
-        railLabel="Salary Views"
-      >
-        {activeView === "periods" ? (
-          <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Upcoming Salary Periods
-              </h2>
-            </header>
-            {periodsLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : upcomingPeriods.length === 0 ? (
-              <div className="section-shell text-sm text-muted-foreground">No upcoming salary periods.</div>
-            ) : (
-              <DataTable
-                data={upcomingPeriods}
-                columns={periodColumns}
-                queryState={periodsQuery}
-                onQueryStateChange={(next) => setPeriodsQuery((prev) => ({ ...prev, ...next }))}
-                searchPlaceholder="Search periods"
-                searchSubmitLabel="Search"
-                tableClassName="text-sm"
-                pagination={{ enabled: true }}
-              />
-            )}
-          </section>
-        ) : null}
+            {/* TOOLBAR */}
+            <BkTools
+              find="Search payouts by batch, employee, run..."
+              query={search}
+              onFind={(q) => {
+                setSearch(q);
+                setPage(1);
+              }}
+              count={`${activeItems.length} records`}
+              end={<BkQuietTools onExport={handleExportCsv} />}
+            />
 
-        {activeView === "awaiting" ? (
-          <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Approved Salary Runs Awaiting Disbursement
-              </h2>
-            </header>
-            {runsLoading || batchesLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : runsAwaitingDisbursement.length === 0 ? (
-              <div className="section-shell text-sm text-muted-foreground">
-                No approved salary runs are waiting for disbursement.
-              </div>
-            ) : (
-              <DataTable
-                data={runsAwaitingDisbursement}
-                columns={awaitingColumns}
-                queryState={awaitingQuery}
-                onQueryStateChange={(next) => setAwaitingQuery((prev) => ({ ...prev, ...next }))}
-                searchPlaceholder="Search approved runs"
-                searchSubmitLabel="Search"
-                tableClassName="text-sm"
-                pagination={{ enabled: true }}
-              />
-            )}
-          </section>
-        ) : null}
-
-        {activeView === "batches" ? (
-          <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Paid Salary Batch History
-              </h2>
-            </header>
-            {batchesLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : paidSalaryBatches.length === 0 ? (
-              <div className="section-shell text-sm text-muted-foreground">No paid salary batches yet.</div>
-            ) : (
-              <DataTable
-                data={paidSalaryBatches}
-                columns={batchColumns}
-                queryState={batchesQuery}
-                onQueryStateChange={(next) => setBatchesQuery((prev) => ({ ...prev, ...next }))}
-                searchPlaceholder="Search paid batches"
-                searchSubmitLabel="Search"
-                tableClassName="text-sm"
-                pagination={{ enabled: true }}
-              />
-            )}
-          </section>
-        ) : null}
-
-        {activeView === "lines" ? (
-          <section className="space-y-3">
-            <header className="section-shell flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Recent Paid Salary Lines
-              </h2>
-            </header>
-            {paidPaymentsLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : recentPaidLines.length === 0 ? (
-              <div className="section-shell text-sm text-muted-foreground">No paid salary line history yet.</div>
-            ) : (
-              <DataTable
-                data={recentPaidLines}
-                columns={lineColumns}
-                queryState={linesQuery}
-                onQueryStateChange={(next) => setLinesQuery((prev) => ({ ...prev, ...next }))}
-                searchPlaceholder="Search salary line history"
-                searchSubmitLabel="Search"
-                tableClassName="text-sm"
-                pagination={{ enabled: true }}
-              />
-            )}
-          </section>
-        ) : null}
-      </VerticalDataViews>
+            {/* TABLE SHELL */}
+            <TableShell
+              label="Salaries"
+              foot={
+                <TableFoot
+                  range={activeItems.length === 0 ? "None" : `${from} to ${to} of ${activeItems.length}`}
+                  sums={[{ label: "Total Amount", value: money(totalSum, "USD") }]}
+                  page={{
+                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
+                    onNext: to < activeItems.length ? () => setPage((p) => p + 1) : undefined,
+                  }}
+                  selection={{
+                    count: selection.selected.size,
+                    onClear: selection.clear,
+                    actions: (
+                      <Button icon="export" onClick={handleExportCsv}>
+                        Export selected
+                      </Button>
+                    ),
+                  }}
+                />
+              }
+            >
+              {activeItems.length === 0 ? (
+                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+                  <b>No records match</b>
+                  <p className="muted">Approved payroll runs will appear here for payout and bank batching.</p>
+                </div>
+              ) : tab === "awaiting" ? (
+                /* AWAITING RUNS TABLE */
+                <table className="table" aria-label="Awaiting payout">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 180 }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 140 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all runs"
+                      />
+                      <th>Run #</th>
+                      <th>Approved date</th>
+                      <th className="num">Total Payout</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(pagedItems as PayrollRunRecord[]).map((run) => {
+                      const isSelected = selection.isSelected(run.id);
+                      return (
+                        <tr key={run.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(run.id)}
+                            label={`Select Run #${run.runNumber}`}
+                          />
+                          <td>
+                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                              Run #{run.runNumber}
+                            </div>
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
+                            {run.createdAt ? format(new Date(run.createdAt), "dd MMM yyyy HH:mm") : "—"}
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {money(run.netTotal, "USD")}
+                          </td>
+                          <td>
+                            <BkState tone="success">Ready to Disburse</BkState>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <Button asChild size="sm">
+                              <Link href={`/payroll/disbursements?runId=${run.id}`}>
+                                Disburse batch
+                              </Link>
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : tab === "batches" ? (
+                /* BATCHES TABLE */
+                <table className="table" aria-label="Disbursement batches">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 220 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 120 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all batches"
+                      />
+                      <th>Batch Number</th>
+                      <th>Date</th>
+                      <th>Payment method</th>
+                      <th className="num">Total Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(pagedItems as DisbursementBatchRecord[]).map((batch) => {
+                      const isSelected = selection.isSelected(batch.id);
+                      return (
+                        <tr key={batch.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(batch.id)}
+                            label={`Select ${batch.batchNumber}`}
+                          />
+                          <td>
+                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                              {batch.batchNumber}
+                            </div>
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
+                            {format(new Date(batch.createdAt), "dd MMM yyyy")}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 13 }}>{batch.payoutMethod || "Bank Transfer"}</span>
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {money(Number(batch.totalAmount), "USD")}
+                          </td>
+                          <td>
+                            <BkState
+                              tone={
+                                batch.status === "COMPLETED"
+                                  ? "success"
+                                  : batch.status === "PROCESSING"
+                                  ? "info"
+                                  : "warning"
+                              }
+                            >
+                              {batch.status}
+                            </BkState>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                /* EMPLOYEE LINES TABLE */
+                <table className="table" aria-label="Employee payout lines">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 240 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 120 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all employee lines"
+                      />
+                      <th>Employee</th>
+                      <th>Date</th>
+                      <th>Method</th>
+                      <th className="num">Net Pay</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(pagedItems as EmployeePayment[]).map((pmt) => {
+                      const isSelected = selection.isSelected(pmt.id);
+                      return (
+                        <tr key={pmt.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(pmt.id)}
+                            label={`Select payment for ${pmt.employee.name}`}
+                          />
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <Person name={pmt.employee.name} />
+                              <div>
+                                <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                                  {pmt.employee.name}
+                                </span>
+                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                  {pmt.employee.employeeId}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
+                            {format(new Date(pmt.createdAt), "dd MMM yyyy")}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 13 }}>{pmt.payoutMethod || "Bank Payout"}</span>
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {money(Number(pmt.netAmount), "USD")}
+                          </td>
+                          <td>
+                            <BkState
+                              tone={
+                                pmt.status === "PAID"
+                                  ? "success"
+                                  : pmt.status === "FAILED"
+                                  ? "danger"
+                                  : "warning"
+                              }
+                            >
+                              {pmt.status}
+                            </BkState>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </TableShell>
+          </div>
+        </KitScreen>
+      </Kit>
     </PayrollShell>
-  )
+  );
 }

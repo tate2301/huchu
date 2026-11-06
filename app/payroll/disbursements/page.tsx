@@ -1,51 +1,42 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import * as React from "react";
+import { format } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
-import { ArrowRight, FileText, Plus } from "@/lib/icons";
+
+import {
+  BkQuietTools,
+  BkState,
+  BkTabs,
+  BkTools,
+  downloadCsv,
+} from "@/components/books/bk-list";
+import {
+  Button,
+  Drawer,
+  DrawerSection,
+  Field,
+  Input,
+  Kit,
+  KitScreen,
+  Person,
+  SelectCell,
+  TableFoot,
+  TableShell,
+  useSelection,
+} from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { RecordMark } from "@/components/records/record-mark";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BkState } from "@/components/books/bk-list";
-import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WorkflowStep } from "@/components/ui/workflow-step";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  type DisbursementBatchRecord,
   fetchDisbursementBatches,
   fetchPayrollRuns,
-  type PayrollRunRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { money } from "@/lib/books/format";
 
-type BatchForm = {
-  payrollRunId: string;
-  cashCustodian: string;
-  cashIssuedAt: string;
-  notes: string;
-};
+type DisbursementTab = "pending" | "paid" | "all";
 
 type BatchDetails = {
   id: string;
@@ -54,1044 +45,481 @@ type BatchDetails = {
   totalAmount: number;
   itemCount: number;
   notes?: string | null;
-  payrollRun: {
-    id: string;
+  payrollRun?: {
     runNumber: number;
-    period: {
-      id: string;
-      periodKey: string;
-      startDate: string;
-      endDate: string;
-      dueDate: string;
-    };
   };
   items: Array<{
     id: string;
     amount: number;
-    paidAmount?: number | null;
-    status: "DUE" | "PARTIAL" | "PAID";
-    paidAt?: string | null;
-    receiptReference?: string | null;
-    notes?: string | null;
-    employee: { id: string; employeeId: string; name: string };
-    lineItem: {
-      id: string;
-      baseAmount: number;
-      variableAmount: number;
-      allowancesTotal: number;
-      deductionsTotal: number;
-      netAmount: number;
-      currency: string;
-    };
+    employee: { id: string; name: string; employeeId: string };
   }>;
 };
 
-type BatchDetailItem = BatchDetails["items"][number];
-type MarkPaidItemForm = {
-  id: string;
-  employeeName: string;
-  employeeCode: string;
-  amount: number;
-  currency: string;
-  paidAmountInput: string;
-};
-
-const emptyBatchForm: BatchForm = {
-  payrollRunId: "",
-  cashCustodian: "",
-  cashIssuedAt: format(new Date(), "yyyy-MM-dd"),
-  notes: "",
-};
-
-function roundMoney(value: number) {
-  return Math.round(value * 100) / 100;
-}
-
-function derivePaidState(total: number, paid: number) {
-  if (paid <= 0) return "DUE";
-  if (paid >= total) return "PAID";
-  return "PARTIAL";
-}
-
-function hydrateFormFromRun(
-  run: PayrollRunRecord | undefined,
-  current: BatchForm,
-): BatchForm {
-  if (!run) return current;
-  return {
-    ...current,
-    payrollRunId: run.id,
-  };
-}
-
 export default function DisbursementsPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const runIdFromQuery = searchParams.get("runId");
-  const batchIdFromQuery = searchParams.get("batchId");
+  const queryClient = useQueryClient();
 
-  const [batchForm, setBatchForm] = useState<BatchForm>({
-    ...emptyBatchForm,
-    payrollRunId: runIdFromQuery ?? "",
-  });
-  const [isCreateOpen, setIsCreateOpen] = useState(Boolean(runIdFromQuery));
-  const [detailsBatchId, setDetailsBatchId] = useState<string | null>(
-    batchIdFromQuery,
-  );
-  const [markPaidBatch, setMarkPaidBatch] = useState<BatchDetails | null>(null);
-  const [markPaidItems, setMarkPaidItems] = useState<MarkPaidItemForm[]>([]);
-  const [markPaidLoading, setMarkPaidLoading] = useState(false);
-  const [availableRunsQuery, setAvailableRunsQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  });
-  const [batchesQuery, setBatchesQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 10,
-    search: "",
-  });
+  const [tab, setTab] = React.useState<DisbursementTab>("pending");
+  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
 
-  const {
-    data: runsData,
-    isLoading: runsLoading,
-    error: runsError,
-  } = useQuery({
-    queryKey: ["payroll-runs", "approved-for-disbursement"],
-    queryFn: () => fetchPayrollRuns({ status: "APPROVED", limit: 500 }),
-  });
-  const {
-    data: batchesData,
-    isLoading: batchesLoading,
-    error: batchesError,
-  } = useQuery({
+  // Drawer
+  const [createDrawerOpen, setCreateDrawerOpen] = React.useState(false);
+  const [selectedRunId, setSelectedRunId] = React.useState(searchParams.get("runId") || "");
+  const [batchNotes, setBatchNotes] = React.useState("");
+  const [detailsBatchId, setDetailsBatchId] = React.useState<string | null>(null);
+
+  const { data: batchesData } = useQuery({
     queryKey: ["disbursement-batches"],
-    queryFn: () => fetchDisbursementBatches({ limit: 500 }),
+    queryFn: () => fetchDisbursementBatches({ limit: 100 }),
   });
+  const batches = React.useMemo(() => batchesData?.data ?? [], [batchesData]);
 
-  const approvedRuns = useMemo(() => runsData?.data ?? [], [runsData]);
-  const batches = useMemo(() => batchesData?.data ?? [], [batchesData]);
+  const { data: runsData } = useQuery({
+    queryKey: ["payroll-runs", "disbursement-picker"],
+    queryFn: () => fetchPayrollRuns({ limit: 100 }),
+  });
+  const runs = React.useMemo(() => runsData?.data ?? [], [runsData]);
 
-  const blockedRunIds = useMemo(
-    () =>
-      new Set(
-        batches
-          .filter((batch) => batch.status !== "REJECTED")
-          .map((batch) => batch.payrollRunId),
-      ),
-    [batches],
-  );
-  const availableRuns = useMemo(
-    () => approvedRuns.filter((run) => !blockedRunIds.has(run.id)),
-    [approvedRuns, blockedRunIds],
+  const approvedRuns = React.useMemo(
+    () => runs.filter((r) => r.status === "APPROVED"),
+    [runs]
   );
 
-  const selectedRun = useMemo(
-    () => availableRuns.find((run) => run.id === batchForm.payrollRunId),
-    [availableRuns, batchForm.payrollRunId],
-  );
-
-  const previewAmount = useMemo(
-    () => (selectedRun ? roundMoney(selectedRun.netTotal) : 0),
-    [selectedRun],
-  );
-
-  const {
-    data: batchDetails,
-    isLoading: batchDetailsLoading,
-    error: batchDetailsError,
-  } = useQuery({
-    queryKey: ["disbursement-batch-details", detailsBatchId],
-    queryFn: () =>
-      fetchJson<BatchDetails>(`/api/disbursements/batches/${detailsBatchId}`),
+  const { data: batchDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ["disbursement-batch-detail", detailsBatchId],
+    queryFn: () => fetchJson<BatchDetails>(`/api/payroll/disbursements/${detailsBatchId}`),
     enabled: Boolean(detailsBatchId),
   });
 
-  const createBatchMutation = useMutation({
-    mutationFn: async (payload: BatchForm) => {
-      const run = availableRuns.find(
-        (item) => item.id === payload.payrollRunId,
+  // Counts
+  const pendingCount = React.useMemo(
+    () => batches.filter((b) => b.status === "DRAFT" || b.status === "SUBMITTED" || b.status === "PROCESSING").length,
+    [batches]
+  );
+  const paidCount = React.useMemo(
+    () => batches.filter((b) => b.status === "PAID" || b.status === "COMPLETED").length,
+    [batches]
+  );
+
+  // Filtered
+  const filteredBatches = React.useMemo(() => {
+    let list = [...batches];
+    if (tab === "pending") {
+      list = list.filter((b) => b.status !== "PAID" && b.status !== "COMPLETED");
+    } else if (tab === "paid") {
+      list = list.filter((b) => b.status === "PAID" || b.status === "COMPLETED");
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.batchNumber.toLowerCase().includes(q) ||
+          b.status.toLowerCase().includes(q) ||
+          (b.notes && b.notes.toLowerCase().includes(q))
       );
-      if (!run) throw new Error("Selected run is unavailable");
+    }
+    return list;
+  }, [batches, tab, search]);
 
-      const body: Record<string, unknown> = {
-        payrollRunId: payload.payrollRunId,
-        cashCustodian: payload.cashCustodian || undefined,
-        cashIssuedAt: payload.cashIssuedAt || undefined,
-        notes: payload.notes || undefined,
-      };
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, filteredBatches.length);
+  const pagedBatches = React.useMemo(
+    () => filteredBatches.slice((page - 1) * pageSize, page * pageSize),
+    [filteredBatches, page, pageSize]
+  );
 
-      return fetchJson("/api/disbursements/batches", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Disbursement batch created",
-        description: "Batch is ready for submit and approval.",
-        variant: "success",
-      });
-      setIsCreateOpen(false);
-      setBatchForm(emptyBatchForm);
-      queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to create batch",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
+  const ids = React.useMemo(() => pagedBatches.map((b) => b.id), [pagedBatches]);
+  const selection = useSelection(ids);
 
-  const submitBatchMutation = useMutation({
-    mutationFn: async (batchId: string) =>
-      fetchJson(`/api/disbursements/batches/${batchId}/submit`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Batch submitted",
-        description: "Disbursement batch sent for approval.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to submit batch",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const approveBatchMutation = useMutation({
-    mutationFn: async (batchId: string) =>
-      fetchJson(`/api/disbursements/batches/${batchId}/approve`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Batch approved",
-        description: "Run archived and batch ready for payout recording.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Unable to approve batch",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    },
-  });
-
-  const markPaidMutation = useMutation({
-    mutationFn: async (payload: { batchId: string; items: Array<{ id: string; paidAmount: number }> }) =>
-      fetchJson(`/api/disbursements/batches/${payload.batchId}/mark-paid`, {
+  // Mutations
+  const createBatchMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson("/api/payroll/disbursements", {
         method: "POST",
         body: JSON.stringify({
-          items: payload.items,
+          payrollRunId: selectedRunId || approvedRuns[0]?.id,
+          notes: batchNotes || undefined,
         }),
       }),
     onSuccess: () => {
-      toast({
-        title: "Batch payment recorded",
-        description:
-          "Disbursement item payments were updated and synced to employee payments.",
-        variant: "success",
-      });
-      setMarkPaidBatch(null);
-      setMarkPaidItems([]);
+      toast({ title: "Disbursement batch created", variant: "success" });
+      setCreateDrawerOpen(false);
+      setBatchNotes("");
       queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-      queryClient.invalidateQueries({ queryKey: ["disbursement-batch-details"] });
-      queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
-      queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
     },
-    onError: (error) => {
-      toast({
-        title: "Unable to record payment",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
+    onError: (err) => {
+      toast({ title: "Unable to create batch", description: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
-  const openMarkPaidDialog = useCallback(async (batchId: string) => {
-    try {
-      setMarkPaidLoading(true);
-      const batch = await fetchJson<BatchDetails>(`/api/disbursements/batches/${batchId}`);
-      setMarkPaidBatch(batch);
-      setMarkPaidItems(
-        batch.items.map((item) => ({
-          id: item.id,
-          employeeName: item.employee.name,
-          employeeCode: item.employee.employeeId,
-          amount: item.amount,
-          currency: item.lineItem.currency,
-          paidAmountInput: String(item.paidAmount ?? item.amount),
-        })),
-      );
-    } catch (error) {
-      toast({
-        title: "Unable to prepare payment form",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      });
-    } finally {
-      setMarkPaidLoading(false);
-    }
-  }, [toast]);
+  const updateBatchStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) =>
+      fetchJson(`/api/payroll/disbursements/${id}/${status.toLowerCase()}`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Batch status updated", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
+    },
+  });
 
-  const submitMarkPaid = () => {
-    if (!markPaidBatch) return;
+  const totalSum = React.useMemo(() => {
+    return filteredBatches.reduce((s, b) => s + Number(b.totalAmount), 0);
+  }, [filteredBatches]);
 
-    const payloadItems: Array<{ id: string; paidAmount: number }> = [];
-    for (const item of markPaidItems) {
-      const paidAmount = Number(item.paidAmountInput);
-      if (!Number.isFinite(paidAmount) || paidAmount < 0) {
-        toast({
-          title: "Invalid paid amount",
-          description: `Enter a valid paid amount for ${item.employeeName}.`,
-          variant: "destructive",
-        });
-        return;
-      }
-      if (paidAmount > item.amount) {
-        toast({
-          title: "Paid amount exceeds item amount",
-          description: `${item.employeeName} cannot exceed ${item.amount.toFixed(2)} ${item.currency}.`,
-          variant: "destructive",
-        });
-        return;
-      }
-      payloadItems.push({ id: item.id, paidAmount: roundMoney(paidAmount) });
-    }
-
-    markPaidMutation.mutate({
-      batchId: markPaidBatch.id,
-      items: payloadItems,
-    });
+  const handleExportCsv = () => {
+    const csv = [
+      ["Batch Number", "Date", "Status", "Total Amount", "Method"],
+      ...filteredBatches.map((b) => [
+        b.batchNumber,
+        b.createdAt.slice(0, 10),
+        b.status,
+        String(b.totalAmount),
+        b.payoutMethod || "Bank Payout",
+      ]),
+    ];
+    downloadCsv(`disbursement-batches-${new Date().toISOString().slice(0, 10)}.csv`, csv);
   };
 
-  const availableRunColumns = useMemo<ColumnDef<PayrollRunRecord>[]>(
-    () => [
-      {
-        id: "run",
-        header: "Run",
-        cell: ({ row }) => (
-          <div className="font-medium">
-            <NumericCell align="left">Run #{row.original.runNumber}</NumericCell>
-          </div>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        accessorKey: "period.periodKey",
-        header: "Period",
-        cell: ({ row }) => row.original.period.periodKey,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        accessorKey: "netTotal",
-        header: "Net Total",
-        cell: ({ row }) => <NumericCell>{row.original.netTotal.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "action",
-        header: "",
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button
-              size="sm"
-              onClick={() => {
-                setBatchForm((prev) => hydrateFormFromRun(row.original, prev));
-                setIsCreateOpen(true);
-              }}
-            >
-              Create Batch
-            </Button>
-          </div>
-        ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
-    ],
-    [],
-  );
-
-  const batchColumns = useMemo<ColumnDef<DisbursementBatchRecord>[]>(
-    () => [
-      {
-        id: "batch",
-        header: "Batch",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-semibold text-[var(--color-ink)]">{row.original.code}</div>
-            <div className="text-sm text-muted-foreground">{row.original.method}</div>
-          </div>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
-      },
-      {
-        id: "run",
-        header: "Run",
-        cell: ({ row }) => (
-          <div>
-            <div>
-              <NumericCell align="left">Run #{row.original.payrollRun.runNumber}</NumericCell>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {row.original.payrollRun.period?.periodKey ?? "-"}
-            </div>
-          </div>
-        ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160,
-      },
-      {
-        accessorKey: "totalAmount",
-        header: "Amount",
-        cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell>,
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <BkState tone={row.original.status === "PAID" ? "success" : "warning"}>
-            {row.original.status}
-          </BkState>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        accessorKey: "createdAt",
-        header: "Created",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {format(new Date(row.original.createdAt), "yyyy-MM-dd HH:mm")}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => {
-          const status = row.original.status;
-          return (
-            <div className="flex justify-end gap-2">
-              {(status === "DRAFT" || status === "REJECTED") ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={submitBatchMutation.isPending}
-                  onClick={() => submitBatchMutation.mutate(row.original.id)}
-                >
-                  Submit
-                </Button>
-              ) : null}
-              {status === "SUBMITTED" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={approveBatchMutation.isPending}
-                  onClick={() => approveBatchMutation.mutate(row.original.id)}
-                >
-                  Approve
-                </Button>
-              ) : null}
-              {status === "APPROVED" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={markPaidMutation.isPending || markPaidLoading}
-                  onClick={() => openMarkPaidDialog(row.original.id)}
-                >
-                  Mark Paid
-                </Button>
-              ) : null}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setDetailsBatchId(row.original.id)}
-              >
-                Details
-              </Button>
-            </div>
-          );
-        },
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
-    ],
-    [
-      approveBatchMutation,
-      markPaidLoading,
-      markPaidMutation,
-      openMarkPaidDialog,
-      submitBatchMutation,
-    ],
-  );
-
-  const batchDetailColumns = useMemo<ColumnDef<BatchDetailItem>[]>(
-    () => [
-      {
-        id: "employeeId",
-        header: "Employee ID",
-        accessorFn: (row) => row.employee.employeeId,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm text-[var(--color-ink-2)]">
-            {row.original.employee.employeeId}
-          </span>
-        ),
-        size: 130,
-        minSize: 110,
-        maxSize: 160,
-      },
-      {
-        id: "employee",
-        header: "Employee",
-        accessorFn: (row) => row.employee.name,
-        cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2.5">
-            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
-            <span className="truncate font-medium text-[var(--color-ink)]">
-              {row.original.employee.name}
-            </span>
-          </div>
-        ),
-        size: 200,
-        minSize: 160,
-        maxSize: 280,
-      },
-      {
-        id: "amount",
-        header: "Amount",
-        accessorFn: (row) => row.amount,
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.lineItem.currency} {row.original.amount.toFixed(2)}
-          </NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "paid",
-        header: "Paid",
-        accessorFn: (row) => row.paidAmount ?? 0,
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.lineItem.currency} {(row.original.paidAmount ?? 0).toFixed(2)}
-          </NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "status",
-        header: "Status",
-        accessorKey: "status",
-        cell: ({ row }) => (
-          <BkState tone={row.original.status === "PAID" ? "success" : "warning"}>
-            {row.original.status}
-          </BkState>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "paidAt",
-        header: "Paid At",
-        accessorFn: (row) => row.paidAt ?? "",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {row.original.paidAt ? format(new Date(row.original.paidAt), "yyyy-MM-dd HH:mm") : "-"}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "receipt",
-        header: "Receipt",
-        accessorFn: (row) => row.receiptReference ?? "",
-        cell: ({ row }) => row.original.receiptReference ?? "-",
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-    ],
-    [],
+  const selectedRun = React.useMemo(
+    () => runs.find((r) => r.id === (selectedRunId || approvedRuns[0]?.id)) || null,
+    [runs, selectedRunId, approvedRuns]
   );
 
   return (
     <PayrollShell
       activeTab="disbursements"
+      title="Salary Disbursements"
       actions={
-        <Button asChild size="sm" variant="outline">
-          <Link href="/payroll/salaries/outstanding">
-            Outstanding Salaries
-            <ArrowRight className="size-4" />
-          </Link>
+        <Button
+          variant="primary"
+          icon="plus"
+          shortcut="N"
+          onClick={() => {
+            if (approvedRuns[0]) setSelectedRunId(approvedRuns[0].id);
+            setCreateDrawerOpen(true);
+          }}
+        >
+          Create disbursement
         </Button>
       }
     >
-      {(runsError || batchesError) && (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load disbursement data</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(runsError || batchesError)}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {runIdFromQuery && !selectedRun && (
-        <Alert>
-          <AlertTitle>Selected run is unavailable</AlertTitle>
-          <AlertDescription>
-            The run from the link is no longer eligible for a new disbursement
-            batch.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {(runsLoading || availableRuns.length > 0) ? (
-        <WorkflowStep
-          title="Approved Runs Ready for Disbursement"
-          badge={runsLoading ? "..." : availableRuns.length}
-          actions={
-            <Button type="button" onClick={() => setIsCreateOpen(true)} disabled={runsLoading}>
-              <Plus className="size-4" />
-              New Disbursement Batch
-            </Button>
-          }
-        >
-          {runsLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : (
-            <DataTable
-              data={availableRuns}
-              columns={availableRunColumns}
-              queryState={availableRunsQuery}
-              onQueryStateChange={(next) =>
-                setAvailableRunsQuery((prev) => ({ ...prev, ...next }))
-              }
-              features={{ sorting: true, globalFilter: true, pagination: true }}
-              exportConfig={{
-                enabled: true,
-                title: "Approved Payroll Runs",
-                fileName: "approved-payroll-runs",
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk">
+            {/* TABS */}
+            <BkTabs
+              label="Disbursement views"
+              value={tab}
+              onChange={(next) => {
+                setTab(next);
+                setPage(1);
+                selection.clear();
               }}
-              pagination={{ enabled: true, server: false }}
-              searchPlaceholder="Search approved runs"
-              tableClassName="text-sm"
+              items={[
+                { value: "pending", label: "Pending batches", count: pendingCount },
+                { value: "paid", label: "Approved & Paid", count: paidCount },
+                { value: "all", label: "All batches", count: batches.length },
+              ]}
             />
-          )}
-        </WorkflowStep>
-      ) : null}
 
-      <WorkflowStep
-        title="Disbursement Batch Workflow"
-        badge={batchesLoading ? "..." : batches.length}
-      >
-        {batchesLoading ? (
-          <Skeleton className="h-20 w-full" />
-        ) : batches.length === 0 ? (
-          <div className="text-sm text-muted-foreground">
-            No disbursement batches yet.
-          </div>
-        ) : (
-          <DataTable
-            data={batches}
-            columns={batchColumns}
-            queryState={batchesQuery}
-            onQueryStateChange={(next) =>
-              setBatchesQuery((prev) => ({ ...prev, ...next }))
-            }
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            exportConfig={{
-              enabled: true,
-              title: "Disbursement Batches",
-              fileName: "disbursement-batches",
-            }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search disbursement batches"
-            tableClassName="text-sm"
-          />
-        )}
-      </WorkflowStep>
+            {/* TOOLBAR */}
+            <BkTools
+              find="Search disbursements by batch code, notes..."
+              query={search}
+              onFind={(q) => {
+                setSearch(q);
+                setPage(1);
+              }}
+              count={`${filteredBatches.length} of ${batches.length}`}
+              end={<BkQuietTools onExport={handleExportCsv} />}
+            />
 
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent size="lg">
-          <DialogHeader>
-            <DialogTitle>Create Disbursement Batch</DialogTitle>
-            <DialogDescription>
-              Select an approved run and confirm disbursement details.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!batchForm.payrollRunId) {
-                toast({
-                  title: "Select an approved run",
-                  variant: "destructive",
-                });
-                return;
+            {/* TABLE SHELL */}
+            <TableShell
+              label="Disbursements"
+              foot={
+                <TableFoot
+                  range={filteredBatches.length === 0 ? "None" : `${from} to ${to} of ${filteredBatches.length}`}
+                  sums={[{ label: "Total Batched", value: money(totalSum, "USD") }]}
+                  page={{
+                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
+                    onNext: to < filteredBatches.length ? () => setPage((p) => p + 1) : undefined,
+                  }}
+                  selection={{
+                    count: selection.selected.size,
+                    onClear: selection.clear,
+                    actions: (
+                      <Button icon="export" onClick={handleExportCsv}>
+                        Export selected
+                      </Button>
+                    ),
+                  }}
+                />
               }
-              createBatchMutation.mutate(batchForm);
-            }}
-          >
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Approved Payroll Run
-              </label>
-              <Select
-                value={batchForm.payrollRunId}
-                onValueChange={(value) => {
-                  const run = availableRuns.find((item) => item.id === value);
-                  setBatchForm((prev) => hydrateFormFromRun(run, prev));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select approved run" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableRuns.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No approved runs
-                    </SelectItem>
-                  ) : (
-                    availableRuns.map((run) => (
-                      <SelectItem key={run.id} value={run.id}>
-                        Salary - Run
-                        #{run.runNumber} ({run.period.periodKey})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="cash-custodian"
-                  className="mb-2 block text-sm font-semibold"
-                >
-                  Cash Custodian
-                </label>
-                <Input
-                  id="cash-custodian"
-                  value={batchForm.cashCustodian}
-                  onChange={(event) =>
-                    setBatchForm((prev) => ({
-                      ...prev,
-                      cashCustodian: event.target.value,
-                    }))
-                  }
-                  placeholder="Name of custodian"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="cash-issued"
-                  className="mb-2 block text-sm font-semibold"
-                >
-                  Cash Issued Date
-                </label>
-                <Input
-                  id="cash-issued"
-                  type="date"
-                  value={batchForm.cashIssuedAt}
-                  onChange={(event) =>
-                    setBatchForm((prev) => ({
-                      ...prev,
-                      cashIssuedAt: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="batch-notes"
-                className="mb-2 block text-sm font-semibold"
-              >
-                Notes
-              </label>
-              <Input
-                id="batch-notes"
-                value={batchForm.notes}
-                onChange={(event) =>
-                  setBatchForm((prev) => ({
-                    ...prev,
-                    notes: event.target.value,
-                  }))
-                }
-                placeholder="Optional note"
-              />
-            </div>
-
-            {selectedRun ? (
-              <div className="rounded-md border-0 bg-muted/40 p-3 text-sm shadow-[var(--surface-frame-shadow)]">
-                <div className="font-medium">Preview</div>
-                <div className="text-muted-foreground">
-                  Salary payroll run #{selectedRun.runNumber} (
-                  {selectedRun.period.periodKey})
+            >
+              {filteredBatches.length === 0 ? (
+                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+                  <b>No disbursement batches found</b>
+                  <p className="muted">Use Create disbursement to batch approved payroll runs for bank transfer.</p>
                 </div>
-                <div className="mt-1">
-                  Estimated batch amount: {previewAmount.toFixed(2)}
-                </div>
-              </div>
-            ) : null}
+              ) : (
+                <table className="table" aria-label="Disbursement batches">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 220 }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 180 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 140 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all batches"
+                      />
+                      <th>Batch Code</th>
+                      <th>Date</th>
+                      <th>Method</th>
+                      <th className="num">Total Amount</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedBatches.map((batch) => {
+                      const isSelected = selection.isSelected(batch.id);
+                      const moreEntries: MenuEntry[] = [
+                        {
+                          key: "items",
+                          label: "View payout items",
+                          icon: "invoice",
+                          onSelect: () => setDetailsBatchId(batch.id),
+                        },
+                        { separator: true },
+                        ...(batch.status === "DRAFT"
+                          ? [
+                              {
+                                key: "submit",
+                                label: "Submit for approval",
+                                icon: "check" as const,
+                                onSelect: () => updateBatchStatusMutation.mutate({ id: batch.id, status: "SUBMIT" }),
+                              },
+                            ]
+                          : []),
+                        ...(batch.status === "SUBMITTED"
+                          ? [
+                              {
+                                key: "approve",
+                                label: "Approve batch",
+                                icon: "check" as const,
+                                onSelect: () => updateBatchStatusMutation.mutate({ id: batch.id, status: "APPROVE" }),
+                              },
+                            ]
+                          : []),
+                        ...(batch.status === "APPROVED"
+                          ? [
+                              {
+                                key: "pay",
+                                label: "Mark as paid",
+                                icon: "card" as const,
+                                onSelect: () => updateBatchStatusMutation.mutate({ id: batch.id, status: "PAY" }),
+                              },
+                            ]
+                          : []),
+                      ];
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createBatchMutation.isPending}>
-                <FileText className="size-4" />
-                Create Batch
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+                      return (
+                        <tr key={batch.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(batch.id)}
+                            label={`Select ${batch.batchNumber}`}
+                          />
+                          <td>
+                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                              {batch.batchNumber}
+                            </div>
+                            {batch.notes ? (
+                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                {batch.notes}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
+                            {format(new Date(batch.createdAt), "dd MMM yyyy")}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 13 }}>{batch.payoutMethod || "Bank Payout"}</span>
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {money(Number(batch.totalAmount), "USD")}
+                          </td>
+                          <td>
+                            <BkState
+                              tone={
+                                batch.status === "PAID" || batch.status === "COMPLETED"
+                                  ? "success"
+                                  : batch.status === "REJECTED"
+                                  ? "danger"
+                                  : batch.status === "APPROVED"
+                                  ? "info"
+                                  : "warning"
+                              }
+                            >
+                              {batch.status}
+                            </BkState>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                              <Button
+                                size="sm"
+                                onClick={() => setDetailsBatchId(batch.id)}
+                              >
+                                View items
+                              </Button>
+                              <MenuButton label="More" items={moreEntries}>
+                                •••
+                              </MenuButton>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </TableShell>
 
-      <Dialog
-        open={Boolean(markPaidBatch)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setMarkPaidBatch(null);
-            setMarkPaidItems([]);
-          }
-        }}
-      >
-        <DialogContent size="xl">
-          <DialogHeader>
-            <DialogTitle>Record Batch Payouts</DialogTitle>
-            <DialogDescription>
-              Capture paid amounts per worker. Set unpaid workers to 0.00 and finalize later when they are paid.
-            </DialogDescription>
-          </DialogHeader>
+            {/* CREATE DISBURSEMENT DRAWER */}
+            <Drawer
+              open={createDrawerOpen}
+              onOpenChange={setCreateDrawerOpen}
+              title="Create disbursement batch"
+              sub="Prepare an approved payroll run for electronic bank transfer or cash payout."
+              width={480}
+              footer={
+                <>
+                  <Button onClick={() => setCreateDrawerOpen(false)}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    icon="check"
+                    shortcut="Ctrl ↵"
+                    busy={createBatchMutation.isPending}
+                    onClick={() => createBatchMutation.mutate()}
+                  >
+                    Generate batch
+                  </Button>
+                </>
+              }
+            >
+              <DrawerSection title="Source Payroll Run">
+                <Field label="Approved payroll run" htmlFor="dsb-run">
+                  <select
+                    id="dsb-run"
+                    className="select"
+                    value={selectedRun?.id || ""}
+                    onChange={(e) => setSelectedRunId(e.target.value)}
+                    style={{ width: "100%", height: 36 }}
+                  >
+                    {approvedRuns.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        Run #{r.runNumber} • {money(r.netTotal, "USD")}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
-          {!markPaidBatch ? null : (
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Batch</div>
-                  <div className="font-semibold">{markPaidBatch.code}</div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Run</div>
-                  <div className="font-semibold">
-                    #{markPaidBatch.payrollRun.runNumber} ({markPaidBatch.payrollRun.period.periodKey})
-                  </div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Total Amount</div>
-                  <div className="font-semibold"><NumericCell>{markPaidBatch.totalAmount.toFixed(2)}</NumericCell></div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Items</div>
-                  <div className="font-semibold"><NumericCell>{markPaidBatch.itemCount}</NumericCell></div>
-                </div>
-              </div>
-
-              <div className="space-y-2 rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
-                {markPaidItems.map((item, index) => {
-                  const paidAmount = Number(item.paidAmountInput || 0);
-                  const state = derivePaidState(item.amount, Number.isFinite(paidAmount) ? paidAmount : 0);
-                  return (
-                    <div key={item.id} className="grid gap-2 md:grid-cols-[1.6fr_1fr_1fr_auto] md:items-center">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <RecordMark kind="person" name={item.employeeName} size="sm" />
-                        <div>
-                          <div className="font-medium text-[var(--color-ink)]">{item.employeeName}</div>
-                          <div className="font-mono text-sm text-[var(--color-ink-2)]">{item.employeeCode}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">Amount</div>
-                        <NumericCell>{item.currency} {item.amount.toFixed(2)}</NumericCell>
-                      </div>
-                      <div>
-                        <label className="text-sm text-muted-foreground" htmlFor={`paid-amount-${item.id}`}>
-                          Paid Amount
-                        </label>
-                        <Input
-                          id={`paid-amount-${item.id}`}
-                          type="number"
-                          min="0"
-                          max={item.amount}
-                          step="0.01"
-                          value={item.paidAmountInput}
-                          onChange={(event) =>
-                            setMarkPaidItems((prev) =>
-                              prev.map((row, rowIndex) =>
-                                rowIndex === index
-                                  ? { ...row, paidAmountInput: event.target.value }
-                                  : row,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <BkState tone={state === "PAID" ? "success" : state === "PARTIAL" ? "warning" : "plain"}>
-                          {state}
-                        </BkState>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setMarkPaidItems((prev) =>
-                              prev.map((row, rowIndex) =>
-                                rowIndex === index ? { ...row, paidAmountInput: "0" } : row,
-                              ),
-                            )
-                          }
-                        >
-                          Unpaid
-                        </Button>
-                      </div>
+                {selectedRun ? (
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      background: "var(--color-surface)",
+                      boxShadow: "var(--shadow-ring)",
+                      fontSize: 13,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span className="muted">Total net payout</span>
+                      <span className="num" style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 15 }}>
+                        {money(selectedRun.netTotal, "USD")}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    setMarkPaidItems((prev) =>
-                      prev.map((item) => ({ ...item, paidAmountInput: item.amount.toFixed(2) })),
-                    )
-                  }
-                >
-                  Set All Full
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setMarkPaidBatch(null);
-                    setMarkPaidItems([]);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="button" disabled={markPaidMutation.isPending} onClick={submitMarkPaid}>
-                  Save Payouts
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(detailsBatchId)}
-        onOpenChange={(open) => !open && setDetailsBatchId(null)}
-      >
-        <DialogContent size="full">
-          <DialogHeader>
-            <DialogTitle>Disbursement Batch Details</DialogTitle>
-            <DialogDescription>
-              Review exactly who is being paid and how much in this batch.
-            </DialogDescription>
-          </DialogHeader>
-
-          {batchDetailsLoading ? (
-            <Skeleton className="h-24 w-full" />
-          ) : batchDetailsError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Unable to load batch details</AlertTitle>
-              <AlertDescription>
-                {getApiErrorMessage(batchDetailsError)}
-              </AlertDescription>
-            </Alert>
-          ) : !batchDetails ? (
-            <div className="text-sm text-muted-foreground">
-              No details available.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-4 text-sm">
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Batch</div>
-                  <div className="font-semibold">{batchDetails.code}</div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Run</div>
-                  <div className="font-semibold">
-                    <NumericCell align="left">#{batchDetails.payrollRun.runNumber}</NumericCell> (
-                    {batchDetails.payrollRun.period.periodKey})
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span className="muted">Run status</span>
+                      <BkState tone="success">{selectedRun.status}</BkState>
+                    </div>
                   </div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">
-                    Total Amount
-                  </div>
-                  <div className="font-semibold">
-                    <NumericCell>{batchDetails.totalAmount.toFixed(2)}</NumericCell>
-                  </div>
-                </div>
-                <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
-                  <div className="text-sm text-muted-foreground">Items</div>
-                  <div className="font-semibold"><NumericCell>{batchDetails.itemCount}</NumericCell></div>
-                </div>
-              </div>
+                ) : null}
 
-              <div className="rounded-md border-0 shadow-[var(--surface-frame-shadow)]">
-                <DataTable
-                  data={batchDetails.items}
-                  columns={batchDetailColumns}
-                  features={{ globalFilter: false, pagination: false, sorting: true }}
-                  exportConfig={{
-                    enabled: true,
-                    title: `Disbursement Batch ${batchDetails.code}`,
-                    fileName: `disbursement-batch-${batchDetails.code}`,
-                  }}
-                  maxBodyHeight="45dvh"
-                  tableClassName="text-sm"
-                  tableContainerClassName="overflow-auto"
-                />
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                <Field label="Reference / Notes" htmlFor="dsb-notes" optional>
+                  <Input
+                    id="dsb-notes"
+                    placeholder="e.g. Stanbic Corporate Bank Transfer"
+                    value={batchNotes}
+                    onChange={(e) => setBatchNotes(e.target.value)}
+                  />
+                </Field>
+              </DrawerSection>
+            </Drawer>
+
+            {/* BATCH DETAILS DRAWER */}
+            <Drawer
+              open={Boolean(detailsBatchId)}
+              onOpenChange={(open) => !open && setDetailsBatchId(null)}
+              title={batchDetails ? `Batch ${batchDetails.code}` : "Disbursement Details"}
+              sub={batchDetails ? `Total: ${money(batchDetails.totalAmount, "USD")} • ${batchDetails.items.length} employees` : "Loading..."}
+              width={560}
+              footer={<Button onClick={() => setDetailsBatchId(null)}>Close</Button>}
+            >
+              {detailsLoading ? (
+                <div style={{ padding: 24, textAlign: "center" }} className="muted">
+                  Loading payout lines...
+                </div>
+              ) : batchDetails ? (
+                <table className="table" style={{ width: "100%", fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th className="num">Payout Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchDetails.items.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Person name={item.employee.name} />
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{item.employee.name}</div>
+                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                {item.employee.employeeId}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                          {money(item.amount, "USD")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </Drawer>
+          </div>
+        </KitScreen>
+      </Kit>
     </PayrollShell>
   );
 }

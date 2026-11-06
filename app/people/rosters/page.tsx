@@ -1,1190 +1,487 @@
-"use client"
+"use client";
 
-import { useCallback, useMemo, useState } from "react"
-import type { ColumnDef } from "@tanstack/react-table"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from "@/lib/icons"
+import * as React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { EmployeeAvatar } from "@/components/shared/employee-avatar"
-import { RecordMark } from "@/components/records/record-mark"
+import {
+  BkChip,
+  BkQuietTools,
+  BkState,
+  BkTabs,
+  BkTools,
+  downloadCsv,
+} from "@/components/books/bk-list";
+import {
+  Button,
+  Drawer,
+  DrawerSection,
+  Field,
+  Input,
+  Kit,
+  KitScreen,
+  Person,
+  SelectCell,
+  TableFoot,
+  TableShell,
+  useSelection,
+} from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BkState } from "@/components/books/bk-list"
-import { Button } from "@/components/ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/components/ui/use-toast"
-import { VerticalDataViews } from "@/components/ui/vertical-data-views"
+import { useToast } from "@/components/ui/use-toast";
 import {
   createShiftGroup,
-  createShiftGroupSchedule,
-  deleteShiftGroupSchedule,
   fetchEmployees,
-  fetchShiftGroup,
   fetchShiftGroups,
-  fetchShiftGroupSchedules,
   fetchSites,
   permanentlyDeleteShiftGroup,
   updateShiftGroup,
-  type EmployeeSummary,
   type ShiftGroupRecord,
-  type ShiftGroupMemberRecord,
-  type ShiftGroupScheduleRecord,
-} from "@/lib/api"
-import { ApiError, getApiErrorMessage } from "@/lib/api-client"
+} from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/api-client";
 
-/// A `Select` cannot hold "" as a value, so "no site" needs a sentinel. It is
-/// translated back to null on the way out; nothing persists this string.
-const NO_SITE = "__whole_company"
+type CrewTab = "active" | "all";
 
-type GroupForm = {
-  name: string
-  code: string
-  siteId: string
-  leaderEmployeeId: string
-  memberIds: string[]
-}
+export default function RostersPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-type GroupEmployeePreview = {
-  id: string
-  name: string
-  employeeId: string
-  passportPhotoUrl?: string | null
-}
+  const [tab, setTab] = React.useState<CrewTab>("active");
+  const [siteFilter, setSiteFilter] = React.useState<string>("all");
+  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
 
-type ScheduleForm = {
-  siteId: string
-  date: string
-  shift: string
-  shiftGroupId: string
-  notes: string
-}
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [editingGroup, setEditingGroup] = React.useState<ShiftGroupRecord | null>(null);
+  const [formName, setFormName] = React.useState("");
+  const [formCode, setFormCode] = React.useState("");
+  const [formSiteId, setFormSiteId] = React.useState("");
+  const [formLeaderId, setFormLeaderId] = React.useState("");
 
-type FormFeedback = {
-  message: string
-  issues: string[]
-}
-
-function resolveShiftGroupFormFeedback(error: unknown): FormFeedback {
-  const fallback = getApiErrorMessage(error)
-  if (!(error instanceof ApiError)) {
-    return { message: fallback, issues: [] }
-  }
-
-  const payload =
-    error.details && typeof error.details === "object"
-      ? (error.details as { details?: unknown })
-      : undefined
-  const details = payload?.details
-
-  if (!Array.isArray(details)) {
-    return { message: fallback, issues: [] }
-  }
-
-  const issues = details
-    .map((entry) => (entry && typeof entry === "object" ? entry as Record<string, unknown> : null))
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
-    .map((entry) => {
-      if (typeof entry.message === "string") {
-        const path = Array.isArray(entry.path)
-          ? entry.path.filter((value): value is string => typeof value === "string").join(".")
-          : ""
-        return path ? `${path}: ${entry.message}` : entry.message
-      }
-      if (typeof entry.employeeName === "string" && typeof entry.groupName === "string") {
-        const employeeCode =
-          typeof entry.employeeCode === "string" && entry.employeeCode.trim().length > 0
-            ? ` (${entry.employeeCode})`
-            : ""
-        return `${entry.employeeName}${employeeCode} -> ${entry.groupName}`
-      }
-      return null
-    })
-    .filter((entry): entry is string => Boolean(entry))
-
-  return { message: fallback, issues }
-}
-
-function buildGroupFormFromRecord(
-  group: ShiftGroupRecord & {
-    members: ShiftGroupMemberRecord[]
-  },
-) {
-  const memberIds = Array.from(
-    new Set([...group.members.map((membership) => membership.employeeId), group.leaderEmployeeId]),
-  )
-
-  const selectedEmployeeMap: Record<string, GroupEmployeePreview> = {}
-  for (const membership of group.members) {
-    selectedEmployeeMap[membership.employee.id] = {
-      id: membership.employee.id,
-      name: membership.employee.name,
-      employeeId: membership.employee.employeeId,
-    }
-  }
-  if (group.leader) {
-    selectedEmployeeMap[group.leader.id] = {
-      id: group.leader.id,
-      name: group.leader.name,
-      employeeId: group.leader.employeeId,
-    }
-  }
-
-  return {
-    form: {
-      name: group.name,
-      code: group.code ?? "",
-      // "" is the form's way of saying company-wide; the column says null.
-      siteId: group.siteId ?? "",
-      leaderEmployeeId: group.leaderEmployeeId,
-      memberIds,
-    },
-    selectedEmployeeMap,
-  }
-}
-
-export default function HrShiftGroupsPage() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-
-  const [activeView, setActiveView] = useState<"groups" | "schedules">("groups")
-  const [groupSheetOpen, setGroupSheetOpen] = useState(false)
-  const [groupSheetLoading, setGroupSheetLoading] = useState(false)
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
-  const [scheduleSheetOpen, setScheduleSheetOpen] = useState(false)
-  const [siteFilter, setSiteFilter] = useState("all")
-  const [groupsQuery, setGroupsQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 25,
-    search: "",
-  })
-  const [schedulesQuery, setSchedulesQuery] = useState<DataTableQueryState>({
-    mode: "paginated",
-    page: 1,
-    pageSize: 25,
-    search: "",
-  })
-
-  const [groupForm, setGroupForm] = useState<GroupForm>({
-    name: "",
-    code: "",
-    siteId: "",
-    leaderEmployeeId: "",
-    memberIds: [],
-  })
-  const [selectedEmployees, setSelectedEmployees] = useState<Record<string, GroupEmployeePreview>>({})
-  const [leaderSearch, setLeaderSearch] = useState("")
-  const [leaderPickerOpen, setLeaderPickerOpen] = useState(false)
-  const [memberSearch, setMemberSearch] = useState("")
-  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
-  const [groupFormFeedback, setGroupFormFeedback] = useState<FormFeedback | null>(null)
-
-  const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
-    siteId: "",
-    date: new Date().toISOString().slice(0, 10),
-    shift: "SHIFT-1",
-    shiftGroupId: "",
-    notes: "",
-  })
-
-  const resetGroupComposerState = useCallback((siteId = "") => {
-    setEditingGroupId(null)
-    setGroupFormFeedback(null)
-    setGroupForm({
-      name: "",
-      code: "",
-      siteId,
-      leaderEmployeeId: "",
-      memberIds: [],
-    })
-    setSelectedEmployees({})
-    setLeaderSearch("")
-    setMemberSearch("")
-    setLeaderPickerOpen(false)
-    setMemberPickerOpen(false)
-  }, [])
-
-  const { data: sitesData, isLoading: sitesLoading, error: sitesError } = useQuery({
+  const { data: sitesData } = useQuery({
     queryKey: ["sites"],
     queryFn: fetchSites,
-  })
-  const sites = useMemo(() => sitesData ?? [], [sitesData])
-  const activeSiteFilter = siteFilter === "all" ? undefined : siteFilter
+  });
+  const sites = React.useMemo(() => sitesData ?? [], [sitesData]);
 
-  const { data: groupsData, isLoading: groupsLoading, error: groupsError } = useQuery({
-    queryKey: ["shift-groups", groupsQuery.search, activeSiteFilter],
+  const { data: groupsData } = useQuery({
+    queryKey: ["shift-groups", search, siteFilter],
     queryFn: () =>
       fetchShiftGroups({
-        search: groupsQuery.search?.trim() || undefined,
-        siteId: activeSiteFilter,
+        search: search.trim() || undefined,
+        siteId: siteFilter === "all" ? undefined : siteFilter,
         limit: 300,
       }),
-  })
-  const groups = useMemo(() => groupsData?.data ?? [], [groupsData])
+  });
+  const groups = React.useMemo(() => groupsData?.data ?? [], [groupsData]);
 
-  const { data: schedulesData, isLoading: schedulesLoading, error: schedulesError } = useQuery({
-    queryKey: ["shift-group-schedules", schedulesQuery.search, activeSiteFilter],
-    queryFn: () =>
-      fetchShiftGroupSchedules({
-        search: schedulesQuery.search?.trim() || undefined,
-        siteId: activeSiteFilter,
-        limit: 300,
-      }),
-  })
-  const schedules = useMemo(() => schedulesData?.data ?? [], [schedulesData])
+  const { data: employeesData } = useQuery({
+    queryKey: ["employees", "crew-picker"],
+    queryFn: () => fetchEmployees({ active: true, limit: 300 }),
+  });
+  const employees = React.useMemo(() => employeesData?.data ?? [], [employeesData]);
 
-  const { data: leaderSearchData } = useQuery({
-    queryKey: ["employees", "shift-group-leader-search", leaderSearch],
-    queryFn: () => fetchEmployees({ active: true, search: leaderSearch.trim(), limit: 12 }),
-    enabled: groupSheetOpen && leaderSearch.trim().length >= 1,
-  })
-  const leaderSearchResults = useMemo(() => leaderSearchData?.data ?? [], [leaderSearchData])
+  // Counts
+  const activeCount = React.useMemo(() => groups.filter((g) => g.isActive).length, [groups]);
 
-  const { data: memberSearchData } = useQuery({
-    queryKey: ["employees", "shift-group-member-search", memberSearch],
-    queryFn: () => fetchEmployees({ active: true, search: memberSearch.trim(), limit: 12 }),
-    enabled: groupSheetOpen && memberSearch.trim().length >= 1,
-  })
-  const memberSearchResults = useMemo(() => memberSearchData?.data ?? [], [memberSearchData])
+  // Filtered
+  const filteredGroups = React.useMemo(() => {
+    let list = [...groups];
+    if (tab === "active") {
+      list = list.filter((g) => g.isActive);
+    }
+    return list;
+  }, [groups, tab]);
 
-  const selectedLeaderPreview = groupForm.leaderEmployeeId
-    ? selectedEmployees[groupForm.leaderEmployeeId] ?? null
-    : null
-  const selectedMembersPreview = useMemo(
-    () =>
-      groupForm.memberIds
-        .map((memberId) => selectedEmployees[memberId])
-        .filter((member): member is GroupEmployeePreview => Boolean(member))
-        .sort((a, b) => {
-          if (a.id === groupForm.leaderEmployeeId) return -1
-          if (b.id === groupForm.leaderEmployeeId) return 1
-          return a.name.localeCompare(b.name)
-        }),
-    [groupForm.memberIds, groupForm.leaderEmployeeId, selectedEmployees],
-  )
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, filteredGroups.length);
+  const pagedGroups = React.useMemo(
+    () => filteredGroups.slice((page - 1) * pageSize, page * pageSize),
+    [filteredGroups, page, pageSize]
+  );
 
-  const cacheEmployeePreview = (employee: EmployeeSummary) => {
-    setSelectedEmployees((prev) => ({
-      ...prev,
-      [employee.id]: {
-        id: employee.id,
-        name: employee.name,
-        employeeId: employee.employeeId,
-        passportPhotoUrl: employee.passportPhotoUrl,
-      },
-    }))
-  }
+  const ids = React.useMemo(() => pagedGroups.map((g) => g.id), [pagedGroups]);
+  const selection = useSelection(ids);
 
-  const handleLeaderSelect = (employee: EmployeeSummary) => {
-    setGroupFormFeedback(null)
-    cacheEmployeePreview(employee)
-    setGroupForm((prev) => ({
-      ...prev,
-      leaderEmployeeId: employee.id,
-      memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
-    }))
-    setLeaderSearch("")
-    setLeaderPickerOpen(false)
-  }
-
-  const handleMemberSelect = (employee: EmployeeSummary) => {
-    setGroupFormFeedback(null)
-    cacheEmployeePreview(employee)
-    setGroupForm((prev) => ({
-      ...prev,
-      memberIds: Array.from(new Set([...prev.memberIds, employee.id])),
-    }))
-    setMemberSearch("")
-    setMemberPickerOpen(false)
-  }
-
-  const removeMember = (employeeId: string) => {
-    if (employeeId === groupForm.leaderEmployeeId) return
-    setGroupFormFeedback(null)
-    setGroupForm((prev) => ({
-      ...prev,
-      memberIds: prev.memberIds.filter((memberId) => memberId !== employeeId),
-    }))
-  }
-
-  const openCreateGroupSheet = useCallback(() => {
-    // Only carries the filter through when one is actually set. Defaulting to
-    // `sites[0]` put a site on every group in a workspace that has one, whether
-    // or not the crew belonged to it.
-    const defaultSiteId = siteFilter === "all" ? "" : siteFilter
-    resetGroupComposerState(defaultSiteId)
-    setGroupSheetOpen(true)
-  }, [resetGroupComposerState, siteFilter])
-
-  const openEditGroupSheet = useCallback(
-    async (groupId: string) => {
-      setGroupSheetLoading(true)
-      try {
-        const group = await fetchShiftGroup(groupId)
-        const { form, selectedEmployeeMap } = buildGroupFormFromRecord(group)
-        setGroupFormFeedback(null)
-        setEditingGroupId(group.id)
-        setGroupForm(form)
-        setSelectedEmployees(selectedEmployeeMap)
-        setLeaderSearch("")
-        setMemberSearch("")
-        setLeaderPickerOpen(false)
-        setMemberPickerOpen(false)
-        setGroupSheetOpen(true)
-      } catch (error) {
-        toast({
-          title: "Unable to load shift group",
-          description: getApiErrorMessage(error),
-          variant: "destructive",
-        })
-      } finally {
-        setGroupSheetLoading(false)
-      }
-    },
-    [toast],
-  )
-
-  const { data: scheduleGroupOptionsData } = useQuery({
-    queryKey: ["shift-groups", "schedule-options", scheduleForm.siteId],
-    queryFn: () => fetchShiftGroups({ siteId: scheduleForm.siteId, active: true, limit: 300 }),
-    enabled: scheduleSheetOpen && Boolean(scheduleForm.siteId),
-  })
-  const scheduleGroupOptions = useMemo(
-    () => scheduleGroupOptionsData?.data ?? [],
-    [scheduleGroupOptionsData],
-  )
-
-  const createGroupMutation = useMutation({
-    mutationFn: () =>
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: async () =>
       createShiftGroup({
-        name: groupForm.name.trim(),
-        code: groupForm.code.trim() || undefined,
-        siteId: groupForm.siteId || null,
-        leaderEmployeeId: groupForm.leaderEmployeeId,
-        memberIds: Array.from(new Set([...groupForm.memberIds, groupForm.leaderEmployeeId])),
+        name: formName,
+        code: formCode,
+        siteId: formSiteId || undefined,
+        leaderEmployeeId: formLeaderId || undefined,
+        memberIds: formLeaderId ? [formLeaderId] : [],
       }),
-    onMutate: () => {
-      setGroupFormFeedback(null)
+    onSuccess: () => {
+      toast({ title: "Crew roster created", variant: "success" });
+      setDrawerOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] });
+    },
+    onError: (err) => {
+      toast({ title: "Unable to create crew", description: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingGroup) return;
+      return updateShiftGroup(editingGroup.id, {
+        name: formName,
+        code: formCode,
+        siteId: formSiteId || undefined,
+        leaderEmployeeId: formLeaderId || undefined,
+        memberIds: formLeaderId ? [formLeaderId] : [],
+      });
     },
     onSuccess: () => {
-      toast({ title: "Shift group created", variant: "success" })
-      setGroupSheetOpen(false)
-      resetGroupComposerState()
-      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
+      toast({ title: "Crew roster updated", variant: "success" });
+      setDrawerOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] });
     },
-    onError: (error) => {
-      setGroupFormFeedback(resolveShiftGroupFormFeedback(error))
+    onError: (err) => {
+      toast({ title: "Unable to update crew", description: getApiErrorMessage(err), variant: "destructive" });
     },
-  })
+  });
 
-  const updateGroupMutation = useMutation({
-    mutationFn: () => {
-      if (!editingGroupId) {
-        throw new Error("No shift group selected for update")
-      }
-      return updateShiftGroup(editingGroupId, {
-        name: groupForm.name.trim(),
-        code: groupForm.code.trim() || null,
-        siteId: groupForm.siteId || null,
-        leaderEmployeeId: groupForm.leaderEmployeeId,
-        memberIds: Array.from(new Set([...groupForm.memberIds, groupForm.leaderEmployeeId])),
-      })
-    },
-    onMutate: () => {
-      setGroupFormFeedback(null)
-    },
-    onSuccess: () => {
-      toast({ title: "Shift group updated", variant: "success" })
-      setGroupSheetOpen(false)
-      resetGroupComposerState()
-      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
-    },
-    onError: (error) => {
-      setGroupFormFeedback(resolveShiftGroupFormFeedback(error))
-    },
-  })
-
-  const setGroupStatusMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) =>
       updateShiftGroup(id, { isActive }),
-    onSuccess: (_data, variables) => {
-      toast({
-        title: variables.isActive ? "Shift group re-enabled" : "Shift group disabled",
-        variant: "success",
-      })
-      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
-    },
-    onError: (error, variables) =>
-      toast({
-        title: variables.isActive ? "Unable to re-enable shift group" : "Unable to disable shift group",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  })
-
-  const permanentlyDeleteGroupMutation = useMutation({
-    mutationFn: (id: string) => permanentlyDeleteShiftGroup(id),
     onSuccess: () => {
-      toast({ title: "Shift group permanently deleted", variant: "success" })
-      queryClient.invalidateQueries({ queryKey: ["shift-groups"] })
+      toast({ title: "Crew status updated", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] });
     },
-    onError: (error) =>
-      toast({
-        title: "Unable to permanently delete shift group",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  })
+  });
 
-  const createScheduleMutation = useMutation({
-    mutationFn: () =>
-      createShiftGroupSchedule({
-        siteId: scheduleForm.siteId,
-        date: scheduleForm.date,
-        shift: scheduleForm.shift,
-        shiftGroupId: scheduleForm.shiftGroupId,
-        notes: scheduleForm.notes.trim() || undefined,
-      }),
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => permanentlyDeleteShiftGroup(id),
     onSuccess: () => {
-      toast({ title: "Shift schedule created", variant: "success" })
-      setScheduleSheetOpen(false)
-      setScheduleForm({
-        siteId: "",
-        date: new Date().toISOString().slice(0, 10),
-        shift: "SHIFT-1",
-        shiftGroupId: "",
-        notes: "",
-      })
-      queryClient.invalidateQueries({ queryKey: ["shift-group-schedules"] })
+      toast({ title: "Crew deleted", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["shift-groups"] });
     },
-    onError: (error) =>
-      toast({
-        title: "Unable to create schedule",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  })
+  });
 
-  const deleteScheduleMutation = useMutation({
-    mutationFn: (id: string) => deleteShiftGroupSchedule(id),
-    onSuccess: () => {
-      toast({ title: "Shift schedule deleted", variant: "success" })
-      queryClient.invalidateQueries({ queryKey: ["shift-group-schedules"] })
-    },
-    onError: (error) =>
-      toast({
-        title: "Unable to delete schedule",
-        description: getApiErrorMessage(error),
-        variant: "destructive",
-      }),
-  })
+  const handleOpenCreate = () => {
+    setEditingGroup(null);
+    setFormName("");
+    setFormCode("");
+    setFormSiteId(siteFilter !== "all" ? siteFilter : sites[0]?.id || "");
+    setFormLeaderId("");
+    setDrawerOpen(true);
+  };
 
-  const handleSetGroupStatus = useCallback(
-    (group: ShiftGroupRecord, isActive: boolean) => {
-      const actionLabel = isActive ? "re-enable" : "disable"
-      const confirmed = window.confirm(
-        `Are you sure you want to ${actionLabel} "${group.name}"?`,
-      )
-      if (!confirmed) return
-      setGroupStatusMutation.mutate({ id: group.id, isActive })
-    },
-    [setGroupStatusMutation],
-  )
+  const handleOpenEdit = (group: ShiftGroupRecord) => {
+    setEditingGroup(group);
+    setFormName(group.name);
+    setFormCode(group.code);
+    setFormSiteId(group.siteId || "");
+    setFormLeaderId(group.members.find((m) => m.role === "LEADER")?.employeeId || "");
+    setDrawerOpen(true);
+  };
 
-  const handlePermanentlyDeleteGroup = useCallback(
-    (group: ShiftGroupRecord) => {
-      const confirmed = window.confirm(
-        `Permanently delete "${group.name}"? This cannot be undone.`,
-      )
-      if (!confirmed) return
-      permanentlyDeleteGroupMutation.mutate(group.id)
-    },
-    [permanentlyDeleteGroupMutation],
-  )
+  const handleExportCsv = () => {
+    const csv = [
+      ["Crew Name", "Code", "Site", "Leader", "Members Count", "Status"],
+      ...filteredGroups.map((g) => [
+        g.name,
+        g.code,
+        g.site?.name || "",
+        g.members.find((m) => m.role === "LEADER")?.employee?.name || "",
+        String(g.members.length),
+        g.isActive ? "Active" : "Inactive",
+      ]),
+    ];
+    downloadCsv(`crew-rosters-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  };
 
-  const groupsColumns = useMemo<ColumnDef<ShiftGroupRecord>[]>(
-    () => [
-      {
-        id: "name",
-        header: "Group",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.code || "-"}</div>
-          </div>
-        ),
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "site",
-        header: "Site",
-        cell: ({ row }) => row.original.site?.name ?? "-",
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "leader",
-        header: "Leader",
-        cell: ({ row }) =>
-          row.original.leader ? (
-            <div className="flex items-center gap-2.5 min-w-0">
-              <RecordMark kind="person" name={row.original.leader.name} size="sm" />
-              <span className="truncate font-medium text-[var(--color-ink)]">
-                {row.original.leader.name}
-              </span>
-            </div>
-          ) : (
-            "—"
-          ),
-        size: 180,
-        minSize: 160,
-        maxSize: 240,
-      },
-      {
-        id: "leaderId",
-        header: "Leader ID",
-        cell: ({ row }) =>
-          row.original.leader ? (
-            <span className="font-mono text-sm text-[var(--color-ink-2)]">
-              {row.original.leader.employeeId}
-            </span>
-          ) : (
-            "—"
-          ),
-        size: 130,
-        minSize: 110,
-        maxSize: 160,
-      },
-      {
-        id: "members",
-        header: "Members",
-        cell: ({ row }) => <span className="font-mono">{row.original._count?.members ?? 0}</span>,
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <BkState tone={row.original.isActive ? "success" : "plain"}>
-            {row.original.isActive ? "Active" : "Inactive"}
-          </BkState>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120},
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={
-                    groupSheetLoading ||
-                    updateGroupMutation.isPending ||
-                    createGroupMutation.isPending ||
-                    setGroupStatusMutation.isPending ||
-                    permanentlyDeleteGroupMutation.isPending
-                  }
-                >
-                  Actions
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => void openEditGroupSheet(row.original.id)}>
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleSetGroupStatus(row.original, true)}
-                  disabled={row.original.isActive}
-                >
-                  Re-enable
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleSetGroupStatus(row.original, false)}
-                  disabled={!row.original.isActive}
-                >
-                  Disable
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => handlePermanentlyDeleteGroup(row.original)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Permanently delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ),
-        size: 176,
-        minSize: 176,
-        maxSize: 176},
-    ],
-    [
-      createGroupMutation.isPending,
-      handlePermanentlyDeleteGroup,
-      handleSetGroupStatus,
-      groupSheetLoading,
-      openEditGroupSheet,
-      permanentlyDeleteGroupMutation.isPending,
-      setGroupStatusMutation.isPending,
-      updateGroupMutation.isPending,
-    ],
-  )
-
-  const schedulesColumns = useMemo<ColumnDef<ShiftGroupScheduleRecord>[]>(
-    () => [
-      {
-        id: "date",
-        header: "Date",
-        cell: ({ row }) => <span className="font-mono">{String(row.original.date).slice(0, 10)}</span>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "shift",
-        header: "Shift",
-        cell: ({ row }) => <span className="font-mono">{row.original.shift}</span>,
-        size: 280,
-        minSize: 220,
-        maxSize: 420},
-      {
-        id: "site",
-        header: "Site",
-        cell: ({ row }) => row.original.site?.name ?? "-",
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
-      {
-        id: "group",
-        header: "Group",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium text-[var(--color-ink)]">{row.original.shiftGroup?.name ?? "-"}</div>
-            {row.original.shiftGroup?.leader?.name ? (
-              <div className="flex items-center gap-1.5 text-sm text-[var(--color-ink-2)] mt-0.5">
-                <RecordMark kind="person" name={row.original.shiftGroup.leader.name} size="sm" />
-                <span className="truncate">{row.original.shiftGroup.leader.name}</span>
-              </div>
-            ) : null}
-          </div>
-        ),
-        size: 180,
-        minSize: 160,
-        maxSize: 220},
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={deleteScheduleMutation.isPending}
-              onClick={() => deleteScheduleMutation.mutate(row.original.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
-    ],
-    [deleteScheduleMutation],
-  )
-
-  const loadError = sitesError || groupsError || schedulesError
+  const siteFilterLabel =
+    siteFilter === "all"
+      ? "All sites"
+      : sites.find((s) => s.id === siteFilter)?.name || "Site";
 
   return (
     <PeopleShell
-      activeTab="shift-groups"
+      activeTab="rosters"
+      title="Crew Rosters & Shifts"
       actions={
-        activeView === "groups" ? (
-          <Button
-            size="sm"
-            onClick={openCreateGroupSheet}
-          >
-            <Plus className="h-4 w-4" />
-            New Group
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            onClick={() => {
-              setScheduleForm((prev) => ({
-                ...prev,
-                siteId: siteFilter === "all" ? sites[0]?.id ?? "" : siteFilter,
-              }))
-              setScheduleSheetOpen(true)
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New Schedule
-          </Button>
-        )
+        <Button variant="primary" icon="plus" shortcut="N" onClick={handleOpenCreate}>
+          New crew roster
+        </Button>
       }
     >
-      {loadError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load shift group data</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(loadError)}</AlertDescription>
-        </Alert>
-      ) : null}
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk">
+            {/* TABS */}
+            <BkTabs
+              label="Roster views"
+              value={tab}
+              onChange={(next) => {
+                setTab(next);
+                setPage(1);
+                selection.clear();
+              }}
+              items={[
+                { value: "active", label: "Active crews", count: activeCount },
+                { value: "all", label: "All rosters", count: groups.length },
+              ]}
+            />
 
-      <VerticalDataViews
-        railLabel="Shift setup"
-        items={[
-          { id: "groups", label: "Groups", count: groups.length },
-          { id: "schedules", label: "Schedules", count: schedules.length },
-        ]}
-        value={activeView}
-        onValueChange={(value) => setActiveView(value as "groups" | "schedules")}
-      >
-        {sitesLoading ? (
-          <Skeleton className="h-10 w-full" />
-        ) : activeView === "groups" ? (
-          <DataTable
-            data={groups}
-            columns={groupsColumns}
-            queryState={groupsQuery}
-            onQueryStateChange={(next) =>
-              setGroupsQuery((prev) => ({ ...prev, ...next }))
-            }
-            searchPlaceholder="Search groups"
-            searchSubmitLabel="Search"
-            tableClassName="text-sm"
-            toolbar={
-              <Select value={siteFilter} onValueChange={setSiteFilter}>
-                <SelectTrigger className="h-8 w-full sm:w-[200px]">
-                  <SelectValue placeholder="Filter site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All sites</SelectItem>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-            emptyState={groupsLoading ? "Loading groups..." : "No groups found."}
-            pagination={{ enabled: true }}
-          />
-        ) : (
-          <DataTable
-            data={schedules}
-            columns={schedulesColumns}
-            queryState={schedulesQuery}
-            onQueryStateChange={(next) =>
-              setSchedulesQuery((prev) => ({ ...prev, ...next }))
-            }
-            searchPlaceholder="Search schedules"
-            searchSubmitLabel="Search"
-            tableClassName="text-sm"
-            toolbar={
-              <Select value={siteFilter} onValueChange={setSiteFilter}>
-                <SelectTrigger className="h-8 w-full sm:w-[200px]">
-                  <SelectValue placeholder="Filter site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All sites</SelectItem>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-            emptyState={schedulesLoading ? "Loading schedules..." : "No schedules found."}
-            pagination={{ enabled: true }}
-          />
-        )}
-      </VerticalDataViews>
-
-      <Sheet
-        open={groupSheetOpen}
-        onOpenChange={(open) => {
-          setGroupSheetOpen(open)
-          if (!open) {
-            resetGroupComposerState()
-          }
-        }}
-      >
-        <SheetContent size="md" className="w-full p-6">
-          <SheetHeader>
-            <SheetTitle>{editingGroupId ? "Edit Shift Group" : "Create Shift Group"}</SheetTitle>
-            <SheetDescription>
-              {editingGroupId
-                ? "Update group details, leader, and member roster."
-                : "Group leader automatically acts as shift leader."}
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-6 space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (editingGroupId) {
-                updateGroupMutation.mutate()
-                return
+            {/* TOOLBAR */}
+            <BkTools
+              find="Search crews by name, code, site..."
+              query={search}
+              onFind={(q) => {
+                setSearch(q);
+                setPage(1);
+              }}
+              count={`${filteredGroups.length} of ${groups.length}`}
+              chips={
+                <BkChip
+                  label="Site"
+                  value={siteFilterLabel}
+                  set={siteFilter !== "all"}
+                  items={[
+                    { key: "all", label: "All sites", checked: siteFilter === "all", onSelect: () => setSiteFilter("all") },
+                    { separator: true },
+                    ...sites.map((s) => ({
+                      key: s.id,
+                      label: s.name,
+                      checked: siteFilter === s.id,
+                      onSelect: () => setSiteFilter(s.id),
+                    })),
+                  ]}
+                />
               }
-              createGroupMutation.mutate()
-            }}
-          >
-            {groupFormFeedback ? (
-              <Alert variant="destructive">
-                <AlertTitle>Unable to save shift group</AlertTitle>
-                <AlertDescription>
-                  <p>{groupFormFeedback.message}</p>
-                  {groupFormFeedback.issues.length > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs">
-                      {groupFormFeedback.issues.slice(0, 4).map((issue, index) => (
-                        <p key={`${issue}-${index}`}>- {issue}</p>
-                      ))}
-                      {groupFormFeedback.issues.length > 4 ? (
-                        <p>- +{groupFormFeedback.issues.length - 4} more issue(s)</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Name *</label>
-              <Input
-                value={groupForm.name}
-                onChange={(event) => {
-                  setGroupFormFeedback(null)
-                  setGroupForm((prev) => ({ ...prev, name: event.target.value }))
-                }}
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Code</label>
-              <Input
-                value={groupForm.code}
-                onChange={(event) => {
-                  setGroupFormFeedback(null)
-                  setGroupForm((prev) => ({ ...prev, code: event.target.value }))
-                }}
-                placeholder="Optional"
-              />
-            </div>
-            {/* Not required, and not shown at all to a workspace with no sites. A
-                bureau or a school has crews without shafts, and asking it to pick
-                a site it does not have is what made this screen unusable. */}
-            {sites.length > 0 ? (
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site</label>
-              <Select
-                value={groupForm.siteId || NO_SITE}
-                onValueChange={(value) => {
-                  setGroupFormFeedback(null)
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    siteId: value === NO_SITE ? "" : value,
-                  }))
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Whole company" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_SITE}>Whole company</SelectItem>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            ) : null}
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Group leader *</label>
-              <Popover open={leaderPickerOpen} onOpenChange={setLeaderPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full justify-between">
-                    <span className="truncate">
-                      {selectedLeaderPreview ? selectedLeaderPreview.name : "Search worker by name or ID"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      value={leaderSearch}
-                      onValueChange={setLeaderSearch}
-                      placeholder="Type worker name or ID..."
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {leaderSearch.trim().length === 0 ? "Type a worker name or ID." : "No workers found."}
-                      </CommandEmpty>
-                      {leaderSearchResults.length > 0 ? (
-                        <CommandGroup>
-                          {leaderSearchResults.map((employee) => (
-                            <CommandItem
-                              key={employee.id}
-                              value={`${employee.name} ${employee.employeeId}`}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onSelect={() => handleLeaderSelect(employee)}
-                            >
-                              <EmployeeAvatar
-                                name={employee.name}
-                                photoUrl={employee.passportPhotoUrl}
-                                size="sm"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate font-medium">{employee.name}</div>
-                                <div className="font-mono text-sm text-muted-foreground">{employee.employeeId}</div>
-                              </div>
-                              {groupForm.leaderEmployeeId === employee.id ? (
-                                <CheckIcon className="h-4 w-4 text-primary" />
-                              ) : null}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      ) : null}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Add members</label>
-              <Popover open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full justify-between">
-                    <span className="truncate">Search worker by name or ID</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      value={memberSearch}
-                      onValueChange={setMemberSearch}
-                      placeholder="Type worker name or ID..."
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {memberSearch.trim().length === 0 ? "Type a worker name or ID." : "No workers found."}
-                      </CommandEmpty>
-                      {memberSearchResults.length > 0 ? (
-                        <CommandGroup>
-                          {memberSearchResults.map((employee) => (
-                            <CommandItem
-                              key={employee.id}
-                              value={`${employee.name} ${employee.employeeId}`}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onSelect={() => handleMemberSelect(employee)}
-                            >
-                              <EmployeeAvatar
-                                name={employee.name}
-                                photoUrl={employee.passportPhotoUrl}
-                                size="sm"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate font-medium">{employee.name}</div>
-                                <div className="font-mono text-sm text-muted-foreground">{employee.employeeId}</div>
-                              </div>
-                              {groupForm.memberIds.includes(employee.id) ? (
-                                <CheckIcon className="h-4 w-4 text-primary" />
-                              ) : null}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      ) : null}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Selected people preview</label>
-              <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-                {selectedMembersPreview.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Select a leader and members to preview the shift group roster.
-                  </p>
-                ) : (
-                  selectedMembersPreview.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
-                    >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <RecordMark
-                          kind="person"
-                          name={member.name}
-                          avatarUrl={member.passportPhotoUrl}
-                          size="sm"
-                        />
-                        <span className="truncate text-sm font-medium">{member.name}</span>
-                        <span className="font-mono text-sm text-muted-foreground">{member.employeeId}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <BkState tone={member.id === groupForm.leaderEmployeeId ? "info" : "plain"}>
-                          {member.id === groupForm.leaderEmployeeId ? "Leader" : "Member"}
-                        </BkState>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeMember(member.id)}
-                          disabled={member.id === groupForm.leaderEmployeeId}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={
-                groupSheetLoading ||
-                createGroupMutation.isPending ||
-                updateGroupMutation.isPending ||
-                !groupForm.name.trim() ||
-                !groupForm.leaderEmployeeId
+              end={<BkQuietTools onExport={handleExportCsv} />}
+            />
+
+            {/* TABLE SHELL */}
+            <TableShell
+              label="Crew rosters"
+              foot={
+                <TableFoot
+                  range={filteredGroups.length === 0 ? "None" : `${from} to ${to} of ${filteredGroups.length}`}
+                  page={{
+                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
+                    onNext: to < filteredGroups.length ? () => setPage((p) => p + 1) : undefined,
+                  }}
+                  selection={{
+                    count: selection.selected.size,
+                    onClear: selection.clear,
+                    actions: (
+                      <Button icon="export" onClick={handleExportCsv}>
+                        Export selected
+                      </Button>
+                    ),
+                  }}
+                />
               }
             >
-              {editingGroupId ? "Save Changes" : "Create Group"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+              {filteredGroups.length === 0 ? (
+                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+                  <b>No crew rosters match</b>
+                  <p className="muted">Create your first crew roster with New crew roster.</p>
+                </div>
+              ) : (
+                <table className="table" aria-label="Crew rosters">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 220 }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 100 }} />
+                    <col style={{ width: 110 }} />
+                    <col style={{ width: 60 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all rosters"
+                      />
+                      <th>Crew name</th>
+                      <th>Code</th>
+                      <th>Site</th>
+                      <th>Shift leader</th>
+                      <th className="num">Members</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedGroups.map((group) => {
+                      const isSelected = selection.isSelected(group.id);
+                      const leader = group.members.find((m) => m.role === "LEADER")?.employee;
+                      const moreEntries: MenuEntry[] = [
+                        {
+                          key: "edit",
+                          label: "Edit crew details",
+                          icon: "pencil",
+                          onSelect: () => handleOpenEdit(group),
+                        },
+                        { separator: true },
+                        {
+                          key: "toggle",
+                          label: group.isActive ? "Mark inactive" : "Mark active",
+                          onSelect: () => toggleActiveMutation.mutate({ id: group.id, isActive: !group.isActive }),
+                        },
+                        {
+                          key: "delete",
+                          label: "Delete crew",
+                          icon: "bin",
+                          danger: true,
+                          onSelect: () => deleteMutation.mutate(group.id),
+                        },
+                      ];
 
-      <Sheet open={scheduleSheetOpen} onOpenChange={setScheduleSheetOpen}>
-        <SheetContent size="md" className="w-full p-6">
-          <SheetHeader>
-            <SheetTitle>Create Schedule</SheetTitle>
-            <SheetDescription>Assign a shift group to a site/date with any shift label.</SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-6 space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              createScheduleMutation.mutate()
-            }}
-          >
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Site *</label>
-              <Select
-                value={scheduleForm.siteId}
-                onValueChange={(value) =>
-                  setScheduleForm((prev) => ({ ...prev, siteId: value, shiftGroupId: "" }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select site" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold">Date *</label>
-                <Input
-                  type="date"
-                  value={scheduleForm.date}
-                  onChange={(event) => setScheduleForm((prev) => ({ ...prev, date: event.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold">Shift *</label>
-                <Input
-                  value={scheduleForm.shift}
-                  onChange={(event) =>
-                    setScheduleForm((prev) => ({ ...prev, shift: event.target.value }))
-                  }
-                  placeholder="e.g. SHIFT-1, SHIFT-2, SHIFT-3"
-                  required
-                />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Group *</label>
-              <Select
-                value={scheduleForm.shiftGroupId}
-                onValueChange={(value) => setScheduleForm((prev) => ({ ...prev, shiftGroupId: value }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select group" />
-                </SelectTrigger>
-                <SelectContent>
-                  {scheduleGroupOptions.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">Notes</label>
-              <Input
-                value={scheduleForm.notes}
-                onChange={(event) => setScheduleForm((prev) => ({ ...prev, notes: event.target.value }))}
-                placeholder="Optional notes"
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={createScheduleMutation.isPending}>
-              Create Schedule
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+                      return (
+                        <tr key={group.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(group.id)}
+                            label={`Select ${group.name}`}
+                          />
+                          <td>
+                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                              {group.name}
+                            </div>
+                            {group.notes ? (
+                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                {group.notes}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>
+                            <span className="mono" style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
+                              {group.code}
+                            </span>
+                          </td>
+                          <td>{group.site?.name ?? <span className="muted">—</span>}</td>
+                          <td>
+                            {leader ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <Person name={leader.name} />
+                                <span style={{ fontWeight: 500 }}>{leader.name}</span>
+                              </div>
+                            ) : (
+                              <span className="muted">No leader assigned</span>
+                            )}
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {group.members.length}
+                          </td>
+                          <td>
+                            <BkState tone={group.isActive ? "success" : "plain"}>
+                              {group.isActive ? "Active" : "Inactive"}
+                            </BkState>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <MenuButton label="More" items={moreEntries}>
+                              •••
+                            </MenuButton>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </TableShell>
+
+            {/* GUIDED CREW DRAWER */}
+            <Drawer
+              open={drawerOpen}
+              onOpenChange={setDrawerOpen}
+              title={editingGroup ? `Edit ${editingGroup.name}` : "New crew roster"}
+              sub="Organize staff into operational shifts, rosters, and sites."
+              width={480}
+              footer={
+                <>
+                  <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    icon="check"
+                    shortcut="Ctrl ↵"
+                    busy={createMutation.isPending || updateMutation.isPending}
+                    onClick={() => (editingGroup ? updateMutation.mutate() : createMutation.mutate())}
+                  >
+                    {editingGroup ? "Save changes" : "Create crew"}
+                  </Button>
+                </>
+              }
+            >
+              <DrawerSection title="Crew Identity">
+                <Field label="Crew name" htmlFor="crew-name">
+                  <Input
+                    id="crew-name"
+                    placeholder="e.g. Alpha Shift Processing"
+                    value={formName}
+                    onChange={(e) => {
+                      setFormName(e.target.value);
+                      if (!editingGroup && !formCode) {
+                        const words = e.target.value.trim().split(/\s+/);
+                        const codeSuggestion = words.map((w) => w[0]?.toUpperCase()).join("") || "CREW";
+                        setFormCode(codeSuggestion);
+                      }
+                    }}
+                    autoFocus
+                  />
+                </Field>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field label="Code / Identifier" htmlFor="crew-code">
+                    <Input
+                      id="crew-code"
+                      placeholder="e.g. ALPHA-1"
+                      value={formCode}
+                      onChange={(e) => setFormCode(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Site" htmlFor="crew-site" optional>
+                    <select
+                      id="crew-site"
+                      className="select"
+                      value={formSiteId}
+                      onChange={(e) => setFormSiteId(e.target.value)}
+                      style={{ width: "100%", height: 36 }}
+                    >
+                      <option value="">No site</option>
+                      {sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <Field label="Shift leader" htmlFor="crew-leader" optional>
+                  <select
+                    id="crew-leader"
+                    className="select"
+                    value={formLeaderId}
+                    onChange={(e) => setFormLeaderId(e.target.value)}
+                    style={{ width: "100%", height: 36 }}
+                  >
+                    <option value="">Select shift leader</option>
+                    {employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </DrawerSection>
+            </Drawer>
+          </div>
+        </KitScreen>
+      </Kit>
     </PeopleShell>
-  )
+  );
 }

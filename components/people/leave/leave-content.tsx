@@ -1,24 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import * as React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { PeopleShell } from "@/components/people/people-shell";
-import { RecordMark } from "@/components/records/record-mark";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BkState } from "@/components/books/bk-list";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { Progress } from "@/components/ui/progress";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+  BkChip,
+  BkQuietTools,
+  BkState,
+  BkTabs,
+  BkTools,
+  downloadCsv,
+} from "@/components/books/bk-list";
+import {
+  Button,
+  Drawer,
+  DrawerSection,
+  Field,
+  Input,
+  Kit,
+  KitScreen,
+  Person,
+  SelectCell,
+  TableFoot,
+  TableShell,
+  useSelection,
+} from "@/components/core";
+import { PeopleShell } from "@/components/people/people-shell";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type LeaveBalance = {
@@ -80,22 +88,28 @@ function formatRange(startDate: string, endDate: string) {
       year: "numeric",
       timeZone: "UTC",
     });
-  return start.getTime() === end.getTime()
-    ? fmt(start)
-    : `${fmt(start)} – ${fmt(end)}`;
-}
-
-function balancePercent(balance: LeaveBalance) {
-  const entitled = Number(balance.entitled);
-  if (!Number.isFinite(entitled) || entitled <= 0) return 0;
-  const remaining = Math.max(0, Number(balance.remaining));
-  return Math.min(100, Math.round((remaining / entitled) * 100));
+  return start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
 }
 
 export function LeaveContent() {
-  const [activeTab, setActiveTab] = useState<"requests" | "balances">("requests");
-  const [employeeId, setEmployeeId] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = React.useState<"requests" | "balances">("requests");
+  const [employeeId, setEmployeeId] = React.useState<string>("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
+  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
+
+  // New Request Drawer
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [newRequestEmployeeId, setNewRequestEmployeeId] = React.useState("");
+  const [newRequestLeaveTypeId, setNewRequestLeaveTypeId] = React.useState("");
+  const [startDate, setStartDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [coveringEmployeeId, setCoveringEmployeeId] = React.useState("");
+  const [reason, setReason] = React.useState("");
 
   const employeesQuery = useQuery({
     queryKey: ["employees", "leave-picker"],
@@ -103,18 +117,13 @@ export function LeaveContent() {
       fetchJson<{ data: EmployeeOption[] }>("/api/employees?active=true&limit=200"),
   });
 
-  const employees = useMemo(
-    () => employeesQuery.data?.data ?? [],
-    [employeesQuery.data],
-  );
+  const employees = React.useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data]);
   const selectedId = employeeId || employees[0]?.id || "";
 
   const balancesQuery = useQuery({
     queryKey: ["leave-balances", selectedId],
     queryFn: () =>
-      fetchJson<BalancesResponse>(
-        `/api/people/leave/balances?employeeId=${selectedId}`,
-      ),
+      fetchJson<BalancesResponse>(`/api/people/leave/balances?employeeId=${selectedId}`),
     enabled: Boolean(selectedId),
   });
 
@@ -122,309 +131,526 @@ export function LeaveContent() {
     queryKey: ["leave-requests", statusFilter],
     queryFn: () =>
       fetchJson<{ data: LeaveRequestRow[] }>(
-        `/api/people/leave/requests?limit=100${
-          statusFilter === "ALL" ? "" : `&status=${statusFilter}`
-        }`,
+        `/api/people/leave/requests?limit=150${statusFilter === "ALL" ? "" : `&status=${statusFilter}`}`
       ),
   });
 
-  const requests = requestsQuery.data?.data ?? [];
-  const loadError = employeesQuery.error || balancesQuery.error || requestsQuery.error;
-  const balances = balancesQuery.data?.balances ?? [];
+  const requests = React.useMemo(() => requestsQuery.data?.data ?? [], [requestsQuery.data]);
+  const balances = React.useMemo(() => balancesQuery.data?.balances ?? [], [balancesQuery.data]);
 
-  const requestColumns = useMemo<ColumnDef<LeaveRequestRow>[]>(
-    () => [
-      {
-        id: "employeeId",
-        header: "Employee ID",
-        accessorFn: (row) => row.employee.employeeId,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm text-[var(--color-ink-2)]">
-            {row.original.employee.employeeId}
-          </span>
-        ),
-        size: 130,
-        minSize: 110,
-        maxSize: 160,
-      },
-      {
-        id: "employee",
-        header: "Employee",
-        accessorFn: (row) => row.employee.name,
-        cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2.5">
-            <RecordMark kind="person" name={row.original.employee.name} size="sm" />
-            <span className="truncate font-medium text-[var(--color-ink)]">
-              {row.original.employee.name}
-            </span>
-          </div>
-        ),
-        size: 240,
-        minSize: 180,
-        maxSize: 320,
-      },
-      {
-        id: "leaveType",
-        header: "Type",
-        accessorFn: (row) => row.leaveType.name,
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{row.original.leaveType.name}</span>
-            {!row.original.leaveType.isPaid ? (
-              <span className="font-mono text-xs text-[var(--color-muted)]">(Unpaid)</span>
-            ) : null}
-          </div>
-        ),
-        size: 160,
-        minSize: 140,
-        maxSize: 200,
-      },
-      {
-        id: "dates",
-        header: "Dates",
-        cell: ({ row }) => (
-          <span className="font-mono text-sm text-[var(--color-ink-2)]">
-            {formatRange(row.original.startDate, row.original.endDate)}
-          </span>
-        ),
-        size: 220,
-        minSize: 180,
-        maxSize: 260,
-      },
-      {
-        id: "workingDays",
-        header: "Days",
-        accessorFn: (row) => row.workingDays,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm font-medium">
-            {row.original.workingDays}
-          </span>
-        ),
-        size: 90,
-        minSize: 80,
-        maxSize: 110,
-      },
-      {
-        id: "coveringEmployee",
-        header: "Cover",
-        cell: ({ row }) => (
-          <span className="text-sm text-[var(--color-ink-2)]">
-            {row.original.coveringEmployee?.name ?? "—"}
-          </span>
-        ),
-        size: 160,
-        minSize: 140,
-        maxSize: 200,
-      },
-      {
-        id: "status",
-        header: "Status",
-        accessorFn: (row) => row.status,
-        cell: ({ row }) => (
-          <BkState tone={STATUS_TONE[row.original.status] ?? "plain"}>
-            {row.original.status.toLowerCase()}
-          </BkState>
-        ),
-        size: 120,
-        minSize: 100,
-        maxSize: 140,
-      },
-    ],
-    [],
+  // Leave types for drawer
+  const leaveTypes = React.useMemo(() => {
+    return balances.map((b) => ({ id: b.leaveTypeId, name: b.name, remaining: b.remaining }));
+  }, [balances]);
+
+  // Working days auto-calculation preview
+  const estimatedWorkingDays = React.useMemo(() => {
+    if (!startDate || !endDate) return 1;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let count = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+      const day = cur.getDay();
+      if (day !== 0 && day !== 6) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return Math.max(1, count);
+  }, [startDate, endDate]);
+
+  // Create request mutation
+  const createRequestMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson("/api/people/leave/requests", {
+        method: "POST",
+        body: JSON.stringify({
+          employeeId: newRequestEmployeeId || selectedId,
+          leaveTypeId: newRequestLeaveTypeId || balances[0]?.leaveTypeId,
+          startDate,
+          endDate,
+          reason,
+          coveringEmployeeId: coveringEmployeeId || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Leave request submitted", variant: "success" });
+      setDrawerOpen(false);
+      setReason("");
+      queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+    },
+    onError: (err) => {
+      toast({ title: "Unable to submit leave request", description: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  // Filter requests
+  const filteredRequests = React.useMemo(() => {
+    let list = [...requests];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          r.employee.name.toLowerCase().includes(q) ||
+          r.leaveType.name.toLowerCase().includes(q) ||
+          r.reason.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [requests, search]);
+
+  const activeItems = activeTab === "requests" ? filteredRequests : balances;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, activeItems.length);
+  const pagedRequests = React.useMemo(
+    () => filteredRequests.slice((page - 1) * pageSize, page * pageSize),
+    [filteredRequests, page, pageSize]
   );
 
-  const balanceColumns = useMemo<ColumnDef<LeaveBalance>[]>(
-    () => [
-      {
-        id: "leaveType",
-        header: "Leave Type",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium text-[var(--color-ink)]">{row.original.name}</div>
-            <div className="font-mono text-sm text-[var(--color-ink-3)]">{row.original.code}</div>
-          </div>
-        ),
-        size: 200,
-        minSize: 160,
-        maxSize: 260,
-      },
-      {
-        id: "entitled",
-        header: "Entitled",
-        cell: ({ row }) => (
-          <span className="font-mono text-sm">
-            {row.original.isUnlimited ? "Unlimited" : `${row.original.entitled} d`}
-          </span>
-        ),
-        size: 110,
-        minSize: 90,
-        maxSize: 130,
-      },
-      {
-        id: "taken",
-        header: "Taken",
-        cell: ({ row }) => (
-          <span className="font-mono text-sm">
-            {row.original.taken} d
-          </span>
-        ),
-        size: 100,
-        minSize: 80,
-        maxSize: 120,
-      },
-      {
-        id: "pending",
-        header: "Pending",
-        cell: ({ row }) => (
-          <span className="font-mono text-sm text-[var(--color-ink-2)]">
-            {Number(row.original.pending) > 0 ? `${row.original.pending} d` : "—"}
-          </span>
-        ),
-        size: 100,
-        minSize: 80,
-        maxSize: 120,
-      },
-      {
-        id: "remaining",
-        header: "Remaining",
-        cell: ({ row }) => (
-          row.original.isUnlimited ? (
-            <span className="font-mono text-xs text-[var(--color-ink-3)]">Unlimited</span>
-          ) : (
-            <div className="space-y-1.5 min-w-[140px]">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-mono font-medium">{row.original.remaining} d left</span>
-                <span className="text-[var(--color-ink-3)]">{balancePercent(row.original)}%</span>
-              </div>
-              <Progress value={balancePercent(row.original)} className="h-1.5" />
-            </div>
-          )
-        ),
-        size: 180,
-        minSize: 150,
-        maxSize: 240,
-      },
-      {
-        id: "policyNote",
-        header: "Policy Note",
-        cell: ({ row }) => (
-          <span className="text-sm text-[var(--color-ink-2)] truncate">
-            {row.original.policyNote || "—"}
-          </span>
-        ),
-        size: 260,
-        minSize: 200,
-        maxSize: 380,
-      },
-    ],
-    [],
-  );
+  const requestIds = React.useMemo(() => pagedRequests.map((r) => r.id), [pagedRequests]);
+  const selection = useSelection(requestIds);
+
+  const handleExportCsv = () => {
+    if (activeTab === "requests") {
+      const csv = [
+        ["Employee ID", "Employee Name", "Leave Type", "Start Date", "End Date", "Working Days", "Status", "Reason"],
+        ...filteredRequests.map((r) => [
+          r.employee.employeeId,
+          r.employee.name,
+          r.leaveType.name,
+          r.startDate.slice(0, 10),
+          r.endDate.slice(0, 10),
+          r.workingDays,
+          r.status,
+          r.reason,
+        ]),
+      ];
+      downloadCsv(`leave-requests-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    } else {
+      const csv = [
+        ["Policy", "Entitled", "Taken", "Pending", "Remaining"],
+        ...balances.map((b) => [b.name, b.entitled, b.taken, b.pending, b.remaining]),
+      ];
+      downloadCsv(`leave-balances-${selectedId}.csv`, csv);
+    }
+  };
+
+  const statusLabel =
+    statusFilter === "ALL"
+      ? "All statuses"
+      : statusFilter === "SUBMITTED"
+      ? "Awaiting decision"
+      : statusFilter === "APPROVED"
+      ? "Approved"
+      : statusFilter === "REJECTED"
+      ? "Rejected"
+      : statusFilter;
+
+  const selectedEmployeeName = React.useMemo(() => {
+    return employees.find((e) => e.id === selectedId)?.name || "Select staff";
+  }, [employees, selectedId]);
 
   return (
-    <PeopleShell activeTab="leave" title="Leave">
-      {loadError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load leave</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(loadError)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Primary Toolbar: Tabs on their own row, contextual filters on the row below */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between border-b border-[var(--color-line)] pb-2.5">
-          <div className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] p-0.5">
-            <Button
-              size="sm"
-              variant={activeTab === "requests" ? "primary" : "ghost"}
-              className="h-7 text-sm font-medium"
-              onClick={() => setActiveTab("requests")}
-            >
-              Requests
-            </Button>
-            <Button
-              size="sm"
-              variant={activeTab === "balances" ? "primary" : "ghost"}
-              className="h-7 text-sm font-medium"
-              onClick={() => setActiveTab("balances")}
-            >
-              Balances
-            </Button>
-          </div>
-
-          {activeTab === "requests" ? (
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger size="sm" className="h-8 w-[11rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All statuses</SelectItem>
-                <SelectItem value="SUBMITTED">Awaiting decision</SelectItem>
-                <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REJECTED">Rejected</SelectItem>
-                <SelectItem value="DRAFT">Draft</SelectItem>
-                <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Select
-                value={selectedId}
-                onValueChange={setEmployeeId}
-                disabled={employeesQuery.isPending || employees.length === 0}
-              >
-                <SelectTrigger size="sm" className="h-8 w-[14rem]">
-                  <SelectValue placeholder="Choose an employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name} · {employee.employeeId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {balancesQuery.data ? (
-                <span className="font-mono text-sm text-[var(--color-ink-2)]">
-                  {balancesQuery.data.year}
-                </span>
-              ) : null}
-            </div>
-          )}
-        </div>
-
-        {activeTab === "requests" ? (
-          requestsQuery.isPending ? (
-            <Skeleton className="h-48 w-full" />
-          ) : requests.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--color-ink-3)]">
-              {statusFilter === "ALL"
-                ? "No leave requests recorded yet."
-                : "No requests found with this status."}
-            </div>
-          ) : (
-            <DataTable
-              data={requests}
-              columns={requestColumns}
-              features={{ sorting: true, pagination: true }}
-              pagination={{ enabled: true, server: false }}
-              searchPlaceholder="Search leave requests..."
+    <PeopleShell
+      activeTab="leave"
+      title="Staff Leave & Absences"
+      actions={
+        <Button
+          variant="primary"
+          icon="plus"
+          shortcut="N"
+          onClick={() => {
+            setNewRequestEmployeeId(selectedId);
+            if (balances[0]) setNewRequestLeaveTypeId(balances[0].leaveTypeId);
+            setDrawerOpen(true);
+          }}
+        >
+          Request leave
+        </Button>
+      }
+    >
+      <Kit contents>
+        <KitScreen slug="bk-a">
+          <div className="bk">
+            {/* TABS */}
+            <BkTabs
+              label="Leave views"
+              value={activeTab}
+              onChange={(t) => {
+                setActiveTab(t);
+                setPage(1);
+                selection.clear();
+              }}
+              items={[
+                { value: "requests", label: "Leave requests", count: requests.length },
+                { value: "balances", label: "Staff balances", count: employees.length },
+              ]}
             />
-          )
-        ) : balancesQuery.isPending ? (
-          <Skeleton className="h-48 w-full" />
-        ) : balances.length === 0 ? (
-          <div className="py-8 text-center text-sm text-[var(--color-ink-3)]">
-            No active leave policies or balances found for this employee.
+
+            {/* TOOLBAR */}
+            <BkTools
+              find={activeTab === "requests" ? "Search requests by name or reason..." : "Search balances..."}
+              query={search}
+              onFind={(q) => {
+                setSearch(q);
+                setPage(1);
+              }}
+              count={`${activeItems.length} of ${activeTab === "requests" ? requests.length : balances.length}`}
+              chips={
+                activeTab === "requests" ? (
+                  <BkChip
+                    label="Status"
+                    value={statusLabel}
+                    set={statusFilter !== "ALL"}
+                    items={[
+                      {
+                        key: "ALL",
+                        label: "All statuses",
+                        checked: statusFilter === "ALL",
+                        onSelect: () => setStatusFilter("ALL"),
+                      },
+                      { separator: true },
+                      {
+                        key: "SUBMITTED",
+                        label: "Awaiting decision",
+                        checked: statusFilter === "SUBMITTED",
+                        onSelect: () => setStatusFilter("SUBMITTED"),
+                      },
+                      {
+                        key: "APPROVED",
+                        label: "Approved",
+                        checked: statusFilter === "APPROVED",
+                        onSelect: () => setStatusFilter("APPROVED"),
+                      },
+                      {
+                        key: "REJECTED",
+                        label: "Rejected",
+                        checked: statusFilter === "REJECTED",
+                        onSelect: () => setStatusFilter("REJECTED"),
+                      },
+                    ]}
+                  />
+                ) : (
+                  <BkChip
+                    label="Employee"
+                    value={selectedEmployeeName}
+                    set={Boolean(employeeId)}
+                    items={[
+                      ...employees.map((e) => ({
+                        key: e.id,
+                        label: `${e.name} (${e.employeeId})`,
+                        checked: selectedId === e.id,
+                        onSelect: () => setEmployeeId(e.id),
+                      })),
+                    ]}
+                  />
+                )
+              }
+              end={
+                <BkQuietTools
+                  onExport={handleExportCsv}
+                />
+              }
+            />
+
+            {/* TABLE SHELL */}
+            <TableShell
+              label={activeTab === "requests" ? "Leave requests" : "Leave balances"}
+              foot={
+                <TableFoot
+                  range={activeItems.length === 0 ? "None" : `${from} to ${to} of ${activeItems.length}`}
+                  page={{
+                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
+                    onNext: to < activeItems.length ? () => setPage((p) => p + 1) : undefined,
+                  }}
+                  selection={
+                    activeTab === "requests"
+                      ? {
+                          count: selection.selected.size,
+                          onClear: selection.clear,
+                          actions: (
+                            <Button icon="export" onClick={handleExportCsv}>
+                              Export selected
+                            </Button>
+                          ),
+                        }
+                      : undefined
+                  }
+                />
+              }
+            >
+              {activeItems.length === 0 ? (
+                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
+                  <b>No records match</b>
+                  <p className="muted">
+                    {activeTab === "requests"
+                      ? "Submit a leave request above to register scheduled time off."
+                      : "No active leave policies or balances found for this employee."}
+                  </p>
+                </div>
+              ) : activeTab === "requests" ? (
+                /* REQUESTS TABLE */
+                <table className="table" aria-label="Leave requests">
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 240 }} />
+                    <col style={{ width: 160 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 100 }} />
+                    <col style={{ width: 140 }} />
+                    <col />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <SelectCell
+                        head
+                        checked={selection.all}
+                        indeterminate={selection.some}
+                        onChange={selection.toggleAll}
+                        label="Select all requests"
+                      />
+                      <th>Employee</th>
+                      <th>Leave type</th>
+                      <th>Dates</th>
+                      <th className="num">Days</th>
+                      <th>Status</th>
+                      <th>Covering & Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedRequests.map((req) => {
+                      const isSelected = selection.isSelected(req.id);
+                      return (
+                        <tr key={req.id} className={isSelected ? "is-selected" : undefined}>
+                          <SelectCell
+                            checked={isSelected}
+                            onChange={() => selection.toggle(req.id)}
+                            label={`Select request for ${req.employee.name}`}
+                          />
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <Person name={req.employee.name} />
+                              <div>
+                                <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                                  {req.employee.name}
+                                </span>
+                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                  {req.employee.employeeId}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 500 }}>{req.leaveType.name}</div>
+                            <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                              {req.leaveType.code}
+                            </div>
+                          </td>
+                          <td className="muted" style={{ fontSize: 13 }}>
+                            {formatRange(req.startDate, req.endDate)}
+                          </td>
+                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+                            {req.workingDays}d
+                          </td>
+                          <td>
+                            <BkState tone={STATUS_TONE[req.status]}>
+                              {req.status === "SUBMITTED" ? "Awaiting decision" : req.status}
+                            </BkState>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
+                              {req.reason || "—"}
+                            </div>
+                            {req.coveringEmployee ? (
+                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                                Covered by {req.coveringEmployee.name}
+                              </div>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                /* BALANCES TABLE */
+                <table className="table" aria-label="Leave balances">
+                  <colgroup>
+                    <col style={{ width: 240 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 140 }} />
+                    <col />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Leave policy</th>
+                      <th className="num">Entitled</th>
+                      <th className="num">Taken</th>
+                      <th className="num">Pending</th>
+                      <th className="num">Remaining</th>
+                      <th>Policy note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {balances.map((b) => (
+                      <tr key={b.leaveTypeId}>
+                        <td>
+                          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+                            {b.name}
+                          </div>
+                          <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
+                            {b.code}
+                          </div>
+                        </td>
+                        <td className="num">{b.isUnlimited ? "Unlimited" : `${b.entitled}d`}</td>
+                        <td className="num muted">{b.taken}d</td>
+                        <td className="num muted">{b.pending}d</td>
+                        <td className="num" style={{ fontWeight: 600, color: "var(--color-success)" }}>
+                          {b.isUnlimited ? "Unlimited" : `${b.remaining}d`}
+                        </td>
+                        <td className="muted" style={{ fontSize: 13 }}>
+                          {b.policyNote || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </TableShell>
+
+            {/* GUIDED REQUEST LEAVE DRAWER */}
+            <Drawer
+              open={drawerOpen}
+              onOpenChange={setDrawerOpen}
+              title="Request leave"
+              sub="Submit a scheduled leave or absence request for manager approval."
+              width={500}
+              footer={
+                <>
+                  <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    icon="check"
+                    shortcut="Ctrl ↵"
+                    busy={createRequestMutation.isPending}
+                    onClick={() => createRequestMutation.mutate()}
+                  >
+                    Submit request
+                  </Button>
+                </>
+              }
+            >
+              <DrawerSection title="Who & Policy">
+                <Field label="Employee" htmlFor="leave-emp">
+                  <select
+                    id="leave-emp"
+                    className="select"
+                    value={newRequestEmployeeId || selectedId}
+                    onChange={(e) => {
+                      setNewRequestEmployeeId(e.target.value);
+                      setEmployeeId(e.target.value);
+                    }}
+                    style={{ width: "100%", height: 36 }}
+                  >
+                    {employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.employeeId})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Leave type" htmlFor="leave-type">
+                  <select
+                    id="leave-type"
+                    className="select"
+                    value={newRequestLeaveTypeId}
+                    onChange={(e) => setNewRequestLeaveTypeId(e.target.value)}
+                    style={{ width: "100%", height: 36 }}
+                  >
+                    {leaveTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} • {t.remaining} days remaining
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </DrawerSection>
+
+              <DrawerSection title="Dates & Working Days Preview">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field label="Start date" htmlFor="leave-start">
+                    <Input
+                      id="leave-start"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="End date" htmlFor="leave-end">
+                    <Input
+                      id="leave-end"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                {/* Working days calculation preview card */}
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    background: "var(--color-surface)",
+                    boxShadow: "var(--shadow-ring)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: 13,
+                    marginTop: 4,
+                  }}
+                >
+                  <span className="muted">Estimated working days (excluding weekends)</span>
+                  <span className="num" style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 15 }}>
+                    {estimatedWorkingDays} {estimatedWorkingDays === 1 ? "day" : "days"}
+                  </span>
+                </div>
+
+                <Field label="Covering staff" htmlFor="leave-covering" optional>
+                  <select
+                    id="leave-covering"
+                    className="select"
+                    value={coveringEmployeeId}
+                    onChange={(e) => setCoveringEmployeeId(e.target.value)}
+                    style={{ width: "100%", height: 36 }}
+                  >
+                    <option value="">No cover required</option>
+                    {employees
+                      .filter((e) => e.id !== (newRequestEmployeeId || selectedId))
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} ({e.employeeId})
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+
+                <Field label="Reason / Notes" htmlFor="leave-reason" optional>
+                  <Input
+                    id="leave-reason"
+                    placeholder="e.g. Annual leave or family appointment"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                </Field>
+              </DrawerSection>
+            </Drawer>
           </div>
-        ) : (
-          <DataTable
-            data={balances}
-            columns={balanceColumns}
-            features={{ sorting: true, pagination: false }}
-            pagination={{ enabled: false }}
-          />
-        )}
-      </div>
+        </KitScreen>
+      </Kit>
     </PeopleShell>
   );
 }
