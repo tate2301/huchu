@@ -439,10 +439,15 @@ function EndOfDay({ pills }: { pills: React.ReactNode }) {
             <Receipt className="ic" />
             Spreadsheet
           </a>
-          <button type="button" className="take-key" onClick={() => window.print()}>
+          <a
+            className="hx-key"
+            href={`/api/v2/retail/z-reports/${report.id}?format=pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <Printer className="ic" />
             Print the report
-          </button>
+          </a>
         </div>
       </aside>
     </div>

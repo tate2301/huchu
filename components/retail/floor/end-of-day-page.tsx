@@ -124,6 +124,7 @@ function EndOfDay({ view, basePath }: { view: EndOfDayView; basePath: string }) 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["retail-end-of-day"] }),
         queryClient.invalidateQueries({ queryKey: ["list", "retail-days"] }),
+        queryClient.invalidateQueries({ queryKey: ["alerts", "emergencies"] }),
       ]);
     } catch (error) {
       const fields = (error instanceof ApiError ? (error.details as { fieldErrors?: Record<string, string> } | null)?.fieldErrors : null) ?? {};

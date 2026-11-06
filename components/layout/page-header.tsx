@@ -18,6 +18,7 @@ import {
   NotificationsBell,
   SearchTrigger,
 } from "@/components/layout/app-bar-tools";
+import { EmergencyHeaderTrigger } from "@/components/alerts/emergency-alert-host";
 import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
@@ -234,6 +235,7 @@ export function PageHeader() {
               </Kit>
             ) : null}
           </div>
+          <EmergencyHeaderTrigger />
           <VaneBarButton />
           <SearchTrigger />
           <NotificationsBell />
@@ -264,6 +266,7 @@ export function PageHeader() {
         <h1 className="m-0 min-w-0 flex-1 truncate text-[17px] font-semibold text-[var(--ink)]">{title}</h1>
         {back ? null : (
           <>
+            <EmergencyHeaderTrigger compact />
             <VaneBarButton />
             <SearchTrigger compact />
             <NotificationsBell compact />

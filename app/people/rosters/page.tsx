@@ -109,9 +109,9 @@ export default function RostersPage() {
     mutationFn: async () =>
       createShiftGroup({
         name: formName,
-        code: formCode,
+        code: formCode || undefined,
         siteId: formSiteId || undefined,
-        leaderEmployeeId: formLeaderId || undefined,
+        leaderEmployeeId: formLeaderId || employees[0]?.id || "",
         memberIds: formLeaderId ? [formLeaderId] : [],
       }),
     onSuccess: () => {
@@ -174,9 +174,9 @@ export default function RostersPage() {
   const handleOpenEdit = (group: ShiftGroupRecord) => {
     setEditingGroup(group);
     setFormName(group.name);
-    setFormCode(group.code);
+    setFormCode(group.code || "");
     setFormSiteId(group.siteId || "");
-    setFormLeaderId(group.members.find((m) => m.role === "LEADER")?.employeeId || "");
+    setFormLeaderId(group.leaderEmployeeId || "");
     setDrawerOpen(true);
   };
 
@@ -185,10 +185,10 @@ export default function RostersPage() {
       ["Crew Name", "Code", "Site", "Leader", "Members Count", "Status"],
       ...filteredGroups.map((g) => [
         g.name,
-        g.code,
+        g.code || "",
         g.site?.name || "",
-        g.members.find((m) => m.role === "LEADER")?.employee?.name || "",
-        String(g.members.length),
+        g.leader?.name || "",
+        String(g._count?.members ?? 0),
         g.isActive ? "Active" : "Inactive",
       ]),
     ];
@@ -202,7 +202,7 @@ export default function RostersPage() {
 
   return (
     <PeopleShell
-      activeTab="rosters"
+      activeTab="shift-groups"
       title="Crew Rosters & Shifts"
       actions={
         <Button variant="primary" icon="plus" shortcut="N" onClick={handleOpenCreate}>
@@ -317,12 +317,12 @@ export default function RostersPage() {
                   <tbody>
                     {pagedGroups.map((group) => {
                       const isSelected = selection.isSelected(group.id);
-                      const leader = group.members.find((m) => m.role === "LEADER")?.employee;
+                      const leader = group.leader;
                       const moreEntries: MenuEntry[] = [
                         {
                           key: "edit",
                           label: "Edit crew details",
-                          icon: "pencil",
+                          icon: "edit",
                           onSelect: () => handleOpenEdit(group),
                         },
                         { separator: true },
@@ -334,7 +334,7 @@ export default function RostersPage() {
                         {
                           key: "delete",
                           label: "Delete crew",
-                          icon: "bin",
+                          icon: "retire",
                           danger: true,
                           onSelect: () => deleteMutation.mutate(group.id),
                         },
@@ -351,11 +351,6 @@ export default function RostersPage() {
                             <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
                               {group.name}
                             </div>
-                            {group.notes ? (
-                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                {group.notes}
-                              </div>
-                            ) : null}
                           </td>
                           <td>
                             <span className="mono" style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
@@ -374,7 +369,7 @@ export default function RostersPage() {
                             )}
                           </td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {group.members.length}
+                            {group._count?.members ?? 0}
                           </td>
                           <td>
                             <BkState tone={group.isActive ? "success" : "plain"}>

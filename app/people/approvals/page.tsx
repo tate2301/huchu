@@ -49,7 +49,7 @@ export default function ApprovalsPage() {
     queryKey: ["approval-history", entityType, search],
     queryFn: () =>
       fetchApprovalHistory({
-        entityType: entityType === "all" ? undefined : entityType,
+        entityType: entityType === "all" ? undefined : (entityType as ApprovalHistoryRecord["entityType"]),
         search: search || undefined,
         limit: 250,
       }),
@@ -91,10 +91,10 @@ export default function ApprovalsPage() {
         r.entityType,
         r.entityId,
         r.action,
-        r.actor?.name || "",
-        r.actorRole || "",
+        r.actedBy?.name || "",
+        r.actedBy?.role || "",
         format(new Date(r.createdAt), "yyyy-MM-dd HH:mm"),
-        r.comments || "",
+        r.note || "",
       ]),
     ];
     downloadCsv(`approvals-history-${new Date().toISOString().slice(0, 10)}.csv`, csv);
@@ -233,10 +233,10 @@ export default function ApprovalsPage() {
                             </div>
                           </td>
                           <td>
-                            {record.actor?.name ? (
+                            {record.actedBy?.name ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <Person name={record.actor.name} />
-                                <span style={{ fontWeight: 500 }}>{record.actor.name}</span>
+                                <Person name={record.actedBy.name} />
+                                <span style={{ fontWeight: 500 }}>{record.actedBy.name}</span>
                               </div>
                             ) : (
                               <span className="muted">System Automation</span>
@@ -244,7 +244,7 @@ export default function ApprovalsPage() {
                           </td>
                           <td>
                             <span style={{ fontSize: 13, color: "var(--color-muted)" }}>
-                              {record.actorRole || "—"}
+                              {record.actedBy?.role || "—"}
                             </span>
                           </td>
                           <td className="muted" style={{ fontSize: 13 }}>
@@ -257,7 +257,7 @@ export default function ApprovalsPage() {
                           </td>
                           <td>
                             <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                              {record.comments || "—"}
+                              {record.note || "—"}
                             </div>
                           </td>
                         </tr>
@@ -289,11 +289,11 @@ export default function ApprovalsPage() {
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span className="muted">Decided by</span>
-                        <b>{selectedRecord.actor?.name || "System"}</b>
+                        <b>{selectedRecord.actedBy?.name || "System"}</b>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span className="muted">Role</span>
-                        <span>{selectedRecord.actorRole || "Approver"}</span>
+                        <span>{selectedRecord.actedBy?.role || "Approver"}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span className="muted">Timestamp</span>
@@ -314,13 +314,13 @@ export default function ApprovalsPage() {
                         <span className="muted">Entity reference ID</span>
                         <span className="num" style={{ fontSize: 12 }}>{selectedRecord.entityId}</span>
                       </div>
-                      {selectedRecord.comments ? (
+                      {selectedRecord.note ? (
                         <div style={{ marginTop: 8, padding: 12, borderRadius: 6, background: "var(--color-surface)" }}>
                           <span className="muted" style={{ display: "block", marginBottom: 4 }}>
                             Comments / Decision justification:
                           </span>
                           <p style={{ margin: 0, color: "var(--color-ink)" }}>
-                            {selectedRecord.comments}
+                            {selectedRecord.note}
                           </p>
                         </div>
                       ) : null}

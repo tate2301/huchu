@@ -11,6 +11,7 @@ import {
   useNotificationsEnabled,
   useUnreadNotificationCount,
 } from "@/components/notifications/notification-center";
+import { useEmergencyAlerts } from "@/components/alerts/emergency-alert-host";
 import { Bell, MagnifyingGlass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,7 @@ export function SearchTrigger({ compact = false }: { compact?: boolean }) {
 export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   const enabled = useNotificationsEnabled();
   const unread = useUnreadNotificationCount();
+  const { feed: emergencyFeed } = useEmergencyAlerts();
   const [open, setOpen] = React.useState(false);
   // The count comes from the browser's cache, so it is drawn after hydration.
   const mounted = React.useSyncExternalStore(
@@ -64,7 +66,9 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
     () => true,
     () => false,
   );
-  if (!enabled) return null;
+  const hasEmergencyAlerts = (emergencyFeed?.counts.total ?? 0) > 0;
+  const hasCriticalEmergency = (emergencyFeed?.counts.critical ?? 0) > 0;
+  if (!enabled && !hasEmergencyAlerts) return null;
   const count = mounted ? unread : 0;
   const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
   return (
@@ -83,7 +87,10 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
         {count > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[var(--action)] shadow-[0_0_0_2px_var(--surface)]"
+            className={cn(
+              "absolute right-1.5 top-1.5 size-2 rounded-full shadow-[0_0_0_2px_var(--surface)]",
+              hasCriticalEmergency ? "bg-red-600" : "bg-[var(--action)]",
+            )}
           />
         ) : null}
       </button>

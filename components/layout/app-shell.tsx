@@ -31,6 +31,7 @@ import { SheetHost } from "@/components/sheet-form/sheet-host";
 import { LiveStream } from "@/components/layout/live-stream";
 import { VanePanel } from "@/components/vane/vane-panel";
 import { BooksScope, isBooksPath } from "@/components/books/books-scope";
+import { EmergencyAlertProvider } from "@/components/alerts/emergency-alert-host";
 
 /**
  * The shell every signed-in page sits in (00-foundations 5.3.1):
@@ -102,7 +103,9 @@ export function AppShell({
       <ShellNavProvider brand={workspaceBrand} shopConditions={shopConditions}>
         <PageChromeProvider>
           <BooksScope active={isBooksPath(pathname)}>
-            <ShellFrame builder={builder}>{children}</ShellFrame>
+            <EmergencyAlertProvider>
+              <ShellFrame builder={builder}>{children}</ShellFrame>
+            </EmergencyAlertProvider>
           </BooksScope>
         </PageChromeProvider>
       </ShellNavProvider>

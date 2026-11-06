@@ -32,6 +32,7 @@ import {
   fetchAttendance,
   fetchEmployees,
   fetchSites,
+  type Site,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -92,7 +93,7 @@ export default function AttendancePage() {
 
   const sitesQuery = useQuery({
     queryKey: ["sites"],
-    queryFn: () => fetchSites({ active: true }),
+    queryFn: () => fetchSites(),
   });
 
   const employeesQuery = useQuery({
@@ -101,7 +102,7 @@ export default function AttendancePage() {
   });
 
   const records = React.useMemo(() => attendanceQuery.data?.data ?? [], [attendanceQuery.data]);
-  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const sites = React.useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = React.useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data]);
 
   // Mutations
@@ -173,7 +174,7 @@ export default function AttendancePage() {
         r.date.slice(0, 10),
         r.shift || "",
         r.status,
-        String(r.overtimeHours ?? 0),
+        String(r.overtime ?? 0),
         r.site?.name || "",
       ]),
     ];
@@ -363,9 +364,9 @@ export default function AttendancePage() {
                           </td>
                           <td>{record.site?.name ?? <span className="muted">—</span>}</td>
                           <td className="num">
-                            {Number(record.overtimeHours) > 0 ? (
+                            {Number(record.overtime) > 0 ? (
                               <span style={{ fontWeight: 600, color: "var(--color-accent)" }}>
-                                +{record.overtimeHours}h
+                                +{record.overtime}h
                               </span>
                             ) : (
                               <span className="muted">—</span>
@@ -381,8 +382,9 @@ export default function AttendancePage() {
                             {canManage ? (
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                icon="bin"
+                                variant="quiet"
+                                icon="retire"
+                                aria-label="Delete attendance"
                                 onClick={() => deleteMutation.mutate(record.id)}
                               />
                             ) : null}
@@ -476,7 +478,7 @@ export default function AttendancePage() {
                       style={{ width: "100%", height: 36 }}
                     >
                       <option value="">Default Site</option>
-                      {sites.map((s) => (
+                      {sites.map((s: Site) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>

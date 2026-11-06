@@ -25,7 +25,7 @@ export async function supplierActivity(companyId: string, vendorIds: string[]): 
     vendorIds.map((id) => [id, { orders: [], deliveries: [], bills: [], credits: { payments: [], returns: [] } }]),
   );
   if (vendorIds.length === 0) return activity;
-  const [orders, receipts] = await Promise.all([
+  const [orders, receipts, bills, payments] = await Promise.all([
     prisma.retailPurchaseOrder.findMany({
       where: { companyId, vendorId: { in: vendorIds } },
       select: {
@@ -52,6 +52,25 @@ export async function supplierActivity(companyId: string, vendorIds: string[]): 
             inventoryItem: { select: { product: { select: { defaultTaxRate: true } } } },
           },
         },
+      },
+    }),
+    prisma.purchaseBill.findMany({
+      where: { companyId, vendorId: { in: vendorIds }, status: { not: "VOIDED" } },
+      select: {
+        vendorId: true,
+        total: true,
+        amountPaid: true,
+        debitNoteTotal: true,
+        writeOffTotal: true,
+        dueDate: true,
+        status: true,
+      },
+    }),
+    prisma.purchasePayment.findMany({
+      where: { companyId, vendorId: { in: vendorIds }, status: "PAID", billId: null },
+      select: {
+        vendorId: true,
+        amount: true,
       },
     }),
   ]);
@@ -83,6 +102,21 @@ export async function supplierActivity(companyId: string, vendorIds: string[]): 
         vatRate: line.purchaseOrderLine?.vatRate ?? line.inventoryItem?.product?.defaultTaxRate ?? 0,
       })),
     });
+  }
+  for (const bill of bills) {
+    activity.get(bill.vendorId)?.bills.push({
+      total: bill.total,
+      amountPaid: bill.amountPaid,
+      debitNoteTotal: bill.debitNoteTotal,
+      writeOffTotal: bill.writeOffTotal,
+      dueDate: bill.dueDate,
+      binned: bill.status === "VOIDED",
+    });
+  }
+  for (const payment of payments) {
+    if (payment.vendorId) {
+      activity.get(payment.vendorId)?.credits.payments.push(payment.amount);
+    }
   }
   return activity;
 }

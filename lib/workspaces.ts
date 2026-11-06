@@ -641,6 +641,7 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
         refs: [
           { moduleId: "payroll", href: "/payroll/compensation" },
           { moduleId: "payroll", href: "/payroll/salaries" },
+          { moduleId: "payroll", href: "/payroll/salaries/outstanding" },
         ],
       },
     ],

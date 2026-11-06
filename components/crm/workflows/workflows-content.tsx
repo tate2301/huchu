@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 
-import { Alert, EmptyState, Switch } from "@corelithzw/react";
+import { Switch } from "@corelithzw/react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,27 +17,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { IconButton } from "@/components/ui/icon-button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TimeAgo } from "@/components/ui/time-ago";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  TRIGGER_LABELS,
   type AutomationAction,
   type AutomationCondition,
   type AUTOMATION_TRIGGERS,
 } from "@/lib/crm/automation";
-import { DotsThree, History } from "@/lib/icons";
-import {
-  ci_alert_circle,
-  ci_apps,
-  ci_pause,
-  ci_play,
-} from "@/components/books/icons/glyphs";
-import { CiGlyphIcon } from "@/components/books/icons/glyph-icon";
+import { DotsThree, ArrowRightUp } from "@/lib/icons";
+import { cn } from "@/lib/utils";
+import { ENTITY_HREF, failureMessage } from "./run-result";
 
-type WorkflowRow = {
+type ScheduledWorkflowRow = {
   id: string;
   name: string;
   trigger: (typeof AUTOMATION_TRIGGERS)[number];
@@ -47,27 +44,35 @@ type WorkflowRow = {
   runs: { id: string; status: string; createdAt: string }[];
 };
 
-/**
- * Every workflow, each one legible without opening it.
- *
- * These lived in a settings tab, which said they were configuration you set
- * once. They are not: a workflow is a thing you write, watch, and turn off
- * when it starts doing something you did not mean. That belongs at the root of
- * the sidebar next to the work it acts on, not three clicks into a settings
- * screen.
- */
+type RunRow = {
+  id: string;
+  status: string;
+  entity: string;
+  recordId: string;
+  result: unknown;
+  createdAt: string;
+  automation: { id: string; name: string; trigger: string } | null;
+};
+
 export function WorkflowsContent() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [filter, setFilter] = useState<"all" | "live" | "paused" | "failing">("all");
+  const [activeTab, setActiveTab] = useState<"runs" | "scheduled">("runs");
 
-  const { data, isLoading, error } = useQuery({
+  const scheduledQuery = useQuery({
     queryKey: ["crm-workflows"],
-    queryFn: () => fetchJson<{ data: WorkflowRow[] }>("/api/v2/crm/automations"),
+    queryFn: () => fetchJson<{ data: ScheduledWorkflowRow[] }>("/api/v2/crm/automations"),
   });
 
-  const workflows = useMemo(() => data?.data ?? [], [data]);
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["crm-workflows"] });
+  const runsQuery = useQuery({
+    queryKey: ["crm-workflow-runs"],
+    queryFn: () => fetchJson<{ data: RunRow[] }>("/api/v2/crm/automations/runs"),
+  });
+
+  const workflows = useMemo(() => scheduledQuery.data?.data ?? [], [scheduledQuery.data]);
+  const runs = useMemo(() => runsQuery.data?.data ?? [], [runsQuery.data]);
+
+  const refreshScheduled = () => queryClient.invalidateQueries({ queryKey: ["crm-workflows"] });
 
   const toggle = useMutation({
     mutationFn: (input: { id: string; isEnabled: boolean }) =>
@@ -75,7 +80,7 @@ export function WorkflowsContent() {
         method: "PATCH",
         body: JSON.stringify({ isEnabled: input.isEnabled }),
       }),
-    onSuccess: refresh,
+    onSuccess: refreshScheduled,
     onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
   });
 
@@ -83,31 +88,201 @@ export function WorkflowsContent() {
     mutationFn: (id: string) => fetchJson(`/api/v2/crm/automations/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast({ title: "Workflow deleted" });
-      refresh();
+      refreshScheduled();
     },
     onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
   });
 
-  function failedRuns(workflow: WorkflowRow): number {
-    return workflow.runs.filter((run) => run.status !== "SUCCEEDED").length;
-  }
+  const runColumns: ColumnDef<RunRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => {
+          const s = row.original.status;
+          if (s === "SUCCEEDED") {
+            return <Badge variant="success">Succeeded</Badge>;
+          }
+          if (s === "FAILED") {
+            return <Badge variant="destructive">Failed</Badge>;
+          }
+          return <Badge variant="outline">{s}</Badge>;
+        },
+      },
+      {
+        id: "workflow",
+        accessorFn: (row) => row.automation?.name ?? "Unknown",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Workflow" />,
+        cell: ({ row }) => {
+          const auto = row.original.automation;
+          if (!auto) return <span className="text-muted-foreground">—</span>;
+          return (
+            <Link
+              href={`/crm/workflows/${auto.id}`}
+              className="font-medium text-[var(--color-ink)] hover:underline"
+            >
+              {auto.name}
+            </Link>
+          );
+        },
+      },
+      {
+        accessorKey: "entity",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Target" />,
+        cell: ({ row }) => {
+          const entity = row.original.entity;
+          const hrefGen = ENTITY_HREF[entity];
+          const href = hrefGen ? hrefGen(row.original.recordId) : null;
+          return (
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="font-mono text-sm uppercase text-muted-foreground">{entity}</span>
+              {href ? (
+                <Link
+                  href={href}
+                  className="inline-flex items-center gap-1 text-[var(--color-ink)] hover:underline"
+                >
+                  <ArrowRightUp className="size-3.5 text-muted-foreground" />
+                </Link>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Executed" />,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm text-muted-foreground">
+            {new Date(row.original.createdAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </span>
+        ),
+      },
+      {
+        id: "details",
+        header: "Details",
+        cell: ({ row }) => {
+          const fail = failureMessage(row.original.result);
+          if (fail) {
+            return <span className="text-sm text-[var(--status-error-text)]">{fail}</span>;
+          }
+          return <span className="text-sm text-muted-foreground">Completed</span>;
+        },
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" asChild>
+              <Link href={`/crm/workflows/runs/${row.original.id}`}>View</Link>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
 
-  const visible = workflows.filter((workflow) => {
-    if (filter === "live") return workflow.isEnabled;
-    if (filter === "paused") return !workflow.isEnabled;
-    if (filter === "failing") return failedRuns(workflow) > 0;
-    return true;
-  });
-
-  const counts = {
-    all: workflows.length,
-    live: workflows.filter((workflow) => workflow.isEnabled).length,
-    paused: workflows.filter((workflow) => !workflow.isEnabled).length,
-    failing: workflows.filter((workflow) => failedRuns(workflow) > 0).length,
-  };
+  const scheduledColumns: ColumnDef<ScheduledWorkflowRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Workflow" />,
+        cell: ({ row }) => (
+          <Link
+            href={`/crm/workflows/${row.original.id}`}
+            className="font-medium text-[var(--color-ink)] hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "trigger",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Trigger" />,
+        cell: ({ row }) => (
+          <Badge variant="outline">
+            {TRIGGER_LABELS[row.original.trigger] ?? row.original.trigger}
+          </Badge>
+        ),
+      },
+      {
+        id: "actionsCount",
+        header: "Actions",
+        accessorFn: (row) => row.actions.length,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">{row.original.actions.length}</span>
+        ),
+      },
+      {
+        accessorKey: "runCount",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Runs" />,
+        cell: ({ row }) => (
+          <span className="font-mono text-sm">{row.original.runCount}</span>
+        ),
+      },
+      {
+        accessorKey: "lastRunAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Last run" />,
+        cell: ({ row }) =>
+          row.original.lastRunAt ? (
+            <span className="font-mono text-sm text-muted-foreground">
+              {new Date(row.original.lastRunAt).toLocaleDateString(undefined, {
+                dateStyle: "medium",
+              })}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        accessorKey: "isEnabled",
+        header: "Live",
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.isEnabled}
+            onChange={() =>
+              toggle.mutate({ id: row.original.id, isEnabled: !row.original.isEnabled })
+            }
+            aria-label={`${row.original.name} is live`}
+          />
+        ),
+      },
+      {
+        id: "menu",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <IconButton size="sm" aria-label={`Options for ${row.original.name}`}>
+                  <DotsThree />
+                </IconButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/crm/workflows/${row.original.id}`}>Open</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-[var(--status-error-text)]"
+                  onClick={() => remove.mutate(row.original.id)}
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      },
+    ],
+    [toggle, remove],
+  );
 
   return (
-    <div className="crm-bk-worksheet">
+    <div className="space-y-0">
       <PageChrome
         title="Workflows"
         primary={{
@@ -116,149 +291,54 @@ export function WorkflowsContent() {
           shortcut: "N",
           href: "/crm/workflows/new",
         }}
-      >
-        {/* What the rules did lives one step under the rules, not as a row of
-            its own in the sidebar: this page is its index. */}
-        <Button type="button" variant="secondary" size="sm" asChild>
-          <Link href="/crm/workflows/runs">
-            <History className="mr-1.5 size-4" aria-hidden="true" />
-            Activity
-          </Link>
-        </Button>
-      </PageChrome>
+      />
 
-      <div className="crm-bk-tabs-bar" role="tablist" aria-label="Workflow status">
-        <div className="crm-bk-tabs">
-          {[
-            { value: "all", label: "All", glyph: ci_apps },
-            { value: "live", label: "Live", glyph: ci_play },
-            { value: "paused", label: "Paused", glyph: ci_pause },
-            { value: "failing", label: "Needs a look", glyph: ci_alert_circle },
-          ].map(({ value, label, glyph }) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={filter === value}
-              data-active={filter === value || undefined}
-              onClick={() => setFilter(value as typeof filter)}
-              className="crm-bk-tab"
-            >
-              <CiGlyphIcon glyph={glyph} size={16} className="shrink-0" />
-              <span>{label}</span>
-              <span className="n">{counts[value as typeof filter]}</span>
-            </button>
-          ))}
+      <div className="border-b border-[var(--border)] px-6">
+        <div className="flex items-center gap-6" role="tablist" aria-label="Workflow tabs">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "runs"}
+            onClick={() => setActiveTab("runs")}
+            className={cn(
+              "pb-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "runs"
+                ? "border-[var(--color-primary)] text-[var(--color-ink)]"
+                : "border-transparent text-muted-foreground hover:text-[var(--color-ink)]",
+            )}
+          >
+            Runs
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "scheduled"}
+            onClick={() => setActiveTab("scheduled")}
+            className={cn(
+              "pb-3 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "scheduled"
+                ? "border-[var(--color-primary)] text-[var(--color-ink)]"
+                : "border-transparent text-muted-foreground hover:text-[var(--color-ink)]",
+            )}
+          >
+            Scheduled
+          </button>
         </div>
       </div>
 
-      {error ? (
-        <div className="px-6 py-3">
-          <Alert tone="danger" title="Couldn't load workflows">
-            {getApiErrorMessage(error)}
-          </Alert>
-        </div>
-      ) : null}
-
-      {isLoading ? (
-        <div className="p-6">
-          <Skeleton className="h-40 w-full" />
-        </div>
-      ) : workflows.length === 0 ? (
-        <div className="p-8">
-          <EmptyState
-            title="No workflows yet"
-            body="A good first one: when a lead comes in worth more than your average job, create a call task for today."
-          />
-        </div>
-      ) : visible.length === 0 ? (
-        <p className="py-8 text-center text-sm text-[var(--text-muted)]">
-          Nothing in this group.
-        </p>
+      {activeTab === "runs" ? (
+        <DataTable
+          data={runs}
+          columns={runColumns}
+          searchPlaceholder="Search runs..."
+          exportConfig={{ fileName: "workflow-runs" }}
+        />
       ) : (
-        /*
-          One row per workflow — as a table, with a head.
-
-          This was a headerless list of flex rows, which meant the two figures
-          on each row were unlabelled: a bare "12" and a date could be run
-          count and creation date, or the reverse, and nothing on the page
-          said which. Failures were folded into the same cell as the run count
-          as "· 3 failed", so the one number worth scanning for had no column
-          of its own to scan down.
-
-          What each workflow *does* is still the detail page's job — a sequence
-          strip per row made the list a wall of diagrams.
-        */
-        <ReportTable
-          label="Workflows"
-          tracks="minmax(0,1fr) 130px 90px 90px 60px 44px"
-          columns={[
-            { label: "Workflow" },
-            { label: "Created" },
-            { label: "Runs", align: "right" },
-            { label: "Failed", align: "right" },
-            { label: "Live", align: "right" },
-            { label: "" },
-          ]}
-          rows={visible.map((workflow) => {
-            const failed = failedRuns(workflow);
-            return {
-              id: workflow.id,
-              cells: [
-                node(
-                  <Link
-                    href={`/crm/workflows/${workflow.id}`}
-                    className="block truncate text-sm font-semibold text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text-muted)]"
-                  >
-                    {workflow.name}
-                  </Link>,
-                ),
-                node(
-                  <span className="text-sm text-[var(--text-subtle)]">
-                    <TimeAgo value={workflow.createdAt} />
-                  </span>,
-                ),
-                num(String(workflow.runCount)),
-                // Its own column, and dimmed at zero: a workflow that has
-                // never failed should not draw the eye the way one that has
-                // failed three times must.
-                failed > 0
-                  ? num(String(failed), { tone: "bad", bold: true })
-                  : txt("—", { align: "right", tone: "dim", mono: true }),
-                node(
-                  <Switch
-                    checked={workflow.isEnabled}
-                    onChange={() =>
-                      toggle.mutate({ id: workflow.id, isEnabled: !workflow.isEnabled })
-                    }
-                    aria-label={`${workflow.name} is live`}
-                  />,
-                  { align: "right" },
-                ),
-                node(
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <IconButton size="sm" aria-label={`Options for ${workflow.name}`}>
-                        <DotsThree />
-                      </IconButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/crm/workflows/${workflow.id}`}>Open</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-[var(--status-error-text)]"
-                        onClick={() => remove.mutate(workflow.id)}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>,
-                  { align: "right" },
-                ),
-              ],
-            };
-          })}
+        <DataTable
+          data={workflows}
+          columns={scheduledColumns}
+          searchPlaceholder="Search scheduled workflows..."
+          exportConfig={{ fileName: "scheduled-workflows" }}
         />
       )}
     </div>

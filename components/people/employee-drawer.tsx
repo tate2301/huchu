@@ -176,7 +176,7 @@ export function EmployeeDrawer({
 
   const compensationPreview = React.useMemo(() => {
     if (!selectedTemplate) return null;
-    const base = Number(selectedTemplate.baseSalary) || 0;
+    const base = Number(selectedTemplate.baseAmount) || 0;
     // Statutory NSSA 4.5% estimate (capped at $31.50 in standard Zim rules)
     const nssa = Math.min(base * 0.045, 31.5);
     // Estimated PAYE bracket estimate (effective ~15-20% on taxable portion over $100)
@@ -452,7 +452,7 @@ export function EmployeeDrawer({
         <Field
           label="Compensation Template"
           htmlFor="emp-template"
-          hint="Calculates gross salary, NSSA, and PAYE tax brackets automatically."
+          help="Calculates gross salary, NSSA, and PAYE tax brackets automatically."
           optional
         >
           <select
@@ -465,7 +465,7 @@ export function EmployeeDrawer({
             <option value="">No template (set salary manually in payroll)</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name} • {money(Number(t.baseSalary) || 0, t.currency || "USD")} ({t.payrollCycle || "Monthly"})
+                {t.name} • {money(Number(t.baseAmount) || 0, t.currency || "USD")} ({t.employmentType || "Full time"})
               </option>
             ))}
           </select>

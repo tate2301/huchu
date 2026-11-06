@@ -24,6 +24,7 @@ import { CreateButton, RecordActions } from "@/components/schools/common/record-
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { DataTable } from "@/components/ui/data-table";
+import { downloadCsv } from "@/components/books/bk-list";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Download } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
@@ -355,7 +356,22 @@ export function ConductMeritsContent() {
             // with the controls that decide what would be printed. The app bar
             // keeps the one verb somebody came here to perform.
             actions={
-              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const head = ["Pupil", "Class", "Merits", "Demerits", "Net", "Last Recorded"];
+                  const exportRows = rows.map((r) => [
+                    `${r.student.firstName} ${r.student.lastName}`,
+                    [r.student.className, r.student.streamName].filter(Boolean).join(" "),
+                    String(r.merits),
+                    String(r.demerits),
+                    String(r.net),
+                    r.lastRecorded?.note || r.lastRecorded?.reason || "",
+                  ]);
+                  downloadCsv(`merits-demerits-${new Date().toISOString().slice(0, 10)}.csv`, head, exportRows);
+                }}
+              >
                 <Download className="size-4" />
                 Export the term
               </Button>

@@ -96,11 +96,11 @@ export default function DisbursementsPage() {
 
   // Counts
   const pendingCount = React.useMemo(
-    () => batches.filter((b) => b.status === "DRAFT" || b.status === "SUBMITTED" || b.status === "PROCESSING").length,
+    () => batches.filter((b) => b.status === "DRAFT" || b.status === "SUBMITTED" || b.status === "APPROVED").length,
     [batches]
   );
   const paidCount = React.useMemo(
-    () => batches.filter((b) => b.status === "PAID" || b.status === "COMPLETED").length,
+    () => batches.filter((b) => b.status === "PAID").length,
     [batches]
   );
 
@@ -108,15 +108,15 @@ export default function DisbursementsPage() {
   const filteredBatches = React.useMemo(() => {
     let list = [...batches];
     if (tab === "pending") {
-      list = list.filter((b) => b.status !== "PAID" && b.status !== "COMPLETED");
+      list = list.filter((b) => b.status !== "PAID");
     } else if (tab === "paid") {
-      list = list.filter((b) => b.status === "PAID" || b.status === "COMPLETED");
+      list = list.filter((b) => b.status === "PAID");
     }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (b) =>
-          b.batchNumber.toLowerCase().includes(q) ||
+          b.code.toLowerCase().includes(q) ||
           b.status.toLowerCase().includes(q) ||
           (b.notes && b.notes.toLowerCase().includes(q))
       );
@@ -170,13 +170,13 @@ export default function DisbursementsPage() {
 
   const handleExportCsv = () => {
     const csv = [
-      ["Batch Number", "Date", "Status", "Total Amount", "Method"],
+      ["Batch Code", "Date", "Status", "Total Amount", "Method"],
       ...filteredBatches.map((b) => [
-        b.batchNumber,
+        b.code,
         b.createdAt.slice(0, 10),
         b.status,
         String(b.totalAmount),
-        b.payoutMethod || "Bank Payout",
+        b.method || "Cash Payout",
       ]),
     ];
     downloadCsv(`disbursement-batches-${new Date().toISOString().slice(0, 10)}.csv`, csv);
@@ -328,7 +328,7 @@ export default function DisbursementsPage() {
                               {
                                 key: "pay",
                                 label: "Mark as paid",
-                                icon: "card" as const,
+                                icon: "bank" as const,
                                 onSelect: () => updateBatchStatusMutation.mutate({ id: batch.id, status: "PAY" }),
                               },
                             ]
@@ -340,11 +340,11 @@ export default function DisbursementsPage() {
                           <SelectCell
                             checked={isSelected}
                             onChange={() => selection.toggle(batch.id)}
-                            label={`Select ${batch.batchNumber}`}
+                            label={`Select ${batch.code}`}
                           />
                           <td>
                             <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {batch.batchNumber}
+                              {batch.code}
                             </div>
                             {batch.notes ? (
                               <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
@@ -356,7 +356,7 @@ export default function DisbursementsPage() {
                             {format(new Date(batch.createdAt), "dd MMM yyyy")}
                           </td>
                           <td>
-                            <span style={{ fontSize: 13 }}>{batch.payoutMethod || "Bank Payout"}</span>
+                            <span style={{ fontSize: 13 }}>{batch.method || "Cash Payout"}</span>
                           </td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
                             {money(Number(batch.totalAmount), "USD")}
@@ -364,7 +364,7 @@ export default function DisbursementsPage() {
                           <td>
                             <BkState
                               tone={
-                                batch.status === "PAID" || batch.status === "COMPLETED"
+                                batch.status === "PAID"
                                   ? "success"
                                   : batch.status === "REJECTED"
                                   ? "danger"

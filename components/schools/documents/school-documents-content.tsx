@@ -22,6 +22,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
+import { exportElementToPdf } from "@/lib/pdf";
 import {
   fetchSchoolsClasses,
   fetchSchoolsStudents,
@@ -104,55 +105,7 @@ const CELL = {
 };
 const HEAD_ROW = { backgroundColor: "#f9fafb" };
 
-/**
- * Printing, and saying so when it does not happen.
- *
- * A hand-rolled `window.open` is what the browser will actually print from, so
- * it stays — but a blocked pop-up used to return silently, and a button that
- * does nothing and says nothing is the worst thing on a screen. The caller gets
- * told, and puts it on the page.
- */
-function usePrint(ref: React.RefObject<HTMLDivElement | null>) {
-  const [blocked, setBlocked] = useState<Error | null>(null);
-
-  const print = () => {
-    if (!ref.current) return;
-    const content = ref.current.innerHTML;
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      setBlocked(
-        new Error(
-          "Your browser blocked the print window. Allow pop-ups for this site and press it again — the document is ready, it just has nowhere to open.",
-        ),
-      );
-      return;
-    }
-    setBlocked(null);
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Print document</title>
-          <style>
-            body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; font-size: 12px; }
-            th { background-color: #f9fafb; font-weight: 600; }
-            @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-          </style>
-        </head>
-        <body>${content}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  };
-
-  return { print, blocked };
-}
-
-/** A document, its Print button and whatever the print attempt had to say. */
+/** A document, its Export PDF button and whatever the export attempt had to say. */
 function DocumentFrame({
   title,
   children,
@@ -161,20 +114,34 @@ function DocumentFrame({
   children: (ref: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
 }) {
   const printRef = useRef<HTMLDivElement | null>(null);
-  const printer = usePrint(printRef);
+  const [error, setError] = useState<Error | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!printRef.current) return;
+    try {
+      setIsExporting(true);
+      setError(null);
+      await exportElementToPdf(
+        printRef.current,
+        `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-[length:var(--type-body-sm)] font-semibold">{title}</h3>
-        <Button size="sm" onClick={printer.print}>
-          Print / Save PDF
+        <Button size="sm" onClick={handleExport} disabled={isExporting}>
+          {isExporting ? "Exporting PDF..." : "Export PDF"}
         </Button>
       </div>
-      {/* The button says Save PDF, so a print that never opened is a save that
-          did not happen and takes the same banner as any other failed write.
-          It clears itself the moment a print does get through. */}
-      {printer.blocked ? <SaveError what="The document" error={printer.blocked} /> : null}
+      {error ? <SaveError what="The document" error={error} /> : null}
       <div ref={printRef} className="overflow-x-auto">
         {children(printRef)}
       </div>

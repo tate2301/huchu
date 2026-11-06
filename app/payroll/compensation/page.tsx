@@ -111,7 +111,7 @@ export default function CompensationPage() {
     let list = [...rules];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q));
     }
     return list;
   }, [rules, search]);
@@ -228,8 +228,8 @@ export default function CompensationPage() {
       downloadCsv(`compensation-profiles-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     } else {
       const csv = [
-        ["Template Name", "Base Salary", "Currency", "Cycle", "Status"],
-        ...filteredTemplates.map((t) => [t.name, String(t.baseSalary), t.currency || "USD", t.payrollCycle || "MONTHLY", t.status]),
+        ["Template Name", "Base Salary", "Currency", "Employment Type", "Status"],
+        ...filteredTemplates.map((t) => [t.name, String(t.baseAmount), t.currency || "USD", t.employmentType || "FULL_TIME", t.isActive ? "ACTIVE" : "INACTIVE"]),
       ];
       downloadCsv(`compensation-templates-${new Date().toISOString().slice(0, 10)}.csv`, csv);
     }
@@ -344,7 +344,7 @@ export default function CompensationPage() {
                         {
                           key: "edit",
                           label: "Edit salary profile",
-                          icon: "pencil",
+                          icon: "edit",
                           onSelect: () => handleOpenEdit(prof),
                         },
                         { separator: true },
@@ -446,13 +446,13 @@ export default function CompensationPage() {
                               </div>
                             ) : null}
                           </td>
-                          <td>{tmpl.payrollCycle || "Monthly"}</td>
+                          <td>{tmpl.employmentType || "Full time"}</td>
                           <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(Number(tmpl.baseSalary), tmpl.currency || "USD")}
+                            {money(Number(tmpl.baseAmount), tmpl.currency || "USD")}
                           </td>
                           <td>
-                            <BkState tone={tmpl.status === "ACTIVE" ? "success" : "plain"}>
-                              {tmpl.status === "ACTIVE" ? "Active" : "Archived"}
+                            <BkState tone={tmpl.isActive ? "success" : "plain"}>
+                              {tmpl.isActive ? "Active" : "Archived"}
                             </BkState>
                           </td>
                         </tr>
@@ -504,14 +504,14 @@ export default function CompensationPage() {
                           </td>
                           <td>
                             <span className="mono" style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                              {rule.code}
+                              {rule.type}
                             </span>
                           </td>
                           <td>{rule.type}</td>
                           <td>{rule.calcMethod}</td>
                           <td>
-                            <BkState tone={rule.status === "ACTIVE" ? "success" : "plain"}>
-                              {rule.status === "ACTIVE" ? "Active" : "Archived"}
+                            <BkState tone={rule.isActive ? "success" : "plain"}>
+                              {rule.isActive ? "Active" : "Archived"}
                             </BkState>
                           </td>
                         </tr>

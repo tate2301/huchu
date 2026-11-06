@@ -37,7 +37,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Home, LocalShipping, Printer } from "@/lib/icons";
+import { downloadCsv } from "@/components/books/bk-list";
+import { Download, Home, LocalShipping } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import {
   cancelDetentionSession,
@@ -679,12 +680,23 @@ export function ConductDetentionContent() {
                     },
                   ]}
                 />
-                {/* Printing acts on the table underneath, not on the page: the
-                    supervisor who wants paper wants these rows, narrowed the way
-                    he just narrowed them. */}
-                <Button variant="secondary" size="sm" onClick={() => window.print()}>
-                  <Printer className="size-4" />
-                  Print the list
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const head = ["Pupil", "Class", "Serving For", "Session", "Status"];
+                    const exportRows = rows.map((r) => [
+                      `${r.student.firstName} ${r.student.lastName}`,
+                      [r.student.className, r.student.streamName].filter(Boolean).join(" "),
+                      r.servingFor,
+                      `${r.session.index} of ${r.session.owed}`,
+                      r.state,
+                    ]);
+                    downloadCsv(`detention-list-${sessionId || "session"}.csv`, head, exportRows);
+                  }}
+                >
+                  <Download className="size-4" />
+                  Export the list
                 </Button>
               </>
             }

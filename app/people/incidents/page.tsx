@@ -170,7 +170,7 @@ export default function IncidentsPage() {
       ["Title", "Type", "Severity", "Date", "Status", "Employee", "Site", "Description"],
       ...filteredIncidents.map((i) => [
         i.title,
-        i.incidentType,
+        i.category,
         i.severity,
         i.incidentDate.slice(0, 10),
         i.status,
@@ -316,7 +316,7 @@ export default function IncidentsPage() {
                               {
                                 key: "investigate",
                                 label: "Mark under review",
-                                icon: "pencil" as const,
+                                icon: "edit" as const,
                                 onSelect: () => updateStatusMutation.mutate({ id: incident.id, status: "UNDER_REVIEW" }),
                               },
                             ]
@@ -365,7 +365,7 @@ export default function IncidentsPage() {
                           </td>
                           <td>{incident.site?.name ?? <span className="muted">—</span>}</td>
                           <td>
-                            <span style={{ fontSize: 13 }}>{incident.incidentType}</span>
+                            <span style={{ fontSize: 13 }}>{incident.category}</span>
                           </td>
                           <td>
                             <BkState tone={SEVERITY_TONE[incident.severity] || "plain"}>
@@ -525,7 +525,7 @@ export default function IncidentsPage() {
               open={Boolean(selectedIncident)}
               onOpenChange={(open) => !open && setSelectedIncident(null)}
               title={selectedIncident?.title || "Incident Report"}
-              sub={selectedIncident ? `${selectedIncident.incidentType} • ${selectedIncident.severity}` : "Detail"}
+              sub={selectedIncident ? `${selectedIncident.category} • ${selectedIncident.severity}` : "Detail"}
               width={480}
               footer={<Button onClick={() => setSelectedIncident(null)}>Close</Button>}
             >

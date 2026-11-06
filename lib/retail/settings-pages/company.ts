@@ -52,6 +52,25 @@ export const companyPage: SettingsPage = {
   invalidates: [["retail-product"]],
   sections: [
     {
+      title: "Workspace profile",
+      fields: [
+        {
+          id: "workspaceProfile",
+          t: "cards",
+          l: "Workspace profile",
+          nolabel: true,
+          o: [
+            ["GENERAL", "General business, consulting & CRM provisions."],
+            ["RETAIL", "Retail shop, point of sale & inventory."],
+            ["GOLD_MINE", "Mining, production & commodities."],
+            ["SCHOOLS", "Schools, institutions & education."],
+            ["PAYROLL", "Payroll bureau & HR."],
+          ],
+          h: "Configures default categories and provisions for CRM clients and related workflows.",
+        },
+      ],
+    },
+    {
       title: "Business type",
       fields: [
         {
@@ -156,6 +175,7 @@ export const companyPage: SettingsPage = {
     },
   ],
   schema: z.object({
+    workspaceProfile: z.enum(["GENERAL", "RETAIL", "GOLD_MINE", "SCHOOLS", "PAYROLL"]).optional(),
     businessType: z.enum([GENERAL_RETAIL, LIQUOR_STORE], { message: "Choose General retail or Liquor store." }),
     ageCheck: z.boolean({ message: "Turn it on or off." }),
     licenceHours: z.boolean({ message: "Turn it on or off." }),

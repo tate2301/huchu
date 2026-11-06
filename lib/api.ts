@@ -1861,14 +1861,7 @@ export async function updatePayrollConfig(
 export async function fetchApprovalHistory(
   params: {
     search?: string;
-    entityType?:
-      | "PAYROLL_RUN"
-      | "DISBURSEMENT_BATCH"
-      | "ADJUSTMENT_ENTRY"
-      | "COMPENSATION_PROFILE"
-      | "COMPENSATION_RULE"
-      | "GOLD_SHIFT_ALLOCATION"
-      | "DISCIPLINARY_ACTION";
+    entityType?: ApprovalHistoryRecord["entityType"];
     entityId?: string;
     actedById?: string;
     startDate?: string;

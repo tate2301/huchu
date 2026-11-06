@@ -230,7 +230,7 @@ export default function HumanResourcesPage() {
         e.name,
         e.department?.name || "",
         e.position || "",
-        EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType,
+        (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] : "") || e.employmentType || "—",
         e.phone || "",
         e.nationalIdNumber || "",
         e.isActive ? "Active" : "Inactive",
@@ -460,7 +460,7 @@ export default function HumanResourcesPage() {
                         {
                           key: "edit",
                           label: "Edit details",
-                          icon: "pencil",
+                          icon: "edit",
                           onSelect: () => {
                             setEditingEmployee(emp);
                             setDrawerOpen(true);
@@ -485,7 +485,7 @@ export default function HumanResourcesPage() {
                         {
                           key: "delete",
                           label: "Delete employee",
-                          icon: "bin",
+                          icon: "retire",
                           danger: true,
                           onSelect: () => setDeletingId(emp.id),
                         },
@@ -521,7 +521,7 @@ export default function HumanResourcesPage() {
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td>{EMPLOYMENT_TYPE_LABEL[emp.employmentType] || emp.employmentType}</td>
+                          <td>{(emp.employmentType ? EMPLOYMENT_TYPE_LABEL[emp.employmentType] : "") || emp.employmentType || "—"}</td>
                           <td className="num">
                             {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString("en-GB") : (
                               <span className="muted">—</span>
@@ -571,7 +571,7 @@ export default function HumanResourcesPage() {
                 <DialogFooter>
                   <Button onClick={() => setDeletingId(null)}>Cancel</Button>
                   <Button
-                    variant="destructive"
+                    variant="danger"
                     busy={deleteEmployeeMutation.isPending}
                     onClick={() => deletingId && deleteEmployeeMutation.mutate(deletingId)}
                   >

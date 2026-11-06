@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Icon, Kit, Segmented } from "@/components/core";
+import { useEmergencyAlerts } from "@/components/alerts/emergency-alert-host";
 import { InboxRow, InboxSkeleton, rowFromItem } from "@/components/notifications/inbox-row";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
@@ -42,6 +43,7 @@ export function useNotificationsEnabled() {
  */
 export function useUnreadNotificationCount(): number {
   const enabled = useNotificationsEnabled();
+  const { feed: emergencyFeed } = useEmergencyAlerts();
   const { data } = useQuery({
     queryKey: ["notifications", "unread-count"],
     enabled,
@@ -49,7 +51,8 @@ export function useUnreadNotificationCount(): number {
     staleTime: 5000,
     refetchInterval: 30000,
   });
-  return enabled ? (data?.unreadCount ?? 0) : 0;
+  const emergencyCount = emergencyFeed?.counts.total ?? 0;
+  return (enabled ? (data?.unreadCount ?? 0) : 0) + emergencyCount;
 }
 
 /** Mark read, mark all read: both refresh every `["notifications"]` query, the bell's count with them. */
@@ -99,7 +102,8 @@ export function NotificationCenter({
   align?: "start" | "end";
 }) {
   const centerEnabled = useNotificationsEnabled();
-  if (!centerEnabled) return <>{children}</>;
+  const { feed: emergencyFeed } = useEmergencyAlerts();
+  if (!centerEnabled && (emergencyFeed?.counts.total ?? 0) === 0) return <>{children}</>;
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -115,6 +119,12 @@ function BellPanel({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [view, setView] = React.useState<BellView>("needs");
   const { markRead, markAll } = useInboxMutations();
+  const {
+    feed: emergencyFeed,
+    openEmergencyDialog,
+    runSingleWorkflow,
+    runningItemId,
+  } = useEmergencyAlerts();
   const now = useNow();
 
   const inbox = useQuery({
@@ -125,8 +135,9 @@ function BellPanel({ onClose }: { onClose: () => void }) {
   });
 
   const items = inbox.data?.items ?? [];
+  const emergencyItems = emergencyFeed?.items ?? [];
   const groups = todayAndEarlier(items, now);
-  const needs = inbox.data?.counts.needs ?? 0;
+  const needs = (inbox.data?.counts.needs ?? 0) + emergencyItems.length;
   const unread = inbox.data?.counts.unread ?? 0;
   const featureOff = inbox.error instanceof ApiError && inbox.error.status === 403;
 
@@ -155,10 +166,93 @@ function BellPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className={styles.bellList}>
+        {emergencyItems.length > 0 ? (
+          <section aria-label="Day close and emergency alerts" className="mb-1 border-b border-[var(--color-line)] pb-2">
+            <div className={styles.day} style={{ justifyContent: "space-between" }}>
+              <h3 className="flex items-center gap-1.5 font-semibold text-[var(--color-ink)]">
+                <span
+                  aria-hidden="true"
+                  className={
+                    emergencyFeed?.counts.critical
+                      ? "inline-block size-2 rounded-full bg-red-600"
+                      : "inline-block size-2 rounded-full bg-amber-500"
+                  }
+                />
+                Close the day ({emergencyItems.length})
+              </h3>
+              <button
+                type="button"
+                className={styles.link}
+                style={{ height: 22, padding: "0 6px", fontSize: 12 }}
+                onClick={() => {
+                  onClose();
+                  openEmergencyDialog();
+                }}
+              >
+                Open workflow
+              </button>
+            </div>
+            <ul className={styles.list}>
+              {emergencyItems.slice(0, 4).map((alert) => {
+                const isRunning = runningItemId === alert.id;
+                return (
+                  <li key={alert.id} className={styles.row} data-unread="true">
+                    <div className="flex flex-col gap-1.5 rounded-[8px] px-3 py-2">
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--color-muted)]">
+                        <span className="font-medium text-[var(--color-ink-2)]">
+                          {alert.moduleLabel} · {alert.dayLabel}
+                        </span>
+                        {alert.isPastDay ? (
+                          <span className="rounded bg-red-500/15 px-1.5 py-0.5 font-medium text-red-700 dark:text-red-300">
+                            Overdue
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[13px] font-medium leading-snug text-[var(--color-ink)]">
+                        {alert.title}
+                      </div>
+                      <div className="text-[12px] text-[var(--color-muted)]">{alert.summary}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Link
+                          href={alert.shortcut.href}
+                          className={styles.link}
+                          style={{ height: 24, padding: "0 8px", fontSize: 12, background: "var(--color-fill)" }}
+                          onClick={onClose}
+                        >
+                          {alert.shortcut.label} →
+                        </Link>
+                        {alert.workflow?.canRunInPlace ? (
+                          <button
+                            type="button"
+                            disabled={isRunning}
+                            className={styles.link}
+                            style={{
+                              height: 24,
+                              padding: "0 8px",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: "var(--color-accent)",
+                            }}
+                            onClick={() => void runSingleWorkflow({ item: alert })}
+                          >
+                            {isRunning ? "Closing…" : alert.workflow.label}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
+
         {inbox.isLoading ? (
           <InboxSkeleton rows={4} />
         ) : featureOff ? (
-          <p className={styles.quiet}>Notifications are off for this workspace.</p>
+          emergencyItems.length === 0 ? (
+            <p className={styles.quiet}>Notifications are off for this workspace.</p>
+          ) : null
         ) : inbox.isError ? (
           <p className={styles.quiet} role="alert">
             The notifications did not load.{" "}
@@ -167,7 +261,9 @@ function BellPanel({ onClose }: { onClose: () => void }) {
             </button>
           </p>
         ) : items.length === 0 ? (
-          <p className={styles.quiet}>{view === "needs" ? "Nothing needs you." : "No notifications yet."}</p>
+          emergencyItems.length === 0 ? (
+            <p className={styles.quiet}>{view === "needs" ? "Nothing needs you." : "No notifications yet."}</p>
+          ) : null
         ) : (
           groups.map((group) => (
             <section key={group.key} aria-labelledby={`bell-${group.key}`}>

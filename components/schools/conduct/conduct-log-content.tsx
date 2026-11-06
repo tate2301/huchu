@@ -26,6 +26,7 @@ import { CreateButton, RecordActions } from "@/components/schools/common/record-
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { DataTable } from "@/components/ui/data-table";
+import { downloadCsv } from "@/components/books/bk-list";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { Download } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
@@ -513,7 +514,22 @@ export function ConductLogContent() {
         // screen, so it belongs beside the filters that decided what that is.
         actions={
           onLog ? (
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const head = ["Pupil", "Class", "Category", "Summary", "Reported By", "Sanction"];
+                const exportRows: string[][] = rows.map((r) => [
+                  `${r.student.firstName} ${r.student.lastName}`,
+                  [r.student.currentClass?.name, r.student.currentStream?.name].filter(Boolean).join(" "),
+                  r.category.name,
+                  r.summary,
+                  r.reportedByName ?? "",
+                  r.sanction ?? "Not decided",
+                ]);
+                downloadCsv(`conduct-log-${new Date().toISOString().slice(0, 10)}.csv`, head, exportRows);
+              }}
+            >
               <Download className="size-4" />
               Export the log
             </Button>

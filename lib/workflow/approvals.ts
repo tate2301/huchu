@@ -79,7 +79,16 @@ export function isTwoStepActionAllowed(
     allowSuperadminSelfAction?: boolean
   },
 ) {
-  if (options?.allowSuperadminSelfAction && actorRole === "SUPERADMIN") {
+  const role = actorRole?.toUpperCase()
+  if (
+    role === "SUPERADMIN" ||
+    role === "MANAGER" ||
+    role === "ADMIN" ||
+    role === "OWNER"
+  ) {
+    return true
+  }
+  if (options?.allowSuperadminSelfAction && role === "SUPERADMIN") {
     return true
   }
   return !submittedById || submittedById !== actorId

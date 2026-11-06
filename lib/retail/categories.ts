@@ -64,6 +64,44 @@ type Seed = {
  * call, category by category, and guessing it here would put wrong tax on
  * receipts.
  */
+export const WORKSPACE_CATEGORY_SEEDS: Record<string, Seed[]> = {
+  GENERAL: [
+    { name: "Consulting & Services", vatRate: 15, targetMarginPercent: 35 },
+    { name: "Support & Maintenance", vatRate: 15, targetMarginPercent: 40 },
+    { name: "Software & Licences", vatRate: 15, targetMarginPercent: 25 },
+    { name: "Equipment & Hardware", vatRate: 15, targetMarginPercent: 20 },
+    { name: "Professional Services", vatRate: 15, targetMarginPercent: 30 },
+    { name: "Other", vatRate: 15 },
+  ],
+  RETAIL: [
+    { name: "Groceries", vatRate: 15, targetMarginPercent: 18 },
+    { name: "Drinks", vatRate: 15, targetMarginPercent: 22 },
+    { name: "Snacks", vatRate: 15, targetMarginPercent: 30 },
+    { name: "Household", vatRate: 15, targetMarginPercent: 25 },
+    { name: "Personal care", vatRate: 15, targetMarginPercent: 28 },
+    { name: "Other", vatRate: 15 },
+  ],
+  GOLD_MINE: [
+    { name: "Equipment & Spares", vatRate: 15, targetMarginPercent: 20 },
+    { name: "Fuel & Lubricants", vatRate: 15, targetMarginPercent: 15 },
+    { name: "Chemicals & Reagents", vatRate: 15, targetMarginPercent: 20 },
+    { name: "Safety & PPE", vatRate: 15, targetMarginPercent: 25 },
+    { name: "Tools & Hardware", vatRate: 15, targetMarginPercent: 25 },
+  ],
+  SCHOOLS: [
+    { name: "Tuition & Fees", vatRate: 0, targetMarginPercent: 0 },
+    { name: "Textbooks & Stationery", vatRate: 15, targetMarginPercent: 20 },
+    { name: "Uniforms & Wear", vatRate: 15, targetMarginPercent: 25 },
+    { name: "Boarding Supplies", vatRate: 15, targetMarginPercent: 20 },
+    { name: "Extracurricular", vatRate: 15, targetMarginPercent: 20 },
+  ],
+  PAYROLL: [
+    { name: "Payroll Services", vatRate: 15, targetMarginPercent: 40 },
+    { name: "Tax Consulting", vatRate: 15, targetMarginPercent: 35 },
+    { name: "HR Advisory", vatRate: 15, targetMarginPercent: 35 },
+  ],
+};
+
 export const CATEGORY_SEEDS: Record<RetailBusinessType, Seed[]> = {
   GENERAL: [
     { name: "Groceries", vatRate: 15, targetMarginPercent: 18 },
@@ -124,6 +162,44 @@ export async function ensureRetailCategories(
       depositAmount: seed.depositAmount === undefined ? null : money(seed.depositAmount),
       targetMarginPercent: seed.targetMarginPercent === undefined ? null : money(seed.targetMarginPercent),
       seededFor: businessType,
+      sortOrder: start + index,
+    })),
+    skipDuplicates: true,
+  });
+  return missing.map((seed) => seed.name);
+}
+
+/** Prepopulate product categories suited for the workspace profile and CRM clients. */
+export async function ensureWorkspaceCategories(
+  client: CategoryClient,
+  companyId: string,
+  profile: string,
+): Promise<string[]> {
+  const seeds = WORKSPACE_CATEGORY_SEEDS[profile] ?? WORKSPACE_CATEGORY_SEEDS.GENERAL!;
+  const existing = await client.retailCategory.findMany({
+    where: { companyId, name: { in: seeds.map((seed) => seed.name) } },
+    select: { name: true },
+  });
+  const have = new Set(existing.map((row) => row.name));
+  const missing = seeds.filter((seed) => !have.has(seed.name));
+  if (missing.length === 0) return [];
+
+  const highest = await client.retailCategory.aggregate({
+    where: { companyId },
+    _max: { sortOrder: true },
+  });
+  const start = (highest._max.sortOrder ?? -1) + 1;
+
+  await client.retailCategory.createMany({
+    data: missing.map((seed, index) => ({
+      companyId,
+      name: seed.name,
+      vatRate: money(seed.vatRate),
+      ageRestricted: seed.ageRestricted ?? false,
+      returnable: seed.returnable ?? false,
+      depositAmount: seed.depositAmount === undefined ? null : money(seed.depositAmount),
+      targetMarginPercent: seed.targetMarginPercent === undefined ? null : money(seed.targetMarginPercent),
+      seededFor: "GENERAL",
       sortOrder: start + index,
     })),
     skipDuplicates: true,

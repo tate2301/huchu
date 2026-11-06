@@ -34,6 +34,7 @@ import {
   type StudentFormValues,
 } from "@/components/schools/students/student-form-sheet";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { downloadCsv } from "@/components/books/bk-list";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import {
@@ -618,11 +619,24 @@ export function StudentsListContent() {
             <Button asChild variant="secondary" size="sm">
               <Link href="/schools/students/roll-up">Roll up the year</Link>
             </Button>
-            {/* Named for what it does. It prints the roll as it stands,
-                filters and all — "Export" promised a file the button has
-                never produced. */}
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              Print the roll
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const head = ["ID", "Admission No", "Pupil", "Class", "Stream", "Status", "Boarding"];
+                const rows: string[][] = students.map((s) => [
+                  s.studentNo || s.id,
+                  s.admissionNo ?? "",
+                  `${s.firstName} ${s.lastName}`,
+                  s.currentClass?.name ?? "",
+                  s.currentStream?.name ?? "",
+                  s.status,
+                  s.isBoarding ? "Boarding" : "Day",
+                ]);
+                downloadCsv(`students-roll-${new Date().toISOString().slice(0, 10)}.csv`, head, rows);
+              }}
+            >
+              Export the roll
             </Button>
           </>
         }

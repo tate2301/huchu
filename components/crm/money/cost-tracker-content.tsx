@@ -81,6 +81,7 @@ export function CostTrackerContent() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["crm", "daily-log"] });
     void queryClient.invalidateQueries({ queryKey: ["crm", "cost-entries"] });
+    void queryClient.invalidateQueries({ queryKey: ["alerts", "emergencies"] });
   };
 
   return (

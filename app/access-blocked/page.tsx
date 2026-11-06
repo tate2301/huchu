@@ -31,37 +31,37 @@ const RECOVERY_STEPS = [
 
 function AccessGateCard() {
   return (
-    <div className="w-full max-w-[560px]">
+    <div className="w-full max-w-[540px]">
       {/* Brand / System badge */}
       <div className="mb-6 flex items-center justify-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-2)]">
-          <CiGlyphIcon glyph={ci_shield} className="size-4" />
+        <span className="flex size-7 items-center justify-center rounded-md border border-border bg-surface text-text-muted">
+          <CiGlyphIcon glyph={ci_shield} className="size-4 text-text-muted" />
         </span>
-        <span className="font-mono text-sm font-medium uppercase tracking-wider text-[var(--color-ink-3)]">
+        <span className="font-mono text-xs font-medium uppercase tracking-wider text-text-muted">
           Platform Access Gate
         </span>
       </div>
 
       {/* Central Gate Panel */}
-      <div className="overflow-hidden rounded-[var(--radius-md,8px)] border border-[var(--color-line)] bg-[var(--color-surface)] shadow-xs">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-xs">
         {/* Header section */}
-        <div className="border-b border-[var(--color-line)] bg-[var(--color-ground)] p-6 sm:p-7">
+        <div className="border-b border-border bg-surface-muted/50 p-6 sm:p-7">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink)]">
+            <div className="flex size-10 items-center justify-center rounded-md border border-border bg-surface text-text-strong">
               <CiGlyphIcon glyph={ci_lock} className="size-5" />
             </div>
-            <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-0.5 font-mono text-sm font-medium tracking-tight text-[var(--color-ink-2)]">
+            <span className="inline-flex items-center rounded-md border border-border bg-surface px-2.5 py-0.5 font-mono text-xs font-medium tracking-tight text-text-muted">
               Access Restricted
             </span>
           </div>
 
           <h1
             id="access-gate-title"
-            className="mt-4 text-xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-2xl"
+            className="mt-4 text-xl font-semibold tracking-tight text-text-strong sm:text-2xl"
           >
             Access blocked for this organization
           </h1>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-2)]">
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
             Your signed-in account is not authorized to access this tenant host, or the organization membership is currently inactive.
           </p>
         </div>
@@ -69,27 +69,27 @@ function AccessGateCard() {
         {/* Body Section */}
         <div className="space-y-6 p-6 sm:p-7">
           {/* Status notice */}
-          <div className="rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-ground)] p-4 text-sm leading-relaxed text-[var(--color-ink-2)]">
-            <span className="font-semibold text-[var(--color-ink)]">Why this happens: </span>
+          <div className="rounded-md border border-border bg-surface-muted/30 p-4 text-sm leading-relaxed text-text-body">
+            <span className="font-semibold text-text-strong">Why this happens: </span>
             Access to this host is gated by organization tenant policy. If your team recently switched domains, modified subscription tiers, or changed roles, permissions may need to be refreshed.
           </div>
 
           {/* Structured Recovery Steps */}
           <div>
-            <h2 className="text-sm font-semibold text-[var(--color-ink)]">
+            <h2 className="text-sm font-semibold text-text-strong">
               Recommended Resolution
             </h2>
-            <ol className="mt-3 divide-y divide-[var(--color-line)] rounded-[var(--radius-sm)] border border-[var(--color-line)]">
+            <ol className="mt-3 divide-y divide-border rounded-md border border-border">
               {RECOVERY_STEPS.map((item) => (
-                <li key={item.step} className="flex items-start gap-3.5 bg-[var(--color-surface)] p-3.5">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded bg-[var(--color-fill)] font-mono text-sm font-semibold tabular-nums text-[var(--color-ink-2)]">
+                <li key={item.step} className="flex items-start gap-3.5 bg-surface p-3.5">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded bg-surface-muted font-mono text-xs font-semibold tabular-nums text-text-muted">
                     {item.step}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[var(--color-ink)]">
+                    <p className="text-sm font-medium text-text-strong">
                       {item.title}
                     </p>
-                    <p className="mt-0.5 text-sm leading-normal text-[var(--color-ink-3)]">
+                    <p className="mt-0.5 text-sm leading-normal text-text-muted">
                       {item.desc}
                     </p>
                   </div>
@@ -102,24 +102,24 @@ function AccessGateCard() {
           <div className="flex flex-col gap-2.5 pt-1 sm:flex-row sm:items-center">
             <Link
               href="/"
-              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-ink)] px-4 text-sm font-medium text-[var(--color-surface)] transition hover:opacity-90 focus:outline-none"
+              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-medium text-white transition hover:bg-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
               <span>Retry Access</span>
               <CiGlyphIcon glyph={ci_arrow_right} className="size-3.5" />
             </Link>
             <Link
               href="/login"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-hover)] focus:outline-none"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-text-strong transition hover:bg-surface-muted focus-visible:outline-none"
             >
-              <CiGlyphIcon glyph={ci_user} className="size-3.5 text-[var(--color-ink-3)]" />
+              <CiGlyphIcon glyph={ci_user} className="size-3.5 text-text-muted" />
               <span>Switch Account</span>
             </Link>
           </div>
         </div>
 
         {/* Footer note */}
-        <div className="border-t border-[var(--color-line)] bg-[var(--color-ground)] px-6 py-3.5 sm:px-7">
-          <p className="text-center font-mono text-sm tabular-nums text-[var(--color-ink-3)]">
+        <div className="border-t border-border bg-surface-muted/50 px-6 py-3 sm:px-7">
+          <p className="text-center font-mono text-xs tabular-nums text-text-muted">
             Tenant ID & host records logged for security auditing
           </p>
         </div>
@@ -147,7 +147,7 @@ export default function AccessBlockedPage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-center bg-[var(--color-ground)] px-4 py-12 sm:px-6 lg:px-8"
+      className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12 sm:px-6 lg:px-8"
       aria-labelledby="access-gate-title"
     >
       <AccessGateCard />

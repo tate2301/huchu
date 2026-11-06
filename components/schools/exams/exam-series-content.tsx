@@ -22,7 +22,8 @@ import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { DataTable } from "@/components/ui/data-table";
-import { Certificate, Printer } from "@/lib/icons";
+import { downloadCsv } from "@/components/books/bk-list";
+import { Certificate, Download } from "@/lib/icons";
 import {
   EXAM_LEVEL_LABELS,
   SERIES_STATUS_LABELS,
@@ -344,11 +345,22 @@ export function ExamSeriesContent() {
                     }`
                   : "no deadline set"}
               </span>
-              {/* The deadline sheet is this table, so the verb that prints it
-                  sits on it rather than over the page. */}
-              <Button variant="secondary" size="sm" onClick={() => window.print()}>
-                <Printer className="size-4" />
-                Print the deadline sheet
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const head = ["Deadline", "Date", "Days away", "What follows"];
+                  const exportRows = lead.deadlines.map((r) => [
+                    r.deadline,
+                    formatSchoolDate(r.date),
+                    String(r.days),
+                    r.follows,
+                  ]);
+                  downloadCsv(`exam-deadlines-${lead.series.id.toLowerCase()}.csv`, head, exportRows);
+                }}
+              >
+                <Download className="size-4" />
+                Export deadline sheet
               </Button>
             </span>
           </h2>

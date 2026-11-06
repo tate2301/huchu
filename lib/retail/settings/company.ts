@@ -9,6 +9,7 @@ import {
   YEAR_STARTS,
 } from "@/lib/retail/settings-pages/company";
 import { loadShopProfile, saveShopProfile, type ShopProfilePatch } from "@/lib/retail/shop-profile";
+import { ensureWorkspaceCategories } from "@/lib/retail/categories";
 import { formatDay, parseDay } from "@/lib/workspace/format";
 
 import { SettingsRefused, type SettingsStore } from "./types";
@@ -62,7 +63,7 @@ export function companyProfilePatch(changes: Record<string, unknown>): ShopProfi
 
 export const companySettings: SettingsStore = {
   async load(companyId) {
-    const [profile, branding, accounting, locked] = await Promise.all([
+    const [profile, branding, accounting, locked, company] = await Promise.all([
       loadShopProfile(companyId),
       prisma.companyBranding.findUnique({
         where: { companyId },
@@ -83,8 +84,13 @@ export const companySettings: SettingsStore = {
         select: { baseCurrency: true, fiscalYearStartMonth: true },
       }),
       pricesLocked(prisma, companyId),
+      prisma.company.findUnique({
+        where: { id: companyId },
+        select: { workspaceProfile: true },
+      }),
     ]);
     return {
+      workspaceProfile: company?.workspaceProfile ?? "GENERAL",
       businessType: profile.businessType === "LIQUOR" ? LIQUOR_STORE : GENERAL_RETAIL,
       ageCheck: profile.ageCheck,
       licenceHours: profile.licenceHours,
@@ -112,6 +118,16 @@ export const companySettings: SettingsStore = {
 
   async save(tx, actor, changes) {
     const { companyId } = actor;
+    if (typeof changes.workspaceProfile === "string") {
+      const validProfiles = ["GENERAL", "RETAIL", "GOLD_MINE", "SCHOOLS", "PAYROLL"] as const;
+      if ((validProfiles as readonly string[]).includes(changes.workspaceProfile)) {
+        await tx.company.update({
+          where: { id: companyId },
+          data: { workspaceProfile: changes.workspaceProfile as any },
+        });
+        await ensureWorkspaceCategories(tx, companyId, changes.workspaceProfile);
+      }
+    }
     const patch = companyProfilePatch(changes);
     if (patch.defaultSiteId) {
       const site = await tx.site.findFirst({
