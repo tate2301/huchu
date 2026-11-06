@@ -1,26 +1,27 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
@@ -60,7 +61,6 @@ export default function HumanResourcesPage() {
   const [search, setSearch] = React.useState("");
   const [departmentFilter, setDepartmentFilter] = React.useState<string | null>(null);
   const [employmentFilter, setEmploymentFilter] = React.useState<string | null>(null);
-  const [sortKey, setSortKey] = React.useState<"name" | "hireDate">("name");
   const [page, setPage] = React.useState(1);
   const pageSize = 25;
 
@@ -98,491 +98,482 @@ export default function HumanResourcesPage() {
     () => (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures ?? [],
     [session]
   );
-  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
-  const normalizedProfile = React.useMemo(
-    () => resolveWorkspaceProfileForRoles({ workspaceProfile, enabledFeatures }),
-    [enabledFeatures, workspaceProfile]
-  );
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
 
-  const positionOptions = React.useMemo(
-    () => getEmployeePositionOptions({ workspaceProfile: normalizedProfile, enabledFeatures }),
-    [enabledFeatures, normalizedProfile]
-  );
-
-  const employees = React.useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data]);
-  const departments = React.useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data]);
-  const grades = React.useMemo(() => gradesQuery.data?.data ?? [], [gradesQuery.data]);
-  const templates = React.useMemo(() => templatesQuery.data?.data ?? [], [templatesQuery.data]);
-
-  // Counts for tabs
-  const activeCount = React.useMemo(() => employees.filter((e) => e.isActive).length, [employees]);
-  const inactiveCount = React.useMemo(() => employees.filter((e) => !e.isActive).length, [employees]);
-  const totalCount = employees.length;
-
-  // Filter & sort
-  const filteredEmployees = React.useMemo(() => {
-    let list = [...employees];
-    if (departmentFilter) {
-      list = list.filter((e) => e.departmentId === departmentFilter);
-    }
-    if (employmentFilter) {
-      list = list.filter((e) => e.employmentType === employmentFilter);
-    }
-    list.sort((a, b) => {
-      if (sortKey === "hireDate") {
-        return (b.hireDate ? new Date(b.hireDate).getTime() : 0) - (a.hireDate ? new Date(a.hireDate).getTime() : 0);
-      }
-      return a.name.localeCompare(b.name);
+  const positionOptions = React.useMemo(() => {
+    const profile = resolveWorkspaceProfileForRoles({
+      enabledFeatures,
+      userRole,
     });
-    return list;
-  }, [employees, departmentFilter, employmentFilter, sortKey]);
+    return getEmployeePositionOptions(profile);
+  }, [enabledFeatures, userRole]);
+
+  const employees = React.useMemo(
+    () => employeesQuery.data?.data ?? [],
+    [employeesQuery.data]
+  );
+  const departments = React.useMemo(
+    () => departmentsQuery.data?.data ?? [],
+    [departmentsQuery.data]
+  );
+
+  // Filtering
+  const filtered = React.useMemo(() => {
+    return employees.filter((emp) => {
+      if (departmentFilter && emp.department?.id !== departmentFilter) return false;
+      if (employmentFilter && emp.employmentType !== employmentFilter) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      const name = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+      const num = (emp.employeeNumber || "").toLowerCase();
+      const pos = (emp.position || "").toLowerCase();
+      const dept = (emp.department?.name || "").toLowerCase();
+      return name.includes(q) || num.includes(q) || pos.includes(q) || dept.includes(q);
+    });
+  }, [employees, departmentFilter, employmentFilter, search]);
+
+  // Tab counts
+  const counts = React.useMemo(() => {
+    const active = employees.filter((e) => e.isActive).length;
+    const inactive = employees.filter((e) => !e.isActive).length;
+    return {
+      active,
+      inactive,
+      all: employees.length,
+    };
+  }, [employees]);
 
   // Pagination
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, filteredEmployees.length);
-  const pagedEmployees = React.useMemo(
-    () => filteredEmployees.slice((page - 1) * pageSize, page * pageSize),
-    [filteredEmployees, page, pageSize]
-  );
+  const totalRows = filtered.length;
+  const pageRows = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
-  // Selection
-  const pagedIds = React.useMemo(() => pagedEmployees.map((e) => e.id), [pagedEmployees]);
-  const selection = useSelection(pagedIds);
-  const selectedRows = React.useMemo(
-    () => pagedEmployees.filter((e) => selection.isSelected(e.id)),
-    [pagedEmployees, selection]
-  );
+  // Multi-select
+  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const selection = useSelection(rowIds);
 
   // Mutations
-  const createEmployeeMutation = useMutation({
-    mutationFn: async (payload: EmployeeDrawerForm) =>
+  const createMutation = useMutation({
+    mutationFn: (values: EmployeeDrawerForm) =>
       fetchJson("/api/employees", {
         method: "POST",
-        body: JSON.stringify({
-          ...payload,
-          departmentId: payload.departmentId || undefined,
-          gradeId: payload.gradeId || undefined,
-          supervisorId: payload.supervisorId || undefined,
-          compensationTemplateId: payload.compensationTemplateId || undefined,
-        }),
+        body: JSON.stringify(values),
       }),
     onSuccess: () => {
-      toast({ title: "Employee created", description: "Added to workforce and directory.", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-  });
-
-  const updateEmployeeMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: EmployeeDrawerForm }) =>
-      fetchJson(`/api/employees/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          ...payload,
-          departmentId: payload.departmentId || undefined,
-          gradeId: payload.gradeId || undefined,
-          supervisorId: payload.supervisorId || undefined,
-          compensationTemplateId: payload.compensationTemplateId || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Employee updated", description: "Changes saved.", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-  });
-
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) =>
-      fetchJson(`/api/employees/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Status updated", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-  });
-
-  const deleteEmployeeMutation = useMutation({
-    mutationFn: async (id: string) => fetchJson(`/api/employees/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Employee deleted", variant: "success" });
-      setDeletingId(null);
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      toast({ title: "Employee added successfully" });
+      setDrawerOpen(false);
+      setEditingEmployee(null);
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (err) => {
-      toast({ title: "Unable to delete employee", description: getApiErrorMessage(err), variant: "destructive" });
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
-  const handleSaveDrawer = async (saved: EmployeeDrawerForm, isEdit: boolean) => {
-    if (isEdit && editingEmployee) {
-      await updateEmployeeMutation.mutateAsync({ id: editingEmployee.id, payload: saved });
-    } else {
-      await createEmployeeMutation.mutateAsync(saved);
-    }
-  };
+  const updateMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: EmployeeDrawerForm }) =>
+      fetchJson(`/api/employees/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(values),
+      }),
+    onSuccess: () => {
+      toast({ title: "Employee updated" });
+      setDrawerOpen(false);
+      setEditingEmployee(null);
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err) => {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
 
-  const handleExportCsv = (rowsToExport: EmployeeSummary[]) => {
-    const csv = [
-      ["Employee ID", "Name", "Department", "Position", "Employment Type", "Phone", "National ID", "Status", "Hire Date"],
-      ...rowsToExport.map((e) => [
-        e.employeeId || "",
-        e.name,
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/employees/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Employee deleted" });
+      setDeletingId(null);
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err) => {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const selectedRows = React.useMemo(
+    () => pageRows.filter((r) => selection.isSelected(r.id)),
+    [pageRows, selection]
+  );
+
+  const handleExportSelected = () => {
+    const targets = selectedRows.length > 0 ? selectedRows : filtered;
+    downloadCsv(
+      "staff-directory.csv",
+      ["Employee No", "First Name", "Last Name", "Department", "Position", "Type", "Status", "Hire Date"],
+      targets.map((e) => [
+        e.employeeNumber || "",
+        e.firstName,
+        e.lastName,
         e.department?.name || "",
         e.position || "",
-        (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] : "") || e.employmentType || "—",
-        e.phone || "",
-        e.nationalIdNumber || "",
+        EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType,
         e.isActive ? "Active" : "Inactive",
-        e.hireDate ? String(e.hireDate).slice(0, 10) : "",
-      ]),
-    ];
-    downloadCsv(`employees-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        e.hireDate || "",
+      ])
+    );
   };
 
-  const selectedDepartmentName = React.useMemo(() => {
-    if (!departmentFilter) return "Any";
-    return departments.find((d) => d.id === departmentFilter)?.name ?? "Any";
-  }, [departmentFilter, departments]);
-
-  const selectedEmploymentName = React.useMemo(() => {
-    if (!employmentFilter) return "Any";
-    return EMPLOYMENT_TYPE_LABEL[employmentFilter as keyof typeof EMPLOYMENT_TYPE_LABEL] ?? "Any";
-  }, [employmentFilter]);
-
-  const employeePendingDelete = React.useMemo(
-    () => employees.find((e) => e.id === deletingId) ?? null,
-    [deletingId, employees]
+  const departmentName = React.useMemo(
+    () => departments.find((d) => d.id === departmentFilter)?.name ?? "Any",
+    [departments, departmentFilter]
   );
+
+  const columns: Array<WsColumn<EmployeeSummary>> = [
+    {
+      key: "name",
+      head: "Staff member",
+      cell: (emp) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <Person name={`${emp.firstName} ${emp.lastName}`} size={28} />
+          <span>
+            <span className="who" style={{ display: "block", fontWeight: 500 }}>
+              {emp.firstName} {emp.lastName}
+            </span>
+            <span className="muted mono" style={{ fontSize: 11 }}>
+              {emp.employeeNumber || "—"}
+            </span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "department",
+      head: "Department",
+      className: "muted",
+      cell: (emp) => emp.department?.name || <None />,
+    },
+    {
+      key: "position",
+      head: "Position",
+      cell: (emp) => emp.position || <None />,
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (emp) => (
+        <St tone={emp.isActive ? "done" : "void"}>
+          {emp.isActive ? "Active" : "Inactive"}
+        </St>
+      ),
+    },
+    {
+      key: "type",
+      head: "Employment",
+      className: "muted",
+      cell: (emp) => EMPLOYMENT_TYPE_LABEL[emp.employmentType] || emp.employmentType,
+    },
+    {
+      key: "hired",
+      head: "Hired",
+      className: "muted mono",
+      cell: (emp) => emp.hireDate ? new Date(emp.hireDate).toLocaleDateString("en-GB") : <None />,
+    },
+    {
+      key: "actions",
+      head: "",
+      right: true,
+      cell: (emp) => {
+        const items: MenuEntry[] = [
+          {
+            key: "edit",
+            label: "Edit employee profile",
+            icon: "edit",
+            onSelect: () => {
+              setEditingEmployee(emp);
+              setDrawerOpen(true);
+            },
+          },
+          {
+            key: "delete",
+            label: "Delete record",
+            icon: "trash",
+            tone: "danger",
+            onSelect: () => setDeletingId(emp.id),
+          },
+        ];
+        return <MenuButton items={items} label="Actions" />;
+      },
+    },
+  ];
+
+  const totals = [
+    `${totalRows} staff`,
+    null,
+    null,
+    `${counts.active} active`,
+    null,
+    null,
+    null,
+  ];
 
   return (
     <PeopleShell
-      activeTab="employees"
-      title="Staff Directory"
+      activeTab="directory"
       actions={
         <Button
           variant="primary"
           icon="plus"
-          shortcut="N"
           onClick={() => {
             setEditingEmployee(null);
             setDrawerOpen(true);
           }}
         >
-          Add employee
+          New employee
         </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Employee views"
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                setPage(1);
-                selection.clear();
-              }}
-              items={[
-                { value: "active", label: "Active", count: activeCount },
-                { value: "all", label: "All staff", count: totalCount },
-                { value: "inactive", label: "Inactive", count: inactiveCount },
-              ]}
-            />
+      <BkPage screen="people" scroll={false}>
+        <BkFinding
+          fact={`${counts.active} active employees across ${departments.length} departments.`}
+          rest="Select any row to view, update compensation, or adjust employment details."
+        />
 
-            {/* TOOLBAR */}
-            <BkTools
-              find="Search employees by name, role, email..."
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
-              }}
-              count={`${filteredEmployees.length} of ${totalCount}`}
-              chips={
-                <>
-                  <BkChip
-                    label="Department"
-                    value={selectedDepartmentName}
-                    set={Boolean(departmentFilter)}
-                    items={[
-                      {
-                        key: "any-dept",
-                        label: "Any department",
-                        checked: !departmentFilter,
-                        onSelect: () => {
-                          setDepartmentFilter(null);
-                          setPage(1);
-                        },
+        <BkTabs
+          label="Staff views"
+          value={tab}
+          onChange={(v) => {
+            setTab(v as StatusTab);
+            setPage(1);
+          }}
+          items={[
+            { value: "active", label: "Active staff", count: counts.active },
+            { value: "all", label: "All records", count: counts.all },
+            { value: "inactive", label: "Inactive / Departed", count: counts.inactive },
+          ]}
+        />
+
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExportSelected}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find="Search staff by name, number, or position..."
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            filters={
+              <>
+                <BkFilter
+                  label="Department"
+                  value={departmentName}
+                  items={[
+                    {
+                      key: "any",
+                      label: "Any department",
+                      checked: !departmentFilter,
+                      onSelect: () => {
+                        setDepartmentFilter(null);
+                        setPage(1);
                       },
-                      { separator: true },
-                      ...departments.map((d) => ({
-                        key: d.id,
-                        label: d.name,
-                        checked: departmentFilter === d.id,
-                        onSelect: () => {
-                          setDepartmentFilter(d.id);
-                          setPage(1);
-                        },
-                      })),
-                    ]}
-                  />
-
-                  <BkChip
-                    label="Employment"
-                    value={selectedEmploymentName}
-                    set={Boolean(employmentFilter)}
-                    items={[
-                      {
-                        key: "any-type",
-                        label: "Any employment",
-                        checked: !employmentFilter,
-                        onSelect: () => {
-                          setEmploymentFilter(null);
-                          setPage(1);
-                        },
+                    },
+                    { separator: true },
+                    ...departments.map((d) => ({
+                      key: d.id,
+                      label: d.name,
+                      checked: departmentFilter === d.id,
+                      onSelect: () => {
+                        setDepartmentFilter(d.id);
+                        setPage(1);
                       },
-                      { separator: true },
-                      ...(["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"] as const).map((type) => ({
-                        key: type,
-                        label: EMPLOYMENT_TYPE_LABEL[type],
-                        checked: employmentFilter === type,
-                        onSelect: () => {
-                          setEmploymentFilter(type);
-                          setPage(1);
-                        },
-                      })),
-                    ]}
-                  />
-                </>
-              }
-              end={
-                <BkQuietTools
-                  onSort={() => setSortKey((curr) => (curr === "name" ? "hireDate" : "name"))}
-                  sortLabel={sortKey === "name" ? "By name" : "By hire date"}
-                  onExport={() => handleExportCsv(filteredEmployees)}
+                    })),
+                  ]}
                 />
-              }
-            />
+                <BkFilter
+                  label="Employment"
+                  value={
+                    employmentFilter
+                      ? EMPLOYMENT_TYPE_LABEL[employmentFilter] || employmentFilter
+                      : "Any"
+                  }
+                  items={[
+                    {
+                      key: "any",
+                      label: "Any type",
+                      checked: !employmentFilter,
+                      onSelect: () => {
+                        setEmploymentFilter(null);
+                        setPage(1);
+                      },
+                    },
+                    { separator: true },
+                    {
+                      key: "FULL_TIME",
+                      label: "Full-time",
+                      checked: employmentFilter === "FULL_TIME",
+                      onSelect: () => {
+                        setEmploymentFilter("FULL_TIME");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "PART_TIME",
+                      label: "Part-time",
+                      checked: employmentFilter === "PART_TIME",
+                      onSelect: () => {
+                        setEmploymentFilter("PART_TIME");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "CONTRACT",
+                      label: "Contract",
+                      checked: employmentFilter === "CONTRACT",
+                      onSelect: () => {
+                        setEmploymentFilter("CONTRACT");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "CASUAL",
+                      label: "Casual",
+                      checked: employmentFilter === "CASUAL",
+                      onSelect: () => {
+                        setEmploymentFilter("CASUAL");
+                        setPage(1);
+                      },
+                    },
+                  ]}
+                />
+              </>
+            }
+            end={<BkQuietTools onExport={handleExportSelected} />}
+          />
+        )}
 
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Employees"
-              foot={
-                <TableFoot
-                  range={filteredEmployees.length === 0 ? "None" : `${from} to ${to} of ${filteredEmployees.length}`}
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < filteredEmployees.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={{
-                    count: selectedRows.length,
-                    onClear: selection.clear,
-                    actions: (
-                      <>
-                        <Button
-                          icon="export"
-                          onClick={() => handleExportCsv(selectedRows)}
-                        >
-                          Export selected
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            for (const row of selectedRows) {
-                              await toggleStatusMutation.mutateAsync({ id: row.id, isActive: true });
-                            }
-                            selection.clear();
-                          }}
-                        >
-                          Mark active
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            for (const row of selectedRows) {
-                              await toggleStatusMutation.mutateAsync({ id: row.id, isActive: false });
-                            }
-                            selection.clear();
-                          }}
-                        >
-                          Mark inactive
-                        </Button>
-                      </>
-                    ),
-                  }}
-                />
-              }
-            >
-              {filteredEmployees.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No employees match</b>
-                  <p className="muted">
-                    {search || departmentFilter || employmentFilter
-                      ? "Clear the search or filter chips to see everyone."
-                      : "Add your first member of staff with Add employee."}
+        <BkScroll>
+          <Worksheet
+            label="employees"
+            rows={pageRows}
+            rowKey={(emp) => emp.id}
+            columns={columns}
+            selection={{
+              selected: selection.selected,
+              toggle: selection.toggle,
+              toggleAll: selection.toggleAll,
+              all: selection.all,
+              some: selection.some,
+              labelOf: (emp) => `${emp.firstName} ${emp.lastName}`,
+            }}
+            onOpen={(emp) => {
+              setEditingEmployee(emp);
+              setDrawerOpen(true);
+            }}
+            totals={totals}
+            empty={
+              employeesQuery.isLoading ? (
+                "Loading directory..."
+              ) : (
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No staff members match the criteria.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Try clearing filters or search query, or onboard a new employee.
                   </p>
                 </div>
-              ) : (
-                <table className="table" aria-label="Employees">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 280 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 180 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 110 }} />
-                    <col style={{ width: 60 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all employees"
-                      />
-                      <th>Employee</th>
-                      <th>Department</th>
-                      <th>Position / Role</th>
-                      <th>Employment</th>
-                      <th>Hire date</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedEmployees.map((emp) => {
-                      const isSelected = selection.isSelected(emp.id);
-                      const moreEntries: MenuEntry[] = [
-                        {
-                          key: "edit",
-                          label: "Edit details",
-                          icon: "edit",
-                          onSelect: () => {
-                            setEditingEmployee(emp);
-                            setDrawerOpen(true);
-                          },
-                        },
-                        {
-                          key: "profile",
-                          label: "Open profile",
-                          icon: "person",
-                          onSelect: () => {
-                            window.location.assign(`/people/${emp.id}`);
-                          },
-                        },
-                        { separator: true },
-                        {
-                          key: "toggle-status",
-                          label: emp.isActive ? "Mark inactive" : "Mark active",
-                          onSelect: () => {
-                            toggleStatusMutation.mutate({ id: emp.id, isActive: !emp.isActive });
-                          },
-                        },
-                        {
-                          key: "delete",
-                          label: "Delete employee",
-                          icon: "retire",
-                          danger: true,
-                          onSelect: () => setDeletingId(emp.id),
-                        },
-                      ];
+              )
+            }
+          />
+        </BkScroll>
 
-                      return (
-                        <tr key={emp.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(emp.id)}
-                            label={`Select ${emp.name}`}
-                          />
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <Person name={emp.name} src={emp.passportPhotoUrl || undefined} />
-                              <div>
-                                <Link
-                                  href={`/people/${emp.id}`}
-                                  style={{ fontWeight: 500, color: "var(--color-ink)" }}
-                                >
-                                  {emp.name}
-                                </Link>
-                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                  {emp.employeeId ? `${emp.employeeId} • ` : ""}
-                                  {emp.phone || emp.nationalIdNumber || "No contact"}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>{emp.department?.name ?? <span className="muted">—</span>}</td>
-                          <td>
-                            {positionOptions.find((p) => p.value === emp.position)?.label || emp.position || (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td>{(emp.employmentType ? EMPLOYMENT_TYPE_LABEL[emp.employmentType] : "") || emp.employmentType || "—"}</td>
-                          <td className="num">
-                            {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString("en-GB") : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td>
-                            <BkState tone={emp.isActive ? "success" : "plain"}>
-                              {emp.isActive ? "Active" : "Inactive"}
-                            </BkState>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <MenuButton label="More" items={moreEntries}>
-                              •••
-                            </MenuButton>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
 
-            {/* GUIDED EMPLOYEE DRAWER */}
-            <EmployeeDrawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              employee={editingEmployee}
-              departments={departments}
-              grades={grades}
-              templates={templates}
-              supervisors={employees}
-              positionOptions={positionOptions}
-              onSaved={handleSaveDrawer}
-            />
+      {/* Guided Slideout Employee Drawer */}
+      <EmployeeDrawer
+        open={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false);
+          setEditingEmployee(null);
+        }}
+        initialData={
+          editingEmployee
+            ? {
+                firstName: editingEmployee.firstName,
+                lastName: editingEmployee.lastName,
+                email: editingEmployee.email ?? "",
+                phone: editingEmployee.phone ?? "",
+                departmentId: editingEmployee.department?.id ?? "",
+                position: editingEmployee.position ?? "",
+                employmentType: editingEmployee.employmentType,
+                hireDate: editingEmployee.hireDate ?? "",
+                nationalId: editingEmployee.nationalId ?? "",
+                compensation: editingEmployee.compensation
+                  ? {
+                      currency: editingEmployee.compensation.currency,
+                      baseSalary: Number(editingEmployee.compensation.baseSalary),
+                    }
+                  : undefined,
+              }
+            : undefined
+        }
+        departments={departments}
+        positionOptions={positionOptions}
+        jobGrades={gradesQuery.data?.data ?? []}
+        compensationTemplates={templatesQuery.data?.data ?? []}
+        onSubmit={(values) => {
+          if (editingEmployee) {
+            updateMutation.mutate({ id: editingEmployee.id, values });
+          } else {
+            createMutation.mutate(values);
+          }
+        }}
+        submitting={createMutation.isPending || updateMutation.isPending}
+      />
 
-            {/* DELETE CONFIRM DIALOG */}
-            <Dialog open={Boolean(deletingId)} onOpenChange={(open) => !open && setDeletingId(null)}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete employee record</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to remove <b>{employeePendingDelete?.name}</b> from the team?
-                    This will remove their workforce placement and salary assignments.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button onClick={() => setDeletingId(null)}>Cancel</Button>
-                  <Button
-                    variant="danger"
-                    busy={deleteEmployeeMutation.isPending}
-                    onClick={() => deletingId && deleteEmployeeMutation.mutate(deletingId)}
-                  >
-                    Delete record
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </KitScreen>
-      </Kit>
+      {/* Delete confirmation dialog */}
+      <Dialog open={Boolean(deletingId)} onOpenChange={() => setDeletingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete employee record</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this employee? This action removes their access,
+              attendance history, and payroll records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="quiet" onClick={() => setDeletingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              busy={deleteMutation.isPending}
+              onClick={() => deletingId && deleteMutation.mutate(deletingId)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PeopleShell>
   );
 }

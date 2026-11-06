@@ -5,25 +5,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
   Drawer,
   DrawerSection,
   Field,
   Input,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
@@ -41,15 +43,6 @@ import {
 } from "@/lib/people/attendance";
 
 type ViewTab = "today" | "all";
-
-const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "plain"> = {
-  PRESENT: "success",
-  LATE: "warning",
-  ABSENT: "danger",
-  ON_LEAVE: "plain",
-  REST_DAY: "plain",
-  HOLIDAY: "plain",
-};
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -101,438 +94,487 @@ export default function AttendancePage() {
     queryFn: () => fetchEmployees({ active: true, limit: 300 }),
   });
 
-  const records = React.useMemo(() => attendanceQuery.data?.data ?? [], [attendanceQuery.data]);
-  const sites = React.useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
-  const employees = React.useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data]);
+  const records = React.useMemo(
+    () => attendanceQuery.data?.data ?? [],
+    [attendanceQuery.data]
+  );
+  const sites = React.useMemo(() => sitesQuery.data?.data ?? [], [sitesQuery.data]);
+  const employees = React.useMemo(
+    () => employeesQuery.data?.data ?? [],
+    [employeesQuery.data]
+  );
 
-  // Mutations
-  const markMutation = useMutation({
-    mutationFn: async () =>
-      fetchJson("/api/attendance", {
-        method: "POST",
-        body: JSON.stringify({
-          employeeId: markEmployeeId || employees[0]?.id,
-          date: markDate,
-          shift: markShift,
-          status: markStatus,
-          overtimeHours: Number(markOvertime) || 0,
-          siteId: markSiteId || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Attendance recorded", variant: "success" });
-      setMarkDrawerOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["attendance"] });
-    },
-    onError: (err) => {
-      toast({ title: "Unable to record attendance", description: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => fetchJson(`/api/attendance/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Record deleted", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["attendance"] });
-    },
-  });
-
-  // Filtered
-  const filteredRecords = React.useMemo(() => {
-    let list = [...records];
-    if (statusFilter !== "ALL") {
-      list = list.filter((r) => r.status === statusFilter);
-    }
-    if (search.trim()) {
+  // Filter records
+  const filtered = React.useMemo(() => {
+    return records.filter((rec) => {
+      if (statusFilter !== "ALL" && rec.status !== statusFilter) return false;
+      if (!search.trim()) return true;
       const q = search.toLowerCase();
-      list = list.filter(
-        (r) =>
-          r.employee.name.toLowerCase().includes(q) ||
-          r.employee.employeeId.toLowerCase().includes(q) ||
-          (r.shift && r.shift.toLowerCase().includes(q))
-      );
-    }
-    return list;
+      const empName = (rec.employee?.name || "").toLowerCase();
+      const shift = (rec.shiftName || "").toLowerCase();
+      const site = (rec.site?.name || "").toLowerCase();
+      return empName.includes(q) || shift.includes(q) || site.includes(q);
+    });
   }, [records, statusFilter, search]);
 
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, filteredRecords.length);
-  const pagedRecords = React.useMemo(
-    () => filteredRecords.slice((page - 1) * pageSize, page * pageSize),
-    [filteredRecords, page, pageSize]
+  const counts = React.useMemo(() => {
+    let present = 0;
+    let late = 0;
+    let absent = 0;
+    let overtimeHours = 0;
+    for (const r of records) {
+      if (r.status === "PRESENT") present++;
+      else if (r.status === "LATE") late++;
+      else if (r.status === "ABSENT") absent++;
+      if (r.overtimeMinutes) overtimeHours += r.overtimeMinutes / 60;
+    }
+    return { present, late, absent, overtimeHours: Math.round(overtimeHours * 10) / 10 };
+  }, [records]);
+
+  // Pagination
+  const totalRows = filtered.length;
+  const pageRows = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const selection = useSelection(rowIds);
+
+  // Mutation
+  const markMutation = useMutation({
+    mutationFn: (values: {
+      employeeId: string;
+      date: string;
+      status: "PRESENT" | "ABSENT" | "LATE";
+      overtimeMinutes?: number;
+      siteId?: string;
+      shiftName?: string;
+    }) =>
+      fetchJson("/api/attendance", {
+        method: "POST",
+        body: JSON.stringify(values),
+      }),
+    onSuccess: () => {
+      toast({ title: "Attendance recorded successfully" });
+      setMarkDrawerOpen(false);
+      setMarkEmployeeId("");
+      setMarkOvertime("0");
+      void queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    },
+    onError: (err) => {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const selectedRows = React.useMemo(
+    () => pageRows.filter((r) => selection.isSelected(r.id)),
+    [pageRows, selection]
   );
 
-  const pagedIds = React.useMemo(() => pagedRecords.map((r) => r.id), [pagedRecords]);
-  const selection = useSelection(pagedIds);
-
-  const handleExportCsv = () => {
-    const csv = [
-      ["Employee ID", "Name", "Date", "Shift", "Status", "Overtime Hours", "Site"],
-      ...filteredRecords.map((r) => [
-        r.employee.employeeId,
-        r.employee.name,
-        r.date.slice(0, 10),
-        r.shift || "",
-        r.status,
-        String(r.overtime ?? 0),
+  const handleExport = () => {
+    const target = selectedRows.length > 0 ? selectedRows : filtered;
+    downloadCsv(
+      `attendance-${attendanceDate}.csv`,
+      ["Date", "Employee", "Status", "Check In", "Check Out", "Overtime (hrs)", "Shift", "Site"],
+      target.map((r) => [
+        r.date,
+        r.employee?.name || "",
+        ATTENDANCE_STATUS_LABELS[r.status] || r.status,
+        r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+        r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+        r.overtimeMinutes ? (r.overtimeMinutes / 60).toFixed(1) : "0.0",
+        r.shiftName || "",
         r.site?.name || "",
-      ]),
-    ];
-    downloadCsv(`attendance-${attendanceDate}.csv`, csv);
+      ])
+    );
   };
 
-  const selectedEmployee = React.useMemo(
-    () => employees.find((e) => e.id === markEmployeeId) || employees[0],
-    [employees, markEmployeeId]
-  );
+  const columns: Array<WsColumn<typeof pageRows[number]>> = [
+    {
+      key: "employee",
+      head: "Employee",
+      cell: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Person name={r.employee?.name || "Staff"} size={26} />
+          <span className="who" style={{ fontWeight: 500 }}>
+            {r.employee?.name || "—"}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "date",
+      head: "Date",
+      className: "muted mono",
+      cell: (r) => r.date,
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (r) => {
+        const tone =
+          r.status === "PRESENT"
+            ? "done"
+            : r.status === "LATE"
+            ? "warn"
+            : r.status === "ABSENT"
+            ? "bad"
+            : "void";
+        return (
+          <St tone={tone}>
+            {ATTENDANCE_STATUS_LABELS[r.status] || r.status}
+          </St>
+        );
+      },
+    },
+    {
+      key: "checkIn",
+      head: "Check in",
+      className: "muted mono",
+      cell: (r) =>
+        r.checkIn ? (
+          new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        ) : (
+          <None />
+        ),
+    },
+    {
+      key: "checkOut",
+      head: "Check out",
+      className: "muted mono",
+      cell: (r) =>
+        r.checkOut ? (
+          new Date(r.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        ) : (
+          <None />
+        ),
+    },
+    {
+      key: "overtime",
+      head: "Overtime (hrs)",
+      right: true,
+      className: "mono",
+      cell: (r) =>
+        r.overtimeMinutes ? (
+          <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+            {(r.overtimeMinutes / 60).toFixed(1)}h
+          </span>
+        ) : (
+          <None />
+        ),
+    },
+    {
+      key: "shift",
+      head: "Shift / Site",
+      className: "muted",
+      cell: (r) => (
+        <span>
+          {r.shiftName || "Standard"} {r.site?.name ? `• ${r.site.name}` : ""}
+        </span>
+      ),
+    },
+  ];
 
-  const statusLabel =
-    statusFilter === "ALL"
-      ? "All statuses"
-      : ATTENDANCE_STATUS_LABELS[statusFilter as keyof typeof ATTENDANCE_STATUS_LABELS] || statusFilter;
+  const totals = [
+    `${totalRows} logs`,
+    null,
+    `${counts.present} present`,
+    null,
+    null,
+    `${counts.overtimeHours.toFixed(1)}h OT`,
+    null,
+  ];
 
   return (
     <PeopleShell
       activeTab="attendance"
-      title="Attendance Register"
       actions={
         canManage ? (
           <Button
             variant="primary"
             icon="plus"
-            shortcut="N"
             onClick={() => {
-              if (employees[0]) setMarkEmployeeId(employees[0].id);
-              if (sites[0]) setMarkSiteId(sites[0].id);
+              setMarkDate(attendanceDate);
               setMarkDrawerOpen(true);
             }}
           >
             Mark attendance
           </Button>
-        ) : undefined
+        ) : null
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Attendance views"
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                setPage(1);
-                selection.clear();
-              }}
-              items={[
-                { value: "today", label: "Today's register", count: records.length },
-                { value: "all", label: "Date history" },
-              ]}
-            />
+      <BkPage screen="attendance" scroll={false}>
+        <BkFinding
+          fact={`Attendance for ${attendanceDate}: ${counts.present} present, ${counts.late} late, ${counts.absent} absent.`}
+          rest={`${counts.overtimeHours.toFixed(1)} overtime hours accumulated. Logs sync directly with payroll calculations.`}
+        />
 
-            {/* TOOLBAR */}
-            <BkTools
-              find="Search staff attendance..."
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
-              }}
-              count={`${filteredRecords.length} of ${records.length}`}
-              chips={
-                <>
-                  {tab === "all" ? (
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-                      <span className="muted">Date:</span>
-                      <Input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        style={{ height: 32, width: 140 }}
-                      />
-                    </label>
-                  ) : null}
+        <BkTabs
+          label="Attendance views"
+          value={tab}
+          onChange={(v) => {
+            setTab(v as ViewTab);
+            setPage(1);
+          }}
+          items={[
+            { value: "today", label: "Today's logs", count: tab === "today" ? totalRows : undefined },
+            { value: "all", label: "Date picker / History", count: tab === "all" ? totalRows : undefined },
+          ]}
+        />
 
-                  <BkChip
-                    label="Status"
-                    value={statusLabel}
-                    set={statusFilter !== "ALL"}
-                    items={[
-                      {
-                        key: "ALL",
-                        label: "All statuses",
-                        checked: statusFilter === "ALL",
-                        onSelect: () => setStatusFilter("ALL"),
-                      },
-                      { separator: true },
-                      ...(["PRESENT", "LATE", "ABSENT", "ON_LEAVE"] as const).map((st) => ({
-                        key: st,
-                        label: ATTENDANCE_STATUS_LABELS[st] || st,
-                        checked: statusFilter === st,
-                        onSelect: () => setStatusFilter(st),
-                      })),
-                    ]}
-                  />
-                </>
-              }
-              end={<BkQuietTools onExport={handleExportCsv} />}
-            />
-
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Attendance register"
-              foot={
-                <TableFoot
-                  range={filteredRecords.length === 0 ? "None" : `${from} to ${to} of ${filteredRecords.length}`}
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < filteredRecords.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={{
-                    count: selection.selected.size,
-                    onClear: selection.clear,
-                    actions: (
-                      <Button icon="export" onClick={handleExportCsv}>
-                        Export selected
-                      </Button>
-                    ),
-                  }}
-                />
-              }
-            >
-              {filteredRecords.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No attendance recorded for this date</b>
-                  <p className="muted">Use Mark attendance to check staff into their shifts.</p>
-                </div>
-              ) : (
-                <table className="table" aria-label="Attendance register">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 260 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 70 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all rows"
-                      />
-                      <th>Employee</th>
-                      <th>Date & Shift</th>
-                      <th>Site</th>
-                      <th className="num">Overtime</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedRecords.map((record) => {
-                      const isSelected = selection.isSelected(record.id);
-                      return (
-                        <tr key={record.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(record.id)}
-                            label={`Select ${record.employee.name}`}
-                          />
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <Person name={record.employee.name} />
-                              <div>
-                                <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                  {record.employee.name}
-                                </span>
-                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                  {record.employee.employeeId}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div>{record.date.slice(0, 10)}</div>
-                            <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                              {record.shift || "Standard shift"}
-                            </div>
-                          </td>
-                          <td>{record.site?.name ?? <span className="muted">—</span>}</td>
-                          <td className="num">
-                            {Number(record.overtime) > 0 ? (
-                              <span style={{ fontWeight: 600, color: "var(--color-accent)" }}>
-                                +{record.overtime}h
-                              </span>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                          <td>
-                            <BkState tone={STATUS_TONE[record.status] || "plain"}>
-                              {ATTENDANCE_STATUS_LABELS[record.status as keyof typeof ATTENDANCE_STATUS_LABELS] ||
-                                record.status}
-                            </BkState>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            {canManage ? (
-                              <Button
-                                size="sm"
-                                variant="quiet"
-                                icon="retire"
-                                aria-label="Delete attendance"
-                                onClick={() => deleteMutation.mutate(record.id)}
-                              />
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
-
-            {/* GUIDED MARK ATTENDANCE DRAWER */}
-            <Drawer
-              open={markDrawerOpen}
-              onOpenChange={setMarkDrawerOpen}
-              title="Mark staff attendance"
-              sub="Record check-in status and overtime for the shift roster."
-              width={480}
-              footer={
-                <>
-                  <Button onClick={() => setMarkDrawerOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="primary"
-                    icon="check"
-                    shortcut="Ctrl ↵"
-                    busy={markMutation.isPending}
-                    onClick={() => markMutation.mutate()}
-                  >
-                    Save attendance
-                  </Button>
-                </>
-              }
-            >
-              <DrawerSection title="Staff Member">
-                <Field label="Employee" htmlFor="att-emp">
-                  <select
-                    id="att-emp"
-                    className="select"
-                    value={markEmployeeId}
-                    onChange={(e) => setMarkEmployeeId(e.target.value)}
-                    style={{ width: "100%", height: 36 }}
-                  >
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                {selectedEmployee ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-                    <Person name={selectedEmployee.name} />
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{selectedEmployee.name}</div>
-                      <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                        {selectedEmployee.department?.name || "Operations"}
-                      </div>
-                    </div>
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExport}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find="Search by employee, shift, or site..."
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            filters={
+              <>
+                {tab === "all" ? (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, color: "var(--color-muted)" }}>Date:</span>
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => {
+                        setSelectedDate(e.target.value);
+                        setPage(1);
+                      }}
+                      style={{ height: 32, fontSize: 13, width: 140 }}
+                    />
                   </div>
                 ) : null}
-              </DrawerSection>
 
-              <DrawerSection title="Shift & Status">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Date" htmlFor="att-date">
-                    <Input
-                      id="att-date"
-                      type="date"
-                      value={markDate}
-                      onChange={(e) => setMarkDate(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Shift" htmlFor="att-shift">
-                    <Input
-                      id="att-shift"
-                      value={markShift}
-                      onChange={(e) => setMarkShift(e.target.value)}
-                    />
-                  </Field>
+                <BkFilter
+                  label="Status"
+                  value={
+                    statusFilter === "ALL"
+                      ? "Any"
+                      : ATTENDANCE_STATUS_LABELS[statusFilter] || statusFilter
+                  }
+                  items={[
+                    {
+                      key: "ALL",
+                      label: "Any status",
+                      checked: statusFilter === "ALL",
+                      onSelect: () => {
+                        setStatusFilter("ALL");
+                        setPage(1);
+                      },
+                    },
+                    { separator: true },
+                    {
+                      key: "PRESENT",
+                      label: "Present",
+                      checked: statusFilter === "PRESENT",
+                      onSelect: () => {
+                        setStatusFilter("PRESENT");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "LATE",
+                      label: "Late",
+                      checked: statusFilter === "LATE",
+                      onSelect: () => {
+                        setStatusFilter("LATE");
+                        setPage(1);
+                      },
+                    },
+                    {
+                      key: "ABSENT",
+                      label: "Absent",
+                      checked: statusFilter === "ABSENT",
+                      onSelect: () => {
+                        setStatusFilter("ABSENT");
+                        setPage(1);
+                      },
+                    },
+                  ]}
+                />
+              </>
+            }
+            end={<BkQuietTools onExport={handleExport} />}
+          />
+        )}
+
+        <BkScroll>
+          <Worksheet
+            label="attendance records"
+            rows={pageRows}
+            rowKey={(r) => r.id}
+            columns={columns}
+            selection={{
+              selected: selection.selected,
+              toggle: selection.toggle,
+              toggleAll: selection.toggleAll,
+              all: selection.all,
+              some: selection.some,
+              labelOf: (r) => r.employee?.name || "Record",
+            }}
+            totals={totals}
+            empty={
+              attendanceQuery.isLoading ? (
+                "Loading attendance..."
+              ) : (
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No attendance records for {attendanceDate}.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Staff can be marked present, late, or absent using the button above.
+                  </p>
                 </div>
+              )
+            }
+          />
+        </BkScroll>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Site / Location" htmlFor="att-site" optional>
-                    <select
-                      id="att-site"
-                      className="select"
-                      value={markSiteId}
-                      onChange={(e) => setMarkSiteId(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      <option value="">Default Site</option>
-                      {sites.map((s: Site) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
 
-                  <Field label="Overtime hours" htmlFor="att-ot">
-                    <Input
-                      id="att-ot"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={markOvertime}
-                      onChange={(e) => setMarkOvertime(e.target.value)}
-                    />
-                  </Field>
-                </div>
+      {/* Guided Drawer for marking attendance */}
+      <Drawer
+        open={markDrawerOpen}
+        onClose={() => setMarkDrawerOpen(false)}
+        title="Mark Attendance Record"
+        description="Log employee shift status, check-in, and overtime hours for payroll."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <DrawerSection title="Staff Member & Date">
+            <Field label="Employee" required>
+              <select
+                className="select"
+                value={markEmployeeId}
+                onChange={(e) => setMarkEmployeeId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Select an employee...</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.firstName} {e.lastName} ({e.employeeNumber || "No ID"})
+                  </option>
+                ))}
+              </select>
+            </Field>
 
-                <div style={{ marginTop: 12 }}>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-                    Attendance Status
-                  </label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {(["PRESENT", "LATE", "ABSENT"] as const).map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => setMarkStatus(status)}
-                        style={{
-                          flex: 1,
-                          padding: "8px 12px",
-                          borderRadius: 6,
-                          border:
-                            markStatus === status
-                              ? "2px solid var(--color-ink)"
-                              : "1px solid var(--color-line)",
-                          background:
-                            markStatus === status ? "var(--color-surface)" : "transparent",
-                          fontWeight: markStatus === status ? 600 : 400,
-                          cursor: "pointer",
-                          fontSize: 13,
-                        }}
-                      >
-                        {status === "PRESENT" ? "• Present" : status === "LATE" ? "• Late" : "• Absent"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </DrawerSection>
-            </Drawer>
+            <Field label="Date" required>
+              <Input
+                type="date"
+                value={markDate}
+                onChange={(e) => setMarkDate(e.target.value)}
+              />
+            </Field>
+          </DrawerSection>
+
+          <DrawerSection title="Status & Hours">
+            <Field label="Attendance Status" required>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <Button
+                  variant={markStatus === "PRESENT" ? "primary" : "outline"}
+                  onClick={() => setMarkStatus("PRESENT")}
+                >
+                  • Present
+                </Button>
+                <Button
+                  variant={markStatus === "LATE" ? "primary" : "outline"}
+                  onClick={() => setMarkStatus("LATE")}
+                >
+                  • Late
+                </Button>
+                <Button
+                  variant={markStatus === "ABSENT" ? "danger" : "outline"}
+                  onClick={() => setMarkStatus("ABSENT")}
+                >
+                  • Absent
+                </Button>
+              </div>
+            </Field>
+
+            <Field label="Overtime (hours)" hint="Will be converted to minutes for payroll addition">
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={markOvertime}
+                onChange={(e) => setMarkOvertime(e.target.value)}
+                placeholder="0.0"
+              />
+            </Field>
+          </DrawerSection>
+
+          <DrawerSection title="Shift & Location">
+            <Field label="Shift Name">
+              <Input
+                value={markShift}
+                onChange={(e) => setMarkShift(e.target.value)}
+                placeholder="e.g. Day Shift, Plant Night Crew"
+              />
+            </Field>
+
+            <Field label="Site / Facility">
+              <select
+                className="select"
+                value={markSiteId}
+                onChange={(e) => setMarkSiteId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Default Site</option>
+                {sites.map((s: Site) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </DrawerSection>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <Button variant="quiet" onClick={() => setMarkDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              busy={markMutation.isPending}
+              disabled={!markEmployeeId}
+              onClick={() => {
+                const ot = parseFloat(markOvertime) || 0;
+                markMutation.mutate({
+                  employeeId: markEmployeeId,
+                  date: markDate,
+                  status: markStatus,
+                  overtimeMinutes: Math.round(ot * 60),
+                  shiftName: markShift || undefined,
+                  siteId: markSiteId || undefined,
+                });
+              }}
+            >
+              Save attendance
+            </Button>
           </div>
-        </KitScreen>
-      </Kit>
+        </div>
+      </Drawer>
     </PeopleShell>
   );
 }

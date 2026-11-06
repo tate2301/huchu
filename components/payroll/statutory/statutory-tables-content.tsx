@@ -5,31 +5,22 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BkState } from "@/components/books/bk-list";
-import { Kit, KitScreen, TableShell } from "@/components/core";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+  Amt,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkScroll,
+  BkTabs,
+  BkTools,
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { Button } from "@/components/core";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-
-/**
- * The tables a Zimbabwean payroll is computed on.
- *
- * The screen's job is not data entry — it is letting somebody *check* what their
- * payroll will use before it runs. So the layout answers three questions in
- * order: what is in force for this month, where did it come from, and is any of
- * it still the seeded starting set.
- *
- * The seeded-set warning is prominent and not dismissible. Every rate here ships
- * as a plausible starting figure, and the failure mode of a stale table is a
- * payslip that looks right and is quietly wrong for everybody — so the one thing
- * this screen must not do is let an operator forget that.
- */
 
 type Band = {
   lowerBound: string;
@@ -82,53 +73,51 @@ type NecAgreement = {
   employerRatePercent: string | null;
   employerFixedAmount: string | null;
   effectiveFrom: string;
+  effectiveTo: string | null;
+  source: string | null;
 };
 
 type StatutoryResponse = {
   asOf: string;
+  seededCount: number;
   payeTables: PayeTable[];
   rates: StatutoryRate[];
   credits: TaxCredit[];
   necAgreements: NecAgreement[];
-  seededCount: number;
 };
 
-/** Human labels, because `NSSA_POBS_EMPLOYEE` is not a thing to show a person. */
 const RATE_LABELS: Record<string, string> = {
-  AIDS_LEVY: "AIDS levy",
-  NSSA_POBS_EMPLOYEE: "NSSA pension — employee",
-  NSSA_POBS_EMPLOYER: "NSSA pension — employer",
-  NSSA_APWCS: "NSSA accident prevention (APWCS)",
-  ZIMDEF: "ZIMDEF",
-  STANDARDS_DEVELOPMENT_LEVY: "Standards Development Levy",
-  BONUS_EXEMPTION: "Bonus exemption",
+  AIDS_LEVY: "National AIDS Trust Fund (AIDS Levy)",
+  NSSA_POBS_EMPLOYEE: "NSSA Pension — employee share",
+  NSSA_POBS_EMPLOYER: "NSSA Pension — employer share",
+  NSSA_APWCS: "NSSA Accident Prevention & Workers' Compensation",
+  SDF: "Standards Development Fund (SDF)",
+  ZIMDEF: "ZIMDEF training levy",
+};
+
+const RATE_BASIS: Record<string, string> = {
+  AIDS_LEVY: "PAYE after tax credits",
+  NSSA_POBS_EMPLOYEE: "Insurable earnings, capped monthly",
+  NSSA_POBS_EMPLOYER: "Insurable earnings, capped monthly",
+  NSSA_APWCS: "Insurable earnings (employer only)",
+  SDF: "Gross payroll (employer only)",
+  ZIMDEF: "Gross payroll (employer only)",
 };
 
 const CREDIT_LABELS: Record<string, string> = {
-  MEDICAL_AID: "Medical aid",
-  ELDERLY: "Elderly persons",
-  DISABILITY: "Disabled persons",
-};
-
-/** What each rate is charged on — the question the table cannot answer itself. */
-const RATE_BASIS: Record<string, string> = {
-  AIDS_LEVY: "of the PAYE figure",
-  NSSA_POBS_EMPLOYEE: "of insurable earnings, capped",
-  NSSA_POBS_EMPLOYER: "of insurable earnings, capped",
-  NSSA_APWCS: "of gross — varies by industry risk class",
-  ZIMDEF: "of gross",
-  STANDARDS_DEVELOPMENT_LEVY: "of gross",
-  BONUS_EXEMPTION: "exempt slice of an annual bonus",
+  BLIND_PERSON: "Blind person credit",
+  DISABLED_PERSON: "Disabled person credit",
+  ELDERLY_PERSON: "Elderly person credit (age 55+)",
+  MEDICAL_EXPENSES: "Medical aid & expenses credit",
 };
 
 function monthOptions() {
   const options: Array<{ value: string; label: string }> = [];
   const now = new Date();
-  for (let offset = 2; offset >= -12; offset -= 1) {
+  for (let offset = -2; offset < 10; offset += 1) {
     const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
-    const value = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
     options.push({
-      value,
+      value: `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`,
       label: date.toLocaleDateString("en-GB", {
         month: "long",
         year: "numeric",
@@ -139,20 +128,34 @@ function monthOptions() {
   return options;
 }
 
-function day(value: string | null) {
-  if (!value) return "—";
-  return value.slice(0, 10);
-}
-
 function band(row: Band) {
-  const upper = row.upperBound ? Number(row.upperBound).toLocaleString() : "and above";
-  const lower = Number(row.lowerBound).toLocaleString();
+  const lower = Number(row.lowerBound).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const upper = row.upperBound
+    ? Number(row.upperBound).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : "and above";
   return row.upperBound ? `${lower} – ${upper}` : `${lower} ${upper}`;
 }
+
+type TabView = "paye" | "rates" | "credits" | "nec";
+
+type FlattenedBand = Band & {
+  currency: string;
+  cycle: string;
+  source: string | null;
+  isSeeded: boolean;
+};
 
 export function StatutoryTablesContent() {
   const months = useMemo(() => monthOptions(), []);
   const [asOf, setAsOf] = useState(months[2]?.value ?? months[0].value);
+  const [tab, setTab] = useState<TabView>("paye");
+  const [search, setSearch] = useState("");
 
   const query = useQuery({
     queryKey: ["hr", "statutory", asOf],
@@ -162,265 +165,418 @@ export function StatutoryTablesContent() {
 
   const data = query.data;
 
+  const selectedMonthLabel = useMemo(
+    () => months.find((m) => m.value === asOf)?.label ?? asOf,
+    [months, asOf]
+  );
+
+  // Flattened PAYE bands
+  const flattenedBands = useMemo<FlattenedBand[]>(() => {
+    return (
+      data?.payeTables.flatMap((table) =>
+        table.bands.map((b) => ({
+          ...b,
+          currency: table.currency,
+          cycle: table.cycle,
+          source: table.source,
+          isSeeded: table.isSeeded,
+        }))
+      ) ?? []
+    );
+  }, [data]);
+
+  const filteredBands = useMemo(() => {
+    let list = flattenedBands;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((b) => b.currency.toLowerCase().includes(q) || b.cycle.toLowerCase().includes(q));
+    }
+    return list;
+  }, [flattenedBands, search]);
+
+  const filteredRates = useMemo(() => {
+    let list = data?.rates ?? [];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          (RATE_LABELS[r.key] ?? r.key).toLowerCase().includes(q) ||
+          (r.currency && r.currency.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [data, search]);
+
+  const filteredCredits = useMemo(() => {
+    let list = data?.credits ?? [];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((c) => (CREDIT_LABELS[c.key] ?? c.key).toLowerCase().includes(q));
+    }
+    return list;
+  }, [data, search]);
+
+  const filteredNec = useMemo(() => {
+    let list = data?.necAgreements ?? [];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((n) => n.councilName.toLowerCase().includes(q));
+    }
+    return list;
+  }, [data, search]);
+
+  const handleExportCsv = () => {
+    if (tab === "paye") {
+      downloadCsv(
+        `paye-tax-bands-${asOf}.csv`,
+        ["Currency", "Cycle", "Taxable Gross Range", "Rate %", "Deduction Amount", "Seeded"],
+        filteredBands.map((b) => [
+          b.currency,
+          b.cycle,
+          band(b),
+          `${Number(b.ratePercent).toFixed(2)}%`,
+          b.deductAmount,
+          b.isSeeded ? "Yes" : "No",
+        ])
+      );
+    } else if (tab === "rates") {
+      downloadCsv(
+        `statutory-rates-${asOf}.csv`,
+        ["Levy/Contribution", "Currency", "Rate %", "Ceiling", "Charged On", "Effective From"],
+        filteredRates.map((r) => [
+          RATE_LABELS[r.key] ?? r.key,
+          r.currency || "Any",
+          `${Number(r.ratePercent).toFixed(2)}%`,
+          r.ceilingAmount || "None",
+          RATE_BASIS[r.key] || "",
+          r.effectiveFrom ? String(r.effectiveFrom).slice(0, 10) : "",
+        ])
+      );
+    } else if (tab === "credits") {
+      downloadCsv(
+        `tax-credits-${asOf}.csv`,
+        ["Credit Name", "Currency", "Worth", "Effective From"],
+        filteredCredits.map((c) => [
+          CREDIT_LABELS[c.key] ?? c.key,
+          c.currency,
+          c.ratePercent ? `${Number(c.ratePercent).toFixed(2)}%` : String(c.amount ?? 0),
+          c.effectiveFrom ? String(c.effectiveFrom).slice(0, 10) : "",
+        ])
+      );
+    } else {
+      downloadCsv(
+        `nec-agreements-${asOf}.csv`,
+        ["Council Name", "Currency", "Employee Share", "Employer Share", "Effective From"],
+        filteredNec.map((n) => [
+          n.councilName,
+          n.currency,
+          n.employeeRatePercent ? `${n.employeeRatePercent}%` : String(n.employeeFixedAmount ?? 0),
+          n.employerRatePercent ? `${n.employerRatePercent}%` : String(n.employerFixedAmount ?? 0),
+          n.effectiveFrom ? String(n.effectiveFrom).slice(0, 10) : "",
+        ])
+      );
+    }
+  };
+
+  // Columns for PAYE
+  const payeColumns: Array<WsColumn<FlattenedBand>> = [
+    {
+      key: "currency",
+      head: "Currency",
+      cell: (b) => (
+        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+          {b.currency} ({b.cycle.toLowerCase()})
+        </span>
+      ),
+    },
+    {
+      key: "range",
+      head: "Taxable Gross Band",
+      cell: (b) => <span className="mono">{band(b)}</span>,
+    },
+    {
+      key: "rate",
+      head: "Tax Rate",
+      right: true,
+      cell: (b) => <span className="mono" style={{ fontWeight: 600 }}>{Number(b.ratePercent).toFixed(2)}%</span>,
+    },
+    {
+      key: "deduct",
+      head: "Cumulative Deduct",
+      right: true,
+      cell: (b) => <Amt value={parseFloat(b.deductAmount)} currency={b.currency} />,
+    },
+    {
+      key: "seeded",
+      head: "Source origin",
+      cell: (b) => (b.isSeeded ? <St tone="draft">Seeded table</St> : <St tone="done">Enacted</St>),
+    },
+  ];
+
+  // Columns for Rates
+  const rateColumns: Array<WsColumn<StatutoryRate>> = [
+    {
+      key: "name",
+      head: "Levy / Contribution",
+      cell: (r) => (
+        <div>
+          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+            {RATE_LABELS[r.key] ?? r.key}
+          </div>
+          <div className="muted" style={{ fontSize: 11 }}>
+            {RATE_BASIS[r.key] ?? ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (r) => r.currency || "Any",
+    },
+    {
+      key: "rate",
+      head: "Statutory Rate",
+      right: true,
+      cell: (r) => (
+        <span className="mono" style={{ fontWeight: 600 }}>
+          {Number(r.ratePercent).toFixed(2)}%
+        </span>
+      ),
+    },
+    {
+      key: "ceiling",
+      head: "Monthly Cap",
+      right: true,
+      cell: (r) =>
+        r.ceilingAmount ? (
+          <Amt value={parseFloat(r.ceilingAmount)} currency={r.currency || "USD"} />
+        ) : (
+          <None />
+        ),
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (r) => (r.isSeeded ? <St tone="draft">Seeded rate</St> : <St tone="done">Active</St>),
+    },
+  ];
+
+  // Columns for Credits
+  const creditColumns: Array<WsColumn<TaxCredit>> = [
+    {
+      key: "name",
+      head: "Tax Credit Description",
+      cell: (c) => (
+        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+          {CREDIT_LABELS[c.key] ?? c.key}
+        </span>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (c) => c.currency,
+    },
+    {
+      key: "worth",
+      head: "Credit Allowance",
+      right: true,
+      cell: (c) =>
+        c.ratePercent ? (
+          <span className="mono">{Number(c.ratePercent).toFixed(2)}% of cost</span>
+        ) : (
+          <Amt value={parseFloat(c.amount ?? "0")} currency={c.currency} weight={600} />
+        ),
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (c) => (c.isSeeded ? <St tone="draft">Seeded</St> : <St tone="done">Active</St>),
+    },
+  ];
+
+  // Columns for NEC
+  const necColumns: Array<WsColumn<NecAgreement>> = [
+    {
+      key: "council",
+      head: "National Employment Council",
+      cell: (n) => (
+        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>{n.councilName}</span>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (n) => n.currency,
+    },
+    {
+      key: "employee",
+      head: "Employee share",
+      right: true,
+      cell: (n) =>
+        n.employeeRatePercent ? (
+          <span className="mono">{Number(n.employeeRatePercent).toFixed(2)}%</span>
+        ) : (
+          <Amt value={parseFloat(n.employeeFixedAmount ?? "0")} currency={n.currency} />
+        ),
+    },
+    {
+      key: "employer",
+      head: "Employer share",
+      right: true,
+      cell: (n) =>
+        n.employerRatePercent ? (
+          <span className="mono">{Number(n.employerRatePercent).toFixed(2)}%</span>
+        ) : (
+          <Amt value={parseFloat(n.employerFixedAmount ?? "0")} currency={n.currency} />
+        ),
+    },
+  ];
+
   return (
     <PayrollShell
       activeTab="statutory-tables"
-      title="Statutory tables & rates"
+      title="Statutory Tables & Tax Rates"
       actions={
-        <Select value={asOf} onValueChange={setAsOf}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {months.map((month) => (
-              <SelectItem key={month.value} value={month.value}>
-                {month.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Button variant="default" icon="export" onClick={handleExportCsv}>
+          Export tax tables
+        </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {query.isPending ? (
-          <>
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </>
-        ) : query.isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>The statutory tables could not be loaded</AlertTitle>
-            <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-          </Alert>
-        ) : !data ? null : (
-          <>
-            {data.seededCount > 0 ? (
-              // Not dismissible. A stale table produces a payslip that looks
-              // right and is wrong the same way for everybody, which nobody
-              // notices until ZIMRA reconciles the return.
-              <Alert>
-                <AlertTitle>
-                  {data.seededCount} of these were seeded as a starting set
-                </AlertTitle>
-                <AlertDescription>
-                  Check them against the current ZIMRA and NSSA schedules before you
-                  pay anyone from them. To correct one, add a new row with a later
-                  effective date — the old figures stay in force for the months they
-                  covered, so a past payroll does not change.
-                </AlertDescription>
-              </Alert>
-            ) : null}
+      <BkPage screen="statutory-tables" scroll={false}>
+        <BkFinding
+          fact={
+            data?.seededCount
+              ? `${data.seededCount} statutory rate tables are currently using default seeded starting values.`
+              : `ZIMRA tax bands and NSSA contribution rates loaded for ${selectedMonthLabel}.`
+          }
+          rest="Check figures against current statutory instruments before generating payroll runs."
+        />
 
-            {data.payeTables.length === 0 ? (
-              <Alert variant="destructive">
-                <AlertTitle>No PAYE table covers this month</AlertTitle>
-                <AlertDescription>
-                  A payroll run for this period will refuse rather than use another
-                  month&apos;s bands.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {data.payeTables.map((table) => (
-              <div key={table.id} className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-section-title text-foreground font-bold tracking-tight flex items-center gap-2">
-                    PAYE — {table.currency}
-                    {table.isSeeded ? (
-                      <BkState tone="plain">Seeded</BkState>
-                    ) : null}
-                  </h2>
-                  <span className="font-mono text-xs uppercase text-[var(--color-ink-3)]">{table.cycle.toLowerCase()}</span>
-                </div>
-                <TableShell label={`PAYE ${table.currency}`}>
-                  <table className="table" aria-label={`PAYE bands ${table.currency}`}>
-                    <thead>
-                      <tr>
-                        <th>Taxable gross</th>
-                        <th className="num">Rate</th>
-                        <th className="num">Deduct</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {table.bands.map((row) => (
-                        <tr key={row.lowerBound}>
-                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>{band(row)}</td>
-                          <td className="num">
-                            {Number(row.ratePercent).toFixed(2)}%
-                          </td>
-                          <td className="num">
-                            {Number(row.deductAmount).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-                {table.source ? (
-                  <p className="text-sm text-muted-foreground">{table.source}</p>
-                ) : null}
-              </div>
-            ))}
-
-            <div className="space-y-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Levies & contributions
-              </h2>
-              {data.rates.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No rates cover this month. A payroll run will refuse.
-                </p>
-              ) : (
-                <TableShell label="Levies & contributions">
-                  <table className="table" aria-label="Levies and contributions">
-                    <thead>
-                      <tr>
-                        <th>Levy</th>
-                        <th>Currency</th>
-                        <th className="num">Rate</th>
-                        <th className="num">Ceiling</th>
-                        <th>Charged on</th>
-                        <th>From</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.rates.map((rate) => (
-                        <tr key={rate.id}>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                {RATE_LABELS[rate.key] ?? rate.key}
-                              </span>
-                              {rate.isSeeded ? (
-                                <BkState tone="plain">Seeded</BkState>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td>
-                            {rate.currency ?? (
-                              <span className="muted">Any</span>
-                            )}
-                          </td>
-                          <td className="num">
-                            {Number(rate.ratePercent).toFixed(2)}%
-                          </td>
-                          <td className="num">
-                            {rate.ceilingAmount
-                              ? Number(rate.ceilingAmount).toLocaleString()
-                              : "—"}
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {RATE_BASIS[rate.key] ?? ""}
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {day(rate.effectiveFrom)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                Tax credits
-              </h2>
-              {data.credits.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No credits on file for this month.
-                </p>
-              ) : (
-                <TableShell label="Tax credits">
-                  <table className="table" aria-label="Tax credits">
-                    <thead>
-                      <tr>
-                        <th>Credit</th>
-                        <th>Currency</th>
-                        <th className="num">Worth</th>
-                        <th>From</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.credits.map((credit) => (
-                        <tr key={credit.id}>
-                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                            {CREDIT_LABELS[credit.key] ?? credit.key}
-                          </td>
-                          <td>{credit.currency}</td>
-                          <td className="num">
-                            {credit.ratePercent
-                              ? `${Number(credit.ratePercent).toFixed(2)}% of contributions`
-                              : Number(credit.amount ?? 0).toFixed(2)}
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {day(credit.effectiveFrom)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <h2 className="text-section-title text-foreground font-bold tracking-tight">
-                NEC agreement
-              </h2>
-              {data.necAgreements.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No NEC agreement on file. If your industry has a council, add its
-                  dues so they appear on payslips and in the returns.
-                </p>
-              ) : (
-                <TableShell label="NEC agreement">
-                  <table className="table" aria-label="NEC agreement">
-                    <thead>
-                      <tr>
-                        <th>Council</th>
-                        <th>Currency</th>
-                        <th className="num">Employee</th>
-                        <th className="num">Employer</th>
-                        <th>From</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.necAgreements.map((nec) => (
-                        <tr key={nec.id}>
-                          <td style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                            {nec.councilName}
-                          </td>
-                          <td>{nec.currency}</td>
-                          <td className="num">
-                            {nec.employeeRatePercent
-                              ? `${Number(nec.employeeRatePercent).toFixed(2)}%`
-                              : Number(nec.employeeFixedAmount ?? 0).toFixed(2)}
-                          </td>
-                          <td className="num">
-                            {nec.employerRatePercent
-                              ? `${Number(nec.employerRatePercent).toFixed(2)}%`
-                              : Number(nec.employerFixedAmount ?? 0).toFixed(2)}
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {day(nec.effectiveFrom)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableShell>
-              )}
-            </div>
-          </>
-        )}
+        {data && data.seededCount > 0 ? (
+          <div style={{ padding: "0 16px 8px" }}>
+            <Alert>
+              <AlertTitle>{data.seededCount} tables are seeded starting baselines</AlertTitle>
+              <AlertDescription className="text-xs">
+                Ensure rates match current statutory gazettes for {selectedMonthLabel}. Future legislative
+                changes should be added with a forward effective date to preserve past run integrity.
+              </AlertDescription>
+            </Alert>
           </div>
-        </KitScreen>
-      </Kit>
+        ) : null}
+
+        <BkTabs
+          label="Statutory views"
+          value={tab}
+          onChange={(next) => setTab(next as TabView)}
+          items={[
+            { value: "paye", label: "PAYE tax bands", count: flattenedBands.length },
+            { value: "rates", label: "NSSA & statutory levies", count: data?.rates.length ?? 0 },
+            { value: "credits", label: "Tax credits", count: data?.credits.length ?? 0 },
+            { value: "nec", label: "NEC agreements", count: data?.necAgreements.length ?? 0 },
+          ]}
+        />
+
+        <BkTools
+          find="Search statutory rates or council names..."
+          query={search}
+          onFind={setSearch}
+          count={
+            tab === "paye"
+              ? filteredBands.length
+              : tab === "rates"
+              ? filteredRates.length
+              : tab === "credits"
+              ? filteredCredits.length
+              : filteredNec.length
+          }
+          filters={
+            <BkFilter
+              label="Effective Month"
+              value={selectedMonthLabel}
+              items={months.map((m) => ({
+                key: m.value,
+                label: m.label,
+                checked: asOf === m.value,
+                onSelect: () => setAsOf(m.value),
+              }))}
+            />
+          }
+          end={<BkQuietTools onExport={handleExportCsv} />}
+        />
+
+        <BkScroll>
+          {query.isLoading ? (
+            <div style={{ padding: 48, textAlign: "center" }} className="muted">
+              Loading statutory tables for {selectedMonthLabel}...
+            </div>
+          ) : query.isError ? (
+            <div style={{ padding: 48, textAlign: "center", color: "var(--color-danger)" }}>
+              {getApiErrorMessage(query.error)}
+            </div>
+          ) : tab === "paye" ? (
+            <Worksheet
+              label="PAYE progressive bands"
+              rows={filteredBands}
+              rowKey={(b) => `${b.currency}-${b.cycle}-${b.lowerBound}`}
+              columns={payeColumns}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No PAYE tables in force for this month.
+                  </p>
+                </div>
+              }
+            />
+          ) : tab === "rates" ? (
+            <Worksheet
+              label="statutory levies"
+              rows={filteredRates}
+              rowKey={(r) => r.id}
+              columns={rateColumns}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No statutory rates on file for this month.
+                  </p>
+                </div>
+              }
+            />
+          ) : tab === "credits" ? (
+            <Worksheet
+              label="tax credits"
+              rows={filteredCredits}
+              rowKey={(c) => c.id}
+              columns={creditColumns}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No tax credits defined for this month.
+                  </p>
+                </div>
+              }
+            />
+          ) : (
+            <Worksheet
+              label="NEC council agreements"
+              rows={filteredNec}
+              rowKey={(n) => n.id}
+              columns={necColumns}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No National Employment Council agreements on file.
+                  </p>
+                </div>
+              }
+            />
+          )}
+        </BkScroll>
+      </BkPage>
     </PayrollShell>
   );
 }

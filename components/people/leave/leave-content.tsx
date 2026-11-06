@@ -4,25 +4,27 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  BkChip,
-  BkQuietTools,
-  BkState,
+  BkFilter,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
   Drawer,
   DrawerSection,
   Field,
   Input,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
@@ -69,15 +71,6 @@ type LeaveRequestRow = {
 
 type EmployeeOption = { id: string; name: string; employeeId: string };
 
-const STATUS_TONE: Record<LeaveRequestRow["status"], "plain" | "warning" | "success" | "danger"> = {
-  DRAFT: "plain",
-  SUBMITTED: "warning",
-  APPROVED: "success",
-  REJECTED: "danger",
-  CANCELLED: "plain",
-  WITHDRAWN: "plain",
-};
-
 function formatRange(startDate: string, endDate: string) {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -98,559 +91,676 @@ export function LeaveContent() {
   const [activeTab, setActiveTab] = React.useState<"requests" | "balances">("requests");
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
-  const [search, setSearch] = React.useState("");
+  const [search, setSearch] = React.useState<string>("");
   const [page, setPage] = React.useState(1);
   const pageSize = 15;
 
-  // New Request Drawer
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [newRequestEmployeeId, setNewRequestEmployeeId] = React.useState("");
-  const [newRequestLeaveTypeId, setNewRequestLeaveTypeId] = React.useState("");
-  const [startDate, setStartDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [coveringEmployeeId, setCoveringEmployeeId] = React.useState("");
-  const [reason, setReason] = React.useState("");
+  // Drawer
+  const [requestDrawerOpen, setRequestDrawerOpen] = React.useState(false);
+  const [reqEmployeeId, setReqEmployeeId] = React.useState("");
+  const [reqLeaveTypeId, setReqLeaveTypeId] = React.useState("");
+  const [reqStartDate, setReqStartDate] = React.useState("");
+  const [reqEndDate, setReqEndDate] = React.useState("");
+  const [reqReason, setReqReason] = React.useState("");
+  const [reqCoveringId, setReqCoveringId] = React.useState("");
 
+  // Queries
   const employeesQuery = useQuery({
-    queryKey: ["employees", "leave-picker"],
+    queryKey: ["people", "employees", "leave-filter"],
     queryFn: () =>
-      fetchJson<{ data: EmployeeOption[] }>("/api/employees?active=true&limit=200"),
+      fetchJson<{ data: EmployeeOption[] }>("/api/v2/people/employees?limit=300"),
   });
 
-  const employees = React.useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data]);
-  const selectedId = employeeId || employees[0]?.id || "";
+  const employees = React.useMemo(
+    () => employeesQuery.data?.data ?? [],
+    [employeesQuery.data]
+  );
 
-  const balancesQuery = useQuery({
-    queryKey: ["leave-balances", selectedId],
-    queryFn: () =>
-      fetchJson<BalancesResponse>(`/api/people/leave/balances?employeeId=${selectedId}`),
-    enabled: Boolean(selectedId),
-  });
+  React.useEffect(() => {
+    if (!employeeId && employees[0]?.id) {
+      setEmployeeId(employees[0].id);
+    }
+  }, [employees, employeeId]);
 
   const requestsQuery = useQuery({
-    queryKey: ["leave-requests", statusFilter],
+    queryKey: ["people", "leave-requests", employeeId, statusFilter],
+    queryFn: () => {
+      const sp = new URLSearchParams();
+      if (employeeId) sp.set("employeeId", employeeId);
+      if (statusFilter !== "ALL") sp.set("status", statusFilter);
+      return fetchJson<{ data: LeaveRequestRow[] }>(
+        `/api/v2/people/leave/requests?${sp.toString()}`
+      );
+    },
+  });
+
+  const balancesQuery = useQuery({
+    queryKey: ["people", "leave-balances", employeeId],
     queryFn: () =>
-      fetchJson<{ data: LeaveRequestRow[] }>(
-        `/api/people/leave/requests?limit=150${statusFilter === "ALL" ? "" : `&status=${statusFilter}`}`
+      fetchJson<BalancesResponse>(
+        `/api/v2/people/leave/balances?employeeId=${employeeId}`
+      ),
+    enabled: Boolean(employeeId),
+  });
+
+  const leaveTypesQuery = useQuery({
+    queryKey: ["people", "leave-types"],
+    queryFn: () =>
+      fetchJson<{ data: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
+        "/api/v2/people/leave/types"
       ),
   });
 
-  const requests = React.useMemo(() => requestsQuery.data?.data ?? [], [requestsQuery.data]);
-  const balances = React.useMemo(() => balancesQuery.data?.balances ?? [], [balancesQuery.data]);
+  const leaveTypes = React.useMemo(
+    () => leaveTypesQuery.data?.data ?? [],
+    [leaveTypesQuery.data]
+  );
 
-  // Leave types for drawer
-  const leaveTypes = React.useMemo(() => {
-    return balances.map((b) => ({ id: b.leaveTypeId, name: b.name, remaining: b.remaining }));
-  }, [balances]);
-
-  // Working days auto-calculation preview
-  const estimatedWorkingDays = React.useMemo(() => {
-    if (!startDate || !endDate) return 1;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    let count = 0;
-    const cur = new Date(start);
-    while (cur <= end) {
-      const day = cur.getDay();
-      if (day !== 0 && day !== 6) count++;
-      cur.setDate(cur.getDate() + 1);
-    }
-    return Math.max(1, count);
-  }, [startDate, endDate]);
-
-  // Create request mutation
-  const createRequestMutation = useMutation({
-    mutationFn: async () =>
-      fetchJson("/api/people/leave/requests", {
-        method: "POST",
-        body: JSON.stringify({
-          employeeId: newRequestEmployeeId || selectedId,
-          leaveTypeId: newRequestLeaveTypeId || balances[0]?.leaveTypeId,
-          startDate,
-          endDate,
-          reason,
-          coveringEmployeeId: coveringEmployeeId || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Leave request submitted", variant: "success" });
-      setDrawerOpen(false);
-      setReason("");
-      queryClient.invalidateQueries({ queryKey: ["leave-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
-    },
-    onError: (err) => {
-      toast({ title: "Unable to submit leave request", description: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
+  const requests = React.useMemo(
+    () => requestsQuery.data?.data ?? [],
+    [requestsQuery.data]
+  );
+  const balances = React.useMemo(
+    () => balancesQuery.data?.balances ?? [],
+    [balancesQuery.data]
+  );
 
   // Filter requests
   const filteredRequests = React.useMemo(() => {
-    let list = [...requests];
-    if (search.trim()) {
+    return requests.filter((r) => {
+      if (!search.trim()) return true;
       const q = search.toLowerCase();
-      list = list.filter(
-        (r) =>
-          r.employee.name.toLowerCase().includes(q) ||
-          r.leaveType.name.toLowerCase().includes(q) ||
-          r.reason.toLowerCase().includes(q)
-      );
-    }
-    return list;
+      const emp = (r.employee?.name || "").toLowerCase();
+      const typ = (r.leaveType?.name || "").toLowerCase();
+      const reason = (r.reason || "").toLowerCase();
+      return emp.includes(q) || typ.includes(q) || reason.includes(q);
+    });
   }, [requests, search]);
 
-  const activeItems = activeTab === "requests" ? filteredRequests : balances;
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, activeItems.length);
-  const pagedRequests = React.useMemo(
-    () => filteredRequests.slice((page - 1) * pageSize, page * pageSize),
-    [filteredRequests, page, pageSize]
+  const totalRows = activeTab === "requests" ? filteredRequests.length : balances.length;
+  const pagedRequests = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRequests.slice(start, start + pageSize);
+  }, [filteredRequests, page, pageSize]);
+
+  const rowIds = React.useMemo(
+    () => pagedRequests.map((r) => r.id),
+    [pagedRequests]
+  );
+  const selection = useSelection(rowIds);
+
+  // Live days calculation
+  const calculatedDays = React.useMemo(() => {
+    if (!reqStartDate || !reqEndDate) return 0;
+    const start = new Date(reqStartDate);
+    const end = new Date(reqEndDate);
+    if (end < start) return 0;
+    let days = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+      const day = cur.getDay();
+      if (day !== 0 && day !== 6) days++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  }, [reqStartDate, reqEndDate]);
+
+  // Mutations
+  const createRequestMutation = useMutation({
+    mutationFn: (values: {
+      employeeId: string;
+      leaveTypeId: string;
+      startDate: string;
+      endDate: string;
+      reason: string;
+      coveringEmployeeId?: string;
+    }) =>
+      fetchJson("/api/v2/people/leave/requests", {
+        method: "POST",
+        body: JSON.stringify(values),
+      }),
+    onSuccess: () => {
+      toast({ title: "Leave request submitted" });
+      setRequestDrawerOpen(false);
+      setReqReason("");
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-balances"] });
+    },
+    onError: (err) => {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const decideMutation = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: "APPROVE" | "REJECT" }) =>
+      fetchJson(`/api/v2/people/leave/requests/${id}/decision`, {
+        method: "POST",
+        body: JSON.stringify({ decision }),
+      }),
+    onSuccess: (_, vars) => {
+      toast({
+        title: vars.decision === "APPROVE" ? "Leave request approved" : "Leave request rejected",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-balances"] });
+    },
+    onError: (err) => {
+      toast({ title: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const selectedRows = React.useMemo(
+    () => pagedRequests.filter((r) => selection.isSelected(r.id)),
+    [pagedRequests, selection]
   );
 
-  const requestIds = React.useMemo(() => pagedRequests.map((r) => r.id), [pagedRequests]);
-  const selection = useSelection(requestIds);
-
-  const handleExportCsv = () => {
-    if (activeTab === "requests") {
-      const csv = [
-        ["Employee ID", "Employee Name", "Leave Type", "Start Date", "End Date", "Working Days", "Status", "Reason"],
-        ...filteredRequests.map((r) => [
-          r.employee.employeeId,
-          r.employee.name,
-          r.leaveType.name,
-          r.startDate.slice(0, 10),
-          r.endDate.slice(0, 10),
-          r.workingDays,
-          r.status,
-          r.reason,
-        ]),
-      ];
-      downloadCsv(`leave-requests-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-    } else {
-      const csv = [
-        ["Policy", "Entitled", "Taken", "Pending", "Remaining"],
-        ...balances.map((b) => [b.name, b.entitled, b.taken, b.pending, b.remaining]),
-      ];
-      downloadCsv(`leave-balances-${selectedId}.csv`, csv);
-    }
+  const handleExport = () => {
+    const target = selectedRows.length > 0 ? selectedRows : filteredRequests;
+    downloadCsv(
+      "leave-requests.csv",
+      ["Employee", "Leave Type", "Start Date", "End Date", "Working Days", "Status", "Reason"],
+      target.map((r) => [
+        r.employee?.name || "",
+        r.leaveType?.name || "",
+        r.startDate,
+        r.endDate,
+        r.workingDays,
+        r.status,
+        r.reason || "",
+      ])
+    );
   };
 
-  const statusLabel =
-    statusFilter === "ALL"
-      ? "All statuses"
-      : statusFilter === "SUBMITTED"
-      ? "Awaiting decision"
-      : statusFilter === "APPROVED"
-      ? "Approved"
-      : statusFilter === "REJECTED"
-      ? "Rejected"
-      : statusFilter;
+  const currentEmployeeName = React.useMemo(
+    () => employees.find((e) => e.id === employeeId)?.name || "All Staff",
+    [employees, employeeId]
+  );
 
-  const selectedEmployeeName = React.useMemo(() => {
-    return employees.find((e) => e.id === selectedId)?.name || "Select staff";
-  }, [employees, selectedId]);
+  const pendingCount = requests.filter((r) => r.status === "SUBMITTED").length;
+  const approvedCount = requests.filter((r) => r.status === "APPROVED").length;
+
+  const requestColumns: Array<WsColumn<LeaveRequestRow>> = [
+    {
+      key: "employee",
+      head: "Employee",
+      cell: (r) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Person name={r.employee?.name || "Staff"} size={26} />
+          <span className="who" style={{ fontWeight: 500 }}>
+            {r.employee?.name || "—"}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "type",
+      head: "Leave type",
+      cell: (r) => (
+        <span>
+          {r.leaveType?.name || "Leave"}{" "}
+          {r.leaveType?.isPaid ? (
+            <span style={{ fontSize: 11, color: "var(--color-success)" }}>• Paid</span>
+          ) : (
+            <span style={{ fontSize: 11, color: "var(--color-muted)" }}>• Unpaid</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "dates",
+      head: "Dates",
+      className: "muted",
+      cell: (r) => formatRange(r.startDate, r.endDate),
+    },
+    {
+      key: "days",
+      head: "Working days",
+      right: true,
+      className: "mono",
+      cell: (r) => (
+        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
+          {parseFloat(r.workingDays) || 0}d
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (r) => {
+        const tone =
+          r.status === "APPROVED"
+            ? "done"
+            : r.status === "SUBMITTED"
+            ? "warn"
+            : r.status === "REJECTED"
+            ? "bad"
+            : "void";
+        return <St tone={tone}>{r.status}</St>;
+      },
+    },
+    {
+      key: "reason",
+      head: "Reason / Note",
+      className: "muted",
+      cell: (r) => r.reason || <None />,
+    },
+    {
+      key: "actions",
+      head: "",
+      right: true,
+      cell: (r) =>
+        r.status === "SUBMITTED" ? (
+          <div style={{ display: "inline-flex", gap: 6 }}>
+            <Button
+              variant="outline"
+              size="sm"
+              busy={decideMutation.isPending}
+              onClick={() => decideMutation.mutate({ id: r.id, decision: "APPROVE" })}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
+              busy={decideMutation.isPending}
+              onClick={() => decideMutation.mutate({ id: r.id, decision: "REJECT" })}
+            >
+              Reject
+            </Button>
+          </div>
+        ) : null,
+    },
+  ];
+
+  const balanceColumns: Array<WsColumn<LeaveBalance>> = [
+    {
+      key: "type",
+      head: "Leave policy",
+      cell: (b) => <span className="who" style={{ fontWeight: 500 }}>{b.name}</span>,
+    },
+    {
+      key: "code",
+      head: "Code",
+      className: "muted mono",
+      cell: (b) => b.code,
+    },
+    {
+      key: "entitled",
+      head: "Entitled",
+      right: true,
+      className: "mono",
+      cell: (b) => (b.isUnlimited ? "Unlimited" : `${b.entitled}d`),
+    },
+    {
+      key: "taken",
+      head: "Taken",
+      right: true,
+      className: "mono",
+      cell: (b) => `${b.taken}d`,
+    },
+    {
+      key: "pending",
+      head: "Pending",
+      right: true,
+      className: "mono",
+      cell: (b) => (parseFloat(b.pending) > 0 ? `${b.pending}d` : <None />),
+    },
+    {
+      key: "remaining",
+      head: "Remaining balance",
+      right: true,
+      className: "mono",
+      cell: (b) =>
+        b.isUnlimited ? (
+          <span style={{ color: "var(--color-success)", fontWeight: 500 }}>Unlimited</span>
+        ) : (
+          <span
+            style={{
+              fontWeight: 600,
+              color: parseFloat(b.remaining) <= 0 ? "var(--color-danger)" : "var(--color-ink)",
+            }}
+          >
+            {b.remaining}d
+          </span>
+        ),
+    },
+  ];
 
   return (
     <PeopleShell
       activeTab="leave"
-      title="Staff Leave & Absences"
       actions={
         <Button
           variant="primary"
           icon="plus"
-          shortcut="N"
           onClick={() => {
-            setNewRequestEmployeeId(selectedId);
-            if (balances[0]) setNewRequestLeaveTypeId(balances[0].leaveTypeId);
-            setDrawerOpen(true);
+            setReqEmployeeId(employeeId || employees[0]?.id || "");
+            setRequestDrawerOpen(true);
           }}
         >
           Request leave
         </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Leave views"
-              value={activeTab}
-              onChange={(t) => {
-                setActiveTab(t);
-                setPage(1);
-                selection.clear();
-              }}
-              items={[
-                { value: "requests", label: "Leave requests", count: requests.length },
-                { value: "balances", label: "Staff balances", count: employees.length },
-              ]}
-            />
+      <BkPage screen="leave" scroll={false}>
+        <BkFinding
+          fact={`${pendingCount} pending leave applications requiring approval. ${approvedCount} approved this cycle.`}
+          rest="Statutory annual, sick, and compassionate leave rules enforce working-day balance deductions."
+        />
 
-            {/* TOOLBAR */}
-            <BkTools
-              find={activeTab === "requests" ? "Search requests by name or reason..." : "Search balances..."}
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
-              }}
-              count={`${activeItems.length} of ${activeTab === "requests" ? requests.length : balances.length}`}
-              chips={
-                activeTab === "requests" ? (
-                  <BkChip
+        <BkTabs
+          label="Leave navigation"
+          value={activeTab}
+          onChange={(v) => {
+            setActiveTab(v as "requests" | "balances");
+            setPage(1);
+          }}
+          items={[
+            { value: "requests", label: "Leave requests", count: requests.length },
+            { value: "balances", label: "Staff balances", count: balances.length },
+          ]}
+        />
+
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExport}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find={activeTab === "requests" ? "Search requests by employee, type..." : "Search staff..."}
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            filters={
+              <>
+                <BkFilter
+                  label="Employee"
+                  value={currentEmployeeName}
+                  items={[
+                    {
+                      key: "all",
+                      label: "All employees",
+                      checked: !employeeId,
+                      onSelect: () => {
+                        setEmployeeId("");
+                        setPage(1);
+                      },
+                    },
+                    { separator: true },
+                    ...employees.map((e) => ({
+                      key: e.id,
+                      label: `${e.name} (${e.employeeId || "No ID"})`,
+                      checked: employeeId === e.id,
+                      onSelect: () => {
+                        setEmployeeId(e.id);
+                        setPage(1);
+                      },
+                    })),
+                  ]}
+                />
+
+                {activeTab === "requests" ? (
+                  <BkFilter
                     label="Status"
-                    value={statusLabel}
-                    set={statusFilter !== "ALL"}
+                    value={statusFilter === "ALL" ? "Any" : statusFilter}
                     items={[
                       {
                         key: "ALL",
-                        label: "All statuses",
+                        label: "Any status",
                         checked: statusFilter === "ALL",
-                        onSelect: () => setStatusFilter("ALL"),
+                        onSelect: () => {
+                          setStatusFilter("ALL");
+                          setPage(1);
+                        },
                       },
                       { separator: true },
                       {
                         key: "SUBMITTED",
-                        label: "Awaiting decision",
+                        label: "Pending (Submitted)",
                         checked: statusFilter === "SUBMITTED",
-                        onSelect: () => setStatusFilter("SUBMITTED"),
+                        onSelect: () => {
+                          setStatusFilter("SUBMITTED");
+                          setPage(1);
+                        },
                       },
                       {
                         key: "APPROVED",
                         label: "Approved",
                         checked: statusFilter === "APPROVED",
-                        onSelect: () => setStatusFilter("APPROVED"),
+                        onSelect: () => {
+                          setStatusFilter("APPROVED");
+                          setPage(1);
+                        },
                       },
                       {
                         key: "REJECTED",
                         label: "Rejected",
                         checked: statusFilter === "REJECTED",
-                        onSelect: () => setStatusFilter("REJECTED"),
+                        onSelect: () => {
+                          setStatusFilter("REJECTED");
+                          setPage(1);
+                        },
                       },
                     ]}
                   />
+                ) : null}
+              </>
+            }
+            end={<BkQuietTools onExport={handleExport} />}
+          />
+        )}
+
+        <BkScroll>
+          {activeTab === "requests" ? (
+            <Worksheet
+              label="leave requests"
+              rows={pagedRequests}
+              rowKey={(r) => r.id}
+              columns={requestColumns}
+              selection={{
+                selected: selection.selected,
+                toggle: selection.toggle,
+                toggleAll: selection.toggleAll,
+                all: selection.all,
+                some: selection.some,
+                labelOf: (r) => `${r.employee?.name} leave`,
+              }}
+              empty={
+                requestsQuery.isLoading ? (
+                  "Loading requests..."
                 ) : (
-                  <BkChip
-                    label="Employee"
-                    value={selectedEmployeeName}
-                    set={Boolean(employeeId)}
-                    items={[
-                      ...employees.map((e) => ({
-                        key: e.id,
-                        label: `${e.name} (${e.employeeId})`,
-                        checked: selectedId === e.id,
-                        onSelect: () => setEmployeeId(e.id),
-                      })),
-                    ]}
-                  />
+                  <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                    <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                      No leave requests found.
+                    </p>
+                    <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                      Employees can submit time-off requests using the button above.
+                    </p>
+                  </div>
                 )
               }
-              end={
-                <BkQuietTools
-                  onExport={handleExportCsv}
-                />
+            />
+          ) : (
+            <Worksheet
+              label="leave balances"
+              rows={balances}
+              rowKey={(b) => b.leaveTypeId}
+              columns={balanceColumns}
+              empty={
+                balancesQuery.isLoading ? (
+                  "Loading balances..."
+                ) : (
+                  <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                    <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                      No balances recorded for this employee.
+                    </p>
+                    <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                      Balances will calculate based on statutory accrual policies and hire date.
+                    </p>
+                  </div>
+                )
               }
             />
+          )}
+        </BkScroll>
 
-            {/* TABLE SHELL */}
-            <TableShell
-              label={activeTab === "requests" ? "Leave requests" : "Leave balances"}
-              foot={
-                <TableFoot
-                  range={activeItems.length === 0 ? "None" : `${from} to ${to} of ${activeItems.length}`}
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < activeItems.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={
-                    activeTab === "requests"
-                      ? {
-                          count: selection.selected.size,
-                          onClear: selection.clear,
-                          actions: (
-                            <Button icon="export" onClick={handleExportCsv}>
-                              Export selected
-                            </Button>
-                          ),
-                        }
-                      : undefined
-                  }
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
+
+      {/* Guided Drawer for requesting leave */}
+      <Drawer
+        open={requestDrawerOpen}
+        onClose={() => setRequestDrawerOpen(false)}
+        title="Submit Leave Request"
+        description="Select employee, leave policy type, and target date range."
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <DrawerSection title="Staff Member & Leave Type">
+            <Field label="Employee" required>
+              <select
+                className="select"
+                value={reqEmployeeId}
+                onChange={(e) => setReqEmployeeId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Select staff member...</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.employeeId || "No ID"})
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Leave Policy Type" required>
+              <select
+                className="select"
+                value={reqLeaveTypeId}
+                onChange={(e) => setReqLeaveTypeId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">Select policy...</option>
+                {leaveTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.code}) {t.isPaid ? "• Paid" : "• Unpaid"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </DrawerSection>
+
+          <DrawerSection title="Date Range & Working Days">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Field label="Start Date" required>
+                <Input
+                  type="date"
+                  value={reqStartDate}
+                  onChange={(e) => setReqStartDate(e.target.value)}
                 />
-              }
+              </Field>
+
+              <Field label="End Date" required>
+                <Input
+                  type="date"
+                  value={reqEndDate}
+                  onChange={(e) => setReqEndDate(e.target.value)}
+                />
+              </Field>
+            </div>
+
+            {reqStartDate && reqEndDate ? (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 6,
+                  background: "var(--color-fill)",
+                  border: "1px solid var(--color-line)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
+                  Calculated Working Days:
+                </span>
+                <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--color-ink)" }}>
+                  {calculatedDays} working days
+                </span>
+              </div>
+            ) : null}
+          </DrawerSection>
+
+          <DrawerSection title="Handover & Justification">
+            <Field label="Covering Colleague (Handover)">
+              <select
+                className="select"
+                value={reqCoveringId}
+                onChange={(e) => setReqCoveringId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="">No covering colleague assigned</option>
+                {employees
+                  .filter((e) => e.id !== reqEmployeeId)
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+
+            <Field label="Reason / Notes" required>
+              <textarea
+                className="textarea"
+                rows={3}
+                value={reqReason}
+                onChange={(e) => setReqReason(e.target.value)}
+                placeholder="Brief justification or hand-over notes..."
+                style={{ width: "100%" }}
+              />
+            </Field>
+          </DrawerSection>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <Button variant="quiet" onClick={() => setRequestDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              busy={createRequestMutation.isPending}
+              disabled={!reqEmployeeId || !reqLeaveTypeId || !reqStartDate || !reqEndDate || !reqReason.trim()}
+              onClick={() => {
+                createRequestMutation.mutate({
+                  employeeId: reqEmployeeId,
+                  leaveTypeId: reqLeaveTypeId,
+                  startDate: reqStartDate,
+                  endDate: reqEndDate,
+                  reason: reqReason,
+                  coveringEmployeeId: reqCoveringId || undefined,
+                });
+              }}
             >
-              {activeItems.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No records match</b>
-                  <p className="muted">
-                    {activeTab === "requests"
-                      ? "Submit a leave request above to register scheduled time off."
-                      : "No active leave policies or balances found for this employee."}
-                  </p>
-                </div>
-              ) : activeTab === "requests" ? (
-                /* REQUESTS TABLE */
-                <table className="table" aria-label="Leave requests">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 240 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 200 }} />
-                    <col style={{ width: 100 }} />
-                    <col style={{ width: 140 }} />
-                    <col />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all requests"
-                      />
-                      <th>Employee</th>
-                      <th>Leave type</th>
-                      <th>Dates</th>
-                      <th className="num">Days</th>
-                      <th>Status</th>
-                      <th>Covering & Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pagedRequests.map((req) => {
-                      const isSelected = selection.isSelected(req.id);
-                      return (
-                        <tr key={req.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(req.id)}
-                            label={`Select request for ${req.employee.name}`}
-                          />
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <Person name={req.employee.name} />
-                              <div>
-                                <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                  {req.employee.name}
-                                </span>
-                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                  {req.employee.employeeId}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 500 }}>{req.leaveType.name}</div>
-                            <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                              {req.leaveType.code}
-                            </div>
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {formatRange(req.startDate, req.endDate)}
-                          </td>
-                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {req.workingDays}d
-                          </td>
-                          <td>
-                            <BkState tone={STATUS_TONE[req.status]}>
-                              {req.status === "SUBMITTED" ? "Awaiting decision" : req.status}
-                            </BkState>
-                          </td>
-                          <td>
-                            <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                              {req.reason || "—"}
-                            </div>
-                            {req.coveringEmployee ? (
-                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                Covered by {req.coveringEmployee.name}
-                              </div>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                /* BALANCES TABLE */
-                <table className="table" aria-label="Leave balances">
-                  <colgroup>
-                    <col style={{ width: 240 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 140 }} />
-                    <col />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Leave policy</th>
-                      <th className="num">Entitled</th>
-                      <th className="num">Taken</th>
-                      <th className="num">Pending</th>
-                      <th className="num">Remaining</th>
-                      <th>Policy note</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {balances.map((b) => (
-                      <tr key={b.leaveTypeId}>
-                        <td>
-                          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                            {b.name}
-                          </div>
-                          <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                            {b.code}
-                          </div>
-                        </td>
-                        <td className="num">{b.isUnlimited ? "Unlimited" : `${b.entitled}d`}</td>
-                        <td className="num muted">{b.taken}d</td>
-                        <td className="num muted">{b.pending}d</td>
-                        <td className="num" style={{ fontWeight: 600, color: "var(--color-success)" }}>
-                          {b.isUnlimited ? "Unlimited" : `${b.remaining}d`}
-                        </td>
-                        <td className="muted" style={{ fontSize: 13 }}>
-                          {b.policyNote || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
-
-            {/* GUIDED REQUEST LEAVE DRAWER */}
-            <Drawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              title="Request leave"
-              sub="Submit a scheduled leave or absence request for manager approval."
-              width={500}
-              footer={
-                <>
-                  <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="primary"
-                    icon="check"
-                    shortcut="Ctrl ↵"
-                    busy={createRequestMutation.isPending}
-                    onClick={() => createRequestMutation.mutate()}
-                  >
-                    Submit request
-                  </Button>
-                </>
-              }
-            >
-              <DrawerSection title="Who & Policy">
-                <Field label="Employee" htmlFor="leave-emp">
-                  <select
-                    id="leave-emp"
-                    className="select"
-                    value={newRequestEmployeeId || selectedId}
-                    onChange={(e) => {
-                      setNewRequestEmployeeId(e.target.value);
-                      setEmployeeId(e.target.value);
-                    }}
-                    style={{ width: "100%", height: 36 }}
-                  >
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label="Leave type" htmlFor="leave-type">
-                  <select
-                    id="leave-type"
-                    className="select"
-                    value={newRequestLeaveTypeId}
-                    onChange={(e) => setNewRequestLeaveTypeId(e.target.value)}
-                    style={{ width: "100%", height: 36 }}
-                  >
-                    {leaveTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} • {t.remaining} days remaining
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </DrawerSection>
-
-              <DrawerSection title="Dates & Working Days Preview">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Start date" htmlFor="leave-start">
-                    <Input
-                      id="leave-start"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="End date" htmlFor="leave-end">
-                    <Input
-                      id="leave-end"
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                    />
-                  </Field>
-                </div>
-
-                {/* Working days calculation preview card */}
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 8,
-                    background: "var(--color-surface)",
-                    boxShadow: "var(--shadow-ring)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: 13,
-                    marginTop: 4,
-                  }}
-                >
-                  <span className="muted">Estimated working days (excluding weekends)</span>
-                  <span className="num" style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 15 }}>
-                    {estimatedWorkingDays} {estimatedWorkingDays === 1 ? "day" : "days"}
-                  </span>
-                </div>
-
-                <Field label="Covering staff" htmlFor="leave-covering" optional>
-                  <select
-                    id="leave-covering"
-                    className="select"
-                    value={coveringEmployeeId}
-                    onChange={(e) => setCoveringEmployeeId(e.target.value)}
-                    style={{ width: "100%", height: 36 }}
-                  >
-                    <option value="">No cover required</option>
-                    {employees
-                      .filter((e) => e.id !== (newRequestEmployeeId || selectedId))
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name} ({e.employeeId})
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-
-                <Field label="Reason / Notes" htmlFor="leave-reason" optional>
-                  <Input
-                    id="leave-reason"
-                    placeholder="e.g. Annual leave or family appointment"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </Field>
-              </DrawerSection>
-            </Drawer>
+              Submit request
+            </Button>
           </div>
-        </KitScreen>
-      </Kit>
+        </div>
+      </Drawer>
     </PeopleShell>
   );
 }

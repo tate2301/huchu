@@ -5,24 +5,27 @@ import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  BkQuietTools,
-  BkState,
+  Amt,
+  BkFinding,
+  BkPage,
+  BkPager,
+  BkScroll,
+  BkSelectionBar,
   BkTabs,
   BkTools,
-  downloadCsv,
-} from "@/components/books/bk-list";
+  None,
+  St,
+  Worksheet,
+  type WsColumn,
+} from "@/components/books/ui";
+import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import {
   Button,
   Drawer,
   DrawerSection,
   Field,
   Input,
-  Kit,
-  KitScreen,
   Person,
-  SelectCell,
-  TableFoot,
-  TableShell,
   useSelection,
 } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
@@ -38,7 +41,6 @@ import {
   type CompensationTemplateRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { money } from "@/lib/books/format";
 
 type CompTab = "profiles" | "templates" | "rules";
 
@@ -49,7 +51,7 @@ export default function CompensationPage() {
   const [tab, setTab] = React.useState<CompTab>("profiles");
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const pageSize = 15;
+  const pageSize = 20;
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -83,7 +85,47 @@ export default function CompensationPage() {
   });
   const rules = React.useMemo(() => rulesData?.data ?? [], [rulesData]);
 
-  // Filtering
+  // Mutations
+  const saveProfileMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        employeeId: editingProfile ? editingProfile.employee.id : employeeId,
+        baseAmount: parseFloat(baseAmount),
+        currency,
+        effectiveFrom: new Date(effectiveFrom).toISOString(),
+      };
+      if (editingProfile) {
+        return fetchJson(`/api/payroll/compensation/profiles/${editingProfile.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      }
+      return fetchJson("/api/payroll/compensation/profiles", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: editingProfile ? "Compensation profile updated" : "Compensation profile created" });
+      setDrawerOpen(false);
+      setEditingProfile(null);
+      void queryClient.invalidateQueries({ queryKey: ["compensation-profiles"] });
+    },
+    onError: (err) => {
+      toast({ title: "Failed to save profile", description: getApiErrorMessage(err), variant: "destructive" });
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: async (id: string) =>
+      fetchJson(`/api/payroll/compensation/profiles/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Compensation profile removed" });
+      void queryClient.invalidateQueries({ queryKey: ["compensation-profiles"] });
+    },
+  });
+
+  // Filtered lists
   const filteredProfiles = React.useMemo(() => {
     let list = [...profiles];
     if (search.trim()) {
@@ -91,8 +133,7 @@ export default function CompensationPage() {
       list = list.filter(
         (p) =>
           p.employee.name.toLowerCase().includes(q) ||
-          p.employee.employeeId.toLowerCase().includes(q) ||
-          (p.employee.department?.name && p.employee.department.name.toLowerCase().includes(q))
+          p.employee.employeeId.toLowerCase().includes(q)
       );
     }
     return list;
@@ -102,7 +143,7 @@ export default function CompensationPage() {
     let list = [...templates];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((t) => t.name.toLowerCase().includes(q));
+      list = list.filter((t) => t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q));
     }
     return list;
   }, [templates, search]);
@@ -111,7 +152,7 @@ export default function CompensationPage() {
     let list = [...rules];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q));
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q));
     }
     return list;
   }, [rules, search]);
@@ -123,531 +164,435 @@ export default function CompensationPage() {
       ? filteredTemplates
       : filteredRules;
 
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, activeItems.length);
-  const pagedItems = React.useMemo(
+  const totalRows = activeItems.length;
+  const pageRows = React.useMemo(
     () => activeItems.slice((page - 1) * pageSize, page * pageSize),
     [activeItems, page, pageSize]
   );
 
-  const ids = React.useMemo(() => pagedItems.map((item) => item.id), [pagedItems]);
-  const selection = useSelection(ids);
-
-  // Live Statutory Preview calculation for Drawer
-  const statutoryPreview = React.useMemo(() => {
-    const base = Number(baseAmount) || 0;
-    const nssa = Math.min(base * 0.045, 31.5);
-    const taxable = Math.max(0, base - 100);
-    const paye = taxable > 0 ? taxable * 0.2 : 0;
-    const net = Math.max(0, base - nssa - paye);
-    return { base, nssa, paye, net };
-  }, [baseAmount]);
-
-  // Mutations
-  const saveProfileMutation = useMutation({
-    mutationFn: async () => {
-      if (editingProfile) {
-        return fetchJson(`/api/payroll/compensation/profiles/${editingProfile.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            baseAmount: Number(baseAmount),
-            currency,
-            effectiveFrom,
-          }),
-        });
-      }
-      return fetchJson("/api/payroll/compensation/profiles", {
-        method: "POST",
-        body: JSON.stringify({
-          employeeId: employeeId || employees[0]?.id,
-          baseAmount: Number(baseAmount),
-          currency,
-          effectiveFrom,
-          status: "ACTIVE",
-        }),
-      });
-    },
-    onSuccess: () => {
-      toast({ title: editingProfile ? "Salary profile updated" : "Salary profile assigned", variant: "success" });
-      setDrawerOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["compensation-profiles"] });
-    },
-    onError: (err) => {
-      toast({ title: "Unable to save salary profile", description: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const toggleProfileMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "ACTIVE" | "INACTIVE" }) =>
-      fetchJson(`/api/payroll/compensation/profiles/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Profile status updated", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["compensation-profiles"] });
-    },
-  });
-
-  const handleOpenCreate = () => {
-    setEditingProfile(null);
-    setEmployeeId(employees[0]?.id || "");
-    setBaseAmount("1000");
-    setCurrency("USD");
-    setEffectiveFrom(new Date().toISOString().slice(0, 10));
-    setDrawerOpen(true);
-  };
-
-  const handleOpenEdit = (profile: CompensationProfileRecord) => {
-    setEditingProfile(profile);
-    setEmployeeId(profile.employeeId);
-    setBaseAmount(String(profile.baseAmount));
-    setCurrency(profile.currency || "USD");
-    setEffectiveFrom(profile.effectiveFrom ? String(profile.effectiveFrom).slice(0, 10) : "");
-    setDrawerOpen(true);
-  };
-
-  const totalBaseSum = React.useMemo(() => {
-    return filteredProfiles.reduce((s, p) => s + Number(p.baseAmount), 0);
-  }, [filteredProfiles]);
+  const rowIds = React.useMemo(() => pageRows.map((r) => r.id), [pageRows]);
+  const selection = useSelection(rowIds);
 
   const handleExportCsv = () => {
     if (tab === "profiles") {
-      const csv = [
-        ["Employee ID", "Name", "Department", "Base Salary", "Currency", "Effective From", "Status"],
-        ...filteredProfiles.map((p) => [
-          p.employee.employeeId,
+      downloadCsv(
+        `compensation-profiles-${new Date().toISOString().slice(0, 10)}.csv`,
+        ["Employee", "Employee ID", "Base Salary", "Currency", "Effective Date"],
+        filteredProfiles.map((p) => [
           p.employee.name,
-          p.employee.department?.name || "",
+          p.employee.employeeId,
           String(p.baseAmount),
           p.currency,
           p.effectiveFrom ? String(p.effectiveFrom).slice(0, 10) : "",
-          p.status,
-        ]),
-      ];
-      downloadCsv(`compensation-profiles-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+        ])
+      );
+    } else if (tab === "templates") {
+      downloadCsv(
+        `salary-templates-${new Date().toISOString().slice(0, 10)}.csv`,
+        ["Template Name", "Code", "Currency", "Active"],
+        filteredTemplates.map((t) => [t.name, t.code, t.currency, t.isActive ? "Yes" : "No"])
+      );
     } else {
-      const csv = [
-        ["Template Name", "Base Salary", "Currency", "Employment Type", "Status"],
-        ...filteredTemplates.map((t) => [t.name, String(t.baseAmount), t.currency || "USD", t.employmentType || "FULL_TIME", t.isActive ? "ACTIVE" : "INACTIVE"]),
-      ];
-      downloadCsv(`compensation-templates-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+      downloadCsv(
+        `compensation-rules-${new Date().toISOString().slice(0, 10)}.csv`,
+        ["Rule Name", "Code", "Category", "Calculation Type", "Rate/Amount"],
+        filteredRules.map((r) => [r.name, r.code, r.category, r.calcType, String(r.amount)])
+      );
     }
   };
+
+  const handleOpenEdit = (p: CompensationProfileRecord) => {
+    setEditingProfile(p);
+    setEmployeeId(p.employee.id);
+    setBaseAmount(String(p.baseAmount));
+    setCurrency(p.currency);
+    setEffectiveFrom(p.effectiveFrom ? new Date(p.effectiveFrom).toISOString().slice(0, 10) : "");
+    setDrawerOpen(true);
+  };
+
+  // Columns for profiles
+  const profileColumns: Array<WsColumn<CompensationProfileRecord>> = [
+    {
+      key: "employee",
+      head: "Staff member",
+      cell: (p) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Person name={p.employee.name} size={28} />
+          <span>
+            <span style={{ display: "block", fontWeight: 500 }}>{p.employee.name}</span>
+            <span className="muted mono" style={{ fontSize: 11 }}>{p.employee.employeeId}</span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "baseAmount",
+      head: "Base Salary",
+      right: true,
+      cell: (p) => <Amt value={p.baseAmount} currency={p.currency} weight={600} />,
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (p) => p.currency,
+    },
+    {
+      key: "effectiveFrom",
+      head: "Effective date",
+      className: "muted mono",
+      cell: (p) => (p.effectiveFrom ? format(new Date(p.effectiveFrom), "dd MMM yyyy") : <None />),
+    },
+    {
+      key: "actions",
+      head: "",
+      right: true,
+      cell: (p) => {
+        const items: MenuEntry[] = [
+          {
+            key: "edit",
+            label: "Edit salary profile",
+            icon: "edit",
+            onSelect: () => handleOpenEdit(p),
+          },
+          {
+            key: "delete",
+            label: "Remove profile",
+            icon: "trash",
+            tone: "danger",
+            onSelect: () => deleteProfileMutation.mutate(p.id),
+          },
+        ];
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <MenuButton label="Actions" items={items} />
+          </div>
+        );
+      },
+    },
+  ];
+
+  // Columns for templates
+  const templateColumns: Array<WsColumn<CompensationTemplateRecord>> = [
+    {
+      key: "name",
+      head: "Template name",
+      cell: (t) => (
+        <div>
+          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{t.name}</div>
+          <div className="muted mono" style={{ fontSize: 11 }}>{t.code}</div>
+        </div>
+      ),
+    },
+    {
+      key: "currency",
+      head: "Currency",
+      className: "muted mono",
+      cell: (t) => t.currency,
+    },
+    {
+      key: "status",
+      head: "Status",
+      cell: (t) => <St tone={t.isActive ? "done" : "void"}>{t.isActive ? "Active" : "Archived"}</St>,
+    },
+  ];
+
+  // Columns for rules
+  const ruleColumns: Array<WsColumn<CompensationRuleRecord>> = [
+    {
+      key: "name",
+      head: "Rule name",
+      cell: (r) => (
+        <div>
+          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{r.name}</div>
+          <div className="muted mono" style={{ fontSize: 11 }}>{r.code}</div>
+        </div>
+      ),
+    },
+    {
+      key: "category",
+      head: "Category",
+      cell: (r) => <St tone={r.category === "ALLOWANCE" ? "done" : "bad"}>{r.category}</St>,
+    },
+    {
+      key: "calc",
+      head: "Calculation",
+      className: "muted mono",
+      cell: (r) => `${r.calcType} (${r.amount})`,
+    },
+  ];
+
+  const totals = [
+    `${totalRows} records`,
+    null,
+    null,
+    null,
+    null,
+  ];
 
   return (
     <PayrollShell
       activeTab="compensation"
-      title="Compensation & Base Salaries"
+      title="Staff Compensation Packages"
       actions={
-        <Button variant="primary" icon="plus" shortcut="N" onClick={handleOpenCreate}>
-          Assign salary profile
+        <Button
+          variant="primary"
+          icon="plus"
+          shortcut="N"
+          onClick={() => {
+            setEditingProfile(null);
+            if (employees.length > 0) {
+              setEmployeeId(employees[0]!.id);
+            }
+            setBaseAmount("1000");
+            setCurrency("USD");
+            setEffectiveFrom(new Date().toISOString().slice(0, 10));
+            setDrawerOpen(true);
+          }}
+        >
+          Assign compensation
         </Button>
       }
     >
-      <Kit contents>
-        <KitScreen slug="bk-a">
-          <div className="bk">
-            {/* TABS */}
-            <BkTabs
-              label="Compensation views"
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                setPage(1);
-                selection.clear();
+      <BkPage screen="payroll-compensation" scroll={false}>
+        <BkFinding
+          fact={
+            tab === "profiles"
+              ? `${profiles.length} staff members have active compensation profiles.`
+              : tab === "templates"
+              ? `${templates.length} salary package templates configured.`
+              : `${rules.length} allowance and deduction rules defined.`
+          }
+          rest="Select any record to view wage tiers, statutory rate linkages, or edit pay packages."
+        />
+
+        <BkTabs
+          label="Compensation views"
+          value={tab}
+          onChange={(next) => {
+            setTab(next as CompTab);
+            setPage(1);
+            selection.clear();
+          }}
+          items={[
+            { value: "profiles", label: "Employee profiles", count: profiles.length },
+            { value: "templates", label: "Salary templates", count: templates.length },
+            { value: "rules", label: "Pay rules & allowances", count: rules.length },
+          ]}
+        />
+
+        {selection.selected.size > 0 ? (
+          <BkSelectionBar
+            selection={{
+              count: selection.selected.size,
+              clear: selection.clear,
+            }}
+            actions={
+              <Button variant="quiet" icon="export" onClick={handleExportCsv}>
+                Export selected ({selection.selected.size})
+              </Button>
+            }
+          />
+        ) : (
+          <BkTools
+            find={
+              tab === "profiles"
+                ? "Search compensation profiles by employee name or ID..."
+                : tab === "templates"
+                ? "Search templates by name or code..."
+                : "Search rules by name or code..."
+            }
+            query={search}
+            onFind={(q) => {
+              setSearch(q);
+              setPage(1);
+            }}
+            count={totalRows}
+            end={<BkQuietTools onExport={handleExportCsv} />}
+          />
+        )}
+
+        <BkScroll>
+          {tab === "profiles" ? (
+            <Worksheet
+              label="compensation profiles"
+              rows={pageRows as CompensationProfileRecord[]}
+              rowKey={(p) => p.id}
+              columns={profileColumns}
+              selection={{
+                selected: selection.selected,
+                toggle: selection.toggle,
+                toggleAll: selection.toggleAll,
+                all: selection.all,
+                some: selection.some,
+                labelOf: (p) => p.employee.name,
               }}
-              items={[
-                { value: "profiles", label: "Staff salary profiles", count: profiles.length },
-                { value: "templates", label: "Salary templates", count: templates.length },
-                { value: "rules", label: "Calculation rules", count: rules.length },
-              ]}
+              totals={totals}
+              onOpen={(p) => handleOpenEdit(p)}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No compensation profiles found.
+                  </p>
+                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
+                    Assign a base salary profile to get started.
+                  </p>
+                </div>
+              }
             />
-
-            {/* TOOLBAR */}
-            <BkTools
-              find={tab === "profiles" ? "Search profiles by employee, department..." : "Search templates..."}
-              query={search}
-              onFind={(q) => {
-                setSearch(q);
-                setPage(1);
+          ) : tab === "templates" ? (
+            <Worksheet
+              label="salary templates"
+              rows={pageRows as CompensationTemplateRecord[]}
+              rowKey={(t) => t.id}
+              columns={templateColumns}
+              selection={{
+                selected: selection.selected,
+                toggle: selection.toggle,
+                toggleAll: selection.toggleAll,
+                all: selection.all,
+                some: selection.some,
+                labelOf: (t) => t.name,
               }}
-              count={`${activeItems.length} records`}
-              end={<BkQuietTools onExport={handleExportCsv} />}
+              totals={totals}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No compensation templates found.
+                  </p>
+                </div>
+              }
             />
-
-            {/* TABLE SHELL */}
-            <TableShell
-              label="Compensation"
-              foot={
-                <TableFoot
-                  range={activeItems.length === 0 ? "None" : `${from} to ${to} of ${activeItems.length}`}
-                  sums={
-                    tab === "profiles"
-                      ? [{ label: "Total Monthly Base", value: money(totalBaseSum, "USD") }]
-                      : []
-                  }
-                  page={{
-                    onPrevious: page > 1 ? () => setPage((p) => p - 1) : undefined,
-                    onNext: to < activeItems.length ? () => setPage((p) => p + 1) : undefined,
-                  }}
-                  selection={{
-                    count: selection.selected.size,
-                    onClear: selection.clear,
-                    actions: (
-                      <Button icon="export" onClick={handleExportCsv}>
-                        Export selected
-                      </Button>
-                    ),
-                  }}
-                />
+          ) : (
+            <Worksheet
+              label="compensation rules"
+              rows={pageRows as CompensationRuleRecord[]}
+              rowKey={(r) => r.id}
+              columns={ruleColumns}
+              selection={{
+                selected: selection.selected,
+                toggle: selection.toggle,
+                toggleAll: selection.toggleAll,
+                all: selection.all,
+                some: selection.some,
+                labelOf: (r) => r.name,
+              }}
+              totals={totals}
+              empty={
+                <div style={{ textAlign: "center", padding: "32px 16px" }}>
+                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
+                    No compensation rules found.
+                  </p>
+                </div>
               }
+            />
+          )}
+        </BkScroll>
+
+        <BkPager
+          page={page}
+          size={pageSize}
+          total={totalRows}
+          onPage={setPage}
+        />
+      </BkPage>
+
+      {/* GUIDED COMPENSATION PROFILE DRAWER */}
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        title={editingProfile ? "Update Compensation Profile" : "Assign Compensation Profile"}
+        sub="Set base wages, currency, and statutory calculation defaults."
+        width={480}
+        footer={
+          <>
+            <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              icon="check"
+              shortcut="Ctrl ↵"
+              busy={saveProfileMutation.isPending}
+              onClick={() => saveProfileMutation.mutate()}
             >
-              {activeItems.length === 0 ? (
-                <div className="empty" style={{ padding: "var(--space-48) var(--space-24)" }}>
-                  <b>No records match</b>
-                  <p className="muted">Assign staff salary profiles above to establish base pay rates.</p>
-                </div>
-              ) : tab === "profiles" ? (
-                /* PROFILES TABLE */
-                <table className="table" aria-label="Staff salary profiles">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 260 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 120 }} />
-                    <col style={{ width: 60 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all profiles"
-                      />
-                      <th>Employee</th>
-                      <th>Department</th>
-                      <th className="num">Base Salary</th>
-                      <th>Effective date</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(pagedItems as CompensationProfileRecord[]).map((prof) => {
-                      const isSelected = selection.isSelected(prof.id);
-                      const moreEntries: MenuEntry[] = [
-                        {
-                          key: "edit",
-                          label: "Edit salary profile",
-                          icon: "edit",
-                          onSelect: () => handleOpenEdit(prof),
-                        },
-                        { separator: true },
-                        {
-                          key: "toggle",
-                          label: prof.status === "ACTIVE" ? "Deactivate profile" : "Activate profile",
-                          onSelect: () =>
-                            toggleProfileMutation.mutate({
-                              id: prof.id,
-                              status: prof.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-                            }),
-                        },
-                      ];
+              Save profile
+            </Button>
+          </>
+        }
+      >
+        <DrawerSection title="Staff Member">
+          <Field label="Employee" htmlFor="comp-emp">
+            {editingProfile ? (
+              <Input id="comp-emp" value={editingProfile.employee.name} disabled />
+            ) : (
+              <select
+                id="comp-emp"
+                className="select"
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.firstName} {e.lastName} ({e.employeeNumber || "No ID"})
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        </DrawerSection>
 
-                      return (
-                        <tr key={prof.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(prof.id)}
-                            label={`Select ${prof.employee.name}`}
-                          />
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <Person name={prof.employee.name} />
-                              <div>
-                                <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                                  {prof.employee.name}
-                                </span>
-                                <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                  {prof.employee.employeeId}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>{prof.employee.department?.name ?? <span className="muted">—</span>}</td>
-                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(Number(prof.baseAmount), prof.currency || "USD")}
-                          </td>
-                          <td className="muted" style={{ fontSize: 13 }}>
-                            {prof.effectiveFrom ? format(new Date(prof.effectiveFrom), "dd MMM yyyy") : "—"}
-                          </td>
-                          <td>
-                            <BkState tone={prof.status === "ACTIVE" ? "success" : "plain"}>
-                              {prof.status === "ACTIVE" ? "Active" : "Inactive"}
-                            </BkState>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <MenuButton label="More" items={moreEntries}>
-                              •••
-                            </MenuButton>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : tab === "templates" ? (
-                /* TEMPLATES TABLE */
-                <table className="table" aria-label="Compensation templates">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 240 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 160 }} />
-                    <col style={{ width: 120 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all templates"
-                      />
-                      <th>Template name</th>
-                      <th>Cycle</th>
-                      <th className="num">Base Salary</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(pagedItems as CompensationTemplateRecord[]).map((tmpl) => {
-                      const isSelected = selection.isSelected(tmpl.id);
-                      return (
-                        <tr key={tmpl.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(tmpl.id)}
-                            label={`Select ${tmpl.name}`}
-                          />
-                          <td>
-                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {tmpl.name}
-                            </div>
-                            {tmpl.description ? (
-                              <div className="sub" style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                                {tmpl.description}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td>{tmpl.employmentType || "Full time"}</td>
-                          <td className="num" style={{ fontWeight: 600, color: "var(--color-ink)" }}>
-                            {money(Number(tmpl.baseAmount), tmpl.currency || "USD")}
-                          </td>
-                          <td>
-                            <BkState tone={tmpl.isActive ? "success" : "plain"}>
-                              {tmpl.isActive ? "Active" : "Archived"}
-                            </BkState>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                /* RULES TABLE */
-                <table className="table" aria-label="Calculation rules">
-                  <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ width: 220 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 140 }} />
-                    <col style={{ width: 120 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <SelectCell
-                        head
-                        checked={selection.all}
-                        indeterminate={selection.some}
-                        onChange={selection.toggleAll}
-                        label="Select all rules"
-                      />
-                      <th>Rule name</th>
-                      <th>Code</th>
-                      <th>Type</th>
-                      <th>Method</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(pagedItems as CompensationRuleRecord[]).map((rule) => {
-                      const isSelected = selection.isSelected(rule.id);
-                      return (
-                        <tr key={rule.id} className={isSelected ? "is-selected" : undefined}>
-                          <SelectCell
-                            checked={isSelected}
-                            onChange={() => selection.toggle(rule.id)}
-                            label={`Select ${rule.name}`}
-                          />
-                          <td>
-                            <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                              {rule.name}
-                            </div>
-                          </td>
-                          <td>
-                            <span className="mono" style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                              {rule.type}
-                            </span>
-                          </td>
-                          <td>{rule.type}</td>
-                          <td>{rule.calcMethod}</td>
-                          <td>
-                            <BkState tone={rule.isActive ? "success" : "plain"}>
-                              {rule.isActive ? "Active" : "Archived"}
-                            </BkState>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </TableShell>
+        <DrawerSection title="Base Salary & Currency">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
+            <Field label="Base amount" htmlFor="comp-base">
+              <Input
+                id="comp-base"
+                type="number"
+                step="0.01"
+                value={baseAmount}
+                onChange={(e) => setBaseAmount(e.target.value)}
+              />
+            </Field>
 
-            {/* GUIDED SET SALARY DRAWER */}
-            <Drawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              title={editingProfile ? `Edit Salary Profile` : "Assign staff salary profile"}
-              sub="Set monthly base pay and preview statutory tax withholdings."
-              width={480}
-              footer={
-                <>
-                  <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="primary"
-                    icon="check"
-                    shortcut="Ctrl ↵"
-                    busy={saveProfileMutation.isPending}
-                    onClick={() => saveProfileMutation.mutate()}
-                  >
-                    {editingProfile ? "Update salary" : "Save salary profile"}
-                  </Button>
-                </>
-              }
-            >
-              <DrawerSection title="Staff & Currency">
-                {!editingProfile ? (
-                  <Field label="Employee" htmlFor="sal-emp">
-                    <select
-                      id="sal-emp"
-                      className="select"
-                      value={employeeId}
-                      onChange={(e) => setEmployeeId(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      {employees.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name} ({e.employeeId})
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ) : null}
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <Field label="Monthly base salary" htmlFor="sal-base">
-                    <Input
-                      id="sal-base"
-                      type="number"
-                      step="50"
-                      value={baseAmount}
-                      onChange={(e) => setBaseAmount(e.target.value)}
-                    />
-                  </Field>
-
-                  <Field label="Currency" htmlFor="sal-cur">
-                    <select
-                      id="sal-cur"
-                      className="select"
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      style={{ width: "100%", height: 36 }}
-                    >
-                      <option value="USD">USD ($)</option>
-                      <option value="ZWG">ZWG</option>
-                    </select>
-                  </Field>
-                </div>
-
-                <Field label="Effective date" htmlFor="sal-date">
-                  <Input
-                    id="sal-date"
-                    type="date"
-                    value={effectiveFrom}
-                    onChange={(e) => setEffectiveFrom(e.target.value)}
-                  />
-                </Field>
-
-                {/* Statutory deduction preview */}
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: 14,
-                    borderRadius: 8,
-                    background: "var(--color-surface)",
-                    boxShadow: "var(--shadow-ring)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    fontSize: 13,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-ink-2)" }}>
-                    <span>Gross Base Salary</span>
-                    <span className="num" style={{ fontWeight: 500 }}>
-                      {money(statutoryPreview.base, currency)}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-muted)" }}>
-                    <span>NSSA Pension (4.5% statutory)</span>
-                    <span className="num">−{money(statutoryPreview.nssa, currency)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-muted)" }}>
-                    <span>Estimated PAYE Tax</span>
-                    <span className="num">−{money(statutoryPreview.paye, currency)}</span>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      paddingTop: 8,
-                      marginTop: 4,
-                      boxShadow: "inset 0 1px 0 var(--color-line)",
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                      fontSize: 14,
-                    }}
-                  >
-                    <span>Estimated Net Pay</span>
-                    <span className="num" style={{ color: "var(--color-success)" }}>
-                      {money(statutoryPreview.net, currency)}
-                    </span>
-                  </div>
-                </div>
-              </DrawerSection>
-            </Drawer>
+            <Field label="Currency" htmlFor="comp-curr">
+              <select
+                id="comp-curr"
+                className="select"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                style={{ width: "100%", height: 36 }}
+              >
+                <option value="USD">USD</option>
+                <option value="ZiG">ZiG</option>
+              </select>
+            </Field>
           </div>
-        </KitScreen>
-      </Kit>
+
+          <Field label="Effective from" htmlFor="comp-effective">
+            <Input
+              id="comp-effective"
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+            />
+          </Field>
+
+          {/* Statutory preview hint */}
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              background: "var(--color-surface)",
+              boxShadow: "var(--shadow-ring)",
+              fontSize: 12,
+              color: "var(--color-muted)",
+              marginTop: 8,
+            }}
+          >
+            💡 Zimbabwean NSSA (4.5% up to statutory cap) and PAYE progressive tax brackets will
+            be calculated automatically during monthly payroll run generation.
+          </div>
+        </DrawerSection>
+      </Drawer>
     </PayrollShell>
   );
 }
