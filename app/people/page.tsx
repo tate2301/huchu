@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { MoreHorizontal, Plus } from "@/lib/icons"
 
+import { BkState } from "@/components/books/bk-list"
 import { EmployeeWizard } from "@/components/people/employee-wizard"
 import { PeopleShell } from "@/components/people/people-shell";
 import {
@@ -21,7 +22,6 @@ import {
 } from "@/components/records/people-directory"
 import { ViewToolbarChip } from "@/components/records/view-toolbar"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
 import {
@@ -793,9 +793,9 @@ export default function HumanResourcesPage() {
           exportValue: (row: EmployeeSummary) => (row.isActive ? "Active" : "Inactive"),
         },
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "default" : "destructive"}>
+          <BkState tone={row.original.isActive ? "success" : "plain"}>
             {row.original.isActive ? "Active" : "Inactive"}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,

@@ -8,7 +8,7 @@ import { EmptyState, Skeleton } from "@corelithzw/react";
 import { useShortcut } from "@/components/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { ArrowDownward, ArrowUpward, ChevronDown, ChevronRight, type LucideIcon } from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, ChevronDown, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import { useListSequence } from "@/components/records/use-list-sequence";
@@ -460,6 +460,7 @@ export function RecordTable<T extends { id: string }>({
             className={cn(
               "min-h-[38px] border-b border-[var(--color-line)] px-3 py-1.5 align-middle text-[13.5px] text-[var(--color-ink)]",
               !selection && index === 0 && "pl-6",
+              index === columns.length - 1 && "pr-6",
               "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5",
               column.align === "end" && "text-right font-mono tabular-nums",
             )}
@@ -487,28 +488,6 @@ export function RecordTable<T extends { id: string }>({
             )}
           </td>
         ))}
-
-        {/* "This row opens."
-
-            The first cell is the link and the rest of the row is
-            inert, which is the right trade — but it left a table
-            where nothing at the end of a 46rem row said there was
-            anywhere to go. The artboards close the row with a
-            chevron, and it is a link to the same place rather than
-            decoration, so a reader who has scanned across to the
-            last column does not have to scan back. */}
-        <td className="border-b border-[var(--color-line)] pl-2 pr-6 py-1.5 align-middle">
-          {href ? (
-            <Link
-              href={href}
-              tabIndex={-1}
-              aria-hidden="true"
-              className="flex items-center justify-center"
-            >
-              <ChevronRight className="size-3.5 text-[var(--color-faint)] group-hover/row:text-[var(--color-muted)]" />
-            </Link>
-          ) : null}
-        </td>
       </tr>
     );
   };
@@ -524,7 +503,7 @@ export function RecordTable<T extends { id: string }>({
     if (last && last.group?.id === group?.id) last.rows.push({ row, index });
     else runs.push({ key: `${group?.id ?? "rows"}-${index}`, group, rows: [{ row, index }] });
   });
-  const columnCount = columns.length + (selection ? 2 : 1);
+  const columnCount = columns.length + (selection ? 1 : 0);
   const toggleFold = (id: string) =>
     setFolded((current) => {
       const next = new Set(current);
@@ -590,6 +569,7 @@ export function RecordTable<T extends { id: string }>({
                     className={cn(
                       "h-[34px] border-b border-[var(--color-line)] bg-[var(--color-ground)] px-3 py-1 text-xs font-medium text-[var(--color-muted)] @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2] group/head",
                       !selection && colIdx === 0 && "pl-6",
+                      colIdx === columns.length - 1 && "pr-6",
                       column.align === "end" && "text-right",
                     )}
                   >
@@ -628,13 +608,6 @@ export function RecordTable<T extends { id: string }>({
                   </th>
                 );
               })}
-
-              <th
-                scope="col"
-                className="w-10 border-b border-[var(--color-line)] bg-[var(--color-ground)] pl-2 pr-6 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
-              >
-                <span className="sr-only">Open</span>
-              </th>
             </tr>
           </thead>
 

@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PeopleShell } from "@/components/people/people-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Progress } from "@/components/ui/progress";
@@ -61,13 +61,13 @@ type LeaveRequestRow = {
 
 type EmployeeOption = { id: string; name: string; employeeId: string };
 
-const STATUS_TONE: Record<LeaveRequestRow["status"], string> = {
-  DRAFT: "outline",
-  SUBMITTED: "secondary",
-  APPROVED: "default",
-  REJECTED: "destructive",
-  CANCELLED: "outline",
-  WITHDRAWN: "outline",
+const STATUS_TONE: Record<LeaveRequestRow["status"], "plain" | "warning" | "success" | "danger"> = {
+  DRAFT: "plain",
+  SUBMITTED: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+  CANCELLED: "plain",
+  WITHDRAWN: "plain",
 };
 
 function formatRange(startDate: string, endDate: string) {
@@ -171,7 +171,7 @@ export function LeaveContent() {
           <div className="flex items-center gap-2">
             <span className="text-sm">{row.original.leaveType.name}</span>
             {!row.original.leaveType.isPaid ? (
-              <Badge variant="outline">Unpaid</Badge>
+              <span className="font-mono text-xs text-[var(--color-muted)]">(Unpaid)</span>
             ) : null}
           </div>
         ),
@@ -221,17 +221,9 @@ export function LeaveContent() {
         header: "Status",
         accessorFn: (row) => row.status,
         cell: ({ row }) => (
-          <Badge
-            variant={
-              STATUS_TONE[row.original.status] as
-                | "default"
-                | "secondary"
-                | "destructive"
-                | "outline"
-            }
-          >
+          <BkState tone={STATUS_TONE[row.original.status] ?? "plain"}>
             {row.original.status.toLowerCase()}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 100,
@@ -297,7 +289,7 @@ export function LeaveContent() {
         header: "Remaining",
         cell: ({ row }) => (
           row.original.isUnlimited ? (
-            <Badge variant="outline">Unlimited</Badge>
+            <span className="font-mono text-xs text-[var(--color-ink-3)]">Unlimited</span>
           ) : (
             <div className="space-y-1.5 min-w-[140px]">
               <div className="flex items-center justify-between text-sm">
@@ -392,9 +384,9 @@ export function LeaveContent() {
                 </SelectContent>
               </Select>
               {balancesQuery.data ? (
-                <Badge variant="outline" className="font-mono">
+                <span className="font-mono text-sm text-[var(--color-ink-2)]">
                   {balancesQuery.data.year}
-                </Badge>
+                </span>
               ) : null}
             </div>
           )}

@@ -9,7 +9,7 @@ import { ArrowRight, FileText } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -200,11 +200,11 @@ export default function OutstandingSalariesPage() {
         header: "Status",
         accessorKey: "status",
         cell: ({ row }) => (
-          <Badge
-            variant={row.original.status === "PARTIAL" ? "warning" : "neutral"}
+          <BkState
+            tone={row.original.status === "PAID" ? "success" : row.original.status === "PARTIAL" ? "warning" : "plain"}
           >
             {row.original.status}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,

@@ -5,7 +5,6 @@ import {
   getUiStatusPresentation,
   type CanonicalUiStatus,
 } from "@/lib/ui/status-map";
-import { Badge } from "@/components/ui/badge";
 
 function tokenVar(token: string): string {
   return `var(--${token})`;
@@ -27,20 +26,23 @@ export function StatusChip({
   const presentation = getUiStatusPresentation(status);
 
   return (
-    <Badge
+    <span
       data-status={presentation.status}
       data-tone={presentation.tone}
-      className={cn("inline-flex", className)}
-      dot={showDot}
-      dotColor={tokenVar(presentation.tokens.border)}
-      style={{
-        color: tokenVar(presentation.tokens.text),
-        backgroundColor: tokenVar(presentation.tokens.bg),
-        borderColor: tokenVar(presentation.tokens.border),
-      }}
+      className={cn(
+        "inline-flex items-center gap-2 whitespace-nowrap text-[13px] text-[var(--color-ink)]",
+        className,
+      )}
     >
-      <span>{label ?? presentation.label}</span>
-    </Badge>
+      {showDot ? (
+        <span
+          className="inline-block h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: tokenVar(presentation.tokens.border) }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <span className="truncate">{label ?? presentation.label}</span>
+    </span>
   );
 }
 

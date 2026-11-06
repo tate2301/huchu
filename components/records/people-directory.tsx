@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { Badge, type BadgeTone } from "@corelithzw/react";
-
+import { BkState } from "@/components/books/bk-list";
 import { RecordMark } from "@/components/records/record-mark";
 import {
   RecordCell,
@@ -137,11 +136,11 @@ export const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
  * of the same one. The canvas colours the column for that reason, and these
  * are its four pairs.
  */
-export const EMPLOYMENT_TYPE_TONE: Record<string, BadgeTone> = {
+export const EMPLOYMENT_TYPE_TONE: Record<string, "success" | "info" | "warning" | "plain"> = {
   FULL_TIME: "success",
   PART_TIME: "info",
-  CONTRACT: "warn",
-  CASUAL: "neutral",
+  CONTRACT: "warning",
+  CASUAL: "plain",
 };
 
 export function EmploymentBadge({ type }: { type?: string | null }) {
@@ -150,8 +149,8 @@ export function EmploymentBadge({ type }: { type?: string | null }) {
   }
 
   return (
-    <Badge tone={EMPLOYMENT_TYPE_TONE[type] ?? "neutral"} size="sm">
+    <BkState tone={EMPLOYMENT_TYPE_TONE[type] ?? "plain"}>
       {EMPLOYMENT_TYPE_LABEL[type] ?? type}
-    </Badge>
+    </BkState>
   );
 }

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import {
   Select,
   SelectContent,
@@ -235,10 +235,10 @@ export function StatutoryTablesContent() {
                   <h2 className="text-section-title text-foreground font-bold tracking-tight flex items-center gap-2">
                     PAYE — {table.currency}
                     {table.isSeeded ? (
-                      <Badge variant="outline">Seeded</Badge>
+                      <BkState tone="plain">Seeded</BkState>
                     ) : null}
                   </h2>
-                  <Badge variant="secondary">{table.cycle.toLowerCase()}</Badge>
+                  <span className="font-mono text-xs uppercase text-[var(--color-ink-3)]">{table.cycle.toLowerCase()}</span>
                 </div>
                 <div className="overflow-x-auto border-y border-[var(--color-line)]">
                   <Table>
@@ -298,7 +298,7 @@ export function StatutoryTablesContent() {
                             <span className="flex items-center gap-2">
                               {RATE_LABELS[rate.key] ?? rate.key}
                               {rate.isSeeded ? (
-                                <Badge variant="outline">Seeded</Badge>
+                                <BkState tone="plain">Seeded</BkState>
                               ) : null}
                             </span>
                           </TableCell>

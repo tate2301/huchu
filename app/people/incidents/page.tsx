@@ -10,7 +10,7 @@ import { FileText, Plus, Trash2 } from "@/lib/icons";
 import { PeopleShell } from "@/components/people/people-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -158,22 +158,22 @@ function toDateInput(value?: string | null) {
   }
 }
 
-function incidentStatusVariant(status: HrIncidentRecord["status"]) {
-  if (status === "CLOSED") return "secondary";
-  if (status === "UNDER_REVIEW") return "outline";
-  return "destructive";
+function incidentStatusTone(status: HrIncidentRecord["status"]): "plain" | "warning" | "danger" {
+  if (status === "CLOSED") return "plain";
+  if (status === "UNDER_REVIEW") return "warning";
+  return "danger";
 }
 
-function incidentSeverityVariant(severity: HrIncidentRecord["severity"]) {
-  if (severity === "CRITICAL" || severity === "HIGH") return "destructive";
-  if (severity === "MEDIUM") return "outline";
-  return "secondary";
+function incidentSeverityTone(severity: HrIncidentRecord["severity"]): "danger" | "warning" | "plain" {
+  if (severity === "CRITICAL" || severity === "HIGH") return "danger";
+  if (severity === "MEDIUM") return "warning";
+  return "plain";
 }
 
-function actionStatusVariant(status: DisciplinaryActionRecord["status"]) {
-  if (status === "APPROVED" || status === "APPLIED") return "secondary";
-  if (status === "REJECTED") return "destructive";
-  return "outline";
+function actionStatusTone(status: DisciplinaryActionRecord["status"]): "success" | "danger" | "warning" {
+  if (status === "APPROVED" || status === "APPLIED") return "success";
+  if (status === "REJECTED") return "danger";
+  return "warning";
 }
 
 export default function HrIncidentsPage() {
@@ -408,9 +408,9 @@ export default function HrIncidentsPage() {
       header: "Severity",
       accessorKey: "severity",
       cell: ({ row }) => (
-        <Badge variant={incidentSeverityVariant(row.original.severity)}>
+        <BkState tone={incidentSeverityTone(row.original.severity)}>
           {row.original.severity}
-        </Badge>
+        </BkState>
       ),
       size: 140,
       minSize: 120,
@@ -421,9 +421,9 @@ export default function HrIncidentsPage() {
       header: "Status",
       accessorKey: "status",
       cell: ({ row }) => (
-        <Badge variant={incidentStatusVariant(row.original.status)}>
+        <BkState tone={incidentStatusTone(row.original.status)}>
           {row.original.status}
-        </Badge>
+        </BkState>
       ),
       size: 120,
       minSize: 120,
@@ -541,9 +541,9 @@ export default function HrIncidentsPage() {
       header: "Status",
       accessorKey: "status",
       cell: ({ row }) => (
-        <Badge variant={actionStatusVariant(row.original.status)}>
+        <BkState tone={actionStatusTone(row.original.status)}>
           {row.original.status}
-        </Badge>
+        </BkState>
       ),
       size: 120,
       minSize: 120,
@@ -1657,19 +1657,19 @@ export default function HrIncidentsPage() {
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-sm text-muted-foreground">Status</div>
-                  <Badge
-                    variant={incidentStatusVariant(incidentDetails.status)}
-                  >
-                    {incidentDetails.status}
-                  </Badge>
+                  <div>
+                    <BkState tone={incidentStatusTone(incidentDetails.status)}>
+                      {incidentDetails.status}
+                    </BkState>
+                  </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-sm text-muted-foreground">Severity</div>
-                  <Badge
-                    variant={incidentSeverityVariant(incidentDetails.severity)}
-                  >
-                    {incidentDetails.severity}
-                  </Badge>
+                  <div>
+                    <BkState tone={incidentSeverityTone(incidentDetails.severity)}>
+                      {incidentDetails.severity}
+                    </BkState>
+                  </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-sm text-muted-foreground">Employee</div>
@@ -1790,9 +1790,11 @@ export default function HrIncidentsPage() {
               <div className="grid gap-3 sm:grid-cols-4 text-sm">
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-sm text-muted-foreground">Status</div>
-                  <Badge variant={actionStatusVariant(actionDetails.status)}>
-                    {actionDetails.status}
-                  </Badge>
+                  <div>
+                    <BkState tone={actionStatusTone(actionDetails.status)}>
+                      {actionDetails.status}
+                    </BkState>
+                  </div>
                 </div>
                 <div className="rounded-md border-0 p-2 shadow-[var(--surface-frame-shadow)]">
                   <div className="text-sm text-muted-foreground">Type</div>

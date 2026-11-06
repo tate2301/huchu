@@ -10,7 +10,7 @@ import { ArrowRight, Plus } from "@/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -565,9 +565,9 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "success" : "neutral"}>
+          <BkState tone={row.original.isActive ? "success" : "plain"}>
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -651,11 +651,11 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge
-            variant={row.original.status === "ACTIVE" ? "success" : "neutral"}
+          <BkState
+            tone={row.original.status === "ACTIVE" ? "success" : "plain"}
           >
             {row.original.status}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -665,13 +665,13 @@ export default function CompensationPage() {
         id: "workflow",
         header: "Workflow",
         cell: ({ row }) => (
-          <Badge
-            variant={
-              row.original.workflowStatus === "APPROVED" ? "success" : "neutral"
+          <BkState
+            tone={
+              row.original.workflowStatus === "APPROVED" ? "success" : "warning"
             }
           >
             {row.original.workflowStatus}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -816,9 +816,9 @@ export default function CompensationPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "success" : "neutral"}>
+          <BkState tone={row.original.isActive ? "success" : "plain"}>
             {row.original.isActive ? "ACTIVE" : "INACTIVE"}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,
@@ -828,13 +828,13 @@ export default function CompensationPage() {
         id: "workflow",
         header: "Workflow",
         cell: ({ row }) => (
-          <Badge
-            variant={
-              row.original.workflowStatus === "APPROVED" ? "success" : "neutral"
+          <BkState
+            tone={
+              row.original.workflowStatus === "APPROVED" ? "success" : "warning"
             }
           >
             {row.original.workflowStatus}
-          </Badge>
+          </BkState>
         ),
         size: 120,
         minSize: 120,

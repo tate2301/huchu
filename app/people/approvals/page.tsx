@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { PeopleShell } from "@/components/people/people-shell";
 import { RecordMark } from "@/components/records/record-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { PageSection } from "@/components/ui/page-section";
@@ -29,6 +29,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+
+function actionTone(action: string): "success" | "warning" | "danger" | "info" | "plain" {
+  if (/approve/i.test(action)) return "success";
+  if (/reject|cancel|deny/i.test(action)) return "danger";
+  if (/submit|pending|review/i.test(action)) return "warning";
+  return "plain";
+}
 
 export default function ApprovalsPage() {
   const [entityType, setEntityType] = useState<string>("all");
@@ -103,7 +110,7 @@ export default function ApprovalsPage() {
       {
         accessorKey: "action",
         header: "Action",
-        cell: ({ row }) => <Badge variant="neutral">{row.original.action}</Badge>,
+        cell: ({ row }) => <BkState tone={actionTone(row.original.action)}>{row.original.action}</BkState>,
         size: 108,
         minSize: 108,
         maxSize: 108},
@@ -123,9 +130,9 @@ export default function ApprovalsPage() {
             <span className="truncate font-medium text-[var(--color-ink)]">
               {row.original.actedBy.name}
             </span>
-            <Badge variant="outline" className="font-mono text-sm">
-              {row.original.actedBy.role}
-            </Badge>
+            <span className="font-mono text-xs text-[var(--color-muted)]">
+              ({row.original.actedBy.role})
+            </span>
           </div>
         ),
         size: 220,
@@ -269,7 +276,7 @@ export default function ApprovalsPage() {
               <div className="rounded-md border-0 p-3 shadow-[var(--surface-frame-shadow)]">
                 <div className="text-sm text-muted-foreground">Action</div>
                 <div className="mt-1">
-                  <Badge variant="neutral">{selectedRecord.action}</Badge>
+                  <BkState tone={actionTone(selectedRecord.action)}>{selectedRecord.action}</BkState>
                 </div>
                 <div className="mt-2 text-muted-foreground">
                   {selectedRecord.fromStatus ?? "-"}

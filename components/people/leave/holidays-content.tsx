@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { PeopleShell } from "@/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { BkState } from "@/components/books/bk-list";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Select,
@@ -60,9 +60,9 @@ const holidayColumns: ColumnDef<Holiday>[] = [
     accessorKey: "siteId",
     header: "Scope",
     cell: ({ row }) => (
-      <Badge variant="outline">
+      <span className="text-sm text-[var(--color-ink-2)]">
         {row.original.siteId ? "One site" : "Company-wide"}
-      </Badge>
+      </span>
     ),
   },
   {
@@ -78,9 +78,9 @@ const holidayColumns: ColumnDef<Holiday>[] = [
     accessorKey: "isSeeded",
     header: "Source",
     cell: ({ row }) => (
-      <Badge variant={row.original.isSeeded ? "secondary" : "outline"}>
+      <BkState tone={row.original.isSeeded ? "plain" : "info"}>
         {row.original.isSeeded ? "Seeded" : "Added here"}
-      </Badge>
+      </BkState>
     ),
   },
 ];
