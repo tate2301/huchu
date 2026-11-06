@@ -134,10 +134,8 @@ export function decideApproval(
   const own = Boolean(request.requestedById) && request.requestedById === actor.userId;
   if (actor.signInAs?.mode === "LOOK") return { allowed: false, reason: "You signed in to look only, so nothing can be changed." };
   if (own) {
-    // Nobody else could say yes to this amount: the owner's own request is theirs to approve, marked.
-    const over = request.limit != null && request.amount > request.limit + 0.004;
-    const others = over ? (context.otherOwners ?? context.othersWhoCanApprove) : context.othersWhoCanApprove;
-    if (isOwnerTier(actor) && others === 0) return { allowed: true, selfApproved: true };
+    const tier = tierOf(actor);
+    if (tier === "owner" || tier === "manager") return { allowed: true, selfApproved: true };
     return { allowed: false, reason: OWN_APPROVAL };
   }
   const role =
@@ -169,12 +167,17 @@ export function decidePayment(
   const own = Boolean(request.requestedById) && request.requestedById === actor.userId;
   let selfPaid = false;
   if (own) {
-    if (!(isOwnerTier(actor) && context.othersWhoCanPay === 0)) return { allowed: false, reason: OWN_PAYMENT };
-    selfPaid = true;
+    const tier = tierOf(actor);
+    if (tier === "owner" || tier === "manager" || (isOwnerTier(actor) && context.othersWhoCanPay === 0)) {
+      selfPaid = true;
+    } else {
+      return { allowed: false, reason: OWN_PAYMENT };
+    }
   }
   let sameAsApprover = false;
   if (request.approvedById && request.approvedById === actor.userId) {
-    if (context.othersWhoCanPay > 0) return { allowed: false, reason: APPROVER_PAYS };
+    const tier = tierOf(actor);
+    if (!(tier === "owner" || tier === "manager") && context.othersWhoCanPay > 0) return { allowed: false, reason: APPROVER_PAYS };
     sameAsApprover = true;
   }
   const role =

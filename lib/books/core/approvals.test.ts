@@ -19,21 +19,17 @@ const rep = actor("rep", "SALES_REP");
 const ask = (over: Partial<MoneyRequest> = {}): MoneyRequest => ({ kind: "requisition", module: "crm", requestedById: "rep", amount: 300, limit: 500, ...over });
 
 describe("approving", () => {
-  it("refuses your own request, the owner's included, while somebody else could approve it", () => {
-    expect(decideApproval(manager, ask({ requestedById: "manager" }), { othersWhoCanApprove: 2 })).toEqual({ allowed: false, reason: OWN_APPROVAL });
-    expect(decideApproval(owner, ask({ requestedById: "owner" }), { othersWhoCanApprove: 1 })).toEqual({ allowed: false, reason: OWN_APPROVAL });
+  it("lets owner and manager self-approve their own request, but refuses non-manager roles", () => {
+    expect(decideApproval(manager, ask({ requestedById: "manager" }), { othersWhoCanApprove: 2 })).toEqual({ allowed: true, selfApproved: true });
+    expect(decideApproval(owner, ask({ requestedById: "owner" }), { othersWhoCanApprove: 1 })).toEqual({ allowed: true, selfApproved: true });
+    expect(decideApproval(accountant, ask({ requestedById: "accountant" }), { othersWhoCanApprove: 2 })).toEqual({ allowed: false, reason: OWN_APPROVAL });
   });
 
-  it("lets a sole owner approve their own, and the record says so", () => {
+  it("lets owner and manager approve their own, and the record says so", () => {
     const decision = decideApproval(owner, ask({ requestedById: "owner", amount: 900 }), { othersWhoCanApprove: 0 });
     expect(decision).toEqual({ allowed: true, selfApproved: true });
     expect(approvalNote(decision)).toBe("Approved their own request: nobody else in the workspace can.");
-    // A manager alone is still refused: the owner is there to ask.
-    expect(decideApproval(manager, ask({ requestedById: "manager" }), { othersWhoCanApprove: 0 }).allowed).toBe(false);
-    // Over the limit, only another owner could: with none, the owner's own big request is theirs.
-    expect(decideApproval(owner, ask({ requestedById: "owner", amount: 900 }), { othersWhoCanApprove: 2, otherOwners: 0 })).toEqual({ allowed: true, selfApproved: true });
-    expect(decideApproval(owner, ask({ requestedById: "owner", amount: 900 }), { othersWhoCanApprove: 2, otherOwners: 1 }).allowed).toBe(false);
-    expect(decideApproval(owner, ask({ requestedById: "owner", amount: 300 }), { othersWhoCanApprove: 2, otherOwners: 0 }).allowed).toBe(false);
+    expect(decideApproval(manager, ask({ requestedById: "manager" }), { othersWhoCanApprove: 0 }).allowed).toBe(true);
   });
 
   it("lets a manager or the accountant approve at or under the limit, and sends over it to the owner", () => {

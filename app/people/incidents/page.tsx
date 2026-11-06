@@ -348,8 +348,8 @@ export default function HrIncidentsPage() {
   }, [incidents, actions]);
 
   const currentUser = (session?.user ?? {}) as { id?: string; role?: string };
-  const canRunApprovals = hasRole(currentUser.role, ["MANAGER", "SUPERADMIN"]);
-  const canSelfApprove = currentUser.role === "SUPERADMIN";
+  const canRunApprovals = hasRole(currentUser.role, ["MANAGER", "SUPERADMIN", "ADMIN"]);
+  const canSelfApprove = hasRole(currentUser.role, ["MANAGER", "SUPERADMIN", "ADMIN"]);
 
   const canApproveOrReject = (item: DisciplinaryActionRecord) =>
     canRunApprovals &&
@@ -610,7 +610,7 @@ export default function HrIncidentsPage() {
                 disabled={!canApproveOrReject(row.original)}
                 title={
                   !canApproveOrReject(row.original)
-                    ? "Cannot approve your own submission unless you are superadmin."
+                    ? "Cannot approve your own submission unless you are a manager or admin."
                     : undefined
                 }
               >
@@ -623,7 +623,7 @@ export default function HrIncidentsPage() {
                 disabled={!canApproveOrReject(row.original)}
                 title={
                   !canApproveOrReject(row.original)
-                    ? "Cannot reject your own submission unless you are superadmin."
+                    ? "Cannot reject your own submission unless you are a manager or admin."
                     : undefined
                 }
               >
