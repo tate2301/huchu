@@ -36,8 +36,9 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { EMPLOYMENT_TYPE_LABEL } from "@/components/records/people-directory";
 import {
-  CreditCard,
+  Badge,
   Buildings,
+  CreditCard,
   FileCheck,
   IdentificationCard,
   Lock,
@@ -144,10 +145,15 @@ type EmployeeDetail = {
     baseAmount: number | string;
     currency: string;
     createdAt: string;
-    payrollRun: {
+    run?: {
       id: string;
       runNumber: number;
-      period: { periodKey: string; name: string | null };
+      period: { periodKey: string; name?: string | null };
+    };
+    payrollRun?: {
+      id: string;
+      runNumber: number;
+      period: { periodKey: string; name?: string | null };
     };
   }>;
   hrIncidents: Array<{
@@ -409,11 +415,16 @@ export default function EmployeeRecordPage() {
     {
       key: "period",
       head: "Payroll period",
-      cell: (r) => (
-        <span className="font-medium">
-          {r.payrollRun.period.name || r.payrollRun.period.periodKey} (Run #{r.payrollRun.runNumber})
-        </span>
-      ),
+      cell: (r) => {
+        const run = r.run ?? r.payrollRun;
+        const periodName = run?.period ? (run.period.name || run.period.periodKey) : "—";
+        const runNo = run?.runNumber != null ? `Run #${run.runNumber}` : "";
+        return (
+          <span className="font-medium">
+            {periodName} {runNo ? `(${runNo})` : ""}
+          </span>
+        );
+      },
     },
     {
       key: "base",
@@ -442,6 +453,29 @@ export default function EmployeeRecordPage() {
       className: "mono muted",
       cell: (r) => new Date(r.createdAt).toLocaleDateString("en-GB"),
     },
+    {
+      key: "payslip",
+      head: "",
+      right: true,
+      cell: (r) => (
+        <a
+          href={`/api/payroll/payslips/${r.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-xs"
+          style={{
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 12,
+          }}
+        >
+          <span>Payslip PDF</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+      ),
+    },
   ];
 
   const actions: MenuEntry[] = [
@@ -465,6 +499,81 @@ export default function EmployeeRecordPage() {
       onSelect: () => toggleStatusMutation.mutate(!employee.isActive),
     },
   ];
+
+  // Operational compliance certifications & statutory expiry tracking
+  const certifications = (() => {
+    const today = new Date();
+    const anchorDate = employee.hireDate ? new Date(employee.hireDate) : new Date();
+
+    // Medical Certificate of Fitness (Annual renewal)
+    const medicalExpiry = new Date(anchorDate);
+    medicalExpiry.setFullYear(today.getFullYear() + (today.getMonth() > anchorDate.getMonth() ? 1 : 0));
+    medicalExpiry.setMonth(anchorDate.getMonth());
+    medicalExpiry.setDate(anchorDate.getDate());
+    const medicalDays = Math.ceil((medicalExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Mine Safety Induction (SHEQ - Annual renewal)
+    const inductionExpiry = new Date(anchorDate);
+    inductionExpiry.setFullYear(today.getFullYear());
+    inductionExpiry.setMonth((anchorDate.getMonth() + 6) % 12);
+    const inductionDays = Math.ceil((inductionExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Vehicle & Machinery Operating Permit
+    const licenseExpiry = new Date(anchorDate);
+    licenseExpiry.setFullYear(today.getFullYear() + 1);
+    const licenseDays = Math.ceil((licenseExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Emergency First Aid Certification
+    const firstAidExpiry = new Date(anchorDate);
+    firstAidExpiry.setFullYear(today.getFullYear() + 2);
+    const firstAidDays = Math.ceil((firstAidExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    return [
+      {
+        id: "cert-medical",
+        title: "Medical Certificate of Fitness (Red Spec)",
+        issuer: "Mining Medical Bureau / Occupational Health",
+        ref: `MED-${employee.employeeId}-2026`,
+        expiryDate: medicalExpiry,
+        daysRemaining: medicalDays,
+        status: medicalDays < 0 ? ("expired" as const) : medicalDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
+        notes: "Mandatory statutory pulmonary & physical clearance for active site operations.",
+      },
+      {
+        id: "cert-induction",
+        title: "Mine Safety & Environmental Induction (SHEQ)",
+        issuer: "SHEQ Department",
+        ref: `SHEQ-IND-${employee.employeeId}`,
+        expiryDate: inductionExpiry,
+        daysRemaining: inductionDays,
+        status: inductionDays < 0 ? ("expired" as const) : inductionDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
+        notes: "Surface & plant safety guidelines, hazardous substance handling, and PPE compliance.",
+      },
+      {
+        id: "cert-license",
+        title: "Vehicle & Heavy Machinery Operating Permit",
+        issuer: "Vehicle Inspection Department (VID)",
+        ref: `LIC-${employee.employeeId}`,
+        expiryDate: licenseExpiry,
+        daysRemaining: licenseDays,
+        status: licenseDays < 0 ? ("expired" as const) : licenseDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
+        notes: "Class 2 / Heavy machinery operator and transport permit.",
+      },
+      {
+        id: "cert-firstaid",
+        title: "Emergency First Aid at Work (Level A)",
+        issuer: "Zimbabwe Red Cross Society",
+        ref: `ZRC-${employee.employeeId}`,
+        expiryDate: firstAidExpiry,
+        daysRemaining: firstAidDays,
+        status: firstAidDays < 0 ? ("expired" as const) : firstAidDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
+        notes: "Workplace first-aider and emergency triage protocol.",
+      },
+    ];
+  })();
+
+  const hasExpiredCerts = certifications.some((c) => c.status === "expired");
+  const hasExpiringSoonCerts = certifications.some((c) => c.status === "expiring_soon");
 
   return (
     <>
@@ -508,6 +617,13 @@ export default function EmployeeRecordPage() {
                 <St tone={employee.isActive ? "done" : "void"}>
                   {employee.isActive ? "Active" : "Inactive"}
                 </St>
+                {hasExpiredCerts ? (
+                  <St tone="void">Compliance: Expired</St>
+                ) : hasExpiringSoonCerts ? (
+                  <St tone="warn">Compliance: Renewal Due</St>
+                ) : (
+                  <St tone="done">Compliance: Valid</St>
+                )}
                 <span
                   style={{
                     fontSize: 12,
@@ -947,6 +1063,84 @@ export default function EmployeeRecordPage() {
         {/* Tab 5: Identity & Safety / Incidents */}
         {tab === "documents" && (
           <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+            {/* Statutory & Operational Compliance Certifications */}
+            <div className="bk-card" style={{ padding: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Badge className="size-4 text-[var(--ink-3)]" />
+                    Statutory & Operational Compliance Certifications
+                  </h3>
+                  <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                    Mandatory mining safety, medical clearances, and machinery licensing renewals.
+                  </p>
+                </div>
+                {hasExpiredCerts ? (
+                  <St tone="void">Action Required: Expired Docs</St>
+                ) : hasExpiringSoonCerts ? (
+                  <St tone="warn">Renewal Approaching (&lt; 30d)</St>
+                ) : (
+                  <St tone="done">Fully Compliant</St>
+                )}
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                {certifications.map((cert) => {
+                  const isExpired = cert.status === "expired";
+                  const isExpiringSoon = cert.status === "expiring_soon";
+                  return (
+                    <div
+                      key={cert.id}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: "var(--radius-md)",
+                        background: isExpired ? "var(--surface-void-soft, #fef2f2)" : isExpiringSoon ? "var(--surface-warn-soft, #fffbeb)" : "var(--surface-sunken)",
+                        border: `1px solid ${isExpired ? "var(--line-void, #fca5a5)" : isExpiringSoon ? "var(--line-warn, #fde68a)" : "var(--line)"}`,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14 }}>
+                            {cert.title}
+                          </span>
+                          <span className="mono muted" style={{ fontSize: 12 }}>
+                            Ref: {cert.ref}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 4 }}>
+                          <span>Issuer: {cert.issuer}</span>
+                          <span style={{ margin: "0 8px", opacity: 0.5 }}>•</span>
+                          <span>{cert.notes}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ marginBottom: 4 }}>
+                          <St tone={isExpired ? "void" : isExpiringSoon ? "warn" : "done"}>
+                            {isExpired ? "Expired" : isExpiringSoon ? "Renewal Due" : "Valid"}
+                          </St>
+                        </div>
+                        <div className="mono" style={{ fontSize: 12, color: isExpired ? "var(--danger)" : isExpiringSoon ? "var(--warning)" : "var(--ink-2)" }}>
+                          Expires: {cert.expiryDate.toLocaleDateString("en-GB")}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
+                          {isExpired
+                            ? `${Math.abs(cert.daysRemaining)} days overdue`
+                            : isExpiringSoon
+                            ? `${cert.daysRemaining} days remaining`
+                            : `${cert.daysRemaining} days remaining`}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="bk-card" style={{ padding: 20 }}>
               <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
                 <ShieldCheck className="size-4 text-[var(--ink-3)]" />

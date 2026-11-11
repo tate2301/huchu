@@ -803,6 +803,7 @@ function SalaryPayrollContent() {
                   <th className="num">Base</th>
                   <th className="num">Deductions</th>
                   <th className="num">Net</th>
+                  <th style={{ textAlign: "right" }}>Payslip</th>
                 </tr>
               </thead>
               <tbody>
@@ -824,6 +825,24 @@ function SalaryPayrollContent() {
                     </td>
                     <td className="num" style={{ fontWeight: 600 }}>
                       <Amt value={item.netAmount} currency="USD" className="font-medium" />
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <a
+                        href={`/api/payroll/payslips/${item.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-xs"
+                        style={{
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>PDF</span>
+                        <span aria-hidden="true">↗</span>
+                      </a>
                     </td>
                   </tr>
                 ))}

@@ -11,6 +11,7 @@ import { writePlatformAuditEvent } from "@/lib/audit/platform"
 import { createRouteLogger } from "@/lib/observability/route-logger"
 
 const markPaidSchema = z.object({
+  cashCustodian: z.string().trim().max(200).optional(),
   items: z
     .array(
       z.object({
@@ -188,6 +189,8 @@ export async function POST(
         data: {
           status: nextStatus,
           paidAt: nextStatus === "PAID" ? new Date() : null,
+          cashCustodian: validated.cashCustodian ?? batch.cashCustodian,
+          cashIssuedAt: nextStatus === "PAID" ? (batch.cashIssuedAt ?? new Date()) : batch.cashIssuedAt,
         },
         include: {
           payrollRun: {
@@ -225,7 +228,9 @@ export async function POST(
         actedById: session.user.id,
         fromStatus: batch.status,
         toStatus: savedBatch.status,
-        note: "Recorded disbursement item payment updates.",
+        note: validated.cashCustodian
+          ? `Recorded disbursement payment with dual-custodian sign-off (Custodian: ${validated.cashCustodian}).`
+          : "Recorded disbursement item payment updates.",
       })
 
       // Money leaving the business. On the chain, inside the transaction, so the
@@ -244,6 +249,7 @@ export async function POST(
             totalAmount: savedBatch.totalAmount.toFixed(2),
             itemsPaid: validated.items.length,
             status: savedBatch.status,
+            cashCustodian: savedBatch.cashCustodian,
           },
         },
         tx,

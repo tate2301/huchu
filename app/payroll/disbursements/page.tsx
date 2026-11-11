@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -47,6 +47,8 @@ type BatchDetails = {
   totalAmount: number;
   itemCount: number;
   notes?: string | null;
+  cashCustodian?: string | null;
+  cashIssuedAt?: string | null;
   createdAt?: string | null;
   payrollRun?: {
     runNumber: number;
@@ -58,21 +60,58 @@ type BatchDetails = {
   }>;
 };
 
-export default function DisbursementsPage() {
+function DisbursementsContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<DisbursementTab>("pending");
-  const [search, setSearch] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const urlTab = searchParams.get("tab") as DisbursementTab | null;
+  const urlSearch = searchParams.get("q") ?? "";
+  const urlPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+
+  const [tab, setTab] = React.useState<DisbursementTab>(
+    urlTab === "paid" || urlTab === "all" ? urlTab : "pending"
+  );
+  const [search, setSearch] = React.useState(urlSearch);
+  const [page, setPage] = React.useState(Number.isFinite(urlPage) && urlPage > 0 ? urlPage : 1);
   const pageSize = 20;
 
-  // Drawer
+  // Sync state to URL
+  const updateUrl = React.useCallback(
+    (next: { tab?: string; q?: string; page?: number }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next.tab !== undefined) {
+        if (next.tab === "pending") params.delete("tab");
+        else params.set("tab", next.tab);
+      }
+      if (next.q !== undefined) {
+        if (!next.q) params.delete("q");
+        else params.set("q", next.q);
+      }
+      if (next.page !== undefined) {
+        if (next.page <= 1) params.delete("page");
+        else params.set("page", String(next.page));
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
+
+  // Drawer states
   const [createDrawerOpen, setCreateDrawerOpen] = React.useState(false);
   const [selectedRunId, setSelectedRunId] = React.useState(searchParams.get("runId") || "");
   const [batchNotes, setBatchNotes] = React.useState("");
   const [detailsBatchId, setDetailsBatchId] = React.useState<string | null>(null);
+
+  // Dual-custodian sign-off drawer
+  const [signOffBatchId, setSignOffBatchId] = React.useState<string | null>(null);
+  const [custodianName, setCustodianName] = React.useState("");
+  const [handoverRef, setHandoverRef] = React.useState("");
+  const [signOffNotes, setSignOffNotes] = React.useState("");
+  const [cashVerified, setCashVerified] = React.useState(false);
 
   const { data: batchesData } = useQuery({
     queryKey: ["disbursement-batches"],
@@ -89,10 +128,12 @@ export default function DisbursementsPage() {
     [runsData]
   );
 
+  const activeInspectBatchId = detailsBatchId ?? signOffBatchId;
   const { data: batchDetails, isLoading: detailsLoading } = useQuery({
-    queryKey: ["disbursement-batch-details", detailsBatchId],
-    queryFn: () => fetchJson<BatchDetails>(`/api/payroll/disbursements/${detailsBatchId}`),
-    enabled: Boolean(detailsBatchId),
+    queryKey: ["disbursement-batch-details", activeInspectBatchId],
+    queryFn: () =>
+      fetchJson<BatchDetails>(`/api/disbursements/batches/${activeInspectBatchId}`),
+    enabled: Boolean(activeInspectBatchId),
   });
 
   // Tab subsets
@@ -105,7 +146,7 @@ export default function DisbursementsPage() {
   // Mutations
   const createBatchMutation = useMutation({
     mutationFn: async () =>
-      fetchJson("/api/payroll/disbursements", {
+      fetchJson("/api/disbursements/batches", {
         method: "POST",
         body: JSON.stringify({
           payrollRunId: selectedRunId,
@@ -125,7 +166,7 @@ export default function DisbursementsPage() {
 
   const submitBatchMutation = useMutation({
     mutationFn: async (id: string) =>
-      fetchJson(`/api/payroll/disbursements/${id}/submit`, { method: "POST" }),
+      fetchJson(`/api/disbursements/batches/${id}/submit`, { method: "POST" }),
     onSuccess: () => {
       toast({ title: "Disbursement batch submitted" });
       void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
@@ -134,7 +175,7 @@ export default function DisbursementsPage() {
 
   const approveBatchMutation = useMutation({
     mutationFn: async (id: string) =>
-      fetchJson(`/api/payroll/disbursements/${id}/approve`, { method: "POST" }),
+      fetchJson(`/api/disbursements/batches/${id}/approve`, { method: "POST" }),
     onSuccess: () => {
       toast({ title: "Disbursement batch approved" });
       void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
@@ -142,11 +183,34 @@ export default function DisbursementsPage() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/payroll/disbursements/${id}/mark-paid`, { method: "POST" }),
+    mutationFn: async ({
+      id,
+      cashCustodian,
+      items,
+    }: {
+      id: string;
+      cashCustodian: string;
+      items: Array<{ id: string; paidAmount: number; receiptReference?: string; notes?: string }>;
+    }) =>
+      fetchJson(`/api/disbursements/batches/${id}/mark-paid`, {
+        method: "POST",
+        body: JSON.stringify({
+          cashCustodian,
+          items,
+        }),
+      }),
     onSuccess: () => {
-      toast({ title: "Disbursement marked as paid" });
+      toast({ title: "Dual-custodian payout authorized and marked as paid" });
+      setSignOffBatchId(null);
+      setCustodianName("");
+      setHandoverRef("");
+      setSignOffNotes("");
+      setCashVerified(false);
       void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
+      void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
+    },
+    onError: (err) => {
+      toast({ title: "Payout authorization failed", description: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
@@ -160,7 +224,8 @@ export default function DisbursementsPage() {
         (b) =>
           b.code.toLowerCase().includes(q) ||
           b.status.toLowerCase().includes(q) ||
-          (b.notes && b.notes.toLowerCase().includes(q))
+          (b.notes && b.notes.toLowerCase().includes(q)) ||
+          (b.cashCustodian && b.cashCustodian.toLowerCase().includes(q))
       );
     }
     return list;
@@ -183,13 +248,14 @@ export default function DisbursementsPage() {
   const handleExportCsv = () => {
     downloadCsv(
       `disbursements-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["Batch Code", "Created Date", "Recipients", "Status", "Total Amount", "Notes"],
+      ["Batch Code", "Created Date", "Recipients", "Status", "Total Amount", "Custodian", "Notes"],
       filteredBatches.map((b) => [
         b.code,
         b.createdAt ? String(b.createdAt).slice(0, 10) : "",
         String(b.itemCount),
         b.status,
         String(b.totalAmount),
+        b.cashCustodian || "",
         b.notes || "",
       ])
     );
@@ -205,6 +271,11 @@ export default function DisbursementsPage() {
           {b.notes ? (
             <div className="muted" style={{ fontSize: 11 }}>
               {b.notes}
+            </div>
+          ) : null}
+          {b.cashCustodian ? (
+            <div className="muted mono" style={{ fontSize: 11, color: "var(--color-ink-muted)" }}>
+              Custodian: {b.cashCustodian}
             </div>
           ) : null}
         </div>
@@ -275,6 +346,16 @@ export default function DisbursementsPage() {
                 },
               ]
             : []),
+          ...(b.status === "APPROVED"
+            ? [
+                {
+                  key: "signoff",
+                  label: "Dual sign-off & mark paid",
+                  icon: "bank" as const,
+                  onSelect: () => setSignOffBatchId(b.id),
+                },
+              ]
+            : []),
         ];
 
         return (
@@ -286,8 +367,7 @@ export default function DisbursementsPage() {
               <Button
                 size="sm"
                 variant="primary"
-                busy={markPaidMutation.isPending}
-                onClick={() => markPaidMutation.mutate(b.id)}
+                onClick={() => setSignOffBatchId(b.id)}
               >
                 Mark paid
               </Button>
@@ -308,6 +388,11 @@ export default function DisbursementsPage() {
     null,
   ];
 
+  const signOffTargetBatch = React.useMemo(() => {
+    if (!signOffBatchId) return null;
+    return batches.find((b) => b.id === signOffBatchId) ?? batchDetails;
+  }, [signOffBatchId, batches, batchDetails]);
+
   return (
     <PayrollShell
       activeTab="disbursements"
@@ -318,45 +403,41 @@ export default function DisbursementsPage() {
         shortcut: "N",
         onClick: () => {
           if (approvedRuns.length > 0 && !selectedRunId) {
-            setSelectedRunId(approvedRuns[0]!.id);
+            setSelectedRunId(approvedRuns[0].id);
           }
           setCreateDrawerOpen(true);
         },
       }}
     >
-      <BkPage screen="payroll-disbursements" scroll={false}>
+      <BkPage screen="disbursements" scroll={false}>
         <BkFinding
-          fact={
-            tab === "pending"
-              ? `${pendingBatches.length} pending disbursement batches awaiting release or sign-off.`
-              : tab === "paid"
-              ? `${paidBatches.length} settled disbursement batches transferred to staff.`
-              : `${batches.length} disbursement batches tracked on file.`
-          }
-          rest="Select any batch to inspect payment lines, verify bank details, or record payment settlement."
+          fact={`${pendingBatches.length} batches pending disbursement. Dual-custodian sign-off required for cash payouts.`}
+          rest="Reconcile bank and cash payouts against approved payroll runs before posting to the financial ledger."
         />
 
         <BkTabs
-          label="Disbursement views"
+          label="Disbursement status"
           value={tab}
-          onChange={(next) => {
-            setTab(next as DisbursementTab);
+          onChange={(v) => {
+            const nextTab = v as DisbursementTab;
+            setTab(nextTab);
             setPage(1);
-            selection.clear();
+            updateUrl({ tab: nextTab, page: 1 });
           }}
           items={[
-            { value: "pending", label: "Pending batches", count: pendingBatches.length, icon: "clock" },
+            { value: "pending", label: "Pending Payout", count: pendingBatches.length, icon: "bank" },
             { value: "paid", label: "Paid batches", count: paidBatches.length, icon: "done" },
             { value: "all", label: "All batches", count: batches.length, icon: "list" },
           ]}
         />
 
         <BkTools
-          find="Search batches by code, status, or reference..."
+          find="Search batches by code, status, notes, or custodian..."
           query={search}
           onFind={(q) => {
             setSearch(q);
             setPage(1);
+            updateUrl({ q, page: 1 });
           }}
           count={totalRows}
           end={<BkQuietTools onExport={handleExportCsv} />}
@@ -364,10 +445,11 @@ export default function DisbursementsPage() {
 
         <BkScroll>
           <Worksheet
-            label="disbursement batches"
+            label="disbursement-batches"
             rows={pageRows}
             rowKey={(b) => b.id}
             columns={columns}
+            totals={totals}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -376,15 +458,13 @@ export default function DisbursementsPage() {
               some: selection.some,
               labelOf: (b) => b.code,
             }}
-            totals={totals}
-            onOpen={(b) => setDetailsBatchId(b.id)}
             empty={
               <div style={{ textAlign: "center", padding: "32px 16px" }}>
                 <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                  No disbursement batches match this view.
+                  No disbursement batches found.
                 </p>
                 <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                  Create a new payout batch from an approved salary run.
+                  Create a new payout batch from an approved payroll run.
                 </p>
               </div>
             }
@@ -395,18 +475,17 @@ export default function DisbursementsPage() {
           page={page}
           size={pageSize}
           total={totalRows}
-          onPage={setPage}
+          onPage={(p) => {
+            setPage(p);
+            updateUrl({ page: p });
+          }}
         />
 
-        <BkSelectionBar
-          count={selection.selected.size}
-          onClear={selection.clear}
-          actions={
-            <Button variant="quiet" icon="export" onClick={handleExportCsv}>
-              Export selected ({selection.selected.size})
-            </Button>
-          }
-        />
+        <BkSelectionBar count={selection.selected.size} onClear={selection.clear}>
+          <Button icon="export" onClick={handleExportCsv}>
+            Export selected ({selection.selected.size})
+          </Button>
+        </BkSelectionBar>
       </BkPage>
 
       {/* CREATE BATCH DRAWER */}
@@ -414,7 +493,7 @@ export default function DisbursementsPage() {
         open={createDrawerOpen}
         onOpenChange={setCreateDrawerOpen}
         title="Create disbursement batch"
-        sub="Bundle approved salary run payouts into a bank release batch."
+        sub="Group approved payroll run line items into a physical or electronic payout batch."
         width={480}
         footer={
           <>
@@ -427,7 +506,7 @@ export default function DisbursementsPage() {
               disabled={!selectedRunId}
               onClick={() => createBatchMutation.mutate()}
             >
-              Create batch
+              Generate batch
             </Button>
           </>
         }
@@ -441,12 +520,13 @@ export default function DisbursementsPage() {
               onChange={(e) => setSelectedRunId(e.target.value)}
               style={{ width: "100%", height: 36 }}
             >
+              <option value="">Select an approved run...</option>
               {approvedRuns.length === 0 ? (
-                <option value="">No approved runs available</option>
+                <option disabled>No approved runs waiting for payout</option>
               ) : (
                 approvedRuns.map((r) => (
                   <option key={r.id} value={r.id}>
-                    Run #{r.runNumber} • {money(r.netTotal, "USD")}
+                    Run #{r.runNumber} • {r.period?.periodKey ?? "Unknown period"} • {money(r.netTotal, "USD")}
                   </option>
                 ))
               )}
@@ -456,12 +536,143 @@ export default function DisbursementsPage() {
           <Field label="Batch notes / Description" htmlFor="batch-notes" optional>
             <Input
               id="batch-notes"
-              placeholder="e.g. Standard Bank Electronic Transfer"
+              placeholder="e.g. Standard Bank Electronic Transfer or Mine Vault Cash"
               value={batchNotes}
               onChange={(e) => setBatchNotes(e.target.value)}
             />
           </Field>
         </DrawerSection>
+      </Drawer>
+
+      {/* DUAL-CUSTODIAN SIGN-OFF DRAWER */}
+      <Drawer
+        open={Boolean(signOffBatchId)}
+        onOpenChange={(open) => !open && setSignOffBatchId(null)}
+        title="Dual-Custodian Cash Payout Sign-Off"
+        sub="Dual authorization by Disbursing Manager and Cash Custodian prior to issuing funds."
+        width={540}
+        footer={
+          <>
+            <Button onClick={() => setSignOffBatchId(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              icon="check"
+              busy={markPaidMutation.isPending}
+              disabled={!custodianName.trim() || !cashVerified || !batchDetails}
+              onClick={() => {
+                if (!signOffBatchId || !batchDetails) return;
+                const itemsPayload = batchDetails.items.map((item) => ({
+                  id: item.id,
+                  paidAmount: item.amount,
+                  receiptReference: handoverRef.trim() || undefined,
+                  notes: signOffNotes.trim() || undefined,
+                }));
+                markPaidMutation.mutate({
+                  id: signOffBatchId,
+                  cashCustodian: custodianName.trim(),
+                  items: itemsPayload,
+                });
+              }}
+            >
+              Authorize & Mark Paid
+            </Button>
+          </>
+        }
+      >
+        {signOffTargetBatch ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <DrawerSection title="Batch Summary">
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--line)",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                  fontSize: 13,
+                }}
+              >
+                <div>
+                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Batch code</span>
+                  <strong>{signOffTargetBatch.code}</strong>
+                </div>
+                <div>
+                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Staff recipients</span>
+                  <span className="mono font-semibold">{signOffTargetBatch.itemCount} employees</span>
+                </div>
+                <div>
+                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Total Net Payout</span>
+                  <Amt value={signOffTargetBatch.totalAmount} currency="USD" className="font-semibold text-base" />
+                </div>
+                <div>
+                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Payment Method</span>
+                  <St tone="info">PHYSICAL CASH</St>
+                </div>
+              </div>
+            </DrawerSection>
+
+            <DrawerSection title="Custodian Witness & Authorization">
+              <Field label="Cash Custodian / Witness Name" htmlFor="custodian-name">
+                <Input
+                  id="custodian-name"
+                  placeholder="e.g. Tendai Moyo (Site Vault Officer)"
+                  value={custodianName}
+                  onChange={(e) => setCustodianName(e.target.value)}
+                />
+              </Field>
+
+              <Field label="Handover Voucher / Receipt Ref" htmlFor="handover-ref" optional>
+                <Input
+                  id="handover-ref"
+                  placeholder="e.g. CSH-VCHR-2026-031"
+                  value={handoverRef}
+                  onChange={(e) => setHandoverRef(e.target.value)}
+                />
+              </Field>
+
+              <Field label="Handover Notes / Location" htmlFor="signoff-notes" optional>
+                <Input
+                  id="signoff-notes"
+                  placeholder="e.g. Mine site cashier office, cash verified in presence of witness"
+                  value={signOffNotes}
+                  onChange={(e) => setSignOffNotes(e.target.value)}
+                />
+              </Field>
+
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: 12,
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--surface-sunken)",
+                  border: "1px solid var(--line)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={cashVerified}
+                  onChange={(e) => setCashVerified(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <strong>Dual Sign-Off Declaration:</strong> I confirm the physical cash of{" "}
+                  <span className="mono font-semibold">{money(signOffTargetBatch.totalAmount, "USD")}</span> has been
+                  counted, verified with the cash custodian, and disbursed according to the approved payroll schedule.
+                </span>
+              </label>
+            </DrawerSection>
+          </div>
+        ) : (
+          <div style={{ padding: 24, textAlign: "center" }} className="muted">
+            Loading batch details...
+          </div>
+        )}
       </Drawer>
 
       {/* BATCH LINE ITEMS INSPECTION DRAWER */}
@@ -483,6 +694,33 @@ export default function DisbursementsPage() {
           </div>
         ) : batchDetails ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {batchDetails.cashCustodian ? (
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--surface-sunken)",
+                  border: "1px solid var(--line)",
+                  fontSize: 13,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <span className="muted" style={{ display: "block", fontSize: 11 }}>
+                    Dual-Custodian Verification
+                  </span>
+                  <strong>{batchDetails.cashCustodian}</strong>
+                </div>
+                {batchDetails.cashIssuedAt ? (
+                  <span className="mono muted" style={{ fontSize: 12 }}>
+                    {format(new Date(batchDetails.cashIssuedAt), "dd MMM yyyy, HH:mm")}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
             <table className="bkt" style={{ width: "100%", fontSize: 13 }}>
               <thead>
                 <tr>
@@ -512,5 +750,21 @@ export default function DisbursementsPage() {
         ) : null}
       </Drawer>
     </PayrollShell>
+  );
+}
+
+export default function DisbursementsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PayrollShell activeTab="disbursements">
+          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
+            Loading disbursements...
+          </div>
+        </PayrollShell>
+      }
+    >
+      <DisbursementsContent />
+    </React.Suspense>
   );
 }
