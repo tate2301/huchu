@@ -19,6 +19,7 @@ const PDF_RENDERING_ROUTES = [
   "/api/accounting/sales/quotations/[id]/pdf",
   "/api/accounting/sales/credit-notes/[id]/pdf",
   "/api/accounting/sales/receipts/[id]/pdf",
+  "/api/books/statements/[id]/pdf",
 ];
 
 const nextConfig: NextConfig = {

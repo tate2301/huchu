@@ -36,8 +36,23 @@ const employeeUpdateSchema = z
       .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
       .nullable()
       .optional(),
+    dateOfBirth: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+      .nullable()
+      .optional(),
     defaultCurrency: z.string().min(1).max(10).optional(),
     isActive: z.boolean().optional(),
+    taxNumber: z.string().trim().max(100).nullable().optional(),
+    nssaNumber: z.string().trim().max(100).nullable().optional(),
+    taxStatus: z.enum(["STANDARD", "EXEMPT", "CONTRACTOR"]).optional(),
+    bankName: z.string().trim().max(100).nullable().optional(),
+    bankAccountNumber: z.string().trim().max(100).nullable().optional(),
+    bankBranchCode: z.string().trim().max(100).nullable().optional(),
+    mobileMoneyProvider: z.string().trim().max(100).nullable().optional(),
+    mobileMoneyNumber: z.string().trim().max(100).nullable().optional(),
+    monthlyAmount: z.number().nonnegative().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "No fields provided",
@@ -78,10 +93,96 @@ export async function GET(
         employmentType: true,
         hireDate: true,
         terminationDate: true,
+        dateOfBirth: true,
+        hasDisability: true,
+        overtimeHourlyRate: true,
+        taxNumber: true,
+        nssaNumber: true,
+        taxStatus: true,
+        bankName: true,
+        bankAccountNumber: true,
+        bankBranchCode: true,
+        mobileMoneyProvider: true,
+        mobileMoneyNumber: true,
         defaultCurrency: true,
         isActive: true,
         companyId: true,
         user: { select: { id: true, email: true, name: true, role: true, isActive: true } },
+        fixedSalary: { select: { id: true, monthlyAmount: true, currency: true, isActive: true, updatedAt: true } },
+        supervisees: { select: { id: true, employeeId: true, name: true, position: true } },
+        compensationProfiles: {
+          select: {
+            id: true,
+            baseAmount: true,
+            currency: true,
+            effectiveFrom: true,
+            effectiveTo: true,
+            status: true,
+            workflowStatus: true,
+          },
+          orderBy: { effectiveFrom: "desc" },
+          take: 10,
+        },
+        attendance: {
+          select: { id: true, date: true, shift: true, status: true, overtime: true, notes: true },
+          orderBy: { date: "desc" },
+          take: 20,
+        },
+        leaveRequests: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            workingDays: true,
+            status: true,
+            reason: true,
+            leaveType: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        },
+        leaveEntitlements: {
+          select: {
+            id: true,
+            year: true,
+            granted: true,
+            carriedOver: true,
+            adjustment: true,
+            leaveType: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { year: "desc" },
+        },
+        payrollLineItems: {
+          select: {
+            id: true,
+            grossAmount: true,
+            netAmount: true,
+            baseAmount: true,
+            currency: true,
+            createdAt: true,
+            run: {
+              select: {
+                id: true,
+                runNumber: true,
+                period: { select: { periodKey: true, startDate: true, endDate: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 15,
+        },
+        hrIncidents: {
+          select: {
+            id: true,
+            category: true,
+            title: true,
+            incidentDate: true,
+            severity: true,
+            status: true,
+          },
+          orderBy: { incidentDate: "desc" },
+          take: 10,
+        },
         moduleAssignments: {
           select: {
             id: true,
@@ -173,16 +274,37 @@ export async function PATCH(
       return errorResponse("Invalid supervisor", 403)
     }
 
+    const { monthlyAmount, ...employeeFields } = validated
+
     const employee = await prisma.employee.update({
       where: { id },
       data: {
-        ...validated,
-        hireDate: validated.hireDate ? new Date(validated.hireDate) : validated.hireDate,
-        terminationDate: validated.terminationDate
-          ? new Date(validated.terminationDate)
-          : validated.terminationDate,
+        ...employeeFields,
+        hireDate: employeeFields.hireDate ? new Date(employeeFields.hireDate) : employeeFields.hireDate,
+        terminationDate: employeeFields.terminationDate
+          ? new Date(employeeFields.terminationDate)
+          : employeeFields.terminationDate,
+        dateOfBirth: employeeFields.dateOfBirth
+          ? new Date(employeeFields.dateOfBirth)
+          : employeeFields.dateOfBirth,
       },
     })
+
+    if (monthlyAmount !== undefined) {
+      await prisma.fixedSalary.upsert({
+        where: { employeeId: id },
+        create: {
+          employeeId: id,
+          monthlyAmount,
+          currency: employee.defaultCurrency || "USD",
+          isActive: true,
+        },
+        update: {
+          monthlyAmount,
+          ...(employee.defaultCurrency ? { currency: employee.defaultCurrency } : {}),
+        },
+      })
+    }
 
     return successResponse(employee)
   } catch (error) {

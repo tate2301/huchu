@@ -168,7 +168,7 @@ export default function PeopleApprovalsPage() {
   ];
 
   return (
-    <PeopleShell activeTab="approvals">
+    <PeopleShell activeTab="approvals" title="Workforce Approvals">
       <BkPage screen="approvals" scroll={false}>
         <BkFinding
           fact={`${counts.approved} approvals recorded, ${counts.rejected} rejected, ${counts.pending} pending action.`}

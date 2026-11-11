@@ -254,6 +254,7 @@ export default function SafetyIncidentsPage() {
   return (
     <PeopleShell
       activeTab="incidents"
+      title="Workforce Incidents"
       primary={{
         label: "Report incident",
         icon: "plus",

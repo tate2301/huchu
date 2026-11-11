@@ -129,3 +129,80 @@ export async function postInThisMonth(actor: BooksActor, eventId: string, now = 
   });
   return post([event.id], actor);
 }
+
+/**
+ * Permanently removes unposted integration event(s) and deletes the row(s).
+ * Clears any source accountingStatus (e.g. SchoolFee records) so they are no longer marked failed.
+ */
+export async function deleteNeedsPosting(actor: BooksActor, ids: string[]): Promise<{ deleted: number }> {
+  if (!ids.length) return { deleted: 0 };
+
+  const events = await prisma.accountingIntegrationEvent.findMany({
+    where: { id: { in: ids }, companyId: actor.companyId },
+    select: {
+      id: true,
+      sourceType: true,
+      sourceId: true,
+      status: true,
+      journalEntryId: true,
+      description: true,
+    },
+  });
+
+  if (events.length === 0) {
+    if (ids.length === 1) throw new NeedsPostingRefused("That posting is not here any more.", 404);
+    return { deleted: 0 };
+  }
+
+  const posted = events.filter((e) => e.status === "POSTED" || e.journalEntryId !== null);
+  if (posted.length > 0) {
+    throw new NeedsPostingRefused("Cannot delete an event that has already been posted to the ledger.", 400);
+  }
+
+  const deleteIds = events.map((e) => e.id);
+
+  // If any source document tracks accountingStatus (e.g. SchoolFee tables), reset them to NOT_REQUIRED
+  const schoolFeeIds = events
+    .filter((e) => e.sourceType && e.sourceType.startsWith("SCHOOL_") && e.sourceId)
+    .map((e) => e.sourceId!);
+
+  if (schoolFeeIds.length > 0) {
+    await Promise.all([
+      prisma.schoolFeeInvoice.updateMany({
+        where: { id: { in: schoolFeeIds }, companyId: actor.companyId, accountingStatus: { in: ["FAILED", "PENDING"] } },
+        data: { accountingStatus: "NOT_REQUIRED", accountingError: null },
+      }),
+      prisma.schoolFeeReceipt.updateMany({
+        where: { id: { in: schoolFeeIds }, companyId: actor.companyId, accountingStatus: { in: ["FAILED", "PENDING"] } },
+        data: { accountingStatus: "NOT_REQUIRED", accountingError: null },
+      }),
+      prisma.schoolFeeRefund.updateMany({
+        where: { id: { in: schoolFeeIds }, companyId: actor.companyId, accountingStatus: { in: ["FAILED", "PENDING"] } },
+        data: { accountingStatus: "NOT_REQUIRED", accountingError: null },
+      }),
+    ]);
+  }
+
+  const result = await prisma.accountingIntegrationEvent.deleteMany({
+    where: { id: { in: deleteIds }, companyId: actor.companyId },
+  });
+
+  for (const event of events) {
+    await writePlatformAuditEvent({
+      companyId: actor.companyId,
+      actorId: actor.userId,
+      eventType: "books.posting.deleted",
+      entityType: "AccountingIntegrationEvent",
+      entityId: event.id,
+      payload: {
+        by: auditActor(actor),
+        sourceType: event.sourceType,
+        sourceId: event.sourceId,
+        description: event.description,
+        status: event.status,
+      },
+    });
+  }
+
+  return { deleted: result.count };
+}

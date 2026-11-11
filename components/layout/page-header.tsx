@@ -86,7 +86,9 @@ export function PageHeader() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const title = identity?.title ?? nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view"));
+  const title = (identity?.title && identity.title.trim().length > 0)
+    ? identity.title
+    : (nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view")));
   const back = identity?.back;
   // A record opened from a list steps to its neighbours in it.
   const step = useRecordStep(Boolean(back));

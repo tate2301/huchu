@@ -57,7 +57,7 @@ export function ModuleShell<T extends string, C extends string>({
           {actions}
         </PageChrome>
       ) : primary ? (
-        <PageChrome title="" primary={primary}>
+        <PageChrome primary={primary}>
           {actions}
         </PageChrome>
       ) : actions ? (

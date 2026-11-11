@@ -112,6 +112,7 @@ export function HolidaysContent() {
   return (
     <PeopleShell
       activeTab="holidays"
+      title="Public Holidays"
       primary={{
         label: "Export holidays",
         icon: "export",

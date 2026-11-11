@@ -63,6 +63,7 @@ export type BooksAction =
   | "posting.map"
   /** Post money held for a closed month in the current month instead (D14). */
   | "posting.redate"
+  | "posting.delete"
   /** Bank rights (§4.13): match, unmatch, exclude statement lines; start a reconciliation. */
   | "bank.match"
   /** A bank entry: a charge, IMTT, interest, a transfer or a tax payment. */
@@ -228,6 +229,8 @@ export function canDo(actor: BooksActor, action: BooksAction, doc: BooksDoc = {}
       return tier === "accountant" ? ALLOW : refuse("Only the owner or the accountant can change the chart, rules, tax codes and rates.");
     case "posting.retry":
       return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can retry a posting.");
+    case "posting.delete":
+      return tier === "manager" || tier === "accountant" ? ALLOW : refuse("Only the owner, a manager or the accountant can delete unposted events.");
     case "bank.match": {
       if (tier === "manager" || tier === "accountant") return ALLOW;
       if (tier === "bursar") return docModule === "fees" ? ALLOW : refuse("A bursar matches the school's bank lines only.");

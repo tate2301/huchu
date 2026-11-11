@@ -12,7 +12,7 @@ import { readClose } from "./close";
 import { HELD_UNTIL } from "./core/holds";
 import { destroyBooksFixture, makeBooksFixture, trialBalance, type BooksFixture } from "./invoice-test-fixtures";
 import { explain, needsPostingFinding, readNeedsPosting, sourceWords } from "./needs-posting";
-import { mapAndRetry, NeedsPostingRefused, postInThisMonth, retryNeedsPosting } from "./needs-posting-actions";
+import { deleteNeedsPosting, mapAndRetry, NeedsPostingRefused, postInThisMonth, retryNeedsPosting } from "./needs-posting-actions";
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 
@@ -145,5 +145,20 @@ describe("the page, against the database", () => {
     const entry = await prisma.journalEntry.findFirstOrThrow({ where: { companyId: fixture.companyId, sourceId: req.id } });
     expect(entry.entryDate.getUTCFullYear()).toBe(new Date().getUTCFullYear());
     await expect(postInThisMonth(owner(), event.id)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("deletes unposted events, removing them from failed to post", async () => {
+    const { event } = await requisitionEvent(`REQ-N${fixture.stamp.slice(-5)}-6`, {
+      status: "FAILED",
+      lastError: "Invalid accounting setup",
+    });
+
+    const res = await deleteNeedsPosting(owner(), [event.id]);
+    expect(res.deleted).toBe(1);
+
+    const check = await prisma.accountingIntegrationEvent.findUnique({ where: { id: event.id } });
+    expect(check).toBeNull();
+
+    expect(await prisma.platformAuditEvent.count({ where: { companyId: fixture.companyId, eventType: "books.posting.deleted", entityId: event.id } })).toBe(1);
   });
 });
