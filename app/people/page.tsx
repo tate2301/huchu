@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
@@ -51,17 +52,53 @@ import {
 
 type StatusTab = "active" | "all" | "inactive";
 
-export default function HumanResourcesPage() {
+function HumanResourcesContent() {
   const { toast } = useToast();
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<StatusTab>("active");
-  const [search, setSearch] = React.useState("");
-  const [departmentFilter, setDepartmentFilter] = React.useState<string | null>(null);
-  const [employmentFilter, setEmploymentFilter] = React.useState<string | null>(null);
-  const [page, setPage] = React.useState(1);
+  const tab = (searchParams.get("tab") as StatusTab) || "active";
+  const search = searchParams.get("q") || "";
+  const departmentFilter = searchParams.get("dept") || null;
+  const employmentFilter = searchParams.get("type") || null;
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 25;
+
+  const onQuery = React.useCallback(
+    (next: {
+      tab?: string;
+      q?: string;
+      dept?: string | null;
+      type?: string | null;
+      page?: number;
+    }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "active") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: StatusTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setDepartmentFilter = (nextDept: string | null) =>
+    onQuery({ dept: nextDept, page: 1 });
+  const setEmploymentFilter = (nextType: string | null) =>
+    onQuery({ type: nextType, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [editingEmployee, setEditingEmployee] = React.useState<EmployeeSummary | null>(null);
@@ -576,5 +613,21 @@ export default function HumanResourcesPage() {
         </DialogContent>
       </Dialog>
     </PeopleShell>
+  );
+}
+
+export default function HumanResourcesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PeopleShell activeTab="employees">
+          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
+            Loading employee directory...
+          </div>
+        </PeopleShell>
+      }
+    >
+      <HumanResourcesContent />
+    </React.Suspense>
   );
 }

@@ -108,7 +108,7 @@ export function LeaveContent() {
   const employeesQuery = useQuery({
     queryKey: ["people", "employees", "leave-filter"],
     queryFn: () =>
-      fetchJson<{ data: EmployeeOption[] }>("/api/v2/people/employees?limit=300"),
+      fetchJson<{ data: EmployeeOption[] }>("/api/employees?limit=300"),
   });
 
   const employees = React.useMemo(
@@ -129,7 +129,7 @@ export function LeaveContent() {
       if (employeeId) sp.set("employeeId", employeeId);
       if (statusFilter !== "ALL") sp.set("status", statusFilter);
       return fetchJson<{ data: LeaveRequestRow[] }>(
-        `/api/v2/people/leave/requests?${sp.toString()}`
+        `/api/people/leave/requests?${sp.toString()}`
       );
     },
   });
@@ -138,7 +138,7 @@ export function LeaveContent() {
     queryKey: ["people", "leave-balances", employeeId],
     queryFn: () =>
       fetchJson<BalancesResponse>(
-        `/api/v2/people/leave/balances?employeeId=${employeeId}`
+        `/api/people/leave/balances?employeeId=${employeeId}`
       ),
     enabled: Boolean(employeeId),
   });
@@ -147,7 +147,7 @@ export function LeaveContent() {
     queryKey: ["people", "leave-types"],
     queryFn: () =>
       fetchJson<{ data: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
-        "/api/v2/people/leave/types"
+        "/api/people/leave/types"
       ),
   });
 
@@ -215,7 +215,7 @@ export function LeaveContent() {
       reason: string;
       coveringEmployeeId?: string;
     }) =>
-      fetchJson("/api/v2/people/leave/requests", {
+      fetchJson("/api/people/leave/requests", {
         method: "POST",
         body: JSON.stringify(values),
       }),
@@ -233,7 +233,7 @@ export function LeaveContent() {
 
   const decideMutation = useMutation({
     mutationFn: ({ id, decision }: { id: string; decision: "APPROVE" | "REJECT" }) =>
-      fetchJson(`/api/v2/people/leave/requests/${id}/decision`, {
+      fetchJson(`/api/people/leave/requests/${id}/decision`, {
         method: "POST",
         body: JSON.stringify({ decision }),
       }),
@@ -275,7 +275,7 @@ export function LeaveContent() {
     try {
       await Promise.all(
         selectedRows.map((r) =>
-          fetchJson(`/api/v2/people/leave/requests/${r.id}/decision`, {
+          fetchJson(`/api/people/leave/requests/${r.id}/decision`, {
             method: "POST",
             body: JSON.stringify({ decision }),
           })

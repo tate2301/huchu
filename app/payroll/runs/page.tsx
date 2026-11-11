@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -32,6 +32,7 @@ import {
 } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { PreCloseChecklistDrawer } from "@/components/payroll/runs/pre-close-checklist-drawer";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchPayrollConfig,
@@ -61,22 +62,49 @@ type RunDetails = {
   }>;
 };
 
-export default function SalaryPayrollPage() {
+function SalaryPayrollContent() {
   const { toast } = useToast();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<ViewTab>("periods");
-  const [search, setSearch] = React.useState("");
-  const [cycleFilter, setCycleFilter] = React.useState<string | null>(null);
-  const [page, setPage] = React.useState(1);
+  const tab = (searchParams.get("tab") as ViewTab) || "periods";
+  const search = searchParams.get("q") || "";
+  const cycleFilter = searchParams.get("cycle") || null;
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 20;
+
+  const onQuery = React.useCallback(
+    (next: { tab?: string; q?: string; cycle?: string | null; page?: number }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "periods") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: ViewTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setCycleFilter = (nextCycle: string | null) => onQuery({ cycle: nextCycle, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   // Drawers
   const [generateDrawerOpen, setGenerateDrawerOpen] = React.useState(false);
   const [selectedPeriodForRun, setSelectedPeriodForRun] = React.useState<string>("");
   const [runNotes, setRunNotes] = React.useState("");
   const [runDetailsId, setRunDetailsId] = React.useState<string | null>(null);
+  const [preCloseRunId, setPreCloseRunId] = React.useState<string | null>(null);
 
   // Queries
   useQuery({
@@ -140,6 +168,7 @@ export default function SalaryPayrollPage() {
     mutationFn: async (runId: string) =>
       fetchJson(`/api/payroll/runs/${runId}/submit`, { method: "POST" }),
     onSuccess: () => {
+      setPreCloseRunId(null);
       toast({ title: "Payroll run submitted for approval" });
       void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
     },
@@ -397,9 +426,9 @@ export default function SalaryPayrollPage() {
             ? [
                 {
                   key: "submit",
-                  label: "Submit for approval",
+                  label: "Pre-close checklist & submit",
                   icon: "check" as const,
-                  onSelect: () => submitRunMutation.mutate(r.id),
+                  onSelect: () => setPreCloseRunId(r.id),
                 },
               ]
             : []),
@@ -433,8 +462,7 @@ export default function SalaryPayrollPage() {
             {r.status === "DRAFT" ? (
               <Button
                 size="sm"
-                busy={submitRunMutation.isPending}
-                onClick={() => submitRunMutation.mutate(r.id)}
+                onClick={() => setPreCloseRunId(r.id)}
               >
                 Submit
               </Button>
@@ -804,6 +832,31 @@ export default function SalaryPayrollPage() {
           </div>
         ) : null}
       </Drawer>
+
+      {/* PRE-CLOSE RECONCILIATION CHECKLIST DRAWER */}
+      <PreCloseChecklistDrawer
+        runId={preCloseRunId}
+        open={Boolean(preCloseRunId)}
+        onOpenChange={(open) => !open && setPreCloseRunId(null)}
+        onSubmit={(id) => submitRunMutation.mutate(id)}
+        isSubmitting={submitRunMutation.isPending}
+      />
     </PayrollShell>
+  );
+}
+
+export default function SalaryPayrollPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PayrollShell activeTab="runs">
+          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
+            Loading payroll runs...
+          </div>
+        </PayrollShell>
+      }
+    >
+      <SalaryPayrollContent />
+    </React.Suspense>
   );
 }

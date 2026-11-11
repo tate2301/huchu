@@ -37,7 +37,7 @@ export function HolidaysContent() {
     queryKey: ["people", "holidays", selectedYear],
     queryFn: () =>
       fetchJson<{ data: HolidayRow[] }>(
-        `/api/v2/people/leave/holidays?year=${selectedYear}`
+        `/api/people/leave/holidays?year=${selectedYear}`
       ),
   });
 

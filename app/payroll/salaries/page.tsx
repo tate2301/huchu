@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -37,11 +38,38 @@ import {
 
 type SalaryTab = "awaiting" | "batches" | "lines";
 
-export default function HrSalariesPage() {
-  const [tab, setTab] = React.useState<SalaryTab>("awaiting");
-  const [search, setSearch] = React.useState("");
-  const [page, setPage] = React.useState(1);
+function HrSalariesContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tab = (searchParams.get("tab") as SalaryTab) || "awaiting";
+  const search = searchParams.get("q") || "";
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 20;
+
+  const onQuery = React.useCallback(
+    (next: { tab?: string; q?: string; page?: number }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "awaiting") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: SalaryTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   const { data: runsData } = useQuery({
     queryKey: ["payroll-runs", "salary-ops"],
@@ -500,5 +528,21 @@ export default function HrSalariesPage() {
         </BkSelectionBar>
       </BkPage>
     </PayrollShell>
+  );
+}
+
+export default function HrSalariesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PayrollShell activeTab="salaries">
+          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
+            Loading salaries...
+          </div>
+        </PayrollShell>
+      }
+    >
+      <HrSalariesContent />
+    </React.Suspense>
   );
 }

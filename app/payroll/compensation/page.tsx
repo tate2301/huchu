@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -44,14 +45,40 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type CompTab = "profiles" | "templates" | "rules";
 
-export default function CompensationPage() {
+function CompensationContent() {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<CompTab>("profiles");
-  const [search, setSearch] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const tab = (searchParams.get("tab") as CompTab) || "profiles";
+  const search = searchParams.get("q") || "";
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 20;
+
+  const onQuery = React.useCallback(
+    (next: { tab?: string; q?: string; page?: number }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "profiles") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: CompTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -586,5 +613,21 @@ export default function CompensationPage() {
         </DrawerSection>
       </Drawer>
     </PayrollShell>
+  );
+}
+
+export default function CompensationPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PayrollShell activeTab="compensation">
+          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
+            Loading compensation...
+          </div>
+        </PayrollShell>
+      }
+    >
+      <CompensationContent />
+    </React.Suspense>
   );
 }
