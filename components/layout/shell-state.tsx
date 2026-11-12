@@ -38,6 +38,9 @@ type ShellState = {
   /** The Vane panel, on the right of the page (400px), open from any module. */
   vaneOpen: boolean;
   setVaneOpen: (open: boolean) => void;
+  /** The sidebar is in arrange mode (SB-arrange.dc.html): drag within a group, hide into More. */
+  arranging: boolean;
+  setArranging: (arranging: boolean) => void;
   /** Words put in Vane's box from a page ("What should I do next on this deal?"); `key` changes with each. */
   vaneDraft: { text: string; key: number } | null;
   /** Opens the Vane panel with these words in its box, for the person to send or change. */
@@ -78,6 +81,7 @@ export function ShellProvider({
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
   const [vaneOpen, setVaneOpen] = React.useState(false);
+  const [arranging, setArranging] = React.useState(false);
   const [vaneDraft, setVaneDraft] = React.useState<{ text: string; key: number } | null>(null);
   const askVane = React.useCallback((text: string) => {
     setVaneDraft({ text, key: Date.now() });
@@ -116,13 +120,20 @@ export function ShellProvider({
     else openPanel();
   }, [closePanel, openPanel, panelShown]);
 
-  // ⌘B / Ctrl+B toggles the panel from anywhere, as the chevron does.
+  // [ collapses and opens the sidebar from anywhere but a field, as the foot's
+  // button does; ⌘B / Ctrl+B does the same from inside one.
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === "b" && (event.metaKey || event.ctrlKey) && !event.altKey) {
         event.preventDefault();
         togglePanel();
+        return;
       }
+      if (event.key !== "[" || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], [role='dialog']")) return;
+      event.preventDefault();
+      togglePanel();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -144,10 +155,12 @@ export function ShellProvider({
       setNotificationsOpen,
       vaneOpen,
       setVaneOpen,
+      arranging,
+      setArranging,
       vaneDraft,
       askVane,
     }),
-    [askVane, closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneDraft, vaneOpen, width],
+    [arranging, askVane, closePanel, commandOpen, drawerOpen, notificationsOpen, openPanel, panelShown, togglePanel, vaneDraft, vaneOpen, width],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

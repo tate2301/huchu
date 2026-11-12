@@ -75,7 +75,6 @@ export const GROUP_LABEL: Record<NavGroupId, string> = {
 
 export const NAV_NODES: readonly NavNode[] = [
   { id: "home", label: "Home", icon: "home", href: "/", group: "top" },
-  { id: "floor", label: "Overview", icon: "home", href: "/retail", group: "tender" },
   { id: "sales", label: "Sales", icon: "receipt", href: "/retail/sales", group: "tender", kids: [
       { id: "sales-all", label: "All sales", icon: "receipt", href: "/retail/sales" },
       { id: "sales-held", label: "Held", icon: "sale-clock", href: "/retail/sales?state=held", badge: "held" },
@@ -87,21 +86,6 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "shifts-eod", label: "End of day", icon: "end-of-day", href: "/retail/shifts/end-of-day", badge: "cashups" },
     ] },
   { id: "laybys", label: "Lay-bys", icon: "stockroom", href: "/retail/laybys", group: "tender", badge: "laybys" },
-  { id: "retail-customers", label: "Customers", icon: "customer", href: "/retail/customers", group: "tender" },
-  { id: "retail-setup", label: "Shop setup", icon: "shield", href: "/retail/manage", live: ["/retail/manage/company"], group: "tender", kids: [
-      { id: "setup-shop", label: "Shop", icon: "home", href: "/retail/manage/company" },
-      { id: "setup-sites", label: "Sites", icon: "stockroom", href: "/retail/manage/sites" },
-      { id: "setup-tills", label: "Tills and devices", icon: "receipt", href: "/retail/manage/tills" },
-      { id: "setup-payments", label: "Payments", icon: "payment-check", href: "/retail/manage/payments" },
-      { id: "setup-rules", label: "Till rules", icon: "checklist", href: "/retail/manage/till-rules" },
-      { id: "setup-receipts", label: "Receipts", icon: "receipt", href: "/retail/manage/receipts" },
-      { id: "setup-fiscal", label: "Fiscal device", icon: "seal-check", href: "/retail/manage/fiscal" },
-      { id: "setup-posting", label: "Posting to books", icon: "journal", href: "/retail/manage/posting" },
-      { id: "setup-staff", label: "Staff and PINs", icon: "employee", href: "/retail/manage/people" },
-      { id: "setup-approvals", label: "Approvals", icon: "shield", href: "/retail/manage/approvals" },
-      { id: "setup-loyalty", label: "Loyalty", icon: "promotion", href: "/retail/manage/loyalty" },
-      { id: "setup-bin", label: "Bin", icon: "alert-circle", href: "/retail/manage/bin" },
-    ] },
   { id: "leads", label: "Leads", icon: "lead", href: "/crm/leads", group: "crm", badge: "leads" },
   { id: "deals", label: "Deals", icon: "deal", href: "/crm/deals", group: "crm", kids: [
       { id: "deals-board", label: "Pipeline", icon: "pipeline", href: "/crm/deals" },
@@ -110,27 +94,20 @@ export const NAV_NODES: readonly NavNode[] = [
     ] },
   { id: "projects", label: "Projects", icon: "deal", href: "/crm/projects", group: "crm", kids: [
       { id: "proj-all", label: "Projects", icon: "deal", href: "/crm/projects" },
-      { id: "proj-jobs", label: "Jobs", icon: "job-card", href: "/crm/work-orders" },
+      { id: "proj-jobs", label: "Jobs", icon: "job-card", href: "/crm/projects/jobs" },
     ] },
   { id: "visits", label: "Visits", icon: "calendar-check", href: "/crm/appointments", group: "crm", badge: "visits" },
   { id: "tasks", label: "Tasks", icon: "task", href: "/crm/tasks", group: "crm", kids: [
       { id: "tasks-all", label: "Tasks", icon: "task", href: "/crm/tasks" },
       { id: "tasks-follow", label: "Follow-ups", icon: "phone-call", href: "/crm/tasks/follow-ups" },
     ] },
-  { id: "crm-cost", label: "Cost tracker", icon: "receipt", href: "/crm/cost-tracker", group: "crm", kids: [
-      { id: "cost-all", label: "Cost tracker", icon: "receipt", href: "/crm/cost-tracker" },
-      { id: "cost-daily", label: "Daily reports", icon: "journal", href: "/crm/daily-reports" },
-    ] },
+  { id: "crm-cost", label: "Cost tracker", icon: "receipt", href: "/crm/cost-tracker", group: "crm" },
+  { id: "cost-daily", label: "Daily reports", icon: "journal", href: "/crm/daily-reports", group: "crm" },
   { id: "crm-team", label: "Team", icon: "employee", href: "/crm/reps", group: "crm", kids: [
       { id: "team-all", label: "Team", icon: "employee", href: "/crm/reps" },
       { id: "team-me", label: "My performance", icon: "person-check", href: "/crm/reps/me" },
     ] },
   { id: "crm-knowledge", label: "Knowledge", icon: "journal", href: "/crm/knowledge", group: "crm" },
-  { id: "crm-settings", label: "Settings", icon: "shield", href: "/crm/settings", group: "crm", kids: [
-      { id: "crm-set-config", label: "Configuration", icon: "shield", href: "/crm/settings" },
-      { id: "crm-set-workflows", label: "Workflows", icon: "checklist", href: "/crm/workflows" },
-      { id: "crm-set-import", label: "Import", icon: "dispatch", href: "/crm/import" },
-    ] },
   { id: "students", label: "Students", icon: "pupil", href: "/schools/students", group: "campus", kids: [
       { id: "st-all", label: "Students", icon: "pupil", href: "/schools/students" },
       { id: "st-apps", label: "Applications", icon: "pupil-plus", href: "/schools/students/applications" },
@@ -176,10 +153,9 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "gold-settle", label: "Settlements", icon: "receipt", href: "/gold/settlement/receipts" },
       { id: "gold-exc", label: "Exceptions", icon: "alert-circle", href: "/gold/exceptions" },
     ] },
-  { id: "customers", label: "Customers", icon: "customer", href: "/records/customers", group: "records", live: ["/crm/companies", "/crm/clients"] },
+  { id: "customers", label: "Customers", icon: "customer", href: "/records/customers", group: "records", live: ["/retail/customers", "/crm/companies", "/crm/clients"] },
   { id: "people-c", label: "Contacts", icon: "guardian", href: "/records/contacts", group: "records", live: ["/crm/people"] },
-  { id: "suppliers", label: "Suppliers", icon: "dispatch", href: "/records/suppliers", group: "records", live: ["/retail/buying/suppliers"] },
-  { id: "products", label: "Products", icon: "tag", href: "/retail/products", group: "stock", kids: [
+  { id: "products", label: "Products", icon: "tag", href: "/retail/products", group: "records", kids: [
       { id: "prod-all", label: "All products", icon: "rows", href: "/retail/products" },
       { id: "prod-prices", label: "Price lists", icon: "price-list", href: "/retail/products/price-lists" },
       { id: "prod-promos", label: "Promotions", icon: "promotion", href: "/retail/products/promotions" },
@@ -187,6 +163,7 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "prod-vouchers", label: "Vouchers", icon: "price-list", href: "/retail/products/vouchers" },
       { id: "prod-cats", label: "Categories", icon: "tag", href: "/retail/products/categories" },
     ] },
+  { id: "suppliers", label: "Suppliers", icon: "dispatch", href: "/records/suppliers", group: "records", live: ["/retail/buying/suppliers"] },
   { id: "onhand", label: "On hand", icon: "stockroom", href: "/retail/stock", group: "stock", badge: "low" },
   { id: "movements", label: "Movements", icon: "activity", href: "/retail/stock/movements", group: "stock" },
   { id: "counts", label: "Counts", icon: "stock-take", href: "/retail/stock/counts", group: "stock", badge: "counts" },
@@ -196,20 +173,20 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "buy-orders", label: "Orders", icon: "purchase-order", href: "/retail/buying/orders" },
       { id: "buy-deliveries", label: "Deliveries", icon: "dispatch", href: "/retail/buying/deliveries" },
       { id: "buy-reqs", label: "Requisitions", icon: "money", href: "/retail/buying/requisitions", badge: "reqs" },
-      { id: "buy-suppliers", label: "Suppliers", icon: "supplier", href: "/retail/buying/suppliers" },
+      { id: "buy-suppliers", label: "Suppliers", icon: "dispatch", href: "/retail/buying/suppliers" },
     ] },
   { id: "equipment", label: "Equipment", icon: "job-card", href: "/maintenance/equipment", group: "assets" },
   { id: "workorders", label: "Work orders", icon: "stock-take", href: "/maintenance/work-orders", group: "assets" },
   { id: "breakdown", label: "Breakdowns", icon: "alert-circle", href: "/maintenance/breakdown", group: "assets" },
   { id: "money", label: "Money", icon: "money", href: "/books", group: "books" },
   // Books' levels (design/books/spec/books.md, Navigation). A level's rows are the pages it holds;
-  // the plan's price rides on a row the workspace does not have (`compose.ts`, `lockOf`).
+  // a page the workspace's plan leaves out is not drawn (Model rule 05).
   { id: "bsales", label: "Sales", icon: "invoice", href: "/books/invoices", group: "books", kids: [
       { id: "bs-inv", label: "Invoices", icon: "invoice", href: "/books/invoices", badge: "invoices" },
       { id: "bs-quotes", label: "Quotes", icon: "quote", href: "/books/quotes", badge: "quotes" },
       { id: "bs-pay", label: "Payments received", icon: "payment-clock", href: "/books/payments" },
       { id: "bs-credit", label: "Credit notes", icon: "credit-note", href: "/books/credit-notes" },
-      { id: "bs-cust", label: "Customers", icon: "guardian", href: "/books/customers" },
+      { id: "bs-cust", label: "Customers", icon: "customer", href: "/books/customers" },
     ] },
   { id: "bspend", label: "Bills & spending", icon: "bill", href: "/books/bills", group: "books", kids: [
       { id: "bsp-all", label: "All spending", icon: "bill", href: "/books/expenses" },
@@ -218,7 +195,7 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "bsp-orders", label: "Purchase orders", icon: "purchase-order-check", href: "/books/orders" },
       { id: "bsp-reqs", label: "Requisitions", icon: "requisition-check", href: "/books/requisitions", badge: "reqs" },
       { id: "bsp-claims", label: "Claims & petty cash", icon: "receipt", href: "/books/claims" },
-      { id: "bsp-sup", label: "Suppliers", icon: "supplier", href: "/books/suppliers" },
+      { id: "bsp-sup", label: "Suppliers", icon: "dispatch", href: "/books/suppliers" },
     ] },
   { id: "bbank", label: "Bank & cash", icon: "bank", href: "/books/accounts", group: "books", kids: [
       { id: "bk-acc", label: "Accounts", icon: "bank", href: "/books/accounts" },
@@ -249,19 +226,11 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "bl-rules", label: "Posting rules", icon: "link", href: "/books/posting-rules" },
       { id: "bl-audit", label: "Audit trail", icon: "audit-clock", href: "/books/audit" },
     ] },
-  { id: "bsettings", label: "Settings", icon: "shield", href: "/books/settings/tax", group: "books", kids: [
-      { id: "bse-tax", label: "Tax codes & rules", icon: "tax", href: "/books/settings/tax" },
-      { id: "bse-num", label: "Numbering", icon: "price-list", href: "/books/settings/numbering" },
-      { id: "bse-lock", label: "Locks & periods", icon: "calendar-lock", href: "/books/settings/locks" },
-      { id: "bse-open", label: "Opening balances", icon: "ledger", href: "/books/settings/opening-balances" },
-      { id: "bse-setup", label: "Set up the books", icon: "checklist", href: "/books/settings/setup" },
-    ] },
   { id: "everyone", label: "Directory", icon: "people", href: "/people", group: "people" },
   { id: "attendance", label: "Attendance", icon: "person-check", href: "/people/attendance", group: "people" },
   { id: "rosters", label: "Rosters", icon: "calendar-check", href: "/people/rosters", group: "people" },
   { id: "timeoff", label: "Time off", icon: "calendar", href: "/people/leave", group: "people", badge: "leave", kids: [
       { id: "leave-req", label: "Leave", icon: "calendar", href: "/people/leave" },
-      { id: "leave-holidays", label: "Public holidays", icon: "sun", href: "/people/leave/holidays" },
     ] },
   { id: "incidents", label: "Incidents", icon: "alert-circle", href: "/people/incidents", group: "people" },
   { id: "approvals", label: "History", icon: "checklist", href: "/people/approvals", group: "people" },
@@ -269,9 +238,7 @@ export const NAV_NODES: readonly NavNode[] = [
       { id: "pay-runs", label: "Pay runs", icon: "money", href: "/payroll/runs" },
       { id: "pay-sal", label: "Salaries", icon: "fees", href: "/payroll/salaries" },
       { id: "pay-out", label: "Outstanding", icon: "fees", href: "/payroll/salaries/outstanding" },
-      { id: "pay-comp", label: "Compensation rules", icon: "price-list", href: "/payroll/compensation" },
       { id: "pay-disb", label: "Disbursements", icon: "payment-check", href: "/payroll/disbursements" },
-      { id: "pay-stat", label: "Statutory tables", icon: "price-list", href: "/payroll/statutory" },
       { id: "pay-ret", label: "Returns & P2", icon: "seal-check", href: "/payroll/statutory/returns" },
     ] },
   { id: "retail-reports", label: "Retail reports", icon: "chart-bar", href: "/retail/reports", group: "insights" },

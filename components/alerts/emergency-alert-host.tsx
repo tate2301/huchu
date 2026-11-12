@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import bar from "@/components/layout/app-bar.module.css";
 
 const SNOOZE_STORAGE_KEY = "huchu:emergency-alerts:snoozed-signature";
 
@@ -283,64 +284,23 @@ export function EmergencyHeaderTrigger({ compact = false }: { compact?: boolean 
 
   const { critical, total } = feed.counts;
   const isCritical = critical > 0;
+  const count = isCritical ? critical : total;
+  const label = isCritical
+    ? `Emergency: ${critical} overdue unclosed ${critical === 1 ? "day or shift" : "days or shifts"}`
+    : `Needs attention: ${total} open day-close ${total === 1 ? "item" : "items"}`;
 
-  if (compact) {
-    return (
-      <button
-        type="button"
-        onClick={openEmergencyDialog}
-        title={
-          isCritical
-            ? `${critical} overdue unclosed ${critical === 1 ? "day or shift" : "days & shifts"}`
-            : `${total} open day-close ${total === 1 ? "item" : "items"}`
-        }
-        aria-label={
-          isCritical
-            ? `Urgent: ${critical} overdue unclosed day or shift`
-            : `Close day (${total})`
-        }
-        className={cn(
-          "relative flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] px-2 text-[12px] font-medium transition-colors",
-          isCritical
-            ? "bg-red-500/12 text-red-700 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-300"
-            : "bg-amber-500/12 text-amber-800 hover:bg-amber-500/20 dark:bg-amber-500/20 dark:text-amber-300",
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className={cn(
-            "size-2 rounded-full",
-            isCritical ? "animate-pulse bg-red-600 dark:bg-red-400" : "bg-amber-500",
-          )}
-        />
-        <span className="font-mono tabular-nums">{isCritical ? critical : total}</span>
-      </button>
-    );
-  }
-
+  // The App bar page's Emergency: red when something is overdue, amber when it needs attention.
   return (
     <button
       type="button"
       onClick={openEmergencyDialog}
-      className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-medium transition-colors",
-        isCritical
-          ? "bg-red-500/12 text-red-700 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-300"
-          : "bg-[var(--tray)] text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]",
-      )}
+      aria-label={label}
+      title={label}
+      className={cn(bar.emergency, !isCritical && bar.warn, compact && bar.compact)}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "size-2 shrink-0 rounded-full",
-          isCritical ? "animate-pulse bg-red-600 dark:bg-red-400" : "bg-amber-500",
-        )}
-      />
-      <span>
-        {isCritical
-          ? `${critical} unclosed ${critical === 1 ? "day" : "days"}`
-          : `Close day (${total})`}
-      </span>
+      <span aria-hidden="true" className={bar.pd} />
+      {compact ? null : isCritical ? "Emergency" : "Needs attention"}
+      <span className={bar.n}>{count}</span>
     </button>
   );
 }

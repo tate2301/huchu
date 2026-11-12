@@ -60,3 +60,19 @@ describe("parsePrefs", () => {
     expect(parsePrefs('{"pinned":[1,"a"],"hidden":"x"}')).toEqual({ ...NO_PREFS, pinned: ["a"] });
   });
 });
+
+describe("the person's order", () => {
+  it("draws a group in the order the person left it, unplaced pages after", () => {
+    const group = groups.find((entry) => entry.items.length > 2)!;
+    const [a, b, c] = group.items.map((node) => node.id);
+    const out = arrange(groups, { ...NO_PREFS, order: { [group.id]: [c!, a!] } }, null);
+    const ids = out.groups.find((entry) => entry.id === group.id)!.items.map((node) => node.id);
+    expect(ids.slice(0, 3)).toEqual([c, a, b]);
+  });
+
+  it("reads a stored order and pinned pages, dropping what is not the shape", () => {
+    const parsed = parsePrefs(JSON.stringify({ order: { stock: ["x", 2], bad: "y" }, pages: [{ href: "/a", label: "A" }, { href: "nope", label: "B" }] }));
+    expect(parsed.order).toEqual({ stock: ["x"] });
+    expect(parsed.pages).toEqual([{ href: "/a", label: "A", icon: null }]);
+  });
+});

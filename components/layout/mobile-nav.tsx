@@ -6,24 +6,28 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { useShell } from "@/components/layout/shell-state";
 
 /**
- * The phone drawer (00-foundations 5.3.8): below 720px the rail and the module
- * panel slide in from the left, 296px wide over `--scrim` (wider for a wider
- * panel, Explore's, up to 48px short of the screen), from the header's menu
- * button. It closes on navigation.
+ * The phone's More (Phone.dc.html): the same tree as the sidebar, as a page
+ * over everything but the bottom bar, 44px rows and group names that do not
+ * fold. It opens from More in the bottom bar or the app bar's menu, and closes
+ * on navigation, on More again, or on Esc.
  */
 export function MobileNav() {
   const { width, drawerOpen, setDrawerOpen } = useShell();
   if (width !== "phone") return null;
 
   return (
-    <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+    <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen} modal={false}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[var(--z-overlay)] bg-[var(--scrim)]" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-y-0 left-0 z-[var(--z-overlay)] flex h-[100dvh] w-max min-w-[296px] max-w-[calc(100vw-48px)] overflow-hidden bg-[var(--ground)] shadow-[var(--shadow-float)] outline-none"
+          onInteractOutside={(event) => {
+            // More in the bottom bar closes it itself; anything else outside is the bar too.
+            if ((event.target as HTMLElement | null)?.closest("[data-phone-bar]")) event.preventDefault();
+          }}
+          className="fixed inset-x-0 top-0 z-[var(--z-overlay)] flex bg-[var(--ground)] outline-none"
+          style={{ bottom: "calc(56px + env(safe-area-inset-bottom))" }}
         >
-          <Dialog.Title className="sr-only">Menu</Dialog.Title>
+          <Dialog.Title className="sr-only">More</Dialog.Title>
           <AppSidebar inDrawer />
         </Dialog.Content>
       </Dialog.Portal>

@@ -181,7 +181,7 @@
 /* ── Menus (5.2) ─────────────────────────────────────────── */
 .cx-menu { z-index: 60; min-width: 180px; padding: 6px; border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-float); display: flex; flex-direction: column; font-family: var(--font-sans); font-size: 13px; }
 .cx-menu__caption { padding: 6px 8px 8px; font-size: 12px; line-height: 1.4; color: var(--ink-3); }
-.cx-menu__item { position: relative; min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; outline: none; user-select: none; }
+.cx-menu__item { position: relative; min-height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; white-space: nowrap; text-align: left; text-decoration: none; cursor: pointer; outline: none; user-select: none; }
 .cx-menu--roomy .cx-menu__item { min-height: 36px; }
 .cx-menu__item:hover, .cx-menu__item[data-highlighted], .cx-menu__item[aria-selected="true"] { background: var(--hover); }
 .cx-menu__item[data-disabled] { opacity: 0.5; cursor: default; }
@@ -191,9 +191,10 @@
 .cx-menu__item--danger, .cx-menu__item--danger .cx-menu__icon { color: var(--bad); }
 .cx-menu__label { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 7px 0; }
 .cx-menu__sub { font-size: 12px; color: var(--ink-3); }
-.cx-menu__hint { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.cx-menu__hint { margin-left: auto; flex: none; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; background: var(--tray); font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.cx-menu__hint:has(> *) { min-width: 0; height: auto; padding: 0; background: transparent; }
 .cx-menu__mark { width: 14px; flex: none; display: inline-flex; color: var(--action); }
-.cx-menu__rule { height: 1px; margin: 4px 0; background: var(--line); }
+.cx-menu__rule { height: 1px; margin: 6px -6px; background: var(--line); }
 
 /* ── Toolbar and filters ─────────────────────────────────── */
 .cx-search { flex: 0 1 240px; min-width: 120px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink-3); }
