@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { useShell } from "@/components/layout/shell-state";
+import { useShellNav } from "@/components/layout/shell-nav";
+import { usePageChrome } from "@/components/layout/page-chrome";
+import { useNavPrefs } from "@/components/layout/sidebar/use-nav-prefs";
 import { fetchJson } from "@/lib/api-client";
 import { canUseExplore } from "@/lib/explore/roles";
 import { exploreHref } from "@/lib/explore/questions";
@@ -27,6 +30,7 @@ import {
   MedusaBookOpenIcon,
   Package,
   PanelLeft,
+  PushPin,
   Receipt,
   Scale,
   Search,
@@ -157,6 +161,17 @@ export function GlobalCommandBar() {
   // account menu's "Search" (00-foundations 5.3.6); the open state is the
   // shell's so the menu can set it.
   const { togglePanel, commandOpen: open, setCommandOpen: setOpen } = useShell();
+  // Pinning: the page being looked at, kept in the sidebar's Pinned.
+  const nav = useShellNav();
+  const { identity } = usePageChrome();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const { prefs, togglePage, toggle: togglePref } = useNavPrefs(nav.companyName);
+  const here = search.toString() ? `${pathname}?${search.toString()}` : pathname;
+  const pageTitle = identity?.title ?? nav.pageLabel;
+  const { inManagement, pageIcon } = nav;
+  const pageNode = nav.active && nav.active.kidId === null && nav.active.href === here ? nav.active.nodeId : null;
+  const pinned = pageNode ? prefs.pinned.includes(pageNode) : prefs.pages.some((page) => page.href === here);
   const [query, setQuery] = React.useState("");
   const [debounced, setDebounced] = React.useState("");
   const [recents, setRecents] = React.useState<RecentEntry[]>([]);
@@ -512,7 +527,28 @@ export function GlobalCommandBar() {
     }
 
     // 6. The app's own switches.
+    const pinItem: CommandItem[] = pageTitle && !inManagement
+      ? [
+          {
+            id: "action-pin",
+            group: "general",
+            label: pinned ? `Unpin ${pageTitle}` : `Pin ${pageTitle} to the sidebar`,
+            icon: PushPin,
+            keywords: "pin pinned sidebar favourite",
+            preview: <ActionPreview icon={PushPin} title={pinned ? "Unpin" : "Pin to the sidebar"} body={pageTitle} />,
+            primary: {
+              label: pinned ? "Unpin" : "Pin",
+              run: () => {
+                if (pageNode) togglePref("pinned", pageNode);
+                else togglePage({ href: here, label: pageTitle, icon: pageIcon });
+                setOpen(false);
+              },
+            },
+          },
+        ]
+      : [];
     const generalItems: CommandItem[] = [
+      ...pinItem,
       {
         id: "action-sidebar",
         group: "general",
@@ -581,6 +617,15 @@ export function GlobalCommandBar() {
     searchQuery.data,
     todayQuery.data,
     togglePanel,
+    here,
+    inManagement,
+    pageIcon,
+    pageNode,
+    pageTitle,
+    pinned,
+    setOpen,
+    togglePage,
+    togglePref,
   ]);
 
   return (

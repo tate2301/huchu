@@ -312,6 +312,14 @@
     overflow: hidden;
   }
 
+  /* Inside the app's shell (Management in the sidebar's place): the page
+     column alone, the height the shell gives it. */
+  .surface.embedded {
+    grid-template-columns: minmax(0, 1fr);
+    height: 100%;
+    background: var(--surface);
+  }
+
   /* Below 1100px the sidebar goes and the page flows: the document scrolls,
      as the kit draws Management on a tablet and a phone (`.mg`). */
   @media (max-width: 1099px) {

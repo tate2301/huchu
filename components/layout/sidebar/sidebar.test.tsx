@@ -19,7 +19,6 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-vi.mock("@/components/core/vane-mark", () => ({ VaneMark: () => <span /> }));
 
 const groups = composeNav({ canOpen: () => true });
 const nodes = groups.flatMap((group) => group.items);
@@ -45,11 +44,12 @@ function setup(prefs: NavPrefs = NO_PREFS, pathname = "/") {
       <Sidebar
         groups={groups}
         active={activeNav(groups, pathname, null)}
+        pathname={pathname}
         badges={{}}
         prefs={prefs}
         onPref={onPref}
-        tile={<span>tile</span>}
-        person={<span>person</span>}
+        switcher={<span>switcher</span>}
+        foot={<span>foot</span>}
       />,
     );
   });
@@ -62,7 +62,7 @@ const button = (label: string) => host!.querySelector<HTMLButtonElement>(`button
 describe("Sidebar", () => {
   it("draws each node the person has as a link", () => {
     setup();
-    expect(host!.querySelector('nav[aria-label="Main"]')).toBeTruthy();
+    expect(host!.querySelector('aside[aria-label="Main"] nav[aria-label="Workspace"]')).toBeTruthy();
     expect(links()).toContain(first.label);
   });
 
@@ -79,16 +79,37 @@ describe("Sidebar", () => {
     expect(current?.textContent?.trim()).toBe(kid.label);
   });
 
-  it("lifts pinned nodes under Pinned", () => {
-    setup({ ...NO_PREFS, pinned: [first.id] });
-    const pinned = host!.querySelector('section[aria-label="Pinned"]');
-    expect(pinned?.textContent).toContain(first.label);
+  it("lifts pinned nodes and pages under Pinned, after the groups", () => {
+    setup({ ...NO_PREFS, pinned: [first.id], pages: [{ href: "/records/customers/c1", label: "Tawanda Moyo", icon: null }] });
+    const heads = [...host!.querySelectorAll("nav > div > button[aria-expanded]")].map((b) => b.textContent?.trim());
+    expect(heads.at(-1)).toBe("Pinned");
+    const after = links().slice(-2);
+    expect(after).toEqual([first.label, "Tawanda Moyo"]);
+  });
+
+  it("folds a group to its name from its head", () => {
+    const onPref = setup();
+    const group = groups.find((entry) => entry.id !== "top")!;
+    act(() => button(group.label).click());
+    expect(onPref).toHaveBeenCalledWith("folded", group.id);
+  });
+
+  it("offers the owner one row that adds what the workspace has not bought", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(
+        <Sidebar groups={groups} active={null} pathname="/" badges={{}} prefs={NO_PREFS} onPref={() => {}} switcher={null} foot={null} addHref="/preferences/organization/billing" />,
+      );
+    });
+    expect(host.querySelector('a[href="/preferences/organization/billing"]')?.textContent).toBe("Add Books, People and more");
   });
 
   it("keeps hidden nodes in More until it is opened", () => {
     setup({ ...NO_PREFS, hidden: [first.id] });
     expect(links()).not.toContain(first.label);
-    act(() => button("More").click());
+    act(() => [...host!.querySelectorAll("button")].find((b) => b.textContent?.startsWith("More"))!.click());
     expect(links()).toContain(first.label);
   });
 });

@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 import {
   FormPage,
@@ -10,16 +8,12 @@ import {
   OwnsChrome,
   RecordHeader,
   RegisterLayout,
-  SettingsRail,
   SettingsSurface,
-  type SettingsRailGroup,
 } from "@/components/management/ui";
-import { useWorkspaceName } from "@/components/layout/shell-nav";
-import {
-  findActiveSettingsNavEntry,
-  getSettingsRailGroups,
-} from "@/lib/settings/management-nav";
-import { getComputedWorkspaceHomeHref } from "@/lib/workspaces";
+import settingsStyles from "@/components/management/ui/settings.module.css";
+import { useShellNavIfAny } from "@/components/layout/shell-nav";
+
+const embeddedClass = settingsStyles.embedded;
 
 export type SettingsFrameProps = {
   /**
@@ -87,102 +81,32 @@ export function SettingsFrame({
   title,
   actions,
   railCounts,
-  railAttention,
 }: SettingsFrameProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { data: session } = useSession();
-
-  const user = session?.user as
-    | {
-        role?: string;
-        enabledFeatures?: string[];
-        workspaceProfile?: string;
-        companySlug?: string;
-      }
-    | undefined;
-  const role = user?.role;
-  const enabledFeatures = user?.enabledFeatures;
+  // The figures this page has already loaded ride on its rows in the sidebar.
+  const setCounts = useShellNavIfAny()?.setManagementCounts;
+  const countsKey = railCounts ? JSON.stringify(railCounts) : "";
+  React.useEffect(() => {
+    if (!setCounts || !countsKey) return;
+    setCounts(JSON.parse(countsKey) as Record<string, number>);
+  }, [countsKey, setCounts]);
 
   /*
-    Where closing the surface goes: the landing screen of the workspace the
-    reader was in — the same front door the sidebar opens on. A fixed destination rather than `router.back()`: the surface is
-    reachable from a sidebar entry and a handful of in-page links, and half of
-    those arrive with a history entry that is another settings page. Going
-    "back" from Billing to Job grades is not leaving the surface.
+    Management is the sidebar's one sanctioned swap (Mgmt-Users.dc.html): the
+    shell draws Management's tree where the sidebar was and the app bar over
+    the page, so this draws the page column alone. Leaving is the sidebar's
+    row back to the workspace. The surface still marks its paint scope, which
+    every settings control reads its tokens from.
   */
-  // The back link names where it goes: "Back to Floorcode".
-  const workspaceName = useWorkspaceName();
-  const landingHref = React.useMemo(
-    () =>
-      getComputedWorkspaceHomeHref({
-        role,
-        enabledFeatures,
-        workspaceProfile: user?.workspaceProfile,
-      }),
-    [enabledFeatures, role, user?.workspaceProfile],
-  );
-
-  // Open on mount and closed by leaving: the surface is a route, so its
-  // "closed" state is a different page rather than a different render.
-  const [open, setOpen] = React.useState(true);
-
-  const handleOpenChange = React.useCallback(
-    (next: boolean) => {
-      setOpen(next);
-      if (!next) router.push(landingHref);
-    },
-    [landingHref, router],
-  );
-
-  const groups = React.useMemo<SettingsRailGroup[]>(() => {
-    const visible = getSettingsRailGroups({ role, enabledFeatures, workspaceProfile: user?.workspaceProfile });
-    const active = findActiveSettingsNavEntry(
-      pathname ?? "",
-      visible.flatMap((group) => group.items),
-    );
-    const attention = new Set(railAttention ?? []);
-
-    return visible.map((group) => ({
-      id: group.id,
-      label: group.label,
-      items: group.items.map((entry) => ({
-        id: entry.id,
-        label: entry.label,
-        href: entry.href,
-        icon: entry.icon,
-        count: railCounts?.[entry.id],
-        attention: attention.has(entry.id),
-        /* Named, not the component's generic default. The dot is drawn on a
-           row whose own label is already read out, but a screen reader moving
-           through a rail with two of them would otherwise hear "Needs
-           attention" twice with nothing to tell the two apart. */
-        attentionLabel: `${entry.label} needs attention`,
-        active: entry.id === active?.id,
-        lintIgnore: entry.lintIgnore,
-      })),
-    }));
-  }, [enabledFeatures, pathname, railAttention, railCounts, role, user?.workspaceProfile]);
-
   return (
-    <SettingsSurface
-      open={open}
-      onOpenChange={handleOpenChange}
-      rail={
-        <SettingsRail
-          groups={groups}
-          backHref={landingHref}
-          backLabel={workspaceName ? `Back to ${workspaceName}` : undefined}
-          title="Management"
-        />
-      }
-    >
+    <SettingsSurface open onOpenChange={noop} rail={null} className={embeddedClass}>
       <SettingsContent title={title} actions={actions}>
         {children}
       </SettingsContent>
     </SettingsSurface>
   );
 }
+
+const noop = () => {};
 
 /**
  * The surface's second grid child.

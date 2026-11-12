@@ -1,30 +1,57 @@
-/* The closed sidebar: 56px of marks on the ground colour. */
+/* The sidebar collapsed (Rail.dc.html): 56px of marks on the ground colour,
+   one group between hairlines, and a flyout of the group beside a mark. */
 
-.rail {
+.rl {
   width: 56px;
   height: 100%;
+  min-height: 0;
   flex: none;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 12px 0;
+  gap: 2px;
+  padding: 10px 0 12px;
   background: var(--ground);
   box-shadow: inset -1px 0 0 var(--line);
-  box-sizing: border-box;
+  position: relative;
 }
 
-.tile {
-  margin: 4px 0 4px;
-}
-
-.open,
 .mark {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
+  margin: 8px 0 12px;
+}
+
+.marks {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.marks::-webkit-scrollbar {
+  display: none;
+}
+
+.sep {
+  width: 24px;
+  height: 1px;
+  flex: none;
+  margin: 8px 0;
+  background: var(--line);
+}
+
+.ib {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -34,101 +61,73 @@
   text-decoration: none;
 }
 
-.open {
-  margin-bottom: 8px;
-}
-
-.open:hover,
-.mark:hover {
-  background: var(--hover);
+.ib:hover {
+  background: var(--active);
   color: var(--ink);
 }
 
-.current,
-.current:hover {
-  background: var(--surface);
+.ib.inBranch {
+  background: var(--tray);
   color: var(--ink);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
 }
 
-.marks {
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  margin: 0;
-  padding: 4px 0;
-  list-style: none;
+.ib[aria-current="page"] {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+}
+
+.ib:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+.ic {
+  width: 16px;
+  height: 16px;
+}
+
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--bad);
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+.brand {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  overflow-y: auto;
-  scrollbar-width: none;
+  padding: 8px 0 0;
 }
 
-.marks::-webkit-scrollbar {
-  display: none;
+.brandMark {
+  width: 14px;
+  height: 15px;
+  color: #0f62fe;
 }
 
-.cell {
-  position: relative;
-}
-
-/* A page's children, beside its mark, from hover or focus inside the cell. */
-.flyout {
-  display: none;
+/* The flyout: the hovered mark's group, the mark's page open on its children. */
+.fly {
   position: fixed;
-  left: 52px;
-  z-index: 40;
-  min-width: 192px;
+  left: 62px;
+  z-index: 50;
+  width: 220px;
   padding: 6px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-float);
-}
-
-.cell:hover .flyout,
-.cell:focus-within .flyout {
-  display: block;
-}
-
-.flyTitle,
-.flyKid {
-  display: block;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   font-size: 13px;
-  line-height: 28px;
-  text-decoration: none;
-  white-space: nowrap;
+  color: var(--ink);
 }
 
-.flyTitle {
-  font-weight: 600;
-}
-
-.flyKid {
-  color: var(--ink-2, var(--ink));
-}
-
-.flyTitle:hover,
-.flyKid:hover {
-  background: var(--hover);
-}
-
-.flyCurrent {
-  background: var(--hover);
-}
-
-.person {
-  flex: none;
-  margin-top: 8px;
-}
-
-.open:focus-visible,
-.mark:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+.flyHead {
+  padding: 6px 10px 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-3);
 }

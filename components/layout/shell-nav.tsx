@@ -14,6 +14,13 @@ import { canOpenFor, lockedAddresses, productGroupsFor, visibleAddresses } from 
 import { composeNav, type ComposedGroup } from "@/lib/nav/compose";
 import { activeNav, type ActiveNav } from "@/lib/nav/match";
 import {
+  activeManagementItem,
+  composeManagement,
+  isManagementPath,
+  type ManagementGroup,
+} from "@/lib/nav/management";
+import { getVisibleSettingsNavEntries } from "@/lib/settings/management-nav";
+import {
   canRoleOpenRetailPath,
   hiddenRetailNavHrefs,
   retailNavItemForPath,
@@ -54,8 +61,23 @@ const noopSubscribe = () => () => {};
 export type ShellNav = {
   /** The address of the sidebar row this page is in, or null. */
   activeHref: string | null;
-  /** Management, for every role allowed to open it. */
+  /** Management, for every role allowed to open it: where its gear goes. */
   management: NavItem | null;
+  /** Management's tree for this person (`lib/nav/management.ts`). */
+  managementGroups: ManagementGroup[];
+  /** The page is one of Management's: the sidebar draws Management's tree in its place. */
+  inManagement: boolean;
+  /** The Management row this page is, or null. */
+  managementActive: string | null;
+  /**
+   * Where the owner adds what the workspace has not bought (Parts.dc.html):
+   * pages the plan leaves out are not in the sidebar, greyed or otherwise, and
+   * the owner sees one row that adds them. Null for everyone else.
+   */
+  addHref: string | null;
+  /** Figures a Management page has already loaded, for its rows, by settings entry id (`SettingsFrame`'s `railCounts`). */
+  managementCounts: Record<string, number>;
+  setManagementCounts: (counts: Record<string, number> | null) => void;
   /** The sidebar for this person (`lib/nav`): what they may open, in groups. */
   groups: ComposedGroup[];
   /** The node, and child, this page is in `groups`. */
@@ -192,20 +214,45 @@ export function ShellNavProvider({
   // badge it has not got, is not offered, unless it is the page they are on.
   const [notFound, setNotFound] = React.useState(false);
   const { groups, active } = React.useMemo(() => {
-    const allowed = canOpenFor(modelArgs);
+    // What the workspace's plan does not include is not in the sidebar at all
+    // (Model rule 05); the owner's one row adds it (`addHref`).
+    const may = canOpenFor(modelArgs);
     const locks = lockedAddresses(modelArgs);
-    const lockOf = (href: string) => locks.get(href.split("?")[0] ?? href);
+    const allowed = (href: string) => may(href) && !locks.has(href.split("?")[0] ?? href);
     const unmet = hiddenRetailNavHrefs(conditions, badges);
     const products = productGroupsFor(open, workspaceProfile);
     const here = activeNav(composeNav({ canOpen: allowed, products }), pathname, searchParams);
     const composed = composeNav({
       canOpen: (href) => allowed(href) && (!unmet.has(href) || href === here?.href),
       products,
-      lockOf,
     });
     return { groups: composed, active: notFound ? null : activeNav(composed, pathname, searchParams) };
   }, [badges, conditions, modelArgs, notFound, open, pathname, searchParams, workspaceProfile]);
   const activeHref = active?.href ?? null;
+
+  // Management: the one sanctioned swap. Its rows keep the gates they had.
+  const managementGroups = React.useMemo(() => {
+    const allowed = canOpenFor(modelArgs);
+    const settings = new Set(getVisibleSettingsNavEntries(modelArgs).map((entry) => entry.id));
+    return composeManagement({ settings, canOpen: allowed });
+  }, [modelArgs]);
+  const inManagement = isManagementPath(pathname, searchParams);
+  const [managementCounts, setCounts] = React.useState<Record<string, number>>({});
+  const setManagementCounts = React.useCallback((counts: Record<string, number> | null) => {
+    setCounts((current) => {
+      const next = counts ?? {};
+      const same = Object.keys(next).length === Object.keys(current).length && Object.entries(next).every(([key, value]) => current[key] === value);
+      return same ? current : next;
+    });
+  }, []);
+  const addHref = React.useMemo(
+    () => (role === "SUPERADMIN" && lockedAddresses(modelArgs).size > 0 ? "/preferences/organization/billing" : null),
+    [modelArgs, role],
+  );
+  const managementActive = React.useMemo(
+    () => (inManagement ? activeManagementItem(managementGroups, pathname, searchParams) : null),
+    [inManagement, managementGroups, pathname, searchParams],
+  );
 
   // Every retail page is known, visible or not, so a page whose item this
   // role cannot see lights nothing rather than its nearest visible ancestor.
@@ -235,7 +282,16 @@ export function ShellNavProvider({
   const value = React.useMemo<ShellNav>(
     () => ({
       activeHref,
-      management: isRouteAllowedForRole(role, MANAGEMENT_NAV_ITEM.href) ? MANAGEMENT_NAV_ITEM : null,
+      management:
+        managementGroups.some((group) => group.id !== "account") && isRouteAllowedForRole(role, MANAGEMENT_NAV_ITEM.href)
+          ? { ...MANAGEMENT_NAV_ITEM, href: managementGroups[0]!.items[0]!.href }
+          : null,
+      managementGroups,
+      inManagement,
+      managementActive,
+      addHref,
+      managementCounts,
+      setManagementCounts,
       groups,
       active,
       pageLabel: active?.label ?? pageItem?.label ?? null,
@@ -250,7 +306,7 @@ export function ShellNavProvider({
       initials: logoInitials(brand?.legalName, companyName),
       logoUrl: brand?.logoUrl ?? null,
     }),
-    [active, activeHref, badges, brand, companyName, front, groups, pageItem, pending, refused, refusalNoun, role],
+    [active, activeHref, addHref, badges, managementCounts, setManagementCounts, brand, companyName, front, groups, inManagement, managementActive, managementGroups, pageItem, pending, refused, refusalNoun, role],
   );
 
   return <ShellNavContext.Provider value={value}>{children}</ShellNavContext.Provider>;

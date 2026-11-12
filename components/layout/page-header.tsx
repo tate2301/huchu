@@ -13,25 +13,23 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { getCurrentPageTitle } from "@/components/layout/breadcrumbs";
-import {
-  VaneBarButton,
-  NotificationsBell,
-  SearchTrigger,
-} from "@/components/layout/app-bar-tools";
+import { VaneBarButton, NotificationsBell, SearchTrigger } from "@/components/layout/app-bar-tools";
 import { EmergencyHeaderTrigger } from "@/components/alerts/emergency-alert-host";
 import { Button as KitButton, ButtonLink as KitButtonLink, Kit } from "@/components/core";
 import { usePageChrome, type PagePrimary } from "@/components/layout/page-chrome";
 import { useShellNav } from "@/components/layout/shell-nav";
+import { ChromeIcon, NavIcon } from "@/components/layout/sidebar/parts";
 import { NAV_ICONS } from "@/lib/icons/corelith-nav.generated";
 import { useRecordStep } from "@/components/layout/use-record-step";
-import { RecordStepper } from "@/components/workspace/button-group-parts";
 import { useShell } from "@/components/layout/shell-state";
 import { Button } from "@/components/workspace/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
 import { CrmMembers } from "@/components/crm/crm-members";
-import { CaretLeft, ChevronDown, DotsThree, List, Plus, type LucideIcon } from "@/lib/icons";
+import { type LucideIcon } from "@/lib/icons";
 import { VANE_PAGES } from "@/components/vane/vane-nav";
 import { EXPLORE_NAV_ITEMS, navSections } from "@/lib/navigation";
+
+import bar from "./app-bar.module.css";
 
 /**
  * The icon the nav shows for this route, for a page outside the current
@@ -59,24 +57,19 @@ function sheetHref(pathname: string, search: string, sheet: string) {
 
 /** The shortcut a primary shows and answers to: its own, or N for a New. */
 function primaryShortcut(primary: PagePrimary | null): string | undefined {
-  if (!primary || primary.disabled || primary.menu?.length) return undefined;
+  if (!primary || primary.disabled || primary.busy || primary.menu?.length) return undefined;
   return primary.shortcut ?? (primary.icon === "plus" ? "N" : undefined);
 }
 
 /**
- * The 56px top bar (design/core-modules/spec/shell.md, `.tb-m`): the back
- * link, the page's icon and title, reference or sub and sub link; then
- * everything else in the right section (the owner, 19 Oct). Vane (its
- * button), search everything (Ctrl K) and the notifications bell with its
- * unread count are on every page and never move, at the far right; the CRM's
- * members, the page's own actions and its one primary appear to their left.
- * The device's sync state is in the account menu. The panel's own Hide
- * button and the rail hide and show the panel.
+ * The app bar (the App bar page of the navigation canvas): 56px, the page's
+ * icon, its parent and title, its reference, the previous and next record with
+ * the position; then its actions, its one primary, the emergency signal and
+ * the three tools that never move: Vane, search and notifications.
  *
- * Below 720px it is "≡ <title> Vane, search, bell, ⋯ +": the menu button
- * opens the drawer and a create primary becomes a 44px plus; a verb primary
- * leads ⋯, and the page's other actions fold into ⋯ (as the page's
- * `phoneMenu` items when it gives them).
+ * Under 720px it is the same bar folded: the menu (or back, on a record), a
+ * 17px title, the tools as 44px icons, ⋯ for the folded actions and the
+ * primary as a plus. On a record the tools give way to ⋯.
  */
 export function PageHeader() {
   const { actions, identity, primary, phoneMenu } = usePageChrome();
@@ -91,10 +84,11 @@ export function PageHeader() {
     : (nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view")));
   const back = identity?.back;
   // A record opened from a list steps to its neighbours in it.
-  const step = useRecordStep(Boolean(back));
-  const primaryHref = primary?.href ?? (primary?.sheet ? sheetHref(pathname, searchParams.toString(), primary.sheet) : null);
+  const step = useRecordStep(Boolean(identity?.back));
+  const primaryHref =
+    primary?.href ?? (primary?.sheet ? sheetHref(pathname, searchParams.toString(), primary.sheet) : null) ?? primary?.menu?.[0]?.href ?? null;
   const runPrimary = (target: PagePrimary) => {
-    if (target.disabled) return;
+    if (target.disabled || target.busy) return;
     if (target.onClick) target.onClick();
     else if (primaryHref) router.push(primaryHref);
   };
@@ -104,139 +98,84 @@ export function PageHeader() {
   const menuCount = folded.length + (phoneMenu?.length ?? 0) + (primaryInMenu ? 1 : 0);
   // Held lowercase and drawn with `createElement`: a capitalised binding read
   // during render looks to the lint rule like a component made in render.
-  const pageIcon: ElementType | undefined = (nav.pageIcon ? NAV_ICONS[nav.pageIcon] : undefined) ?? routeIcon(pathname);
+  const pageIconName = managementRow?.icon ?? nav.pageIcon;
+  const pageIcon: ElementType | undefined = pageIconName && NAV_ICONS[pageIconName] ? undefined : routeIcon(pathname);
   const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
   return (
     // 56px with its bottom line, plus the notch on a phone.
     <header className="box-border h-[calc(56px+env(safe-area-inset-top))] flex-none bg-[var(--surface)] pt-[env(safe-area-inset-top)] shadow-[inset_0_-1px_0_var(--line)]">
       {/* ≥720px */}
-      <div className="flex h-full items-center gap-3 px-6 max-[719px]:hidden">
-        {/* The boards' crumb (`.tb-m h1`): the page's icon, the parent in grey as the way back, a faint slash, the record. */}
-        <h1 className="m-0 flex min-w-0 items-center gap-2 text-[16px] font-semibold text-[var(--ink)]">
-          {pageIcon ? createElement(pageIcon, { className: "size-4 shrink-0 text-[var(--ink-3)]", "aria-hidden": true }) : null}
-          {back ? (
-            <>
-              <Link
-                href={back.href}
-                title={`Back to ${back.label}`}
-                className="shrink-0 font-medium text-[var(--ink-3)] no-underline hover:text-[var(--ink)] hover:underline hover:underline-offset-[3px]"
-              >
-                {back.label}
-              </Link>
-              {title ? (
-                <span aria-hidden="true" className="shrink-0 font-normal text-[var(--faint)]">
-                  /
-                </span>
-              ) : null}
-            </>
-          ) : null}
-          <span className="min-w-0 truncate">{title}</span>
-        </h1>
-        {step ? (
-          <RecordStepper
-            noun={back?.label.toLowerCase() ?? "records"}
-            onPrevious={step.previous}
-            onNext={step.next}
-            position={step.position}
-            total={step.total}
-          />
-        ) : null}
-        {identity?.reference ? (
-          <span className="shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
-            {identity.reference}
-            {identity.picker ? " · " : null}
-          </span>
-        ) : null}
-        {identity?.picker ? (
-          identity.picker.options.length > 1 ? (
-            <Menu>
-              <MenuTrigger asChild>
-                <button
-                  type="button"
-                  className="-ml-1.5 flex h-7 shrink-0 items-center gap-1 rounded-[6px] px-1 font-mono text-[var(--ink-3)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
-                  style={{ fontSize: 12 }}
-                >
-                  {identity.picker.label}
-                  <ChevronDown className="size-3" aria-hidden="true" />
-                </button>
-              </MenuTrigger>
-              <MenuContent align="start">
-                {identity.picker.options.map((option) => (
-                  <MenuItem key={option.key} onSelect={() => router.push(option.href)}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </MenuContent>
-            </Menu>
-          ) : (
-            <span className="-ml-1.5 shrink-0 font-mono text-[var(--ink-3)]" style={{ fontSize: 12 }}>
-              {identity.picker.label}
-            </span>
-          )
-        ) : null}
-        {identity?.sub ? (
-          <span className="min-w-0 truncate text-[var(--ink-3)]">{identity.sub}</span>
-        ) : null}
-        {identity?.subLink ? (
-          <Link
-            href={identity.subLink.href}
-            className="shrink-0 whitespace-nowrap text-[var(--ink)] underline decoration-[var(--line-strong)] underline-offset-[3px]"
-          >
-            {identity.subLink.label}
-          </Link>
-        ) : null}
-        <div className="flex-1" />
-        <div className="flex shrink-0 items-center gap-2">
-          {showMembers ? <CrmMembers className="mr-1" /> : null}
-          {/* The page's actions and primary, left of the tools that never move. */}
-          <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-            {primary?.menu?.length ? (
+      <div className={bar.bar}>
+        <div className={bar.left}>
+          <h1 className={bar.crumb}>
+            {pageIconName && NAV_ICONS[pageIconName] ? (
+              <NavIcon name={pageIconName} className={bar.pg} />
+            ) : pageIcon ? (
+              createElement(pageIcon, { className: bar.pg, "aria-hidden": true })
+            ) : null}
+            {back ? (
+              <>
+                <Link href={back.href} className={bar.par}>
+                  {back.label}
+                </Link>
+                {title ? (
+                  <span aria-hidden="true" className={bar.sl}>
+                    /
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+            <span className={bar.title}>{title}</span>
+          </h1>
+          {identity?.reference ? <span className={bar.ref}>{identity.reference}</span> : null}
+          {identity?.picker ? (
+            identity.picker.options.length > 1 ? (
               <Menu>
                 <MenuTrigger asChild>
-                  <Button variant="primary" icon={primary.icon === "plus" ? <Plus className="size-3.5" aria-hidden="true" /> : undefined}>
-                    {primary.label}
-                  </Button>
+                  <button type="button" className={bar.pick}>
+                    {identity.picker.label}
+                    <ChromeIcon name="next" className={bar.ic12} />
+                  </button>
                 </MenuTrigger>
-                <MenuContent align="end">
-                  {primary.menu.map((item) => (
-                    <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
-                      {item.label}
+                <MenuContent align="start" style={{ minWidth: 232 }}>
+                  {identity.picker.options.map((option) => (
+                    <MenuItem key={option.key} onSelect={() => router.push(option.href)}>
+                      {option.label}
                     </MenuItem>
                   ))}
                 </MenuContent>
               </Menu>
-            ) : primary?.disabled ? (
-              <span title={primary.disabled} className="inline-flex">
-                <Button variant="primary" disabled aria-description={primary.disabled}>
-                  {primary.label}
-                </Button>
+            ) : (
+              <span className={bar.pick} style={{ cursor: "default" }}>
+                {identity.picker.label}
               </span>
-            ) : primary ? (
-              <Kit contents>
-                {primaryHref && !primary.onClick ? (
-                  <KitButtonLink
-                    href={primaryHref}
-                    variant="primary"
-                    icon={primary.icon}
-                    shortcut={primaryShortcut(primary)}
-                  >
-                    {primary.label}
-                  </KitButtonLink>
-                ) : (
-                  <KitButton
-                    variant="primary"
-                    icon={primary.icon}
-                    shortcut={primaryShortcut(primary)}
-                    onClick={() => runPrimary(primary)}
-                  >
-                    {primary.label}
-                  </KitButton>
-                )}
-              </Kit>
-            ) : null}
-          </div>
+            )
+          ) : null}
+          {step ? (
+            <span className={bar.step} role="group" aria-label={`Move between ${back?.label.toLowerCase() ?? "records"}`}>
+              <button type="button" className={bar.tool} aria-label="Previous record, K" aria-keyshortcuts="K" disabled={!step.previous} onClick={step.previous ?? undefined}>
+                <ChromeIcon name="previous" className={bar.ic} />
+              </button>
+              <button type="button" className={bar.tool} aria-label="Next record, J" aria-keyshortcuts="J" disabled={!step.next} onClick={step.next ?? undefined}>
+                <ChromeIcon name="next" className={bar.ic} />
+              </button>
+              <span className={bar.pos}>
+                {step.position} of {step.total}
+              </span>
+            </span>
+          ) : null}
+          {identity?.sub ? <span className={bar.sub}>{identity.sub}</span> : null}
+          {identity?.subLink ? (
+            <Link href={identity.subLink.href} className={bar.subLink}>
+              {identity.subLink.label}
+            </Link>
+          ) : null}
+        </div>
+        <div className={bar.right}>
+          {showMembers ? <CrmMembers /> : null}
+          {actions ? <div className={bar.right}>{actions}</div> : null}
+          {primary ? <Primary primary={primary} href={primaryHref} onRun={() => runPrimary(primary)} /> : null}
           <EmergencyHeaderTrigger />
           <VaneBarButton />
           <SearchTrigger />
@@ -244,50 +183,36 @@ export function PageHeader() {
         </div>
       </div>
 
-      {/* <720px (Mobile board) */}
-      <div className="flex h-full items-center gap-1 pl-1 pr-1 min-[720px]:hidden">
-        {/* A record goes back to its list (BkInvoicePhone: ‹ INV-0131 ⋯); a page opens the menu. */}
+      {/* <720px */}
+      <div className={bar.phone}>
         {back ? (
-          <Link
-            href={back.href}
-            aria-label={`Back to ${back.label}`}
-            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
-          >
-            <CaretLeft weight="bold" className="size-5" aria-hidden="true" />
+          <Link href={back.href} aria-label={`Back to ${back.label}`} className={bar.tool}>
+            <ChromeIcon name="back" className={bar.ic20} />
           </Link>
         ) : (
-          <button
-            type="button"
-            aria-label="Open the menu"
-            onClick={() => shell.setDrawerOpen(true)}
-            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
-          >
-            <List weight="bold" className="size-5" aria-hidden="true" />
+          <button type="button" aria-label="Menu" aria-expanded={shell.drawerOpen} onClick={() => shell.setDrawerOpen(!shell.drawerOpen)} className={bar.tool}>
+            <ChromeIcon name="menu" className={bar.ic20} />
           </button>
         )}
-        <h1 className="m-0 min-w-0 flex-1 truncate text-[17px] font-semibold text-[var(--ink)]">{title}</h1>
+        <h1 className={bar.phoneTitle}>{title}</h1>
         {back ? null : (
           <>
             <EmergencyHeaderTrigger compact />
             <VaneBarButton />
-            <SearchTrigger compact />
-            <NotificationsBell compact />
+            <SearchTrigger />
+            <NotificationsBell />
           </>
         )}
         {menuCount > 0 ? (
           <Menu>
             <MenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="More actions"
-                className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--ink-2)]"
-              >
-                <DotsThree weight="regular" className="size-5" aria-hidden="true" />
+              <button type="button" aria-label="More actions" className={bar.tool}>
+                <ChromeIcon name="more" className={bar.ic20} />
               </button>
             </MenuTrigger>
-            <MenuContent align="end">
+            <MenuContent align="end" style={{ minWidth: 232 }}>
               {primaryInMenu ? (
-                <MenuItem className="font-semibold" disabled={Boolean(primaryInMenu.disabled)} sub={primaryInMenu.disabled} onSelect={() => runPrimary(primaryInMenu)}>
+                <MenuItem className="font-semibold" disabled={Boolean(primaryInMenu.disabled || primaryInMenu.busy)} sub={primaryInMenu.disabled} onSelect={() => runPrimary(primaryInMenu)}>
                   {primaryInMenu.label}
                 </MenuItem>
               ) : null}
@@ -296,26 +221,20 @@ export function PageHeader() {
                   {item.label}
                 </MenuItem>
               ))}
-              {folded.length ? (
-                <div className="flex flex-col gap-1 p-1 [&_a]:w-full [&_button]:w-full">{folded}</div>
-              ) : null}
+              {folded.length ? <div className="flex flex-col gap-1 p-1 [&_a]:w-full [&_button]:w-full">{folded}</div> : null}
             </MenuContent>
           </Menu>
         ) : null}
         {primary?.menu?.length ? (
           <Menu>
             <MenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={primary.label}
-                className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--action)]"
-              >
-                <Plus className="size-[22px]" aria-hidden="true" />
+              <button type="button" aria-label={primary.label} className={bar.plus}>
+                <ChromeIcon name="add" className={bar.ic20} />
               </button>
             </MenuTrigger>
-            <MenuContent align="end">
+            <MenuContent align="end" style={{ minWidth: 232 }}>
               {primary.menu.map((item) => (
-                <MenuItem key={item.href} onSelect={() => router.push(item.href)}>
+                <MenuItem key={item.href} icon={<ChromeIcon name="add" />} onSelect={() => router.push(item.href)}>
                   {item.label}
                 </MenuItem>
               ))}
@@ -324,15 +243,76 @@ export function PageHeader() {
         ) : primary && !primaryInMenu ? (
           <button
             type="button"
-            aria-label={primary.label}
+            aria-label={primary.disabled ? `${primary.label}: ${primary.disabled}` : primary.label}
+            title={primary.disabled}
+            disabled={Boolean(primary.disabled || primary.busy)}
             onClick={() => runPrimary(primary)}
-            className="flex size-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--action)]"
+            className={bar.plus}
           >
-            <Plus className="size-[22px]" aria-hidden="true" />
+            <ChromeIcon name="add" className={bar.ic20} />
           </button>
         ) : null}
       </div>
     </header>
+  );
+}
+
+/**
+ * The page's one filled button, in every state the App bar page draws: at
+ * rest, with a menu behind its chevron, working (a spinner, the label kept),
+ * and held, greyed in place with its reason on hover and to a screen reader.
+ */
+function Primary({ primary, href, onRun }: { primary: PagePrimary; href: string | null; onRun: () => void }) {
+  const router = useRouter();
+  if (primary.disabled) {
+    return (
+      <span title={primary.disabled} className="inline-flex">
+        <Button variant="primary" disabled aria-description={primary.disabled} className={bar.held}>
+          {primary.label}
+        </Button>
+      </span>
+    );
+  }
+  if (primary.busy) {
+    return (
+      <Button variant="primary" aria-busy="true" className={bar.busy} onClick={(event) => event.preventDefault()}>
+        <span className={bar.spin} aria-hidden="true" />
+        {primary.label}
+      </Button>
+    );
+  }
+  const main = (
+    <Kit contents>
+      {href && !primary.onClick && !primary.menu?.length ? (
+        <KitButtonLink href={href} variant="primary" icon={primary.icon} shortcut={primaryShortcut(primary)}>
+          {primary.label}
+        </KitButtonLink>
+      ) : (
+        <KitButton variant="primary" icon={primary.icon} shortcut={primaryShortcut(primary)} onClick={onRun}>
+          {primary.label}
+        </KitButton>
+      )}
+    </Kit>
+  );
+  if (!primary.menu?.length) return main;
+  return (
+    <span className={bar.split}>
+      {main}
+      <Menu>
+        <MenuTrigger asChild>
+          <Button variant="primary" aria-label="More ways to create">
+            <ChromeIcon name="next" className={bar.ic12} />
+          </Button>
+        </MenuTrigger>
+        <MenuContent align="end" style={{ minWidth: 232 }}>
+          {primary.menu.map((item) => (
+            <MenuItem key={item.href} icon={<ChromeIcon name="add" />} onSelect={() => router.push(item.href)}>
+              {item.label}
+            </MenuItem>
+          ))}
+        </MenuContent>
+      </Menu>
+    </span>
   );
 }
 

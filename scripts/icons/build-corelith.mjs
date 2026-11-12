@@ -1,6 +1,6 @@
 // Builds lib/icons/corelith-nav.generated.tsx from the Corelith icon pack.
 //
-// Only the icons the navigation registry names are written, so the sidebar
+// Only the icons the navigation files (lib/nav) name are written, so the sidebar
 // carries about sixty small components rather than the pack's 618. Run after
 // changing an `icon:` in lib/nav/registry.ts or updating the pack:
 //
@@ -14,9 +14,15 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const pack = JSON.parse(fs.readFileSync(path.join(root, "design/nav/icons/icons.json"), "utf8"));
-const registry = fs.readFileSync(path.join(root, "lib/nav/registry.ts"), "utf8");
+// Every icon a navigation file names: the registry, Management's catalogue and the chrome.
+const navDir = path.join(root, "lib/nav");
+const sources = fs
+  .readdirSync(navDir)
+  .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+  .map((file) => fs.readFileSync(path.join(navDir, file), "utf8"))
+  .join("\n");
 
-const names = [...new Set([...registry.matchAll(/icon: "([a-z0-9-]+)"/g)].map((m) => m[1]))].sort();
+const names = [...new Set([...sources.matchAll(/icon: "([a-z0-9-]+)"/g)].map((m) => m[1]))].sort();
 const missing = names.filter((name) => !pack[name]);
 if (missing.length) {
   console.error(`Not in the Corelith pack: ${missing.join(", ")}`);

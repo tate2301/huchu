@@ -55,14 +55,23 @@ describe("PhoneBar", () => {
 });
 
 describe("Rail", () => {
-  it("has a mark for each top-level page, each naming its page, and one control to open", () => {
+  it("has a mark for each top-level page, a hairline per group, and opens the sidebar", () => {
     const onOpen = vi.fn();
     mount(
-      <Rail groups={groups} active={activeNav(groups, "/", null)} prefs={NO_PREFS} tile={<i />} person={<i />} onOpen={onOpen} />,
+      <Rail
+        groups={groups}
+        active={activeNav(groups, "/", null)}
+        prefs={NO_PREFS}
+        badges={{}}
+        switcher={<i />}
+        management={{ href: "/preferences/organization", current: false }}
+        onOpen={onOpen}
+      />,
     );
-    const marks = host!.querySelectorAll("li > a[aria-label]");
+    const marks = [...host!.querySelectorAll("a[aria-label]")].filter((a) => a.getAttribute("aria-label") !== "Management");
     expect(marks).toHaveLength(nodes.length);
-    act(() => host!.querySelector<HTMLButtonElement>('button[aria-label="Open the sidebar"]')!.click());
+    expect(host!.querySelector('a[aria-label="Management"]')).toBeTruthy();
+    act(() => host!.querySelector<HTMLButtonElement>('button[aria-label="Open the sidebar, ["]')!.click());
     expect(onOpen).toHaveBeenCalled();
   });
 });
