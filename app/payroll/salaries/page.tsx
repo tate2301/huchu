@@ -205,10 +205,7 @@ function HrSalariesContent() {
       head: "Prepared by",
       cell: (r) =>
         r.createdBy?.name ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={r.createdBy.name} size={24} />
-            <span>{r.createdBy.name}</span>
-          </span>
+          <Person name={r.createdBy.name} />
         ) : (
           <None />
         ),
@@ -296,13 +293,7 @@ function HrSalariesContent() {
       key: "employee",
       head: "Employee",
       cell: (p) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={p.employee.name} size={24} />
-          <span>
-            <span style={{ display: "block", fontWeight: 500 }}>{p.employee.name}</span>
-            <span className="muted mono" style={{ fontSize: 11 }}>{p.employee.employeeId}</span>
-          </span>
-        </span>
+        <Person name={p.employee.name} sub={p.employee.employeeId} />
       ),
     },
     {

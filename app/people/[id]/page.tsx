@@ -532,8 +532,9 @@ export default function EmployeeRecordPage() {
           <ul className="k-hist">
             {employee.supervisees.map((report) => (
               <li key={report.id}>
-                <Person name={report.name} size={20} />
-                <Link href={`/people/${report.id}`}>{report.name}</Link>
+                <Person name={report.name}>
+                  <Link href={`/people/${report.id}`}>{report.name}</Link>
+                </Person>
                 <span className="muted mono">{report.employeeId}</span>
               </li>
             ))}

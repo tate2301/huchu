@@ -243,13 +243,7 @@ function CompensationContent() {
       key: "employee",
       head: "Staff member",
       cell: (p) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={p.employee.name} size={28} />
-          <span>
-            <span style={{ display: "block", fontWeight: 500 }}>{p.employee.name}</span>
-            <span className="muted mono" style={{ fontSize: 11 }}>{p.employee.employeeId}</span>
-          </span>
-        </span>
+        <Person name={p.employee.name} sub={p.employee.employeeId} />
       ),
     },
     {

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -19,13 +20,16 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Drawer,
+  DrawerRow,
   DrawerSection,
   Field,
   Input,
   Person,
+  Select,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
@@ -64,7 +68,8 @@ export default function RostersPage() {
   const [crewCode, setCrewCode] = React.useState("");
   const [crewSiteId, setCrewSiteId] = React.useState("");
   const [crewLeaderId, setCrewLeaderId] = React.useState("");
-  const [crewDescription, setCrewDescription] = React.useState("");
+  const [openCrew, setOpenCrew] = React.useState<ShiftGroupRecord | null>(null);
+  const [addEmployeeId, setAddEmployeeId] = React.useState("");
 
   // Queries
   const crewsQuery = useQuery({
@@ -115,7 +120,40 @@ export default function RostersPage() {
   const rowIds = React.useMemo(() => pageRows.map((r: ShiftGroupRecord) => r.id), [pageRows]);
   const selection = useSelection(rowIds);
 
+  const membersQuery = useQuery({
+    queryKey: ["roster-members", openCrew?.id],
+    queryFn: () =>
+      fetchJson<{ data: Array<{ id: string; isActive: boolean; employee: { id: string; name: string; employeeId: string } }> }>(
+        `/api/people/rosters/${openCrew?.id}/members?active=true`
+      ),
+    enabled: Boolean(openCrew),
+  });
+  const members = React.useMemo(() => membersQuery.data?.data ?? [], [membersQuery.data]);
+
   // Mutations
+  const refreshCrew = () => {
+    void queryClient.invalidateQueries({ queryKey: ["roster-members", openCrew?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["roster-crews"] });
+  };
+  const addMember = useMutation({
+    mutationFn: (employeeId: string) =>
+      fetchJson(`/api/people/rosters/${openCrew?.id}/members`, { method: "POST", body: JSON.stringify({ employeeIds: [employeeId] }) }),
+    onSuccess: () => {
+      setAddEmployeeId("");
+      toast({ title: "Added to the crew" });
+      refreshCrew();
+    },
+    onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
+  });
+  const removeMember = useMutation({
+    mutationFn: (memberId: string) => fetchJson(`/api/people/rosters/${openCrew?.id}/members/${memberId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Removed from the crew" });
+      refreshCrew();
+    },
+    onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
+  });
+
   const createMutation = useMutation({
     mutationFn: (values: {
       name: string;
@@ -149,7 +187,7 @@ export default function RostersPage() {
     const target = selectedRows.length > 0 ? selectedRows : filtered;
     downloadCsv(
       "crews-and-rosters.csv",
-      ["Crew Name", "Code", "Site", "Shift Leader", "Staff Count", "Status"],
+      ["Crew", "Code", "Site", "Leader", "Members", "Status"],
       target.map((c: ShiftGroupRecord) => [
         c.name,
         c.code || "",
@@ -164,7 +202,7 @@ export default function RostersPage() {
   const handleCopyCodes = () => {
     const codes = selectedRows.map((c: ShiftGroupRecord) => `${c.name}: ${c.code || "—"}`).join("\n");
     void navigator.clipboard.writeText(codes);
-    toast({ title: `Copied ${selectedRows.length} crew roster code${selectedRows.length > 1 ? "s" : ""} to clipboard` });
+    toast({ title: selectedRows.length === 1 ? "Code copied" : `${selectedRows.length} codes copied` });
   };
 
   const currentSiteName = React.useMemo(
@@ -175,83 +213,25 @@ export default function RostersPage() {
   const activeCount = crews.filter((c: ShiftGroupRecord) => c.isActive).length;
 
   const columns: Array<WsColumn<ShiftGroupRecord>> = [
-    {
-      key: "name",
-      head: "Crew / Roster",
-      cell: (c) => (
-        <span className="who" style={{ display: "block", fontWeight: 500 }}>
-          {c.name}
-        </span>
-      ),
-    },
-    {
-      key: "code",
-      head: "Shift code",
-      className: "muted mono",
-      cell: (c) => c.code || <None />,
-    },
-    {
-      key: "site",
-      head: "Site / Facility",
-      className: "muted",
-      cell: (c) => c.site?.name || <None />,
-    },
-    {
-      key: "leader",
-      head: "Shift leader",
-      cell: (c) =>
-        c.leader ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={c.leader.name} size={24} />
-            <span className="who" style={{ fontWeight: 500 }}>
-              {c.leader.name}
-            </span>
-          </span>
-        ) : (
-          <None />
-        ),
-    },
-    {
-      key: "members",
-      head: "Members",
-      right: true,
-      className: "mono",
-      cell: (c) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {c._count?.members ?? 0}
-        </span>
-      ),
-    },
-    {
-      key: "status",
-      head: "Status",
-      cell: (c) => (
-        <St tone={c.isActive ? "done" : "void"}>
-          {c.isActive ? "Active crew" : "Archived"}
-        </St>
-      ),
-    },
+    { key: "name", head: "Crew", cell: (c) => c.name },
+    { key: "code", head: "Code", className: "muted mono", cell: (c) => c.code || <None /> },
+    { key: "site", head: "Site", className: "muted", cell: (c) => c.site?.name || <None /> },
+    { key: "leader", head: "Leader", cell: (c) => (c.leader ? <Person name={c.leader.name} /> : <None />) },
+    { key: "members", head: "Members", right: true, className: "mono", cell: (c) => c._count?.members ?? 0 },
+    { key: "status", head: "Status", cell: (c) => <St tone={c.isActive ? "done" : "void"}>{c.isActive ? "Active" : "Archived"}</St> },
   ];
+
+  const memberIds = new Set(members.map((m) => m.employee.id));
+  const addable = employees.filter((e) => !memberIds.has(e.id));
 
   return (
     <PeopleShell
       activeTab="shift-groups"
-      primary={
-        canManage
-          ? {
-              label: "New crew",
-              icon: "plus",
-              shortcut: "N",
-              onClick: () => setCreateDrawerOpen(true),
-            }
-          : undefined
-      }
+      title="Rosters"
+      primary={canManage ? { label: "New crew", icon: "plus", shortcut: "N", onClick: () => setCreateDrawerOpen(true) } : undefined}
     >
       <BkPage screen="rosters" scroll={false}>
-        <BkFinding
-          fact={`${activeCount} active shift crews operating across ${sites.length} operational sites.`}
-          rest="Roster codes link daily attendance scans directly to scheduled shift rotation plans."
-        />
+        <BkFinding fact={`${activeCount} active ${activeCount === 1 ? "crew" : "crews"}${sites.length ? ` across ${sites.length} ${sites.length === 1 ? "site" : "sites"}` : ""}.`} />
 
         <BkTabs
           label="Roster views"
@@ -261,13 +241,13 @@ export default function RostersPage() {
             setPage(1);
           }}
           items={[
-            { value: "active", label: "Active crews", count: activeCount, icon: "check" },
-            { value: "all", label: "All rosters", count: crews.length, icon: "list" },
+            { value: "active", label: "Active", count: activeCount, icon: "check" },
+            { value: "all", label: "All", count: crews.length, icon: "list" },
           ]}
         />
 
         <BkTools
-          find="Search crews by name, code, site, or leader..."
+          find="Search crews"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -306,10 +286,11 @@ export default function RostersPage() {
 
         <BkScroll>
           <Worksheet
-            label="crews and rosters"
+            label="crews"
             rows={pageRows}
             rowKey={(c) => c.id}
             columns={columns}
+            onOpen={setOpenCrew}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -320,125 +301,32 @@ export default function RostersPage() {
             }}
             empty={
               crewsQuery.isLoading ? (
-                "Loading crews..."
+                <BooksLoading />
               ) : (
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No crews match the criteria.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Create a new shift crew using the action above to organize team rotations.
-                  </p>
-                </div>
+                <BkEmpty action={canManage ? <Button onClick={() => setCreateDrawerOpen(true)}>New crew</Button> : undefined}>No crews here.</BkEmpty>
               )
             }
           />
         </BkScroll>
 
-        <BkPager
-          page={page}
-          size={pageSize}
-          total={totalRows}
-          onPage={setPage}
-        />
+        <BkPager page={page} size={pageSize} total={totalRows} onPage={setPage} />
 
-        <BkSelectionBar
-          count={selection.selected.size}
-          onClear={selection.clear}
-        >
+        <BkSelectionBar count={selection.selected.size} onClear={selection.clear}>
           <Button icon="export" onClick={handleExport}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           <Button icon="docs" onClick={handleCopyCodes}>
-            Copy Codes
+            Copy codes
           </Button>
         </BkSelectionBar>
       </BkPage>
 
-      {/* Guided Drawer for creating new crew */}
       <Drawer
         open={createDrawerOpen}
         onOpenChange={setCreateDrawerOpen}
-        title="Create Shift Crew Roster"
-        sub="Establish operational shift team, location, and assigned supervisor."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <DrawerSection title="Crew Identity">
-            <Field label="Crew Name">
-              <Input
-                value={crewName}
-                onChange={(e) => {
-                  setCrewName(e.target.value);
-                  if (!crewCode && e.target.value.length >= 3) {
-                    setCrewCode(
-                      e.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z0-9]/g, "")
-                        .slice(0, 6)
-                    );
-                  }
-                }}
-                placeholder="e.g. Plant Alpha Shift"
-              />
-            </Field>
-
-            <Field label="Shift Code" help="Short identifier for attendance & kiosk punch">
-              <Input
-                value={crewCode}
-                onChange={(e) => setCrewCode(e.target.value.toUpperCase())}
-                placeholder="e.g. ALPHA"
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Site & Leadership">
-            <Field label="Operational Site">
-              <select
-                className="select"
-                value={crewSiteId}
-                onChange={(e) => setCrewSiteId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select location site...</option>
-                {sites.map((s: Site) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Shift Leader / Supervisor">
-              <select
-                className="select"
-                value={crewLeaderId}
-                onChange={(e) => setCrewLeaderId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select crew supervisor...</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({employeePositionLabel(e.position) || "Staff"})
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Notes & Rotation">
-            <Field label="Description / Rotation Schedule">
-              <textarea
-                className="textarea"
-                rows={3}
-                value={crewDescription}
-                onChange={(e) => setCrewDescription(e.target.value)}
-                placeholder="e.g. 4 on / 4 off 12-hour continuous mill rotation"
-                style={{ width: "100%" }}
-              />
-            </Field>
-          </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+        title="New crew"
+        footer={
+          <>
             <Button variant="quiet" onClick={() => setCreateDrawerOpen(false)}>
               Cancel
             </Button>
@@ -446,19 +334,109 @@ export default function RostersPage() {
               variant="primary"
               busy={createMutation.isPending}
               disabled={!crewName.trim() || !crewLeaderId}
-              onClick={() => {
+              onClick={() =>
                 createMutation.mutate({
                   name: crewName.trim(),
                   code: crewCode.trim() || undefined,
                   siteId: crewSiteId || undefined,
                   leaderEmployeeId: crewLeaderId,
-                });
-              }}
+                })
+              }
             >
-              Save crew
+              Save
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      >
+        <DrawerSection title="Crew">
+          <Field label="Name">
+            <Input
+              value={crewName}
+              onChange={(e) => {
+                setCrewName(e.target.value);
+                if (!crewCode && e.target.value.length >= 3) {
+                  setCrewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6));
+                }
+              }}
+            />
+          </Field>
+          <Field label="Code" help="Used to punch attendance at a kiosk">
+            <Input value={crewCode} onChange={(e) => setCrewCode(e.target.value.toUpperCase())} />
+          </Field>
+        </DrawerSection>
+
+        <DrawerSection title="Site and leader">
+          <Field label="Site" optional>
+            <Select value={crewSiteId} onChange={(e) => setCrewSiteId(e.target.value)}>
+              <option value="">None</option>
+              {sites.map((s: Site) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Leader">
+            <Select value={crewLeaderId} onChange={(e) => setCrewLeaderId(e.target.value)}>
+              <option value="">Choose</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({employeePositionLabel(e.position) || "Staff"})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </DrawerSection>
+      </Drawer>
+
+      <Drawer
+        open={Boolean(openCrew)}
+        onOpenChange={(open) => !open && setOpenCrew(null)}
+        title={openCrew?.name ?? "Crew"}
+        sub={openCrew ? [openCrew.code, openCrew.site?.name].filter(Boolean).join(", ") || undefined : undefined}
+        footer={<Button onClick={() => setOpenCrew(null)}>Close</Button>}
+      >
+        {openCrew ? (
+          <>
+            <DrawerSection title="Leader">
+              <DrawerRow label="Leader">{openCrew.leader ? <Person name={openCrew.leader.name} /> : "None"}</DrawerRow>
+              <DrawerRow label="Status">{openCrew.isActive ? "Active" : "Archived"}</DrawerRow>
+            </DrawerSection>
+
+            <DrawerSection title={`Members (${members.length})`}>
+              {membersQuery.isLoading ? (
+                <BooksLoading rows={3} />
+              ) : members.length === 0 ? (
+                <p className="muted">No members yet.</p>
+              ) : (
+                members.map((m) => (
+                  <DrawerRow key={m.id} label={<Person name={m.employee.name} sub={m.employee.employeeId} />}>
+                    {canManage && m.employee.id !== openCrew.leader?.id ? (
+                      <Button variant="quiet" busy={removeMember.isPending} onClick={() => removeMember.mutate(m.id)}>
+                        Remove
+                      </Button>
+                    ) : null}
+                  </DrawerRow>
+                ))
+              )}
+              {canManage ? (
+                <Field label="Add someone">
+                  <Select value={addEmployeeId} onChange={(e) => setAddEmployeeId(e.target.value)}>
+                    <option value="">Choose</option>
+                    {addable.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({e.employeeId || "no ID"})
+                      </option>
+                    ))}
+                  </Select>
+                  <Button variant="primary" disabled={!addEmployeeId} busy={addMember.isPending} onClick={() => addMember.mutate(addEmployeeId)}>
+                    Add
+                  </Button>
+                </Field>
+              ) : null}
+            </DrawerSection>
+          </>
+        ) : null}
       </Drawer>
     </PeopleShell>
   );

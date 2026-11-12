@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Amt,
+  BkEmpty,
   BkFilter,
+  BkNote,
   BkFinding,
   BkPage,
   BkScroll,
@@ -18,9 +19,10 @@ import {
   Worksheet,
   type WsColumn,
 } from "@/components/books/ui";
+import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { Person } from "@/components/core";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 
 type P2Boxes = {
   employeesReported: number;
@@ -216,13 +218,7 @@ export function StatutoryReturnsContent() {
       key: "employee",
       head: "Employee",
       cell: (r) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.name} size={24} />
-          <span>
-            <span style={{ display: "block", fontWeight: 500 }}>{r.name}</span>
-            <span className="muted mono" style={{ fontSize: 11 }}>{r.employeeNumber}</span>
-          </span>
-        </span>
+        <Person name={r.name} sub={r.employeeNumber} />
       ),
     },
     {
@@ -243,7 +239,7 @@ export function StatutoryReturnsContent() {
     },
     {
       key: "gross",
-      head: "Gross Emoluments",
+      head: "Gross",
       right: true,
       cell: (r) => <Amt value={r.grossEmoluments} currency={r.currency} />,
     },
@@ -255,7 +251,7 @@ export function StatutoryReturnsContent() {
     },
     {
       key: "paye",
-      head: "PAYE Deducted",
+      head: "PAYE",
       right: true,
       cell: (r) => <Amt value={r.payeDeducted} currency={r.currency} className="font-medium" />,
     },
@@ -273,13 +269,7 @@ export function StatutoryReturnsContent() {
       key: "member",
       head: "Member",
       cell: (r) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.name} size={24} />
-          <span>
-            <span style={{ display: "block", fontWeight: 500 }}>{r.name}</span>
-            <span className="muted mono" style={{ fontSize: 11 }}>{r.employeeNumber}</span>
-          </span>
-        </span>
+        <Person name={r.name} sub={r.employeeNumber} />
       ),
     },
     {
@@ -318,7 +308,7 @@ export function StatutoryReturnsContent() {
     },
     {
       key: "total",
-      head: "Total Contribution",
+      head: "Total",
       right: true,
       cell: (r) => <Amt value={r.total} currency={r.currency} className="font-medium" />,
     },
@@ -328,38 +318,36 @@ export function StatutoryReturnsContent() {
   const reconColumns: Array<WsColumn<ReconciliationLine>> = [
     {
       key: "label",
-      head: "Liability description",
-      cell: (l) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>{l.label}</span>
-      ),
+      head: "Liability",
+      cell: (l) => l.label,
     },
     {
       key: "account",
-      head: "General Ledger Account",
+      head: "Ledger account",
       className: "muted mono",
       cell: (l) => l.accountCode,
     },
     {
       key: "returnAmt",
-      head: "Calculated Return",
+      head: "Return",
       right: true,
       cell: (l) => <Amt value={l.returnAmountBase} currency="USD" />,
     },
     {
       key: "ledgerAmt",
-      head: "Ledger Balance",
+      head: "Ledger",
       right: true,
       cell: (l) => <Amt value={l.ledgerAmountBase} currency="USD" />,
     },
     {
       key: "diff",
-      head: "Variance / Diff",
+      head: "Difference",
       right: true,
       cell: (l) =>
         l.reconciled ? (
           <None />
         ) : (
-          <Amt value={l.difference} currency="USD" className="font-medium text-danger" />
+          <Amt value={l.difference} currency="USD" />
         ),
     },
     {
@@ -395,7 +383,7 @@ export function StatutoryReturnsContent() {
   return (
     <PayrollShell
       activeTab="statutory-returns"
-      title="Statutory Tax Returns"
+      title="Returns"
       primary={{
         label: "Export return",
         icon: "export",
@@ -407,43 +395,29 @@ export function StatutoryReturnsContent() {
         <BkFinding
           fact={
             blockers.length > 0
-              ? `${blockers.length} validation blocker${blockers.length === 1 ? "" : "s"} prevent filing this return.`
+              ? `${blockers.length} ${blockers.length === 1 ? "thing blocks" : "things block"} filing.`
               : data?.reconciliation.reconciled
-              ? `All figures reconciled cleanly against general ledger accounts for ${selectedPeriodLabel}.`
-              : `Monthly statutory return for ${selectedPeriodLabel} ready for review.`
-          }
-          rest={
-            blockers.length > 0
-              ? "Missing tax or NSSA registration numbers must be entered before filing with ZIMRA/NSSA."
-              : "Check return schedules against banking disbursements prior to submitting P2 remittance."
+              ? `${selectedPeriodLabel} agrees with the ledger.`
+              : `${selectedPeriodLabel} is ready to review.`
           }
         />
 
-        {blockers.length > 0 ? (
-          <div style={{ padding: "0 16px 8px" }}>
-            <Alert variant="destructive">
-              <AlertTitle>Filing blocked — {blockers.length} issues identified</AlertTitle>
-              <AlertDescription>
-                <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
-                  {blockers.map((b) => (
-                    <li key={b}>{b}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          </div>
-        ) : null}
+        {blockers.map((blocker) => (
+          <BkNote key={blocker} tone="bad">
+            {blocker}
+          </BkNote>
+        ))}
 
         <BkTabs
           label="Return views"
           value={tab}
           onChange={(next) => setTab(next as TabKey)}
           items={[
-            { value: "p2", label: "ZIMRA P2 PAYE return", count: p2Schedules.length, icon: "docs" },
-            { value: "nssa", label: "NSSA schedule return", count: nssaSchedules.length, icon: "users" },
+            { value: "p2", label: "P2 PAYE", count: p2Schedules.length, icon: "docs" },
+            { value: "nssa", label: "NSSA", count: nssaSchedules.length, icon: "users" },
             {
               value: "reconciliation",
-              label: "General ledger reconciliation",
+              label: "Ledger check",
               count: data?.reconciliation.lines.length ?? 0,
               icon: "done",
             },
@@ -451,7 +425,7 @@ export function StatutoryReturnsContent() {
         />
 
         <BkTools
-          find="Search return schedules by employee name or ID..."
+          find="Search staff"
           query={search}
           onFind={setSearch}
           count={
@@ -463,7 +437,7 @@ export function StatutoryReturnsContent() {
           }
           filters={
             <BkFilter
-              label="Payroll Period"
+              label="Period"
               value={selectedPeriodLabel}
               items={periods.map((p) => ({
                 key: p.value,
@@ -478,13 +452,9 @@ export function StatutoryReturnsContent() {
 
         <BkScroll>
           {query.isLoading ? (
-            <div style={{ padding: 48, textAlign: "center" }} className="muted">
-              Calculating statutory returns for {selectedPeriodLabel}...
-            </div>
+            <BooksLoading />
           ) : query.isError ? (
-            <div style={{ padding: 48, textAlign: "center", color: "var(--color-danger)" }}>
-              {getApiErrorMessage(query.error)}
-            </div>
+            <BooksError what="The return" error={query.error} onRetry={() => void query.refetch()} />
           ) : tab === "p2" ? (
             <Worksheet
               label="P2 PAYE schedule"
@@ -493,14 +463,7 @@ export function StatutoryReturnsContent() {
               columns={p2Columns}
               totals={p2Totals}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No P2 return figures for this period.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Statutory returns require at least one approved salary run in this calendar month.
-                  </p>
-                </div>
+<BkEmpty>No approved run in this period.</BkEmpty>
               }
             />
           ) : tab === "nssa" ? (
@@ -511,14 +474,7 @@ export function StatutoryReturnsContent() {
               columns={nssaColumns}
               totals={nssaTotals}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No NSSA schedule figures for this period.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Approve a payroll run to generate NSSA social security contributions.
-                  </p>
-                </div>
+<BkEmpty>No approved run in this period.</BkEmpty>
               }
             />
           ) : (
@@ -528,11 +484,7 @@ export function StatutoryReturnsContent() {
               rowKey={(l) => `${l.accountCode}-${l.label}`}
               columns={reconColumns}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No general ledger reconciliation lines.
-                  </p>
-                </div>
+<BkEmpty>Nothing to check.</BkEmpty>
               }
             />
           )}

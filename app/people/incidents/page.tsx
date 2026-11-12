@@ -435,9 +435,7 @@ function SafetyIncidentsContent() {
       head: "Employee",
       cell: (r) =>
         r.employee ? (
-          <>
-            <Person name={r.employee.name} size={20} /> {r.employee.name} <span className="muted mono">{r.employee.employeeId}</span>
-          </>
+          <Person name={r.employee.name} sub={r.employee.employeeId} />
         ) : (
           <None />
         ),
@@ -665,7 +663,7 @@ function SafetyIncidentsContent() {
                 <Status tone={SEVERITY_TONE[incident.severity]}>{SEVERITY_LABEL[incident.severity]}</Status>
               </DrawerRow>
               <DrawerRow label="Employee">
-                <Person name={incident.employee.name} size={20} /> {incident.employee.name} <span className="muted">{incident.employee.employeeId}</span>
+                <Person name={incident.employee.name} sub={incident.employee.employeeId} />
               </DrawerRow>
               <DrawerRow label="Site">{incident.site?.name || "None"}</DrawerRow>
               <DrawerRow label="Reported by">{incident.reportedBy?.name || "System"}</DrawerRow>

@@ -290,17 +290,7 @@ function HumanResourcesContent() {
       key: "name",
       head: "Staff member",
       cell: (emp) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <Person name={emp.name} size={28} />
-          <span>
-            <span className="who" style={{ display: "block", fontWeight: 500 }}>
-              {emp.name}
-            </span>
-            <span className="muted mono" style={{ fontSize: 11 }}>
-              {emp.employeeId || "—"}
-            </span>
-          </span>
-        </span>
+        <Person name={emp.name} sub={emp.employeeId || "—"} />
       ),
     },
     {

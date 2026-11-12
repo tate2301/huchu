@@ -381,10 +381,7 @@ function SalaryPayrollContent() {
       head: "Prepared by",
       cell: (r) =>
         r.createdBy?.name ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={r.createdBy.name} size={24} />
-            <span>{r.createdBy.name}</span>
-          </span>
+          <Person name={r.createdBy.name} />
         ) : (
           <None />
         ),
