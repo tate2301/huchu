@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   Amt,
+  BkEmpty,
   BkFinding,
   BkPage,
   BkPager,
@@ -20,6 +21,7 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   ButtonLink,
@@ -187,18 +189,14 @@ function HrSalariesContent() {
   const awaitingColumns: Array<WsColumn<PayrollRunRecord>> = [
     {
       key: "runNumber",
-      head: "Run #",
-      cell: (r) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          Run #{r.runNumber}
-        </span>
-      ),
+      head: "Run",
+      cell: (r) => `Run ${r.runNumber}`,
     },
     {
       key: "date",
-      head: "Approval date",
+      head: "Created",
       className: "muted mono",
-      cell: (r) => (r.createdAt ? format(new Date(r.createdAt), "dd MMM yyyy") : <None />),
+      cell: (r) => (r.createdAt ? format(new Date(r.createdAt), "d MMM yyyy") : <None />),
     },
     {
       key: "preparedBy",
@@ -212,14 +210,14 @@ function HrSalariesContent() {
     },
     {
       key: "netTotal",
-      head: "Net Payout",
+      head: "Net pay",
       right: true,
-      cell: (r) => <Amt value={r.netTotal} currency="USD" className="font-medium" />,
+      cell: (r) => <Amt value={r.netTotal} currency="USD" />,
     },
     {
       key: "status",
       head: "Status",
-      cell: () => <St tone="done">APPROVED</St>,
+      cell: () => <St tone="info">Approved</St>,
     },
     {
       key: "actions",
@@ -232,7 +230,7 @@ function HrSalariesContent() {
           variant="primary"
           onClick={(e) => e.stopPropagation()}
         >
-          Create disbursement
+          Pay out
         </ButtonLink>
       ),
     },
@@ -242,48 +240,34 @@ function HrSalariesContent() {
   const batchColumns: Array<WsColumn<DisbursementBatchRecord>> = [
     {
       key: "code",
-      head: "Batch code",
-      cell: (b) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {b.code}
-        </span>
-      ),
+      head: "Batch",
+      cell: (b) => b.code,
     },
     {
       key: "date",
-      head: "Created date",
+      head: "Created",
       className: "muted mono",
-      cell: (b) => (b.createdAt ? format(new Date(b.createdAt), "dd MMM yyyy") : <None />),
+      cell: (b) => (b.createdAt ? format(new Date(b.createdAt), "d MMM yyyy") : <None />),
     },
     {
       key: "count",
       head: "Recipients",
       className: "mono",
-      cell: (b) => `${b.itemCount} employees`,
+      cell: (b) => `${b.itemCount} ${b.itemCount === 1 ? "employee" : "employees"}`,
     },
     {
       key: "amount",
-      head: "Total Amount",
+      head: "Total",
       right: true,
-      cell: (b) => <Amt value={b.totalAmount} currency="USD" className="font-medium" />,
+      cell: (b) => <Amt value={b.totalAmount} currency="USD" />,
     },
     {
       key: "status",
       head: "Status",
       cell: (b) => {
         const tone = b.status === "PAID" ? "done" : b.status === "REJECTED" ? "bad" : "warn";
-        return <St tone={tone}>{b.status}</St>;
+        return <St tone={tone}>{b.status === "PAID" ? "Paid" : b.status === "REJECTED" ? "Rejected" : b.status === "APPROVED" ? "Approved" : b.status === "SUBMITTED" ? "Waiting for approval" : "Draft"}</St>;
       },
-    },
-    {
-      key: "actions",
-      head: "",
-      right: true,
-      cell: () => (
-        <ButtonLink href="/payroll/disbursements" size="sm" onClick={(e) => e.stopPropagation()}>
-          View in batches
-        </ButtonLink>
-      ),
     },
   ];
 
@@ -298,25 +282,25 @@ function HrSalariesContent() {
     },
     {
       key: "type",
-      head: "Payment type",
+      head: "Type",
       className: "muted",
       cell: () => "Salary",
     },
     {
       key: "dueDate",
-      head: "Due date",
+      head: "Due",
       className: "mono",
-      cell: (p) => (p.dueDate ? format(new Date(p.dueDate), "dd MMM yyyy") : <None />),
+      cell: (p) => (p.dueDate ? format(new Date(p.dueDate), "d MMM yyyy") : <None />),
     },
     {
       key: "amount",
-      head: "Scheduled",
+      head: "Due amount",
       right: true,
       cell: (p) => <Amt value={p.amount} currency="USD" />,
     },
     {
       key: "paid",
-      head: "Disbursed",
+      head: "Paid",
       right: true,
       cell: (p) => <Amt value={p.paidAmount ?? 0} currency="USD" />,
     },
@@ -325,7 +309,7 @@ function HrSalariesContent() {
       head: "Status",
       cell: (p) => {
         const tone = p.status === "PAID" ? "done" : p.status === "PARTIAL" ? "info" : "warn";
-        return <St tone={tone}>{p.status}</St>;
+        return <St tone={tone}>{p.status === "PAID" ? "Paid" : p.status === "PARTIAL" ? "Part paid" : "To pay"}</St>;
       },
     },
   ];
@@ -345,7 +329,7 @@ function HrSalariesContent() {
           `${filteredAwaiting.length} runs`,
           null,
           null,
-          <Amt key="tot" value={awaitingSum} currency="USD" className="font-medium" />,
+          <Amt key="tot" value={awaitingSum} currency="USD" />,
           null,
           null,
         ]
@@ -363,16 +347,15 @@ function HrSalariesContent() {
   return (
     <PayrollShell
       activeTab="salaries"
-      title="Salary Payments & Operations"
+      title="Salary payments"
       primary={{
-        label: "Open disbursements",
-        icon: "plus",
-        shortcut: "N",
+        label: "Disbursements",
+        icon: "bank",
         href: "/payroll/disbursements",
       }}
       actions={
         <ButtonLink href="/payroll/salaries/outstanding" variant="quiet" icon="calendar">
-          Outstanding aging
+          Outstanding
         </ButtonLink>
       }
     >
@@ -380,12 +363,11 @@ function HrSalariesContent() {
         <BkFinding
           fact={
             tab === "awaiting"
-              ? `${awaitingRuns.length} approved runs ready for banking disbursement.`
+              ? `${awaitingRuns.length} approved ${awaitingRuns.length === 1 ? "run" : "runs"} to pay out.`
               : tab === "batches"
-              ? `${batches.length} payout batches created across all periods.`
-              : `${payments.length} individual employee salary payment records.`
+              ? `${batches.length} ${batches.length === 1 ? "batch" : "batches"}.`
+              : `${payments.length} salary ${payments.length === 1 ? "payment" : "payments"}.`
           }
-          rest="Select any row to view operational statuses or prepare transfer batches."
         />
 
         <BkTabs
@@ -397,20 +379,14 @@ function HrSalariesContent() {
             selection.clear();
           }}
           items={[
-            { value: "awaiting", label: "Awaiting disbursement", count: awaitingRuns.length, icon: "clock" },
-            { value: "batches", label: "Disbursement batches", count: batches.length, icon: "payments" },
-            { value: "lines", label: "All payment lines", count: payments.length, icon: "list" },
+            { value: "awaiting", label: "To pay out", count: awaitingRuns.length, icon: "clock" },
+            { value: "batches", label: "Batches", count: batches.length, icon: "payments" },
+            { value: "lines", label: "Payments", count: payments.length, icon: "list" },
           ]}
         />
 
         <BkTools
-          find={
-            tab === "awaiting"
-              ? "Search approved runs..."
-              : tab === "batches"
-              ? "Search batches by code or status..."
-              : "Search payments by staff name or ID..."
-          }
+          find="Search"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -424,6 +400,7 @@ function HrSalariesContent() {
           {tab === "awaiting" ? (
             <Worksheet
               label="approved payroll runs"
+              openHref={(r) => `/payroll/runs/${r.id}`}
               rows={pageRows as PayrollRunRecord[]}
               rowKey={(r) => r.id}
               columns={awaitingColumns}
@@ -437,19 +414,13 @@ function HrSalariesContent() {
               }}
               totals={totals}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No runs awaiting disbursement.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    All approved payroll runs have been queued or processed.
-                  </p>
-                </div>
+                <BkEmpty>Nothing to pay out.</BkEmpty>
               }
             />
           ) : tab === "batches" ? (
             <Worksheet
               label="disbursement batches"
+              openHref={(b) => `/payroll/disbursements/${b.id}`}
               rows={pageRows as DisbursementBatchRecord[]}
               rowKey={(b) => b.id}
               columns={batchColumns}
@@ -463,14 +434,7 @@ function HrSalariesContent() {
               }}
               totals={totals}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No disbursement batches found.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Create a disbursement batch from an approved run.
-                  </p>
-                </div>
+                <BkEmpty>No batches yet.</BkEmpty>
               }
             />
           ) : (
@@ -489,14 +453,7 @@ function HrSalariesContent() {
               }}
               totals={totals}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No salary payment lines match the search.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Check back after approving your next payroll cycle.
-                  </p>
-                </div>
+                <BkEmpty>No payments here.</BkEmpty>
               }
             />
           )}
@@ -527,9 +484,7 @@ export default function HrSalariesPage() {
     <React.Suspense
       fallback={
         <PayrollShell activeTab="salaries">
-          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
-            Loading salaries...
-          </div>
+          <BooksLoading />
         </PayrollShell>
       }
     >

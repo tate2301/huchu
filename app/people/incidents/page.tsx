@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  Amt,
   BkEmpty,
   BkFilter,
   BkFinding,
@@ -18,16 +17,13 @@ import {
   None,
   St,
   Worksheet,
-  type BkTone,
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
-  ButtonGroup,
   Drawer,
-  DrawerRow,
   DrawerSection,
   Field,
   Input,
@@ -37,114 +33,21 @@ import {
   TextArea,
   useSelection,
 } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
+import type { MenuEntry } from "@/components/core/menu";
 import { PeopleShell } from "@/components/people/people-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchSites, type Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { shortDay } from "@/lib/books/format";
-
-export type HrIncidentRecord = {
-  id: string;
-  incidentDate: string;
-  category: "MISCONDUCT" | "ATTENDANCE" | "SAFETY_POLICY" | "PERFORMANCE" | "OTHER";
-  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  status: "OPEN" | "UNDER_REVIEW" | "CLOSED";
-  title: string;
-  description: string;
-  investigationNotes: string | null;
-  employee: {
-    id: string;
-    employeeId: string;
-    name: string;
-  };
-  site: {
-    id: string;
-    name: string;
-    code: string | null;
-  } | null;
-  reportedBy: {
-    id: string;
-    name: string;
-  } | null;
-  resolvedBy: {
-    id: string;
-    name: string;
-  } | null;
-  _count: {
-    actions: number;
-  };
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt: string | null;
-};
-
-export type DisciplinaryActionRecord = {
-  id: string;
-  actionType: "WARNING" | "PENALTY" | "SUSPENSION" | "TERMINATION" | "OTHER";
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "APPLIED";
-  summary: string;
-  notes: string | null;
-  effectiveDate: string | null;
-  penaltyAmount: number;
-  penaltyCurrency: string;
-  penaltyStatus: "NONE" | "PENDING" | "DEDUCTED" | "PAID" | "WAIVED";
-  createdAt: string;
-  submittedAt: string | null;
-  approvedAt: string | null;
-  appliedAt: string | null;
-  createdBy: { id: string; name: string };
-  submittedBy: { id: string; name: string } | null;
-  approvedBy: { id: string; name: string } | null;
-  appliedBy: { id: string; name: string } | null;
-  employee: { id: string; employeeId: string; name: string };
-};
-
-const CATEGORY_LABELS: Record<HrIncidentRecord["category"], string> = {
-  SAFETY_POLICY: "Safety and policy",
-  MISCONDUCT: "Misconduct",
-  ATTENDANCE: "Attendance",
-  PERFORMANCE: "Performance",
-  OTHER: "Other",
-};
-
-type Severity = HrIncidentRecord["severity"];
-type ActionStatus = DisciplinaryActionRecord["status"];
-
-const SEVERITY_LABEL: Record<Severity, string> = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", CRITICAL: "Critical" };
-const SEVERITY_TONE: Record<Severity, BkTone> = { LOW: "info", MEDIUM: "warn", HIGH: "bad", CRITICAL: "bad" };
-const STATUS_LABEL: Record<HrIncidentRecord["status"], string> = { OPEN: "Open", UNDER_REVIEW: "Under review", CLOSED: "Closed" };
-const STATUS_TONE: Record<HrIncidentRecord["status"], BkTone> = { OPEN: "bad", UNDER_REVIEW: "warn", CLOSED: "done" };
-
-const ACTION_LABEL: Record<DisciplinaryActionRecord["actionType"], string> = {
-  WARNING: "Warning",
-  PENALTY: "Fine",
-  SUSPENSION: "Suspension",
-  TERMINATION: "Termination",
-  OTHER: "Other",
-};
-const ACTION_STATUS_LABEL: Record<ActionStatus, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved", REJECTED: "Rejected", APPLIED: "Applied" };
-const ACTION_TONE: Record<ActionStatus, BkTone> = { DRAFT: "draft", SUBMITTED: "warn", APPROVED: "info", REJECTED: "bad", APPLIED: "done" };
-const ACTION_DONE = { submit: "Sent for approval", approve: "Approved", apply: "Applied", reject: "Rejected" } as const;
-const PENALTY_LABEL: Record<DisciplinaryActionRecord["penaltyStatus"], string> = {
-  NONE: "",
-  PENDING: "to settle",
-  DEDUCTED: "deducted from pay",
-  PAID: "paid",
-  WAIVED: "waived",
-};
-/** How an approved penalty is settled when it is applied (the route takes the same three). */
-const PENALTY_CHOICES = [
-  { value: "DEDUCTED", label: "Deduct from pay" },
-  { value: "PAID", label: "Mark as paid" },
-  { value: "WAIVED", label: "Waive it" },
-] as const;
-
-/** The kit's status dot, for inside a drawer (the Books states are drawn only on the page). */
-function Status({ tone, children }: { tone: BkTone; children: React.ReactNode }) {
-  const kit = tone === "done" ? " status-success" : tone === "warn" ? " status-warning" : tone === "bad" ? " status-danger" : "";
-  return <span className={`status${kit}`}>{children}</span>;
-}
+import {
+  CATEGORY_LABELS,
+  SEVERITY_LABEL,
+  SEVERITY_TONE,
+  STATUS_LABEL,
+  STATUS_TONE,
+  type HrIncidentRecord,
+  type Severity,
+} from "@/lib/people/incidents";
 
 const day = (value: string) => shortDay(value.slice(0, 10));
 
@@ -191,22 +94,6 @@ function SafetyIncidentsContent() {
   const [newDescription, setNewDescription] = React.useState("");
   const [newInvestigationNotes, setNewInvestigationNotes] = React.useState("");
 
-  // Inspect & Disciplinary Action Timeline Drawer state
-  const [selectedIncident, setSelectedIncident] = React.useState<HrIncidentRecord | null>(null);
-  const [detailDrawerOpen, setDetailDrawerOpen] = React.useState(false);
-  const [editingNotes, setEditingNotes] = React.useState(false);
-  const [notesValue, setNotesValue] = React.useState("");
-
-  // New Disciplinary Action sub-form state
-  const [showAddActionForm, setShowAddActionForm] = React.useState(false);
-  const [actionType, setActionType] = React.useState<DisciplinaryActionRecord["actionType"]>("WARNING");
-  const [actionSummary, setActionSummary] = React.useState("");
-  const [actionPenaltyAmount, setActionPenaltyAmount] = React.useState<number>(0);
-  const [actionPenaltyCurrency, setActionPenaltyCurrency] = React.useState("USD");
-  const [actionNotes, setActionNotes] = React.useState("");
-  const [rejecting, setRejecting] = React.useState<string | null>(null);
-  const [rejectNote, setRejectNote] = React.useState("");
-
   // Fetch incidents
   const incidentsQuery = useQuery({
     queryKey: ["hr-incidents"],
@@ -224,19 +111,6 @@ function SafetyIncidentsContent() {
   const employeesQuery = useQuery({
     queryKey: ["employees", "safety-reporters"],
     queryFn: () => fetchEmployees({ active: true, limit: 300 }),
-  });
-
-  // Query disciplinary actions for the active incident
-  const disciplinaryActionsQuery = useQuery({
-    queryKey: ["disciplinary-actions", selectedIncident?.id],
-    queryFn: async () => {
-      if (!selectedIncident?.id) return [];
-      const res = await fetchJson<{ data: DisciplinaryActionRecord[] }>(
-        `/api/hr/disciplinary-actions?incidentId=${selectedIncident.id}&limit=50`
-      );
-      return res.data ?? [];
-    },
-    enabled: Boolean(selectedIncident?.id),
   });
 
   const records = React.useMemo(() => incidentsQuery.data ?? [], [incidentsQuery.data]);
@@ -299,79 +173,6 @@ function SafetyIncidentsContent() {
       toast({ title: getApiErrorMessage(err), variant: "destructive" });
     },
   });
-
-  const updateIncidentMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<HrIncidentRecord> }) =>
-      fetchJson(`/api/hr/incidents/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      }),
-    onSuccess: (_, variables) => {
-      toast({ title: "Incident updated successfully" });
-      void queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
-      if (selectedIncident && selectedIncident.id === variables.id) {
-        setSelectedIncident((prev) => (prev ? { ...prev, ...variables.patch } : null));
-      }
-      setEditingNotes(false);
-    },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const createDisciplinaryActionMutation = useMutation({
-    mutationFn: (values: {
-      incidentId: string;
-      employeeId: string;
-      actionType: DisciplinaryActionRecord["actionType"];
-      summary: string;
-      penaltyAmount?: number;
-      penaltyCurrency?: string;
-      notes?: string;
-    }) =>
-      fetchJson("/api/hr/disciplinary-actions", {
-        method: "POST",
-        body: JSON.stringify(values),
-      }),
-    onSuccess: () => {
-      toast({ title: "Disciplinary action recorded" });
-      setShowAddActionForm(false);
-      setActionSummary("");
-      setActionNotes("");
-      setActionPenaltyAmount(0);
-      void queryClient.invalidateQueries({ queryKey: ["disciplinary-actions", selectedIncident?.id] });
-      void queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
-    },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const transitionActionMutation = useMutation({
-    mutationFn: ({ id, action, body }: { id: string; action: "submit" | "approve" | "apply" | "reject"; body?: Record<string, unknown> }) =>
-      fetchJson(`/api/hr/disciplinary-actions/${id}/${action}`, {
-        method: "POST",
-        body: JSON.stringify(body ?? {}),
-      }),
-    onSuccess: (_, variables) => {
-      toast({ title: ACTION_DONE[variables.action] });
-      setRejecting(null);
-      setRejectNote("");
-      void queryClient.invalidateQueries({ queryKey: ["disciplinary-actions", selectedIncident?.id] });
-      void queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
-    },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const handleOpenIncidentDetails = (incident: HrIncidentRecord) => {
-    setSelectedIncident(incident);
-    setNotesValue(incident.investigationNotes || "");
-    setEditingNotes(false);
-    setShowAddActionForm(false);
-    setDetailDrawerOpen(true);
-  };
 
   const handleExport = () => {
     const selectedRows = pageRows.filter((r) => selection.isSelected(r.id));
@@ -447,9 +248,6 @@ function SafetyIncidentsContent() {
     { key: "actions", head: "Actions", right: true, className: "mono", cell: (r) => (r._count?.actions ? r._count.actions : <None />) },
   ];
 
-  const incident = selectedIncident;
-  const incidentActions = disciplinaryActionsQuery.data ?? [];
-
   const filterItems = <K extends string>(current: string, key: string, all: string, labels: Record<K, string>): MenuEntry[] => [
     { key: "ALL", label: all, checked: current === "ALL", onSelect: () => updateParam(key, "ALL") },
     { separator: true },
@@ -504,7 +302,7 @@ function SafetyIncidentsContent() {
             rows={pageRows}
             rowKey={(r) => r.id}
             columns={columns}
-            onOpen={handleOpenIncidentDetails}
+            openHref={(r) => `/people/incidents/${r.id}`}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -625,231 +423,6 @@ function SafetyIncidentsContent() {
         </DrawerSection>
       </Drawer>
 
-      <Drawer
-        open={detailDrawerOpen}
-        onOpenChange={setDetailDrawerOpen}
-        title={incident ? incident.title : "Incident"}
-        sub={incident ? `${CATEGORY_LABELS[incident.category]}, ${day(incident.incidentDate)}` : undefined}
-        width={640}
-        footer={
-          incident ? (
-            <>
-              {incident.status !== "OPEN" ? (
-                <Button variant="quiet" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "OPEN" } })}>
-                  Reopen
-                </Button>
-              ) : null}
-              {incident.status === "OPEN" ? (
-                <Button busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "UNDER_REVIEW" } })}>
-                  Start review
-                </Button>
-              ) : null}
-              {incident.status !== "CLOSED" ? (
-                <Button variant="primary" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "CLOSED" } })}>
-                  Close incident
-                </Button>
-              ) : null}
-            </>
-          ) : undefined
-        }
-      >
-        {incident ? (
-          <>
-            <DrawerSection title="Incident">
-              <DrawerRow label="Status">
-                <Status tone={STATUS_TONE[incident.status]}>{STATUS_LABEL[incident.status]}</Status>
-              </DrawerRow>
-              <DrawerRow label="Severity">
-                <Status tone={SEVERITY_TONE[incident.severity]}>{SEVERITY_LABEL[incident.severity]}</Status>
-              </DrawerRow>
-              <DrawerRow label="Employee">
-                <Person name={incident.employee.name} sub={incident.employee.employeeId} />
-              </DrawerRow>
-              <DrawerRow label="Site">{incident.site?.name || "None"}</DrawerRow>
-              <DrawerRow label="Reported by">{incident.reportedBy?.name || "System"}</DrawerRow>
-              <p>{incident.description}</p>
-            </DrawerSection>
-
-            <DrawerSection title="Investigation notes">
-              {editingNotes ? (
-                <>
-                  <TextArea rows={4} value={notesValue} onChange={(e) => setNotesValue(e.target.value)} />
-                  <ButtonGroup>
-                    <Button variant="quiet" onClick={() => setEditingNotes(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="primary" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { investigationNotes: notesValue } })}>
-                      Save notes
-                    </Button>
-                  </ButtonGroup>
-                </>
-              ) : (
-                <>
-                  <p className={incident.investigationNotes ? undefined : "muted"}>{incident.investigationNotes || "None yet."}</p>
-                  <Button variant="quiet" onClick={() => setEditingNotes(true)}>
-                    Edit notes
-                  </Button>
-                </>
-              )}
-            </DrawerSection>
-
-            <DrawerSection title={`Disciplinary actions (${incidentActions.length})`}>
-              {disciplinaryActionsQuery.isLoading ? (
-                <BooksLoading rows={3} />
-              ) : incidentActions.length === 0 && !showAddActionForm ? (
-                <p className="muted">None recorded.</p>
-              ) : null}
-
-              {incidentActions.map((action) => (
-                <div key={action.id} className="dsec">
-                  <DrawerRow label={ACTION_LABEL[action.actionType]}>
-                    <Status tone={ACTION_TONE[action.status]}>{ACTION_STATUS_LABEL[action.status]}</Status>
-                    {action.penaltyAmount > 0 ? (
-                      <>
-                        {" "}
-                        <Amt value={action.penaltyAmount} currency={action.penaltyCurrency} /> <span className="muted">{PENALTY_LABEL[action.penaltyStatus]}</span>
-                      </>
-                    ) : null}
-                  </DrawerRow>
-                  <p>{action.summary}</p>
-                  {action.notes ? <p className="muted">{action.notes}</p> : null}
-                  <ul className="muted">
-                    <li>
-                      Logged by {action.createdBy.name}, <span className="mono">{day(action.createdAt)}</span>
-                    </li>
-                    {action.submittedAt ? (
-                      <li>
-                        Sent for approval by {action.submittedBy?.name ?? "someone"}, <span className="mono">{day(action.submittedAt)}</span>
-                      </li>
-                    ) : null}
-                    {action.approvedAt ? (
-                      <li>
-                        Approved by {action.approvedBy?.name ?? "someone"}, <span className="mono">{day(action.approvedAt)}</span>
-                      </li>
-                    ) : null}
-                    {action.appliedAt ? (
-                      <li>
-                        Applied by {action.appliedBy?.name ?? "someone"}, <span className="mono">{day(action.appliedAt)}</span>
-                      </li>
-                    ) : null}
-                  </ul>
-
-                  {rejecting === action.id ? (
-                    <Field label="Why is it rejected?">
-                      <Input value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} autoFocus />
-                      <ButtonGroup>
-                        <Button variant="quiet" onClick={() => setRejecting(null)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="danger"
-                          busy={transitionActionMutation.isPending}
-                          disabled={!rejectNote.trim()}
-                          onClick={() => transitionActionMutation.mutate({ id: action.id, action: "reject", body: { note: rejectNote.trim() } })}
-                        >
-                          Reject
-                        </Button>
-                      </ButtonGroup>
-                    </Field>
-                  ) : (
-                    <ButtonGroup>
-                      {action.status === "DRAFT" || action.status === "REJECTED" ? (
-                        <Button busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "submit" })}>
-                          Send for approval
-                        </Button>
-                      ) : null}
-                      {action.status === "SUBMITTED" ? (
-                        <>
-                          <Button variant="quiet" onClick={() => setRejecting(action.id)}>
-                            Reject
-                          </Button>
-                          <Button variant="primary" busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "approve" })}>
-                            Approve
-                          </Button>
-                        </>
-                      ) : null}
-                      {action.status === "APPROVED" && action.penaltyAmount > 0 ? (
-                        <MenuButton
-                          variant="primary"
-                          label="How the penalty is settled"
-                          items={PENALTY_CHOICES.map((choice) => ({
-                            key: choice.value,
-                            label: choice.label,
-                            onSelect: () => transitionActionMutation.mutate({ id: action.id, action: "apply", body: { penaltyStatus: choice.value } }),
-                          }))}
-                        >
-                          Apply
-                        </MenuButton>
-                      ) : null}
-                      {action.status === "APPROVED" && action.penaltyAmount <= 0 ? (
-                        <Button variant="primary" busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "apply" })}>
-                          Apply
-                        </Button>
-                      ) : null}
-                    </ButtonGroup>
-                  )}
-                </div>
-              ))}
-
-              {showAddActionForm ? (
-                <div className="dsec">
-                  <Field label="Action">
-                    <Select value={actionType} onChange={(e) => setActionType(e.target.value as DisciplinaryActionRecord["actionType"])}>
-                      {(Object.keys(ACTION_LABEL) as Array<DisciplinaryActionRecord["actionType"]>).map((value) => (
-                        <option key={value} value={value}>
-                          {ACTION_LABEL[value]}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Summary">
-                    <Input value={actionSummary} onChange={(e) => setActionSummary(e.target.value)} />
-                  </Field>
-                  <Field label="Penalty" optional>
-                    <Input type="number" step="0.01" min="0" value={actionPenaltyAmount || ""} onChange={(e) => setActionPenaltyAmount(parseFloat(e.target.value) || 0)} />
-                  </Field>
-                  <Field label="Currency">
-                    <Select value={actionPenaltyCurrency} onChange={(e) => setActionPenaltyCurrency(e.target.value)}>
-                      <option value="USD">USD</option>
-                      <option value="ZiG">ZiG</option>
-                    </Select>
-                  </Field>
-                  <Field label="Notes" optional>
-                    <TextArea rows={2} value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} />
-                  </Field>
-                  <ButtonGroup>
-                    <Button variant="quiet" onClick={() => setShowAddActionForm(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      busy={createDisciplinaryActionMutation.isPending}
-                      disabled={!actionSummary.trim()}
-                      onClick={() =>
-                        createDisciplinaryActionMutation.mutate({
-                          incidentId: incident.id,
-                          employeeId: incident.employee.id,
-                          actionType,
-                          summary: actionSummary.trim(),
-                          penaltyAmount: actionPenaltyAmount,
-                          penaltyCurrency: actionPenaltyCurrency,
-                          notes: actionNotes.trim() || undefined,
-                        })
-                      }
-                    >
-                      Save
-                    </Button>
-                  </ButtonGroup>
-                </div>
-              ) : (
-                <Button icon="add" onClick={() => setShowAddActionForm(true)}>
-                  Log an action
-                </Button>
-              )}
-            </DrawerSection>
-          </>
-        ) : null}
-      </Drawer>
     </PeopleShell>
   );
 }

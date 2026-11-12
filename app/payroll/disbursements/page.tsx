@@ -24,17 +24,13 @@ import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
-  ButtonGroup,
-  Check,
   Drawer,
-  DrawerRow,
   DrawerSection,
   Field,
   Input,
   Select,
   useSelection,
 } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -45,26 +41,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
 
 type DisbursementTab = "pending" | "paid" | "all";
-
-type BatchDetails = {
-  id: string;
-  code: string;
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PAID" | "REJECTED";
-  totalAmount: number;
-  itemCount: number;
-  notes?: string | null;
-  cashCustodian?: string | null;
-  cashIssuedAt?: string | null;
-  createdAt?: string | null;
-  payrollRun?: {
-    runNumber: number;
-  };
-  items: Array<{
-    id: string;
-    amount: number;
-    employee: { id: string; name: string; employeeId: string };
-  }>;
-};
 
 function DisbursementsContent() {
   const { toast } = useToast();
@@ -110,15 +86,6 @@ function DisbursementsContent() {
   const [createDrawerOpen, setCreateDrawerOpen] = React.useState(false);
   const [selectedRunId, setSelectedRunId] = React.useState(searchParams.get("runId") || "");
   const [batchNotes, setBatchNotes] = React.useState("");
-  const [detailsBatchId, setDetailsBatchId] = React.useState<string | null>(null);
-
-  // Dual-custodian sign-off drawer
-  const [signOffBatchId, setSignOffBatchId] = React.useState<string | null>(null);
-  const [custodianName, setCustodianName] = React.useState("");
-  const [handoverRef, setHandoverRef] = React.useState("");
-  const [signOffNotes, setSignOffNotes] = React.useState("");
-  const [cashVerified, setCashVerified] = React.useState(false);
-
   const { data: batchesData } = useQuery({
     queryKey: ["disbursement-batches"],
     queryFn: () => fetchDisbursementBatches({ limit: 100 }),
@@ -133,14 +100,6 @@ function DisbursementsContent() {
     () => (runsData?.data ?? []).filter((r) => r.status === "APPROVED"),
     [runsData]
   );
-
-  const activeInspectBatchId = detailsBatchId ?? signOffBatchId;
-  const { data: batchDetails, isLoading: detailsLoading } = useQuery({
-    queryKey: ["disbursement-batch-details", activeInspectBatchId],
-    queryFn: () =>
-      fetchJson<BatchDetails>(`/api/disbursements/batches/${activeInspectBatchId}`),
-    enabled: Boolean(activeInspectBatchId),
-  });
 
   // Tab subsets
   const pendingBatches = React.useMemo(
@@ -167,56 +126,6 @@ function DisbursementsContent() {
     },
     onError: (err) => {
       toast({ title: "Failed to create batch", description: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const submitBatchMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/disbursements/batches/${id}/submit`, { method: "POST" }),
-    onSuccess: () => {
-      toast({ title: "Disbursement batch submitted" });
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-    },
-  });
-
-  const approveBatchMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/disbursements/batches/${id}/approve`, { method: "POST" }),
-    onSuccess: () => {
-      toast({ title: "Disbursement batch approved" });
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-    },
-  });
-
-  const markPaidMutation = useMutation({
-    mutationFn: async ({
-      id,
-      cashCustodian,
-      items,
-    }: {
-      id: string;
-      cashCustodian: string;
-      items: Array<{ id: string; paidAmount: number; receiptReference?: string; notes?: string }>;
-    }) =>
-      fetchJson(`/api/disbursements/batches/${id}/mark-paid`, {
-        method: "POST",
-        body: JSON.stringify({
-          cashCustodian,
-          items,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Dual-custodian payout authorized and marked as paid" });
-      setSignOffBatchId(null);
-      setCustodianName("");
-      setHandoverRef("");
-      setSignOffNotes("");
-      setCashVerified(false);
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-      void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
-    },
-    onError: (err) => {
-      toast({ title: "Payout authorization failed", description: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
@@ -267,7 +176,7 @@ function DisbursementsContent() {
     );
   };
 
-  const columns: Array<WsColumn<BatchDetails | (typeof batches)[number]>> = [
+  const columns: Array<WsColumn<(typeof batches)[number]>> = [
     {
       key: "code",
       head: "Batch code",
@@ -312,66 +221,6 @@ function DisbursementsContent() {
         return <St tone={tone}>{BATCH_STATUS[b.status] ?? b.status}</St>;
       },
     },
-    {
-      key: "actions",
-      head: "",
-      right: true,
-      cell: (b) => {
-        const moreEntries: MenuEntry[] = [
-          {
-            key: "inspect",
-            label: "See the lines",
-            icon: "invoice",
-            onSelect: () => setDetailsBatchId(b.id),
-          },
-          ...(b.status === "DRAFT"
-            ? [
-                {
-                  key: "submit",
-                  label: "Send for approval",
-                  icon: "check" as const,
-                  onSelect: () => submitBatchMutation.mutate(b.id),
-                },
-              ]
-            : []),
-          ...(b.status === "SUBMITTED"
-            ? [
-                {
-                  key: "approve",
-                  label: "Approve",
-                  icon: "check" as const,
-                  onSelect: () => approveBatchMutation.mutate(b.id),
-                },
-              ]
-            : []),
-          ...(b.status === "APPROVED"
-            ? [
-                {
-                  key: "signoff",
-                  label: "Sign off and mark paid",
-                  icon: "bank" as const,
-                  onSelect: () => setSignOffBatchId(b.id),
-                },
-              ]
-            : []),
-        ];
-
-        return (
-          <ButtonGroup onClick={(e) => e.stopPropagation()}>
-            {b.status === "APPROVED" ? (
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setSignOffBatchId(b.id)}
-              >
-                Mark paid
-              </Button>
-            ) : null}
-            <MenuButton label="More actions" items={moreEntries} />
-          </ButtonGroup>
-        );
-      },
-    },
   ];
 
   const totals = [
@@ -380,13 +229,7 @@ function DisbursementsContent() {
     null,
     <Amt key="tot" value={totalSum} currency="USD" className="font-medium" />,
     `${pendingBatches.length} pending`,
-    null,
   ];
-
-  const signOffTargetBatch = React.useMemo(() => {
-    if (!signOffBatchId) return null;
-    return batches.find((b) => b.id === signOffBatchId) ?? batchDetails;
-  }, [signOffBatchId, batches, batchDetails]);
 
   return (
     <PayrollShell
@@ -444,6 +287,7 @@ function DisbursementsContent() {
             rowKey={(b) => b.id}
             columns={columns}
             totals={totals}
+            openHref={(b) => `/payroll/disbursements/${b.id}`}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -524,106 +368,6 @@ function DisbursementsContent() {
         </DrawerSection>
       </Drawer>
 
-      {/* DUAL-CUSTODIAN SIGN-OFF DRAWER */}
-      <Drawer
-        open={Boolean(signOffBatchId)}
-        onOpenChange={(open) => !open && setSignOffBatchId(null)}
-        title="Sign off the cash payout"
-        sub="Two people confirm before the money goes out"
-        width={540}
-        footer={
-          <>
-            <Button onClick={() => setSignOffBatchId(null)}>Cancel</Button>
-            <Button
-              variant="primary"
-              icon="check"
-              busy={markPaidMutation.isPending}
-              disabled={!custodianName.trim() || !cashVerified || !batchDetails}
-              onClick={() => {
-                if (!signOffBatchId || !batchDetails) return;
-                const itemsPayload = batchDetails.items.map((item) => ({
-                  id: item.id,
-                  paidAmount: item.amount,
-                  receiptReference: handoverRef.trim() || undefined,
-                  notes: signOffNotes.trim() || undefined,
-                }));
-                markPaidMutation.mutate({
-                  id: signOffBatchId,
-                  cashCustodian: custodianName.trim(),
-                  items: itemsPayload,
-                });
-              }}
-            >
-              Mark paid
-            </Button>
-          </>
-        }
-      >
-        {signOffTargetBatch ? (
-          <>
-            <DrawerSection title="Batch">
-              <DrawerRow label="Code">{signOffTargetBatch.code}</DrawerRow>
-              <DrawerRow label="Recipients">{signOffTargetBatch.itemCount}</DrawerRow>
-              <DrawerRow label="Total">
-                <Amt value={signOffTargetBatch.totalAmount} currency="USD" />
-              </DrawerRow>
-            </DrawerSection>
-
-            <DrawerSection title="Witness">
-              <Field label="Cash custodian" htmlFor="custodian-name">
-                <Input id="custodian-name" value={custodianName} onChange={(e) => setCustodianName(e.target.value)} />
-              </Field>
-              <Field label="Handover voucher" htmlFor="handover-ref" optional>
-                <Input id="handover-ref" value={handoverRef} onChange={(e) => setHandoverRef(e.target.value)} />
-              </Field>
-              <Field label="Notes" htmlFor="signoff-notes" optional>
-                <Input id="signoff-notes" value={signOffNotes} onChange={(e) => setSignOffNotes(e.target.value)} />
-              </Field>
-              <Check
-                checked={cashVerified}
-                onCheckedChange={setCashVerified}
-                label={`The ${money(signOffTargetBatch.totalAmount, "USD")} was counted with the custodian and paid out.`}
-              />
-            </DrawerSection>
-          </>
-        ) : (
-          <BooksLoading rows={4} />
-        )}
-      </Drawer>
-
-      {/* BATCH LINE ITEMS INSPECTION DRAWER */}
-      <Drawer
-        open={Boolean(detailsBatchId)}
-        onOpenChange={(open) => !open && setDetailsBatchId(null)}
-        title={batchDetails ? `Batch ${batchDetails.code}` : "Batch"}
-        sub={
-          batchDetails
-            ? `${batchDetails.itemCount} recipients, ${money(batchDetails.totalAmount, "USD")}`
-            : undefined
-        }
-        width={640}
-        footer={<Button onClick={() => setDetailsBatchId(null)}>Close</Button>}
-      >
-        {detailsLoading ? (
-          <BooksLoading rows={4} />
-        ) : batchDetails ? (
-          <>
-            {batchDetails.cashCustodian ? (
-              <DrawerSection title="Signed off">
-                <DrawerRow label="Custodian">{batchDetails.cashCustodian}</DrawerRow>
-                {batchDetails.cashIssuedAt ? <DrawerRow label="Paid">{format(new Date(batchDetails.cashIssuedAt), "d MMM yyyy, HH:mm")}</DrawerRow> : null}
-              </DrawerSection>
-            ) : null}
-            <DrawerSection title="Recipients">
-              {batchDetails.items.map((item) => (
-                <DrawerRow key={item.id} label={`${item.employee.name} ${item.employee.employeeId}`}>
-                  <Amt value={item.amount} currency="USD" />
-                </DrawerRow>
-              ))}
-            </DrawerSection>
-          </>
-        ) : null}
-      </Drawer>
     </PayrollShell>
   );
 }

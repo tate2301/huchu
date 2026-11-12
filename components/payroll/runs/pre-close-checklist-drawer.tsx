@@ -4,8 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { Amt } from "@/components/books/ui";
-import { BooksLoading } from "@/components/books/books-state";
+import { Amt, BkLoading } from "@/components/books/ui";
 import { Button, Drawer, DrawerRow, DrawerSection } from "@/components/core";
 import { shortDay } from "@/lib/books/format";
 import { fetchJson } from "@/lib/api-client";
@@ -113,7 +112,7 @@ export function PreCloseChecklistDrawer({
       }
     >
       {isLoading ? (
-        <BooksLoading rows={6} />
+        <BkLoading rows={6} />
       ) : !data ? (
         <p>The checks didn&rsquo;t load. Close this and try again.</p>
       ) : (

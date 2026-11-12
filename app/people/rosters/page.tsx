@@ -24,7 +24,6 @@ import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Drawer,
-  DrawerRow,
   DrawerSection,
   Field,
   Input,
@@ -68,8 +67,6 @@ export default function RostersPage() {
   const [crewCode, setCrewCode] = React.useState("");
   const [crewSiteId, setCrewSiteId] = React.useState("");
   const [crewLeaderId, setCrewLeaderId] = React.useState("");
-  const [openCrew, setOpenCrew] = React.useState<ShiftGroupRecord | null>(null);
-  const [addEmployeeId, setAddEmployeeId] = React.useState("");
 
   // Queries
   const crewsQuery = useQuery({
@@ -120,40 +117,7 @@ export default function RostersPage() {
   const rowIds = React.useMemo(() => pageRows.map((r: ShiftGroupRecord) => r.id), [pageRows]);
   const selection = useSelection(rowIds);
 
-  const membersQuery = useQuery({
-    queryKey: ["roster-members", openCrew?.id],
-    queryFn: () =>
-      fetchJson<{ data: Array<{ id: string; isActive: boolean; employee: { id: string; name: string; employeeId: string } }> }>(
-        `/api/people/rosters/${openCrew?.id}/members?active=true`
-      ),
-    enabled: Boolean(openCrew),
-  });
-  const members = React.useMemo(() => membersQuery.data?.data ?? [], [membersQuery.data]);
-
   // Mutations
-  const refreshCrew = () => {
-    void queryClient.invalidateQueries({ queryKey: ["roster-members", openCrew?.id] });
-    void queryClient.invalidateQueries({ queryKey: ["roster-crews"] });
-  };
-  const addMember = useMutation({
-    mutationFn: (employeeId: string) =>
-      fetchJson(`/api/people/rosters/${openCrew?.id}/members`, { method: "POST", body: JSON.stringify({ employeeIds: [employeeId] }) }),
-    onSuccess: () => {
-      setAddEmployeeId("");
-      toast({ title: "Added to the crew" });
-      refreshCrew();
-    },
-    onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
-  });
-  const removeMember = useMutation({
-    mutationFn: (memberId: string) => fetchJson(`/api/people/rosters/${openCrew?.id}/members/${memberId}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Removed from the crew" });
-      refreshCrew();
-    },
-    onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
-  });
-
   const createMutation = useMutation({
     mutationFn: (values: {
       name: string;
@@ -221,9 +185,6 @@ export default function RostersPage() {
     { key: "status", head: "Status", cell: (c) => <St tone={c.isActive ? "done" : "void"}>{c.isActive ? "Active" : "Archived"}</St> },
   ];
 
-  const memberIds = new Set(members.map((m) => m.employee.id));
-  const addable = employees.filter((e) => !memberIds.has(e.id));
-
   return (
     <PeopleShell
       activeTab="shift-groups"
@@ -290,7 +251,7 @@ export default function RostersPage() {
             rows={pageRows}
             rowKey={(c) => c.id}
             columns={columns}
-            onOpen={setOpenCrew}
+            openHref={(c) => `/people/rosters/${c.id}`}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -389,55 +350,6 @@ export default function RostersPage() {
         </DrawerSection>
       </Drawer>
 
-      <Drawer
-        open={Boolean(openCrew)}
-        onOpenChange={(open) => !open && setOpenCrew(null)}
-        title={openCrew?.name ?? "Crew"}
-        sub={openCrew ? [openCrew.code, openCrew.site?.name].filter(Boolean).join(", ") || undefined : undefined}
-        footer={<Button onClick={() => setOpenCrew(null)}>Close</Button>}
-      >
-        {openCrew ? (
-          <>
-            <DrawerSection title="Leader">
-              <DrawerRow label="Leader">{openCrew.leader ? <Person name={openCrew.leader.name} /> : "None"}</DrawerRow>
-              <DrawerRow label="Status">{openCrew.isActive ? "Active" : "Archived"}</DrawerRow>
-            </DrawerSection>
-
-            <DrawerSection title={`Members (${members.length})`}>
-              {membersQuery.isLoading ? (
-                <BooksLoading rows={3} />
-              ) : members.length === 0 ? (
-                <p className="muted">No members yet.</p>
-              ) : (
-                members.map((m) => (
-                  <DrawerRow key={m.id} label={<Person name={m.employee.name} sub={m.employee.employeeId} />}>
-                    {canManage && m.employee.id !== openCrew.leader?.id ? (
-                      <Button variant="quiet" busy={removeMember.isPending} onClick={() => removeMember.mutate(m.id)}>
-                        Remove
-                      </Button>
-                    ) : null}
-                  </DrawerRow>
-                ))
-              )}
-              {canManage ? (
-                <Field label="Add someone">
-                  <Select value={addEmployeeId} onChange={(e) => setAddEmployeeId(e.target.value)}>
-                    <option value="">Choose</option>
-                    {addable.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.employeeId || "no ID"})
-                      </option>
-                    ))}
-                  </Select>
-                  <Button variant="primary" disabled={!addEmployeeId} busy={addMember.isPending} onClick={() => addMember.mutate(addEmployeeId)}>
-                    Add
-                  </Button>
-                </Field>
-              ) : null}
-            </DrawerSection>
-          </>
-        ) : null}
-      </Drawer>
     </PeopleShell>
   );
 }
