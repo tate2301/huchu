@@ -1,315 +1,793 @@
-/* The platform's one sidebar: a 244px column on the ground colour. Role
-   tokens only, so each product keeps its own colours. */
+/* The platform's one sidebar, as the navigation canvas draws it (nav.css on
+   the canvas): 248px on the ground colour, the switcher at the top, the tree,
+   and the foot. Role tokens only, so each product keeps its own colours. */
 
-.sidebar {
-  --ring: 0 0 0 1px color-mix(in oklab, var(--ink) 7%, transparent);
-  --raised: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent), 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
-  width: 244px;
+.sb {
+  width: 248px;
   height: 100%;
+  min-height: 0;
   flex: none;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  padding: 10px 10px 0;
   background: var(--ground);
   box-shadow: inset -1px 0 0 var(--line);
+  color: var(--ink);
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.sb *,
+.sb *::before,
+.sb *::after {
   box-sizing: border-box;
 }
 
-.fill {
+/* The phone's More: the whole screen, 44px rows, nothing folds. */
+.phone {
   width: 100%;
-  min-width: 296px;
+  padding: 14px 12px 0;
 }
 
-.head {
-  flex: none;
+/* ── Workspace and person, one switcher ───────────────────── */
+
+.ws {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 12px 8px;
-}
-
-.collapse {
-  margin-left: auto;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  flex: none;
+  padding: 0 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ink-3);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
   cursor: pointer;
 }
 
-.collapse:hover {
-  background: var(--hover);
+.ws:hover,
+.ws[data-state="open"] {
+  background: var(--active);
+}
+
+.wsMark {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--device);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.wsLogo {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.wsFace {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--tray);
+  color: var(--ink-2);
+  font-size: 7px;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+.wsT {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.wsN {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsP {
+  color: var(--ink-3);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sel {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+}
+
+/* The switcher's menu (Switcher.dc.html) */
+
+.fly {
+  width: 280px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  color: var(--ink);
+  font-size: 13px;
+  z-index: 60;
+  outline: none;
+}
+
+.flyHead {
+  padding: 6px 10px 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.flySep {
+  height: 1px;
+  margin: 6px -6px;
+  background: var(--line);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.who .n2 {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.who .n2 span {
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.av24 {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 99px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--tray);
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ── Search (Management) ──────────────────────────────────── */
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  flex: none;
+  margin: 8px 0 10px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.find:focus-within {
+  border-color: var(--action);
+}
+
+.find input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
   color: var(--ink);
 }
 
-.collapse:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+.find input::placeholder {
+  color: var(--ink-3);
 }
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: var(--tray);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ── The tree ─────────────────────────────────────────────── */
 
 .scroll {
   flex: 1 1 auto;
   min-height: 0;
+  margin: 0 -10px;
+  padding: 12px 10px 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  padding: 4px 8px 8px;
 }
 
 .scroll::-webkit-scrollbar {
   display: none;
 }
 
-.group {
-  display: block;
-  margin-top: 12px;
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.group:first-child {
-  margin-top: 0;
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.label,
-.labelButton {
+.grpHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   width: 100%;
-  height: 24px;
-  margin: 0 0 2px;
-  padding: 0 8px;
+  height: 26px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--ink-3);
-  font-size: 12px;
+  font: inherit;
+  font-size: 12.5px;
   font-weight: 500;
-  line-height: 24px;
+  color: var(--ink-3);
   text-align: left;
-}
-
-.labelButton {
   cursor: pointer;
 }
 
-.labelButton:hover {
+.grpHead:hover {
   color: var(--ink);
 }
 
-.list,
-.kids {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.grpHead .chev {
+  margin-left: auto;
+  opacity: 0;
+  transform: rotate(90deg);
+  transition: opacity 120ms, transform 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.item {
-  position: relative;
+.grpHead:hover .chev,
+.grpHead:focus-visible .chev {
+  opacity: 1;
 }
 
-.row {
+.grpHead.isShut {
+  color: var(--ink-2);
+}
+
+.grpHead.isShut .chev {
+  opacity: 1;
+  transform: none;
+}
+
+/* A group's name on the phone: a label, nothing folds. */
+.grpLabel {
+  cursor: default;
+}
+
+.ic {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.ic14 {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.ic12 {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+/* A page: one 32px row. Its link fills the row; a parent's chevron is its own button. */
+
+.it {
   position: relative;
+  height: 32px;
   display: flex;
   align-items: center;
-  height: 32px;
   border-radius: 8px;
-  color: var(--ink-2, var(--ink));
-}
-
-.row:hover {
-  background: var(--hover);
-}
-
-.current,
-.current:hover {
-  background: var(--surface);
   color: var(--ink);
-  box-shadow: var(--ring), var(--raised);
+  white-space: nowrap;
 }
 
-.link {
+.it:hover {
+  background: var(--active);
+}
+
+.itLink {
   flex: 1 1 auto;
   min-width: 0;
   height: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 8px;
+  padding: 0 8px 0 10px;
   border-radius: 8px;
   color: inherit;
   text-decoration: none;
-}
-
-.icon {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-3);
-}
-
-.current .icon {
-  color: var(--ink);
-}
-
-.text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-}
-
-.badge {
-  flex: none;
-  min-width: 16px;
-  padding: 0 4px;
-  color: var(--ink-3);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.toggle,
-.more {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  margin-right: 4px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 6px;
+  font: inherit;
   background: transparent;
-  color: var(--ink-3);
+  border: 0;
+  text-align: left;
   cursor: pointer;
 }
 
-.toggle:hover,
-.more:hover {
-  background: var(--tray);
+.it.hasChev .itLink {
+  padding-right: 0;
+}
+
+.it > .itLink > .ic,
+.it > .itLink > .face {
+  color: var(--ink-3);
+}
+
+.lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.it.current {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+
+.it.current > .itLink > .ic,
+.it.current .chevBtn {
+  color: var(--on-sel);
+}
+
+.it.inBranch > .itLink > .ic,
+.it.inBranch .chevBtn {
   color: var(--ink);
 }
 
-/* The arrange button shows when the row is looked at, held or focused. */
-.more {
-  display: none;
-}
-
-.row:hover .more,
-.row:focus-within .more,
-.more[aria-expanded="true"] {
-  display: inline-flex;
-}
-
-.caret {
+.chevBtn {
   flex: none;
-  transition: transform 120ms ease;
+  width: 24px;
+  height: 24px;
+  margin: 0 2px 0 4px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
 }
 
-.caretOpen {
+.chevBtn .chev {
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.it.isOpen .chevBtn .chev {
   transform: rotate(90deg);
 }
 
+.face {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  object-fit: cover;
+}
+
+.cnt {
+  flex: none;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--tray);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.cnt.urgent {
+  background: var(--bad);
+  color: #ffffff;
+}
+
+.current .cnt {
+  background: color-mix(in oklab, var(--on-sel) 16%, transparent);
+  color: var(--on-sel);
+}
+
+/* Children: indented against one hairline guide. */
+
 .kids {
-  margin: 2px 0 4px 18px;
-  padding-left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 0 4px 18px;
+  padding-left: 9px;
   box-shadow: inset 1px 0 0 var(--line);
 }
 
 .kid {
+  height: 30px;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 28px;
   padding: 0 8px;
-  border-radius: 6px;
-  color: var(--ink-2, var(--ink));
+  border-radius: 7px;
+  color: var(--ink-2);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .kid:hover {
-  background: var(--hover);
+  background: var(--active);
+  color: var(--ink);
 }
 
-.foot {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  box-shadow: inset 0 1px 0 var(--line);
+.kid > .ic14 {
+  color: var(--ink-3);
 }
 
-.footRow {
-  position: relative;
+.kid:hover > .ic14 {
+  color: var(--ink-2);
+}
+
+.kid.current {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+  font-weight: 600;
+}
+
+.kid.current > .ic14 {
+  color: var(--on-sel);
+}
+
+/* The phone's rows are 44px. */
+
+.phone .it {
+  height: 44px;
+}
+
+/* Owner only: one row that adds what the workspace has not bought. */
+
+.add {
+  height: 32px;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.add:hover {
+  background: var(--active);
+  color: var(--ink);
+}
+
+/* Management: one row back to the workspace. */
+
+.back {
   height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.back:hover {
+  background: var(--active);
+}
+
+.phone .back {
+  height: 44px;
+  margin-top: 6px;
+}
+
+.empty {
+  padding: 6px 10px;
+  color: var(--ink-3);
+}
+
+/* ── Foot ─────────────────────────────────────────────────── */
+
+.foot {
+  flex: none;
+  margin: 0 -10px;
+  padding: 8px 10px 12px;
+  box-shadow: inset 0 1px 0 var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.footRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sync {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ink-2, var(--ink));
-  text-decoration: none;
+  font: inherit;
+  color: var(--ink-3);
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: left;
   cursor: pointer;
 }
 
-.footRow:hover {
-  background: var(--hover);
+.sync:hover {
+  color: var(--ink);
 }
 
-.person {
+.sync .ic14 {
+  color: var(--ok);
+}
+
+.sync.warn .ic14 {
+  color: var(--warn);
+}
+
+.sync.bad .ic14 {
+  color: var(--bad);
+}
+
+.syncWord {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ib {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ib:hover {
+  background: var(--active);
+  color: var(--ink);
+}
+
+.ib[aria-current="page"] {
+  background: var(--sel-fill);
+  color: var(--on-sel);
+}
+
+.brand {
   display: flex;
   align-items: center;
-  padding: 4px 8px 0;
+  gap: 8px;
+  padding: 2px 8px;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
-.live {
-  width: 7px;
-  height: 7px;
-  border-radius: 99px;
-  background: var(--action);
-  animation: sidebar-pulse 1.6s ease-in-out infinite;
+.brandMark {
+  flex: none;
+  width: 14px;
+  height: 15px;
+  color: #0f62fe;
 }
 
-@keyframes sidebar-pulse {
-  50% {
-    opacity: 0.35;
-  }
+.brand b {
+  color: var(--ink-2);
+  font-weight: 600;
 }
 
-.link:focus-visible,
+/* ── Arrange mode (SB-arrange.dc.html) ────────────────────── */
+
+.arrangeHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  flex: none;
+  padding: 0 8px;
+  font-weight: 600;
+}
+
+.cz {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 4px;
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: grab;
+  white-space: nowrap;
+  user-select: none;
+  touch-action: none;
+}
+
+.cz:hover {
+  background: var(--active);
+}
+
+.cz > .ic {
+  color: var(--ink-3);
+}
+
+.grip {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--faint);
+}
+
+.cz.off {
+  color: var(--ink-3);
+}
+
+.cz.off > .ic {
+  opacity: 0.5;
+}
+
+.cz.dragging {
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  cursor: grabbing;
+  position: relative;
+  z-index: 2;
+}
+
+.eye {
+  width: 26px;
+  height: 26px;
+  color: var(--ink-3);
+}
+
+.cz:not(.off) .eye {
+  opacity: 0;
+}
+
+.cz:hover .eye,
+.cz:focus-within .eye {
+  opacity: 1;
+}
+
+.arrangeFoot {
+  flex: none;
+  margin: 0 -10px;
+  padding: 8px 10px 12px;
+  box-shadow: inset 0 1px 0 var(--line);
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.arrangeFoot > * {
+  flex: 1;
+}
+
+/* ── Keyboard focus ───────────────────────────────────────── */
+
+.ws:focus-visible,
+.itLink:focus-visible,
+.chevBtn:focus-visible,
 .kid:focus-visible,
-.toggle:focus-visible,
-.more:focus-visible,
-.labelButton:focus-visible,
-.footRow:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--action-fill);
+.grpHead:focus-visible,
+.add:focus-visible,
+.back:focus-visible,
+.sync:focus-visible,
+.cz:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: -2px;
+}
+
+.ib:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .caret {
+  .grpHead .chev,
+  .chevBtn .chev {
     transition: none;
   }
+}
 
-  .live {
-    animation: none;
-  }
+/* A row that is its own link (the switcher's workspace, the rail's flyout). */
+.it.current > .ic14,
+.it.current > .ic {
+  color: var(--on-sel);
+}
+
+.phone .scroll {
+  margin: 0 -12px;
+  padding: 6px 12px 16px;
+}
+
+.itLink > .chev {
+  color: var(--faint);
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.isOpen > .chev {
+  transform: rotate(90deg);
 }

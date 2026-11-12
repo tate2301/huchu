@@ -3,240 +3,211 @@
 import * as React from "react";
 import Link from "next/link";
 
-import { VaneMark } from "@/components/core/vane-mark";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/workspace/menu";
-import { NAV_ICONS, type CorelithIcon } from "@/lib/icons/corelith-nav.generated";
-import { CaretRight, DotsThree, GearSix, SidebarSimple } from "@/lib/icons";
 import type { ComposedGroup, ComposedNode } from "@/lib/nav/compose";
 import type { ActiveNav } from "@/lib/nav/match";
-import { arrange, type NavPrefs } from "@/lib/nav/prefs";
+import { arrange, type NavListKey, type NavPrefs, type PinnedPage } from "@/lib/nav/prefs";
 import { cn } from "@/lib/utils";
 
+import { ChromeIcon, NavIcon } from "./parts";
 import styles from "./sidebar.module.css";
-
-type Vane = { open: boolean; count: number; working: boolean; onToggle: () => void };
 
 export type SidebarProps = {
   groups: ComposedGroup[];
   active: ActiveNav | null;
+  /** The page being looked at, for a pinned record or view. */
+  pathname: string;
   badges: Record<string, string>;
   prefs: NavPrefs;
-  onPref: (key: keyof NavPrefs, id: string) => void;
-  /** The workspace tile, with its account menu. */
-  tile: React.ReactNode;
-  /** The person at the foot, with their menu. */
-  person: React.ReactNode;
-  management?: { href: string; label: string } | null;
-  vane?: Vane | null;
-  /** Closes the sidebar once a destination is chosen (the phone drawer). */
+  onPref: (key: NavListKey, id: string) => void;
+  /** The switcher at the top. */
+  switcher: React.ReactNode;
+  /** The foot. */
+  foot: React.ReactNode;
+  /** Where the owner adds what the workspace has not bought; null for everyone else. */
+  addHref?: string | null;
+  /** Closes the sidebar once a destination is chosen (the phone's More). */
   onNavigate?: () => void;
   /** The shelves a module keeps for the person (the CRM's saved views), under the groups. */
   extra?: React.ReactNode;
-  /** Closes the sidebar beside the page. */
-  onCollapse?: () => void;
-  /** Fills its container (the phone drawer) instead of its own width. */
-  fill?: boolean;
+  /** The phone's More: the whole screen, 44px rows, group names that do not fold. */
+  phone?: boolean;
 };
 
-function Glyph({ name }: { name: string }) {
-  const Icon: CorelithIcon | undefined = NAV_ICONS[name];
-  return Icon ? <Icon className={styles.icon} aria-hidden="true" width={16} height={16} /> : <span className={styles.icon} />;
-}
-
 /**
- * The sidebar, one column for the whole platform: Pinned, then the groups the
- * person's workspace runs, then More. What is here was decided by
- * `composeNav`; this only draws it and keeps the person's arrangement.
+ * The sidebar, one tree for the whole platform (SB-owner.dc.html): the
+ * switcher, Home, the groups the workspace runs in their fixed order, Pinned,
+ * More, then the foot. What is here was decided by `composeNav`; this only
+ * draws it as the person arranged it.
  */
-export function Sidebar({ groups, active, badges, prefs, onPref, tile, person, management, vane, onNavigate, extra, onCollapse, fill }: SidebarProps) {
+export function Sidebar({ groups, active, pathname, badges, prefs, onPref, switcher, foot, addHref, onNavigate, extra, phone = false }: SidebarProps) {
   const arranged = React.useMemo(() => arrange(groups, prefs, active?.nodeId ?? null), [groups, prefs, active?.nodeId]);
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const pinnedShut = !phone && prefs.folded.includes("pinned");
 
-  const row = (node: ComposedNode, where: "pinned" | "group" | "more") => (
+  const row = (node: ComposedNode) => (
     <NodeRow
       key={node.id}
       node={node}
-      where={where}
       active={active}
-      badge={levelCount(node, badges) ?? badges[node.href]}
       badges={badges}
-      open={prefs.opened.includes(node.id) || active?.nodeId === node.id}
-      pinned={prefs.pinned.includes(node.id)}
-      onPref={onPref}
+      open={phone ? false : prefs.opened.includes(node.id) || active?.nodeId === node.id}
+      onToggle={() => onPref("opened", node.id)}
       onNavigate={onNavigate}
+      phone={phone}
     />
   );
 
+  const head = (id: string, label: string, shut: boolean) =>
+    phone ? (
+      <div className={cn(styles.grpHead, styles.grpLabel)}>{label}</div>
+    ) : (
+      <button type="button" className={cn(styles.grpHead, shut && styles.isShut)} aria-expanded={!shut} onClick={() => onPref("folded", id)}>
+        {label}
+        <ChromeIcon name="caret" className={cn(styles.ic12, styles.chev)} />
+      </button>
+    );
+
   return (
-    <nav className={cn(styles.sidebar, fill && styles.fill)} aria-label="Main">
-      <div className={styles.head}>
-        {tile}
-        {onCollapse ? (
-          <button type="button" className={styles.collapse} aria-label="Close the sidebar" aria-keyshortcuts="Control+B Meta+B" onClick={onCollapse}>
-            <SidebarSimple width={16} height={16} aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
+    <aside className={cn(styles.sb, phone && styles.phone)} aria-label="Main">
+      {switcher}
       <div className={styles.scroll}>
-        {arranged.pinned.length > 0 ? (
-          <section className={styles.group} aria-label="Pinned">
-            <h2 className={styles.label}>Pinned</h2>
-            <ul className={styles.list}>{arranged.pinned.map((node) => row(node, "pinned"))}</ul>
-          </section>
-        ) : null}
-        {arranged.groups.map((group) => {
-          const folded = prefs.folded.includes(group.id) && !group.items.some((node) => node.id === active?.nodeId);
-          return (
-            <section key={group.id} className={styles.group} aria-label={group.label}>
-              {group.id === "top" ? null : (
-                <button
-                  type="button"
-                  className={styles.labelButton}
-                  aria-expanded={!folded}
-                  onClick={() => onPref("folded", group.id)}
-                >
-                  <span>{group.label}</span>
-                  <CaretRight className={cn(styles.caret, !folded && styles.caretOpen)} width={12} height={12} aria-hidden="true" />
-                </button>
+        <nav className={styles.tree} aria-label="Workspace">
+          {arranged.groups.map((group) => {
+            if (group.id === "top") {
+              if (phone) return null;
+              return (
+                <div key={group.id} className={styles.grp}>
+                  {group.items.map(row)}
+                </div>
+              );
+            }
+            const shut = !phone && prefs.folded.includes(group.id) && !group.items.some((node) => node.id === active?.nodeId);
+            return (
+              <div key={group.id} className={styles.grp}>
+                {head(group.id, group.label, shut)}
+                {shut ? null : group.items.map(row)}
+              </div>
+            );
+          })}
+          {arranged.pinned.length + arranged.pages.length > 0 ? (
+            <div className={styles.grp}>
+              {head("pinned", "Pinned", pinnedShut)}
+              {pinnedShut ? null : (
+                <>
+                  {arranged.pinned.map(row)}
+                  {arranged.pages.map((page) => (
+                    <PageRow key={page.href} page={page} current={page.href === pathname} onNavigate={onNavigate} />
+                  ))}
+                </>
               )}
-              {folded ? null : <ul className={styles.list}>{group.items.map((node) => row(node, "group"))}</ul>}
-            </section>
-          );
-        })}
-        {arranged.more.length > 0 ? (
-          <section className={styles.group} aria-label="More">
-            <button type="button" className={styles.labelButton} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
-              <span>More</span>
-              <CaretRight className={cn(styles.caret, moreOpen && styles.caretOpen)} width={12} height={12} aria-hidden="true" />
-            </button>
-            {moreOpen ? <ul className={styles.list}>{arranged.more.map((node) => row(node, "more"))}</ul> : null}
-          </section>
-        ) : null}
-        {extra}
+            </div>
+          ) : null}
+          {arranged.more.length > 0 ? (
+            <div className={styles.grp}>
+              <div className={cn(styles.it, styles.hasChev, moreOpen && styles.isOpen)}>
+                <button type="button" className={styles.itLink} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+                  <ChromeIcon name="more" className={styles.ic} />
+                  <span className={styles.lbl}>More</span>
+                  <span className={styles.cnt}>{arranged.more.length}</span>
+                </button>
+                <span className={styles.chevBtn} aria-hidden="true">
+                  <ChromeIcon name="caret" className={cn(styles.ic12, styles.chev)} />
+                </span>
+              </div>
+              {moreOpen ? arranged.more.map(row) : null}
+            </div>
+          ) : null}
+          {addHref ? (
+            <div className={styles.grp}>
+              <Link href={addHref} className={styles.add} onClick={onNavigate}>
+                <ChromeIcon name="add" className={styles.ic} />
+                <span>Add Books, People and more</span>
+              </Link>
+            </div>
+          ) : null}
+          {extra}
+        </nav>
       </div>
-      <div className={styles.foot}>
-        {vane ? (
-          <button
-            type="button"
-            className={cn(styles.footRow, vane.open && styles.current)}
-            aria-pressed={vane.open}
-            aria-keyshortcuts="Control+J Meta+J"
-            onClick={vane.onToggle}
-          >
-            <span className={styles.icon}>
-              <VaneMark size={16} />
-            </span>
-            <span className={styles.text}>Vane</span>
-            {vane.count > 0 ? <span className={styles.badge}>{vane.count > 99 ? "99+" : vane.count}</span> : null}
-            {vane.working ? <span aria-hidden="true" className={styles.live} /> : null}
-          </button>
-        ) : null}
-        {management ? (
-          <Link href={management.href} className={styles.footRow} onClick={onNavigate}>
-            <GearSix className={styles.icon} width={16} height={16} aria-hidden="true" />
-            <span className={styles.text}>{management.label}</span>
-          </Link>
-        ) : null}
-        <div className={styles.person}>{person}</div>
-      </div>
-    </nav>
+      {foot}
+    </aside>
   );
 }
 
 function NodeRow({
   node,
-  where,
   active,
-  badge,
   badges,
   open,
-  pinned,
-  onPref,
+  onToggle,
   onNavigate,
+  phone,
 }: {
   node: ComposedNode;
-  where: "pinned" | "group" | "more";
   active: ActiveNav | null;
-  badge?: string;
   badges: Record<string, string>;
   open: boolean;
-  pinned: boolean;
-  onPref: (key: keyof NavPrefs, id: string) => void;
+  onToggle: () => void;
   onNavigate?: () => void;
+  phone: boolean;
 }) {
   const here = active?.nodeId === node.id;
   const current = here && active?.kidId === null;
-  const hasKids = node.kids.length > 0;
+  const kids = node.kids.length > 0;
+  const branch = here && !current;
+  const count = levelCount(node, badges) ?? badges[node.href];
   return (
-    <li className={styles.item}>
-      <div className={cn(styles.row, current && styles.current)}>
-        <Link href={node.href} className={styles.link} aria-current={current ? "page" : undefined} onClick={onNavigate}>
-          <Glyph name={node.icon} />
-          <span className={styles.text}>{node.label}</span>
-          {node.lock ? <Locked price={node.lock} /> : badge ? <span className={styles.badge}>{badge}</span> : null}
+    <>
+      <div className={cn(styles.it, kids && styles.hasChev, current && styles.current, branch && styles.inBranch, kids && open && styles.isOpen)}>
+        <Link href={node.href} className={styles.itLink} aria-current={current ? "page" : undefined} onClick={onNavigate}>
+          <NavIcon name={node.icon} className={styles.ic} />
+          <span className={styles.lbl}>{node.label}</span>
+          {count ? <span className={styles.cnt}>{count}</span> : null}
         </Link>
-        {hasKids ? (
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-expanded={open}
-            aria-label={`${node.label}, ${open ? "close" : "open"}`}
-            onClick={() => onPref("opened", node.id)}
-          >
-            <CaretRight className={cn(styles.caret, open && styles.caretOpen)} width={12} height={12} aria-hidden="true" />
-          </button>
-        ) : null}
-        <Menu>
-          <MenuTrigger asChild>
-            <button type="button" className={styles.more} aria-label={`${node.label}, arrange`}>
-              <DotsThree width={16} height={16} aria-hidden="true" />
+        {kids ? (
+          phone ? (
+            <span className={styles.chevBtn} aria-hidden="true">
+              <ChromeIcon name="caret" className={cn(styles.ic12, styles.chev)} />
+            </span>
+          ) : (
+            <button type="button" className={styles.chevBtn} aria-expanded={open} aria-label={`${node.label}, ${open ? "close" : "open"}`} onClick={onToggle}>
+              <ChromeIcon name="caret" className={cn(styles.ic12, styles.chev)} />
             </button>
-          </MenuTrigger>
-          <MenuContent side="right" align="start">
-            <MenuItem onSelect={() => onPref("pinned", node.id)}>{pinned ? "Unpin" : "Pin"}</MenuItem>
-            {where === "more" ? (
-              <MenuItem onSelect={() => onPref("hidden", node.id)}>Move back</MenuItem>
-            ) : (
-              <MenuItem onSelect={() => onPref("hidden", node.id)}>Move to More</MenuItem>
-            )}
-          </MenuContent>
-        </Menu>
+          )
+        ) : null}
       </div>
-      {hasKids && open ? (
-        <ul className={styles.kids}>
-          {node.kids.map((kid) => (
-            <li key={kid.id}>
-              <Link
-                href={kid.href}
-                className={cn(styles.kid, here && active?.kidId === kid.id && styles.current)}
-                aria-current={here && active?.kidId === kid.id ? "page" : undefined}
-                onClick={onNavigate}
-              >
-                <span className={styles.text}>{kid.label}</span>
-                {kid.lock ? <Locked price={kid.lock} /> : badges[kid.href] ? <span className={styles.badge}>{badges[kid.href]}</span> : null}
+      {kids && open ? (
+        <div className={styles.kids}>
+          {node.kids.map((kid) => {
+            const on = here && active?.kidId === kid.id;
+            return (
+              <Link key={kid.id} href={kid.href} className={cn(styles.kid, on && styles.current)} aria-current={on ? "page" : undefined} onClick={onNavigate}>
+                <NavIcon name={kid.icon} className={styles.ic14} />
+                <span className={styles.lbl}>{kid.label}</span>
+                {badges[kid.href] ? <span className={styles.cnt}>{badges[kid.href]}</span> : null}
               </Link>
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
       ) : null}
-    </li>
+    </>
   );
 }
 
-/** A page the plan does not include: its price and a lock. It still opens, onto what the plan adds. */
-function Locked({ price }: { price: string }) {
-  const Lock = NAV_ICONS.lock;
+/** A record or a view the person pinned. */
+function PageRow({ page, current, onNavigate }: { page: PinnedPage; current: boolean; onNavigate?: () => void }) {
   return (
-    <span className={styles.badge}>
-      {price}
-      {Lock ? <Lock width={12} height={12} aria-label="Not on your plan" /> : null}
-    </span>
+    <div className={cn(styles.it, current && styles.current)}>
+      <Link href={page.href} className={styles.itLink} aria-current={current ? "page" : undefined} onClick={onNavigate}>
+        <NavIcon name={page.icon ?? "bookmark"} className={styles.ic} />
+        <span className={styles.lbl}>{page.label}</span>
+      </Link>
+    </div>
   );
 }
 
 /** What waits in a level: the counts of its open rows, summed (Books' levels). */
 function levelCount(node: ComposedNode, badges: Record<string, string>): string | null {
   if (node.group !== "books" || node.kids.length === 0) return null;
-  const total = node.kids.reduce((sum, kid) => sum + (kid.lock ? 0 : Number(badges[kid.href] ?? 0) || 0), 0);
+  const total = node.kids.reduce((sum, kid) => sum + (Number(badges[kid.href] ?? 0) || 0), 0);
   return total > 0 ? String(total) : null;
 }

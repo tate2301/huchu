@@ -2,124 +2,93 @@
 
 import * as React from "react";
 
-import { Kit } from "@/components/core";
 import { useShell } from "@/components/layout/shell-state";
+import { ChromeIcon } from "@/components/layout/sidebar/parts";
 import { useVaneStatus } from "@/components/vane/use-vane";
-import { VaneButtonView } from "@/components/vane/vane-button-view";
 import {
   NotificationCenter,
   useNotificationsEnabled,
   useUnreadNotificationCount,
 } from "@/components/notifications/notification-center";
 import { useEmergencyAlerts } from "@/components/alerts/emergency-alert-host";
-import { Bell, MagnifyingGlass } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
+import bar from "./app-bar.module.css";
 
-/** The kit's quiet icon button (`.btn-quiet.btn-icon`): 32px, ink 2, a fill on hover. */
-const ICON_BUTTON =
-  "relative flex size-8 shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent text-[var(--ink-2)] hover:bg-[var(--tray)] hover:text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]";
+const noopSubscribe = () => () => {};
 
-/**
- * Search everything: a field-shaped trigger 240px wide, as the kit draws it
- * (`.tb-find`), an icon below 1100px and on a phone. It opens the one command
- * palette, as Ctrl K does.
- */
-export function SearchTrigger({ compact = false }: { compact?: boolean }) {
+/** Search everything: an icon (Ctrl K) that opens the one command palette. */
+export function SearchTrigger() {
   const shell = useShell();
-  if (compact) {
-    return (
-      <button
-        type="button"
-        aria-label="Search records and actions"
-        className={cn(ICON_BUTTON, "size-11")}
-        onClick={() => shell.setCommandOpen(true)}
-      >
-        <MagnifyingGlass className="size-5" aria-hidden="true" />
-      </button>
-    );
-  }
-  // The owner, 19 Oct: Search is an icon button on the far right (Ctrl K), never a wide field in the bar.
   return (
     <button
       type="button"
-      aria-label="Search everything, Ctrl K"
+      aria-label="Search, Ctrl K"
       title="Search · Ctrl K"
       aria-keyshortcuts="Meta+K Control+K"
-      className={ICON_BUTTON}
+      aria-expanded={shell.commandOpen}
+      className={bar.tool}
       onClick={() => shell.setCommandOpen(true)}
     >
-      <MagnifyingGlass className="size-4" aria-hidden="true" />
+      <ChromeIcon name="search" className={bar.ic} />
     </button>
   );
 }
 
-/** The bell with its unread count, opening the notification panel under it. */
-export function NotificationsBell({ compact = false }: { compact?: boolean }) {
+/**
+ * The bell: a quiet dot while something is new (red when something is
+ * critical), never a count; the count is in its name. It opens the
+ * notification panel under it.
+ */
+export function NotificationsBell() {
   const enabled = useNotificationsEnabled();
   const unread = useUnreadNotificationCount();
   const { feed: emergencyFeed } = useEmergencyAlerts();
-  const [open, setOpen] = React.useState(false);
+  // One panel for the shell: the bell and the command palette both open it.
+  const { notificationsOpen: open, setNotificationsOpen: setOpen } = useShell();
   // The count comes from the browser's cache, so it is drawn after hydration.
-  const mounted = React.useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
+  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   const hasEmergencyAlerts = (emergencyFeed?.counts.total ?? 0) > 0;
-  const hasCriticalEmergency = (emergencyFeed?.counts.critical ?? 0) > 0;
+  const critical = (emergencyFeed?.counts.critical ?? 0) > 0;
   if (!enabled && !hasEmergencyAlerts) return null;
   const count = mounted ? unread : 0;
-  const label = count > 0 ? `Notifications, ${count} unread` : "Notifications";
+  const label = count > 0 ? `Notifications, ${count} new` : "Notifications";
   return (
     <NotificationCenter open={open} onOpenChange={setOpen} side="bottom" align="end">
-      <button
-        type="button"
-        aria-label={label}
-        title={label}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={cn(ICON_BUTTON, compact && "size-11")}
-        onClick={() => setOpen(true)}
-      >
-        <Bell weight="fill" className="size-4" aria-hidden="true" />
-        {/* A quiet dot, not a count: the panel's Needs you says how many. The name carries the number. */}
-        {count > 0 ? (
-          <span
-            aria-hidden="true"
-            className={cn(
-              "absolute right-1.5 top-1.5 size-2 rounded-full shadow-[0_0_0_2px_var(--surface)]",
-              hasCriticalEmergency ? "bg-red-600" : "bg-[var(--action)]",
-            )}
-          />
-        ) : null}
+      <button type="button" aria-label={label} title={label} aria-haspopup="dialog" aria-expanded={open} className={bar.tool} onClick={() => setOpen(true)}>
+        <ChromeIcon name="bell" className={bar.ic} />
+        {count > 0 ? <span aria-hidden="true" className={cn(bar.dot, critical && bar.crit)} /> : null}
       </button>
     </NotificationCenter>
   );
 }
 
-const noopSubscribe = () => () => {};
-
 /**
- * Vane in the app bar, beside Search (the owner, 19 Oct): its mark, "Vane",
- * the count of what waits and a dot while it works; it opens and closes the
- * panel, as the rail's mark and Ctrl J do. The device's sync state lives in
- * the account menu now, not here.
+ * Vane: its mark, "Vane", the count of what is ready for this person and a
+ * dot while it works; pressed while its panel is open (Ctrl J). Under 1100px
+ * and on a phone, the mark and the dot.
  */
 export function VaneBarButton() {
   const shell = useShell();
   const status = useVaneStatus();
+  const count = status.data?.open ?? 0;
+  const working = Boolean(status.data?.working);
   return (
-    <Kit contents>
-      <VaneButtonView
-        open={shell.vaneOpen}
-        count={status.data?.open ?? 0}
-        working={Boolean(status.data?.working)}
-        onClick={() => {
-          if (shell.drawerOpen) shell.setDrawerOpen(false);
-          shell.setVaneOpen(!shell.vaneOpen);
-        }}
-      />
-    </Kit>
+    <button
+      type="button"
+      className={bar.vane}
+      aria-pressed={shell.vaneOpen}
+      aria-label={count > 0 ? `Vane, ${count} ready for you` : "Vane"}
+      aria-keyshortcuts="Control+J Meta+J"
+      onClick={() => {
+        if (shell.drawerOpen) shell.setDrawerOpen(false);
+        shell.setVaneOpen(!shell.vaneOpen);
+      }}
+    >
+      <ChromeIcon name="vane" className={bar.ic} />
+      <span className={bar.vaneWord}>Vane</span>
+      {count > 0 ? <span className={bar.vaneCount}>{count > 99 ? "99+" : count}</span> : null}
+      {working ? <span className={bar.live} aria-hidden="true" /> : null}
+    </button>
   );
 }

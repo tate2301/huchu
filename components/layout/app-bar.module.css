@@ -1,0 +1,530 @@
+/* The app bar (the App bar page of the navigation canvas): 56px, 24px each
+   side, the page's identity on the left, its actions, primary and the three
+   tools that never move on the right. Role tokens only. */
+
+.bar {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.right {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Identity */
+
+.crumb {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: inherit;
+}
+
+.pg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+}
+
+.par {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.par:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sl {
+  flex: none;
+  color: var(--faint);
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ref {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.subLink {
+  flex: none;
+  color: var(--ink-2);
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pick {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pick:hover,
+.pick[data-state="open"] {
+  background: var(--tray);
+  color: var(--ink);
+}
+
+/* Tools: 32px, radius 7, ink 2; 44px on a phone. */
+
+.tool {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 120ms, color 120ms;
+}
+
+.tool:hover {
+  background: var(--tray);
+  color: var(--ink);
+}
+
+.tool:active,
+.tool[aria-pressed="true"],
+.tool[aria-expanded="true"],
+.tool[data-state="open"] {
+  background: var(--active);
+  color: var(--ink);
+}
+
+.tool:disabled {
+  color: var(--faint);
+  opacity: 0.55;
+  background: transparent;
+  cursor: default;
+}
+
+.ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.ic20 {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.ic12 {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.ic14 {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Something waits: a quiet 8px dot, never a count. */
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--action);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.dot.crit {
+  background: var(--bad-dot);
+}
+
+/* Vane: its mark, its word, the count of what is ready, a dot while it works. */
+
+.vane {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+
+.vane:hover {
+  background: var(--tray);
+  color: var(--ink);
+}
+
+.vane[aria-pressed="true"] {
+  background: var(--active);
+  color: var(--ink);
+}
+
+.vaneCount {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--tray);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.live {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--ok);
+  animation: bar-pulse 1.6s ease-in-out infinite;
+}
+
+/* Under 1100px Vane keeps its mark and the dot. */
+@media (max-width: 1099px) {
+  .vane {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .vane .vaneWord,
+  .vane .vaneCount {
+    display: none;
+  }
+
+  .vane .live {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+}
+
+/* The emergency: the one signal that cannot wait. */
+
+.emergency {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px 0 9px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.emergency .pd {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--bad-dot);
+  animation: bar-pulse 1.2s ease-in-out infinite;
+}
+
+.emergency .n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.emergency.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.emergency.warn .pd {
+  background: var(--warn-dot);
+  animation: none;
+}
+
+.emergency.compact {
+  padding: 0 8px;
+}
+
+/* Previous and next, then the position. */
+
+.step {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.step .tool {
+  width: 28px;
+  height: 28px;
+}
+
+.pos {
+  margin: 0 6px 0 4px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The primary: one filled button, or one with a menu behind its chevron. */
+
+.split {
+  flex: none;
+  display: inline-flex;
+}
+
+.split > :first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split > :last-child {
+  width: 30px;
+  padding: 0;
+  margin-left: 1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.held {
+  background: var(--tray) !important;
+  color: var(--ink-3) !important;
+  border-color: transparent !important;
+  opacity: 1 !important;
+  font-weight: 600;
+  cursor: default;
+}
+
+.spin {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 99px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.85;
+  animation: bar-spin 0.8s linear infinite;
+}
+
+.busy {
+  cursor: progress;
+}
+
+/* The selection's actions, docked under an unchanged bar. */
+
+.selection {
+  flex: none;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  background: var(--tray);
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: 13.5px;
+}
+
+.selection b {
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+/* The phone's bar: the same bar, folded. */
+
+.phone {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  color: var(--ink);
+}
+
+.phone .tool,
+.phone .vane {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+}
+
+.phone .dot,
+.phone .vane .live {
+  top: 11px;
+  right: 11px;
+}
+
+.phone .vane .vaneWord,
+.phone .vane .vaneCount {
+  display: none;
+}
+
+.phone .vane .live {
+  position: absolute;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.phoneTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.plus {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: 0 4px 0 2px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: var(--action-fill);
+  color: var(--on-action);
+  cursor: pointer;
+}
+
+.plus:disabled {
+  background: var(--tray);
+  color: var(--faint);
+  cursor: default;
+}
+
+.tool:focus-visible,
+.vane:focus-visible,
+.pick:focus-visible,
+.emergency:focus-visible,
+.plus:focus-visible,
+.par:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+@keyframes bar-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes bar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live,
+  .emergency .pd,
+  .spin {
+    animation: none;
+  }
+
+  .tool,
+  .vane {
+    transition: none;
+  }
+}
+
+/* The Kit wraps its button in a `display: contents` scope. */
+.split > :first-child > :first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* One bar at a time: the full bar from 720px, the folded one under it. */
+@media (max-width: 719px) {
+  .bar {
+    display: none;
+  }
+}
+
+@media (min-width: 720px) {
+  .phone {
+    display: none;
+  }
+}

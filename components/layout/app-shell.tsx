@@ -24,7 +24,6 @@ import { builderSurface, type BuilderSurface } from "@/lib/builder/paths";
 import { isPublicPath } from "@/lib/public-routes";
 import { SignInAsBanner } from "@/components/sign-in-as/sign-in-as-banner";
 import { isCountPhonePath } from "@/lib/retail/stock/count-paths";
-import { isSettingsSurfacePath } from "@/lib/settings/management-nav";
 import { RecordPeekHost, RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 import { SheetHost } from "@/components/sheet-form/sheet-host";
@@ -73,8 +72,6 @@ export function AppShell({
   const isPublicRoute = isPublicPath(pathname);
   // The preview host control page.
   const isPreviewHostRoute = pathname === "/preview-host";
-  // Settings and preferences are a full-screen dialog of their own.
-  const isSettingsRoute = isSettingsSurfacePath(pathname);
   // The phone count, full screen like the till: the counter's, whatever their role.
   const isCountPhoneRoute = isCountPhonePath(pathname);
   // A builder takes the page: the whole window, or all of it but the rail.
@@ -87,7 +84,6 @@ export function AppShell({
     isAdminRoute ||
     isPublicRoute ||
     isPreviewHostRoute ||
-    isSettingsRoute ||
     isCountPhoneRoute ||
     builder === "full"
   ) {
@@ -114,11 +110,20 @@ export function AppShell({
 }
 
 function ShellFrame({ children, builder }: { children: React.ReactNode; builder: BuilderSurface | null }) {
-  const { width, setDrawerOpen } = useShell();
-  const { pending, refused, groups, active, companyName } = useShellNav();
+  const { width, drawerOpen, setDrawerOpen } = useShell();
+  const { pending, refused, groups, active, companyName, badges } = useShellNav();
   const { prefs } = useNavPrefs(companyName);
   const phoneBar =
-    width === "phone" ? <PhoneBar groups={groups} active={active} prefs={prefs} onMore={() => setDrawerOpen(true)} /> : null;
+    width === "phone" ? (
+      <PhoneBar
+        groups={groups}
+        active={active}
+        prefs={prefs}
+        badges={badges}
+        moreOpen={drawerOpen}
+        onMore={() => setDrawerOpen(!drawerOpen)}
+      />
+    ) : null;
   if (builder === "rail") {
     // The builder's outline and bar stand where the module panel and the top bar are.
     return (
