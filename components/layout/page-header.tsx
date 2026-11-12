@@ -98,7 +98,7 @@ export function PageHeader() {
   const menuCount = folded.length + (phoneMenu?.length ?? 0) + (primaryInMenu ? 1 : 0);
   // Held lowercase and drawn with `createElement`: a capitalised binding read
   // during render looks to the lint rule like a component made in render.
-  const pageIconName = managementRow?.icon ?? nav.pageIcon;
+  const pageIconName = nav.pageIcon;
   const pageIcon: ElementType | undefined = pageIconName && NAV_ICONS[pageIconName] ? undefined : routeIcon(pathname);
   const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
@@ -109,7 +109,7 @@ export function PageHeader() {
       <div className={bar.bar}>
         <div className={bar.left}>
           <h1 className={bar.crumb}>
-            {pageIconName && NAV_ICONS[pageIconName] ? (
+            {identity?.icon ? identity.icon : pageIconName && NAV_ICONS[pageIconName] ? (
               <NavIcon name={pageIconName} className={bar.pg} />
             ) : pageIcon ? (
               createElement(pageIcon, { className: bar.pg, "aria-hidden": true })

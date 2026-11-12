@@ -3,11 +3,12 @@
 import * as React from "react";
 
 import { Kit, KitScreen } from "@/components/core";
+import { PageChrome } from "@/components/layout/page-chrome";
 
 /**
  * A Management page drawn in the core modules kit (design/core-modules): the
- * top bar with the page's mark and title and its actions, then the page
- * itself, which scrolls on its own. The surface hands it the content column
+ * title, mark and actions live in the app bar, not a second title row. The
+ * page scrolls on its own. The surface hands it the content column
  * whole, as it does a register or a form page.
  */
 export function KitPage({
@@ -21,7 +22,7 @@ export function KitPage({
 }: {
   /** The kit screen whose own styles it takes (`.sc-<slug>`), when it is one of the 18. */
   screen?: string;
-  title: React.ReactNode;
+  title: string;
   /** The 16px mark before the title. */
   mark?: React.ReactNode;
   actions?: React.ReactNode;
@@ -32,13 +33,9 @@ export function KitPage({
 }) {
   const body = (
     <section className="mn">
-      <header className="tb-m">
-        <h1>
-          {mark}
-          {title}
-        </h1>
-        {actions ? <div className="tb-r">{actions}</div> : null}
-      </header>
+      <PageChrome title={title} icon={mark}>
+        {actions ? <Kit contents>{actions}</Kit> : null}
+      </PageChrome>
       {flush ? (
         children
       ) : (
