@@ -12,6 +12,8 @@ import type { IconName } from "@/components/core";
  */
 export type PageIdentity = {
   title: string;
+  /** A page-provided mark, in place of its route icon. */
+  icon?: React.ReactNode;
   back?: { href: string; label: string };
   /** A record's reference — `PO-0003`, `SH-00242` — in mono after its name. */
   reference?: string | null;
@@ -116,6 +118,7 @@ function usePageChrome() {
  */
 function PageChrome({
   title,
+  icon,
   reference,
   backHref,
   backLabel,
@@ -127,6 +130,7 @@ function PageChrome({
   children,
 }: {
   title?: string | null;
+  icon?: React.ReactNode;
   reference?: string | null;
   /** Where "up" goes. Both this and `backLabel` are needed for a back link. */
   backHref?: string;
@@ -150,6 +154,7 @@ function PageChrome({
     if (title && title.trim().length > 0) {
       setIdentity({
         title,
+        icon,
         reference,
         sub,
         subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
@@ -158,7 +163,7 @@ function PageChrome({
       });
       return () => setIdentity(null);
     }
-  }, [title, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
+  }, [title, icon, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {
     // Left undefined, this component is only claiming the title — some other
