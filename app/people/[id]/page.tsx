@@ -4,14 +4,22 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import {
   Amt,
+  BkBlock,
+  BkEmpty,
+  BkFacts,
+  BkNote,
   BkPage,
+  BkRecord,
+  BkRecordHead,
   BkTabs,
   None,
   St,
   Worksheet,
+  type BkTone,
   type WsColumn,
 } from "@/components/books/ui";
 import { BooksError, BooksLoading } from "@/components/books/books-state";
@@ -23,9 +31,11 @@ import {
   Field,
   Input,
   Person,
+  Select,
 } from "@/components/core";
 import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PageChrome } from "@/components/layout/page-chrome";
+import { EMPLOYMENT_TYPE_LABEL } from "@/components/records/people-directory";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchDepartments,
@@ -34,23 +44,10 @@ import {
   type JobGradeRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { EMPLOYMENT_TYPE_LABEL } from "@/components/records/people-directory";
-import {
-  Badge,
-  Buildings,
-  CreditCard,
-  FileCheck,
-  IdentificationCard,
-  Lock,
-  Mail,
-  Phone,
-  ShieldCheck,
-  UserCheck,
-  UserRound,
-  Wallet,
-} from "@/lib/icons";
+import { shortDay } from "@/lib/books/format";
+import { employeePositionLabel, getEmployeePositionOptions } from "@/lib/platform/vertical-defaults";
 
-type TabKey = "overview" | "compensation" | "attendance" | "leave" | "documents";
+type TabKey = "profile" | "pay" | "attendance" | "leave";
 
 type EmployeeDetail = {
   id: string;
@@ -77,7 +74,7 @@ type EmployeeDetail = {
   overtimeHourlyRate: string | number | null;
   taxNumber: string | null;
   nssaNumber: string | null;
-  taxStatus: "STANDARD" | "SPECIAL" | "EXEMPT";
+  taxStatus: string;
   bankName: string | null;
   bankAccountNumber: string | null;
   bankBranchCode: string | null;
@@ -86,33 +83,12 @@ type EmployeeDetail = {
   defaultCurrency: string;
   isActive: boolean;
   companyId: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    isActive: boolean;
-  } | null;
+  user: { id: string; email: string; name: string; role: string; isActive: boolean } | null;
   department: { id: string; code: string; name: string } | null;
   grade: { id: string; code: string; name: string; rank: number } | null;
   supervisor: { id: string; employeeId: string; name: string } | null;
   supervisees: Array<{ id: string; employeeId: string; name: string; position: string }>;
-  fixedSalary: {
-    id: string;
-    monthlyAmount: number;
-    currency: string;
-    isActive: boolean;
-    updatedAt: string;
-  } | null;
-  compensationProfiles: Array<{
-    id: string;
-    baseAmount: number;
-    currency: string;
-    effectiveFrom: string;
-    effectiveTo: string | null;
-    status: string;
-    workflowStatus: string;
-  }>;
+  fixedSalary: { id: string; monthlyAmount: number; currency: string; isActive: boolean; updatedAt: string } | null;
   attendance: Array<{
     id: string;
     date: string;
@@ -130,14 +106,6 @@ type EmployeeDetail = {
     reason: string;
     leaveType: { id: string; name: string; code: string };
   }>;
-  leaveEntitlements: Array<{
-    id: string;
-    year: number;
-    granted: number | string;
-    carriedOver: number | string;
-    adjustment: number | string;
-    leaveType: { id: string; name: string; code: string };
-  }>;
   payrollLineItems: Array<{
     id: string;
     grossAmount: number | string;
@@ -145,16 +113,8 @@ type EmployeeDetail = {
     baseAmount: number | string;
     currency: string;
     createdAt: string;
-    run?: {
-      id: string;
-      runNumber: number;
-      period: { periodKey: string; name?: string | null };
-    };
-    payrollRun?: {
-      id: string;
-      runNumber: number;
-      period: { periodKey: string; name?: string | null };
-    };
+    run?: { id: string; runNumber: number; period: { periodKey: string; name?: string | null } };
+    payrollRun?: { id: string; runNumber: number; period: { periodKey: string; name?: string | null } };
   }>;
   hrIncidents: Array<{
     id: string;
@@ -174,406 +134,415 @@ type EmployeeDetail = {
   }>;
 };
 
+type LeaveBalance = {
+  leaveTypeId: string;
+  code: string;
+  name: string;
+  entitled: string;
+  taken: string;
+  pending: string;
+  remaining: string;
+  isUnlimited: boolean;
+};
+
+type TrainingRecord = {
+  id: string;
+  trainingType: string;
+  trainingDate: string;
+  expiryDate: string | null;
+  trainedBy: string | null;
+  certificateUrl: string | null;
+  notes: string | null;
+};
+
+type Page<T> = { data: T[] };
+
+const DAY_MS = 86_400_000;
+const RENEWAL_WINDOW_DAYS = 30;
+
+const day = (value: string | null | undefined) => (value ? shortDay(value.slice(0, 10)) : null);
+const words = (value: string) => value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ");
+const days = (n: number | string) => `${Number(n)} ${Number(n) === 1 ? "day" : "days"}`;
+
+/** A certificate's state from its expiry: nothing expires, expired, renewal due inside 30 days, or valid. */
+function certificateState(expiry: string | null, now: number): { tone: BkTone; label: string; left: number | null } {
+  if (!expiry) return { tone: "draft", label: "No expiry", left: null };
+  const left = Math.ceil((new Date(expiry).getTime() - now) / DAY_MS);
+  if (left < 0) return { tone: "bad", label: "Expired", left };
+  if (left <= RENEWAL_WINDOW_DAYS) return { tone: "warn", label: "Renewal due", left };
+  return { tone: "done", label: "Valid", left };
+}
+
+const ATTENDANCE_TONE: Record<EmployeeDetail["attendance"][number]["status"], BkTone> = {
+  PRESENT: "done",
+  LATE: "warn",
+  HALF_DAY: "warn",
+  EXCUSED: "info",
+  ABSENT: "bad",
+};
+
+const LEAVE_TONE: Record<string, BkTone> = { APPROVED: "done", REJECTED: "bad", DRAFT: "draft", SUBMITTED: "warn", PENDING: "warn" };
+
+type EditForm = {
+  name: string;
+  phone: string;
+  jobTitle: string;
+  position: string;
+  departmentId: string;
+  gradeId: string;
+  employmentType: string;
+  hireDate: string;
+  salary: string;
+  bankName: string;
+  bankAccount: string;
+  bankBranch: string;
+  mobileProvider: string;
+  mobileNumber: string;
+  taxNumber: string;
+  nssaNumber: string;
+};
+
+const editFormOf = (employee: EmployeeDetail): EditForm => ({
+  name: employee.name,
+  phone: employee.phone,
+  jobTitle: employee.jobTitle ?? "",
+  position: employee.position,
+  departmentId: employee.departmentId ?? "",
+  gradeId: employee.gradeId ?? "",
+  employmentType: employee.employmentType || "FULL_TIME",
+  hireDate: employee.hireDate ? employee.hireDate.slice(0, 10) : "",
+  salary: employee.fixedSalary ? String(employee.fixedSalary.monthlyAmount) : "",
+  bankName: employee.bankName ?? "",
+  bankAccount: employee.bankAccountNumber ?? "",
+  bankBranch: employee.bankBranchCode ?? "",
+  mobileProvider: employee.mobileMoneyProvider ?? "",
+  mobileNumber: employee.mobileMoneyNumber ?? "",
+  taxNumber: employee.taxNumber ?? "",
+  nssaNumber: employee.nssaNumber ?? "",
+});
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** One person's record: the head and facts, then the sections, with certificates, incidents and the account beside. */
 export default function EmployeeRecordPage() {
   const params = useParams<{ id: string }>();
+  const id = params?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
 
-  const id = params?.id;
-  const [tab, setTab] = React.useState<TabKey>("overview");
+  const [now] = React.useState(() => Date.now());
+  const [tab, setTab] = React.useState<TabKey>("profile");
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [form, setForm] = React.useState<EditForm | null>(null);
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
+  const [leave, setLeave] = React.useState({ leaveTypeId: "", startDate: today(), endDate: today(), reason: "" });
+  const [certOpen, setCertOpen] = React.useState(false);
+  const [cert, setCert] = React.useState({ trainingType: "", trainingDate: today(), expiryDate: "", trainedBy: "" });
 
-  // Edit Drawer state
-  const [editDrawerOpen, setEditDrawerOpen] = React.useState(false);
-  const [editName, setEditName] = React.useState("");
-  const [editPhone, setEditPhone] = React.useState("");
-  const [editJobTitle, setEditJobTitle] = React.useState("");
-  const [editDepartmentId, setEditDepartmentId] = React.useState("");
-  const [editGradeId, setEditGradeId] = React.useState("");
-  const [editEmploymentType, setEditEmploymentType] = React.useState("FULL_TIME");
-  const [editSalary, setEditSalary] = React.useState("");
-  const [editBankName, setEditBankName] = React.useState("");
-  const [editBankAccount, setEditBankAccount] = React.useState("");
-  const [editBankBranch, setEditBankBranch] = React.useState("");
-  const [editMobileProvider, setEditMobileProvider] = React.useState("");
-  const [editMobileNumber, setEditMobileNumber] = React.useState("");
-  const [editTaxNumber, setEditTaxNumber] = React.useState("");
-  const [editNssaNumber, setEditNssaNumber] = React.useState("");
-
-  // Leave modal state
-  const [leaveModalOpen, setLeaveModalOpen] = React.useState(false);
-  const [leaveStartDate, setLeaveStartDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [leaveEndDate, setLeaveEndDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [leaveReason, setLeaveReason] = React.useState("");
-  const [leaveTypeId, setLeaveTypeId] = React.useState("");
-
-  const { data: employee, isLoading, error } = useQuery<EmployeeDetail>({
+  const employeeQuery = useQuery<EmployeeDetail>({
     queryKey: ["employee", id],
     queryFn: () => fetchJson<EmployeeDetail>(`/api/employees/${id}`),
     enabled: Boolean(id),
   });
+  const employee = employeeQuery.data;
 
-  const { data: deptsData } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => fetchDepartments({ active: true, limit: 100 }),
+  const departments = useQuery({ queryKey: ["departments"], queryFn: () => fetchDepartments({ active: true, limit: 100 }) }).data?.data ?? [];
+  const grades = useQuery({ queryKey: ["job-grades"], queryFn: () => fetchJobGrades({ active: true, limit: 100 }) }).data?.data ?? [];
+
+  const balances = useQuery({
+    queryKey: ["people", "leave-balances", id],
+    queryFn: () => fetchJson<{ balances: LeaveBalance[] }>(`/api/people/leave/balances?employeeId=${id}`),
+    enabled: Boolean(id),
+  }).data?.balances ?? [];
+  const leaveTypes =
+    useQuery({
+      queryKey: ["people", "leave-types"],
+      queryFn: () => fetchJson<{ types: Array<{ id: string; name: string; code: string }> }>("/api/people/leave/types"),
+    }).data?.types ?? [];
+
+  const userId = employee?.user?.id ?? null;
+  const certificatesQuery = useQuery({
+    queryKey: ["training-records", userId],
+    queryFn: () => fetchJson<Page<TrainingRecord>>(`/api/compliance/training-records?userId=${userId}&limit=100`),
+    enabled: Boolean(userId),
   });
-  const departments = deptsData?.data ?? [];
+  const certificates = React.useMemo(() => certificatesQuery.data?.data ?? [], [certificatesQuery.data]);
 
-  const { data: gradesData } = useQuery({
-    queryKey: ["job-grades"],
-    queryFn: () => fetchJobGrades({ active: true, limit: 100 }),
+  const positionOptions = React.useMemo(() => {
+    const user = session?.user as { workspaceProfile?: string; enabledFeatures?: string[] } | undefined;
+    return getEmployeePositionOptions({ workspaceProfile: user?.workspaceProfile, enabledFeatures: user?.enabledFeatures });
+  }, [session]);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["employee", id] });
+    void queryClient.invalidateQueries({ queryKey: ["employees"] });
+  };
+  const failed = (error: unknown) => toast({ title: getApiErrorMessage(error), variant: "destructive" });
+
+  const update = useMutation({
+    mutationFn: (values: Record<string, unknown>) => fetchJson(`/api/employees/${id}`, { method: "PATCH", body: JSON.stringify(values) }),
+    onSuccess: (_, values) => {
+      toast({ title: "isActive" in values ? `Marked ${values.isActive ? "active" : "inactive"}` : "Saved" });
+      setEditOpen(false);
+      refresh();
+    },
+    onError: failed,
   });
-  const grades = gradesData?.data ?? [];
 
-  // Populate drawer when opening
-  React.useEffect(() => {
-    if (employee && editDrawerOpen) {
-      setEditName(employee.name);
-      setEditPhone(employee.phone);
-      setEditJobTitle(employee.jobTitle || "");
-      setEditDepartmentId(employee.departmentId || "");
-      setEditGradeId(employee.gradeId || "");
-      setEditEmploymentType(employee.employmentType || "FULL_TIME");
-      setEditSalary(employee.fixedSalary ? String(employee.fixedSalary.monthlyAmount) : "");
-      setEditBankName(employee.bankName || "");
-      setEditBankAccount(employee.bankAccountNumber || "");
-      setEditBankBranch(employee.bankBranchCode || "");
-      setEditMobileProvider(employee.mobileMoneyProvider || "");
-      setEditMobileNumber(employee.mobileMoneyNumber || "");
-      setEditTaxNumber(employee.taxNumber || "");
-      setEditNssaNumber(employee.nssaNumber || "");
-    }
-  }, [employee, editDrawerOpen]);
-
-  const updateMutation = useMutation({
-    mutationFn: (values: Record<string, unknown>) =>
-      fetchJson(`/api/employees/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(values),
+  const requestLeave = useMutation({
+    mutationFn: () =>
+      fetchJson("/api/people/leave/requests", {
+        method: "POST",
+        body: JSON.stringify({ employeeId: id, ...leave, submit: true }),
       }),
     onSuccess: () => {
-      toast({ title: "Employee profile updated" });
-      setEditDrawerOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["employee", id] });
-      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+      toast({ title: "Leave requested" });
+      setLeaveOpen(false);
+      setLeave({ leaveTypeId: "", startDate: today(), endDate: today(), reason: "" });
+      refresh();
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-balances", id] });
+      void queryClient.invalidateQueries({ queryKey: ["people", "leave-requests"] });
     },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
+    onError: failed,
   });
 
-  const toggleStatusMutation = useMutation({
-    mutationFn: (isActive: boolean) =>
-      fetchJson(`/api/employees/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive }),
-      }),
-    onSuccess: (_, isActive) => {
-      toast({ title: `Employee marked as ${isActive ? "active" : "inactive"}` });
-      void queryClient.invalidateQueries({ queryKey: ["employee", id] });
-      void queryClient.invalidateQueries({ queryKey: ["employees"] });
-    },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const requestLeaveMutation = useMutation({
-    mutationFn: (payload: { leaveTypeId: string; startDate: string; endDate: string; reason: string }) =>
-      fetchJson("/api/leave/requests", {
+  const addCertificate = useMutation({
+    mutationFn: () =>
+      fetchJson("/api/compliance/training-records", {
         method: "POST",
         body: JSON.stringify({
-          employeeId: id,
-          ...payload,
+          userId,
+          trainingType: cert.trainingType.trim(),
+          trainingDate: cert.trainingDate,
+          ...(cert.expiryDate ? { expiryDate: cert.expiryDate } : {}),
+          ...(cert.trainedBy.trim() ? { trainedBy: cert.trainedBy.trim() } : {}),
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Leave request submitted" });
-      setLeaveModalOpen(false);
-      setLeaveReason("");
-      void queryClient.invalidateQueries({ queryKey: ["employee", id] });
+      toast({ title: "Certificate recorded" });
+      setCertOpen(false);
+      setCert({ trainingType: "", trainingDate: today(), expiryDate: "", trainedBy: "" });
+      void queryClient.invalidateQueries({ queryKey: ["training-records", userId] });
     },
-    onError: (err) => {
-      toast({ title: getApiErrorMessage(err), variant: "destructive" });
-    },
+    onError: failed,
   });
 
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload: Record<string, unknown> = {
-      name: editName,
-      phone: editPhone,
-      jobTitle: editJobTitle || null,
-      departmentId: editDepartmentId || null,
-      gradeId: editGradeId || null,
-      employmentType: editEmploymentType,
-      bankName: editBankName || null,
-      bankAccountNumber: editBankAccount || null,
-      bankBranchCode: editBankBranch || null,
-      mobileMoneyProvider: editMobileProvider || null,
-      mobileMoneyNumber: editMobileNumber || null,
-      taxNumber: editTaxNumber || null,
-      nssaNumber: editNssaNumber || null,
-    };
-    if (editSalary.trim()) {
-      payload.monthlyAmount = parseFloat(editSalary);
-    }
-    updateMutation.mutate(payload);
-  };
-
-  if (isLoading) return <BooksLoading />;
-  if (error || !employee) {
+  if (employeeQuery.isLoading) return <BooksLoading />;
+  if (employeeQuery.error || !employee) {
     return (
       <BooksError
-        what="Employee profile"
-        error={error instanceof Error ? error.message : "Employee record not found."}
-        onRetry={() => void queryClient.invalidateQueries({ queryKey: ["employee", id] })}
+        what="Employee"
+        error={employeeQuery.error instanceof Error ? employeeQuery.error.message : "This employee was not found."}
+        onRetry={() => void employeeQuery.refetch()}
       />
     );
   }
 
-  const attendanceColumns: Array<WsColumn<EmployeeDetail["attendance"][number]>> = [
+  const states = certificates.map((record) => ({ record, state: certificateState(record.expiryDate, now) }));
+  const expired = states.filter((entry) => entry.state.tone === "bad").length;
+  const renewing = states.filter((entry) => entry.state.tone === "warn").length;
+
+  const openEdit = () => {
+    setForm(editFormOf(employee));
+    setEditOpen(true);
+  };
+  const set = <K extends keyof EditForm>(key: K) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((current) => (current ? { ...current, [key]: event.target.value } : current));
+
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form) return;
+    update.mutate({
+      name: form.name,
+      phone: form.phone,
+      jobTitle: form.jobTitle || null,
+      position: form.position,
+      departmentId: form.departmentId || null,
+      gradeId: form.gradeId || null,
+      employmentType: form.employmentType,
+      hireDate: form.hireDate || null,
+      bankName: form.bankName || null,
+      bankAccountNumber: form.bankAccount || null,
+      bankBranchCode: form.bankBranch || null,
+      mobileMoneyProvider: form.mobileProvider || null,
+      mobileMoneyNumber: form.mobileNumber || null,
+      taxNumber: form.taxNumber || null,
+      nssaNumber: form.nssaNumber || null,
+      ...(form.salary.trim() ? { monthlyAmount: Number(form.salary) } : {}),
+    });
+  };
+
+  const actions: MenuEntry[] = [
+    { key: "leave", label: "Book leave", icon: "calendar", onSelect: () => setLeaveOpen(true) },
     {
-      key: "date",
-      head: "Date",
-      className: "mono font-medium",
-      cell: (r) => new Date(r.date).toLocaleDateString("en-GB"),
-    },
-    {
-      key: "shift",
-      head: "Shift",
-      cell: (r) => r.shift,
-    },
-    {
-      key: "status",
-      head: "Status",
-      cell: (r) => (
-        <St tone={r.status === "PRESENT" ? "done" : r.status === "LATE" ? "warn" : "void"}>
-          {r.status}
-        </St>
-      ),
-    },
-    {
-      key: "overtime",
-      head: "Overtime (hrs)",
-      className: "mono",
-      right: true,
-      cell: (r) => (r.overtime ? `${r.overtime}h` : "—"),
-    },
-    {
-      key: "notes",
-      head: "Notes",
-      className: "muted",
-      cell: (r) => r.notes || <None />,
+      key: "toggle",
+      label: employee.isActive ? "Deactivate" : "Reactivate",
+      icon: "retire",
+      danger: employee.isActive,
+      onSelect: () => update.mutate({ isActive: !employee.isActive }),
     },
   ];
 
-  const leaveColumns: Array<WsColumn<EmployeeDetail["leaveRequests"][number]>> = [
-    {
-      key: "type",
-      head: "Leave type",
-      cell: (r) => <span className="font-medium">{r.leaveType.name}</span>,
-    },
-    {
-      key: "dates",
-      head: "Period",
-      className: "mono",
-      cell: (r) =>
-        `${new Date(r.startDate).toLocaleDateString("en-GB")} – ${new Date(r.endDate).toLocaleDateString("en-GB")}`,
-    },
-    {
-      key: "days",
-      head: "Days",
-      className: "mono font-medium",
-      cell: (r) => `${r.workingDays}d`,
-    },
-    {
-      key: "status",
-      head: "Status",
-      cell: (r) => (
-        <St
-          tone={
-            r.status === "APPROVED"
-              ? "done"
-              : r.status === "REJECTED"
-              ? "void"
-              : "draft"
-          }
-        >
-          {r.status}
-        </St>
-      ),
-    },
-    {
-      key: "reason",
-      head: "Reason",
-      className: "muted",
-      cell: (r) => r.reason || <None />,
-    },
-  ];
-
-  const payrollColumns: Array<WsColumn<EmployeeDetail["payrollLineItems"][number]>> = [
+  const payslips: Array<WsColumn<EmployeeDetail["payrollLineItems"][number]>> = [
     {
       key: "period",
-      head: "Payroll period",
-      cell: (r) => {
-        const run = r.run ?? r.payrollRun;
-        const periodName = run?.period ? (run.period.name || run.period.periodKey) : "—";
-        const runNo = run?.runNumber != null ? `Run #${run.runNumber}` : "";
+      head: "Period",
+      cell: (row) => {
+        const run = row.run ?? row.payrollRun;
         return (
-          <span className="font-medium">
-            {periodName} {runNo ? `(${runNo})` : ""}
-          </span>
+          <>
+            {run?.period ? run.period.name || run.period.periodKey : <None />}
+            {run?.runNumber != null ? <span className="muted"> Run {run.runNumber}</span> : null}
+          </>
         );
       },
     },
-    {
-      key: "base",
-      head: "Basic salary",
-      right: true,
-      className: "mono",
-      cell: (r) => <Amt value={Number(r.baseAmount)} currency={r.currency} />,
-    },
-    {
-      key: "gross",
-      head: "Gross pay",
-      right: true,
-      className: "mono",
-      cell: (r) => <Amt value={Number(r.grossAmount)} currency={r.currency} />,
-    },
-    {
-      key: "net",
-      head: "Net payout",
-      right: true,
-      className: "mono font-semibold",
-      cell: (r) => <Amt value={Number(r.netAmount)} currency={r.currency} />,
-    },
-    {
-      key: "date",
-      head: "Date paid",
-      className: "mono muted",
-      cell: (r) => new Date(r.createdAt).toLocaleDateString("en-GB"),
-    },
+    { key: "base", head: "Basic", right: true, cell: (row) => <Amt value={Number(row.baseAmount)} currency={null} /> },
+    { key: "gross", head: "Gross", right: true, cell: (row) => <Amt value={Number(row.grossAmount)} currency={null} /> },
+    { key: "net", head: "Net", right: true, cell: (row) => <Amt value={Number(row.netAmount)} currency={row.currency} /> },
+    { key: "date", head: "Paid", className: "mono muted", cell: (row) => day(row.createdAt) ?? <None /> },
     {
       key: "payslip",
       head: "",
       right: true,
-      cell: (r) => (
-        <a
-          href={`/api/payroll/payslips/${r.id}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-xs"
-          style={{
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            fontSize: 12,
-          }}
-        >
-          <span>Payslip PDF</span>
-          <span aria-hidden="true">↗</span>
+      cell: (row) => (
+        <a href={`/api/payroll/payslips/${row.id}/pdf`} target="_blank" rel="noopener noreferrer">
+          Payslip
         </a>
       ),
     },
   ];
 
-  const actions: MenuEntry[] = [
-    {
-      key: "edit",
-      label: "Edit profile & compensation",
-      icon: "edit",
-      onSelect: () => setEditDrawerOpen(true),
-    },
-    {
-      key: "leave",
-      label: "Book leave request",
-      icon: "calendar",
-      onSelect: () => setLeaveModalOpen(true),
-    },
-    {
-      key: "toggle",
-      label: employee.isActive ? "Deactivate employee" : "Reactivate employee",
-      icon: "retire",
-      danger: employee.isActive,
-      onSelect: () => toggleStatusMutation.mutate(!employee.isActive),
-    },
+  const attendance: Array<WsColumn<EmployeeDetail["attendance"][number]>> = [
+    { key: "date", head: "Date", className: "mono", cell: (row) => day(row.date) },
+    { key: "shift", head: "Shift", cell: (row) => words(row.shift) },
+    { key: "status", head: "Status", cell: (row) => <St tone={ATTENDANCE_TONE[row.status]}>{words(row.status)}</St> },
+    { key: "overtime", head: "Overtime, hours", right: true, className: "mono", cell: (row) => (row.overtime ? row.overtime : <None />) },
+    { key: "notes", head: "Notes", className: "muted", cell: (row) => row.notes || <None /> },
   ];
 
-  // Operational compliance certifications & statutory expiry tracking
-  const certifications = (() => {
-    const today = new Date();
-    const anchorDate = employee.hireDate ? new Date(employee.hireDate) : new Date();
+  const balanceColumns: Array<WsColumn<LeaveBalance>> = [
+    { key: "type", head: "Leave", cell: (row) => row.name },
+    { key: "entitled", head: "Entitled", right: true, className: "mono", cell: (row) => (row.isUnlimited ? "No limit" : row.entitled) },
+    { key: "taken", head: "Taken", right: true, className: "mono", cell: (row) => row.taken },
+    { key: "pending", head: "Waiting", right: true, className: "mono", cell: (row) => row.pending },
+    { key: "left", head: "Left", right: true, className: "mono", cell: (row) => (row.isUnlimited ? <None /> : row.remaining) },
+  ];
 
-    // Medical Certificate of Fitness (Annual renewal)
-    const medicalExpiry = new Date(anchorDate);
-    medicalExpiry.setFullYear(today.getFullYear() + (today.getMonth() > anchorDate.getMonth() ? 1 : 0));
-    medicalExpiry.setMonth(anchorDate.getMonth());
-    medicalExpiry.setDate(anchorDate.getDate());
-    const medicalDays = Math.ceil((medicalExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const requests: Array<WsColumn<EmployeeDetail["leaveRequests"][number]>> = [
+    { key: "type", head: "Leave", cell: (row) => row.leaveType.name },
+    { key: "dates", head: "Dates", className: "mono", cell: (row) => `${day(row.startDate)} to ${day(row.endDate)}` },
+    { key: "days", head: "Days", right: true, className: "mono", cell: (row) => Number(row.workingDays) },
+    { key: "status", head: "Status", cell: (row) => <St tone={LEAVE_TONE[row.status] ?? "draft"}>{words(row.status)}</St> },
+    { key: "reason", head: "Reason", className: "muted", cell: (row) => row.reason || <None /> },
+  ];
 
-    // Mine Safety Induction (SHEQ - Annual renewal)
-    const inductionExpiry = new Date(anchorDate);
-    inductionExpiry.setFullYear(today.getFullYear());
-    inductionExpiry.setMonth((anchorDate.getMonth() + 6) % 12);
-    const inductionDays = Math.ceil((inductionExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const typeLabel = EMPLOYMENT_TYPE_LABEL[employee.employmentType] ?? employee.employmentType;
+  const documents = [
+    { label: "National ID", url: employee.nationalIdDocumentUrl, view: "View" },
+    { label: "Passport photo", url: employee.passportPhotoUrl, view: "View" },
+  ];
 
-    // Vehicle & Machinery Operating Permit
-    const licenseExpiry = new Date(anchorDate);
-    licenseExpiry.setFullYear(today.getFullYear() + 1);
-    const licenseDays = Math.ceil((licenseExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const side = (
+    <>
+      <BkBlock
+        icon="permits"
+        title="Certificates"
+        meta={
+          certificates.length ? (
+            <span>
+              {certificates.length}
+              {expired ? `, ${expired} expired` : renewing ? `, ${renewing} due` : ""}
+            </span>
+          ) : null
+        }
+      >
+        {!userId ? (
+          <p className="muted">Certificates are kept against a sign-in. {employee.name.split(" ")[0]} has none yet.</p>
+        ) : certificates.length === 0 ? (
+          <BkEmpty action={<Button onClick={() => setCertOpen(true)}>Record one</Button>}>No certificates recorded.</BkEmpty>
+        ) : (
+          <>
+            <ul className="k-hist">
+              {states.map(({ record, state }) => (
+                <li key={record.id}>
+                  <span />
+                  <span>
+                    <b>{record.trainingType}</b>{" "}
+                    <span className="muted">
+                      {record.trainedBy ? `${record.trainedBy}, ` : ""}
+                      {state.left === null ? "no expiry" : state.left < 0 ? `${days(-state.left)} overdue` : `${days(state.left)} left`}
+                    </span>
+                  </span>
+                  <St tone={state.tone}>{state.label}</St>
+                </li>
+              ))}
+            </ul>
+            <Button onClick={() => setCertOpen(true)} icon="add">
+              Record a certificate
+            </Button>
+          </>
+        )}
+      </BkBlock>
 
-    // Emergency First Aid Certification
-    const firstAidExpiry = new Date(anchorDate);
-    firstAidExpiry.setFullYear(today.getFullYear() + 2);
-    const firstAidDays = Math.ceil((firstAidExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      <BkBlock icon="incidents" title="Incidents" meta={employee.hrIncidents.length ? String(employee.hrIncidents.length) : null}>
+        {employee.hrIncidents.length === 0 ? (
+          <p className="muted">None recorded.</p>
+        ) : (
+          <ul className="k-hist">
+            {employee.hrIncidents.map((incident) => (
+              <li key={incident.id}>
+                <span />
+                <span>
+                  <b>{incident.title}</b> <span className="muted mono">{day(incident.incidentDate)}</span>
+                </span>
+                <St tone={incident.severity === "HIGH" || incident.severity === "CRITICAL" ? "bad" : "warn"}>{words(incident.severity)}</St>
+              </li>
+            ))}
+          </ul>
+        )}
+        <ButtonLink href="/people/incidents" variant="quiet">
+          Open incidents
+        </ButtonLink>
+      </BkBlock>
 
-    return [
-      {
-        id: "cert-medical",
-        title: "Medical Certificate of Fitness (Red Spec)",
-        issuer: "Mining Medical Bureau / Occupational Health",
-        ref: `MED-${employee.employeeId}-2026`,
-        expiryDate: medicalExpiry,
-        daysRemaining: medicalDays,
-        status: medicalDays < 0 ? ("expired" as const) : medicalDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
-        notes: "Mandatory statutory pulmonary & physical clearance for active site operations.",
-      },
-      {
-        id: "cert-induction",
-        title: "Mine Safety & Environmental Induction (SHEQ)",
-        issuer: "SHEQ Department",
-        ref: `SHEQ-IND-${employee.employeeId}`,
-        expiryDate: inductionExpiry,
-        daysRemaining: inductionDays,
-        status: inductionDays < 0 ? ("expired" as const) : inductionDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
-        notes: "Surface & plant safety guidelines, hazardous substance handling, and PPE compliance.",
-      },
-      {
-        id: "cert-license",
-        title: "Vehicle & Heavy Machinery Operating Permit",
-        issuer: "Vehicle Inspection Department (VID)",
-        ref: `LIC-${employee.employeeId}`,
-        expiryDate: licenseExpiry,
-        daysRemaining: licenseDays,
-        status: licenseDays < 0 ? ("expired" as const) : licenseDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
-        notes: "Class 2 / Heavy machinery operator and transport permit.",
-      },
-      {
-        id: "cert-firstaid",
-        title: "Emergency First Aid at Work (Level A)",
-        issuer: "Zimbabwe Red Cross Society",
-        ref: `ZRC-${employee.employeeId}`,
-        expiryDate: firstAidExpiry,
-        daysRemaining: firstAidDays,
-        status: firstAidDays < 0 ? ("expired" as const) : firstAidDays <= 30 ? ("expiring_soon" as const) : ("valid" as const),
-        notes: "Workplace first-aider and emergency triage protocol.",
-      },
-    ];
-  })();
+      <BkBlock icon="access" title="Sign-in">
+        {employee.user ? (
+          <BkFacts
+            items={[
+              { label: "Email", value: employee.user.email },
+              { label: "Role", value: words(employee.user.role) },
+              { label: "Account", value: <St tone={employee.user.isActive ? "done" : "void"}>{employee.user.isActive ? "Active" : "Suspended"}</St> },
+            ]}
+          />
+        ) : (
+          <p className="muted">No sign-in. Managed through HR and Payroll only.</p>
+        )}
+        {employee.moduleAssignments.length ? (
+          <p className="muted">
+            {employee.moduleAssignments.map((assignment) => `${words(assignment.module)}${assignment.accessRole ? `, ${words(assignment.accessRole)}` : ""}`).join(" · ")}
+          </p>
+        ) : null}
+      </BkBlock>
 
-  const hasExpiredCerts = certifications.some((c) => c.status === "expired");
-  const hasExpiringSoonCerts = certifications.some((c) => c.status === "expiring_soon");
+      <BkBlock icon="users" title="Reporting line">
+        <BkFacts items={[{ label: "Reports to", value: employee.supervisor?.name ?? "Nobody" }]} />
+        {employee.supervisees.length ? (
+          <ul className="k-hist">
+            {employee.supervisees.map((report) => (
+              <li key={report.id}>
+                <Person name={report.name}>
+                  <Link href={`/people/${report.id}`}>{report.name}</Link>
+                </Person>
+                <span className="muted mono">{report.employeeId}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </BkBlock>
+    </>
+  );
 
   return (
     <>
@@ -581,870 +550,340 @@ export default function EmployeeRecordPage() {
         title={employee.name}
         reference={employee.employeeId}
         backHref="/people"
-        backLabel="Team Members"
-        primary={{
-          label: "Edit profile",
-          icon: "edit",
-          onClick: () => setEditDrawerOpen(true),
-        }}
+        backLabel="Staff"
+        primary={{ label: "Edit", icon: "edit", onClick: openEdit }}
       >
-        <MenuButton items={actions} label="Employee actions" />
+        <MenuButton items={actions} label="More" />
       </PageChrome>
 
-      <BkPage screen="people" scroll={true}>
-        {/* Identity Header Card */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 16,
-            padding: "20px 24px",
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--radius-lg)",
-            marginBottom: 20,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Person name={employee.name} size={40} />
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "var(--ink)" }}>
-                  {employee.name}
-                </h1>
-                <St tone={employee.isActive ? "done" : "void"}>
-                  {employee.isActive ? "Active" : "Inactive"}
-                </St>
-                {hasExpiredCerts ? (
-                  <St tone="void">Compliance: Expired</St>
-                ) : hasExpiringSoonCerts ? (
-                  <St tone="warn">Compliance: Renewal Due</St>
-                ) : (
-                  <St tone="done">Compliance: Valid</St>
-                )}
-                <span
-                  style={{
-                    fontSize: 12,
-                    padding: "2px 8px",
-                    borderRadius: "var(--radius-full)",
-                    background: "var(--surface-sunken)",
-                    color: "var(--ink-2)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {EMPLOYMENT_TYPE_LABEL[employee.employmentType] || employee.employmentType}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  marginTop: 6,
-                  fontSize: 13,
-                  color: "var(--ink-2)",
-                }}
+      <BkPage screen="people-record" scroll={false}>
+        <BkRecord side={side}>
+          <BkRecordHead
+            title={employee.name}
+            meta={[
+              <St key="state" tone={employee.isActive ? "done" : "void"}>
+                {employee.isActive ? "Active" : "Inactive"}
+              </St>,
+              typeLabel,
+              <span key="id" className="mono">
+                {employee.employeeId}
+              </span>,
+              employee.jobTitle || employeePositionLabel(employee.position),
+            ]}
+          />
+
+          {expired > 0 ? (
+            <BkNote tone="bad" action={<Button onClick={() => setCertOpen(true)}>Record a renewal</Button>}>
+              <b>{expired === 1 ? "A certificate has expired." : `${expired} certificates have expired.`}</b>
+            </BkNote>
+          ) : renewing > 0 ? (
+            <BkNote tone="warn" action={<Button onClick={() => setCertOpen(true)}>Record a renewal</Button>}>
+              <b>{renewing === 1 ? "A certificate is due for renewal." : `${renewing} certificates are due for renewal.`}</b>
+            </BkNote>
+          ) : null}
+
+          <BkFacts
+            items={[
+              { label: "Department", value: employee.department?.name ?? <None /> },
+              { label: "Grade", value: employee.grade ? `${employee.grade.name} (${employee.grade.code})` : <None /> },
+              { label: "Hired", value: day(employee.hireDate) ?? <None />, mono: true },
+              { label: "Phone", value: employee.phone || <None />, mono: true },
+            ]}
+          />
+
+          <BkTabs
+            label="Employee sections"
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: "profile", label: "Profile", icon: "profile" },
+              { value: "pay", label: "Pay", icon: "payments", count: employee.payrollLineItems.length },
+              { value: "attendance", label: "Attendance", icon: "clock", count: employee.attendance.length },
+              { value: "leave", label: "Leave", icon: "calendar", count: employee.leaveRequests.length },
+            ]}
+          />
+
+          {tab === "profile" ? (
+            <>
+              <BkBlock icon="person" title="Personal">
+                <BkFacts
+                  items={[
+                    { label: "National ID", value: employee.nationalIdNumber || <None />, mono: true },
+                    { label: "Born", value: day(employee.dateOfBirth) ?? <None />, mono: true },
+                    { label: "Home village", value: employee.villageOfOrigin || <None /> },
+                    { label: "Disability", value: employee.hasDisability ? "Registered" : "None registered" },
+                    { label: "Next of kin", value: employee.nextOfKinName || <None /> },
+                    { label: "Their phone", value: employee.nextOfKinPhone || <None />, mono: true },
+                  ]}
+                />
+              </BkBlock>
+              <BkBlock icon="docs" title="Documents">
+                <BkFacts
+                  items={documents.map((doc) => ({
+                    label: doc.label,
+                    value: doc.url ? (
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                        {doc.view}
+                      </a>
+                    ) : (
+                      <None />
+                    ),
+                  }))}
+                />
+              </BkBlock>
+            </>
+          ) : null}
+
+          {tab === "pay" ? (
+            <>
+              <BkBlock
+                icon="money"
+                title="Pay"
+                meta={
+                  employee.fixedSalary ? (
+                    <span>
+                      <Amt value={employee.fixedSalary.monthlyAmount} currency={employee.fixedSalary.currency} /> a month
+                    </span>
+                  ) : null
+                }
               >
-                <span>
-                  <strong>ID:</strong> <span className="mono">{employee.employeeId}</span>
-                </span>
-                {employee.jobTitle && (
-                  <span>
-                    <strong>Title:</strong> {employee.jobTitle}
-                  </span>
+                {employee.fixedSalary ? null : (
+                  <BkEmpty action={<Button onClick={openEdit}>Set salary</Button>}>No monthly salary set.</BkEmpty>
                 )}
-                {employee.department && (
-                  <span>
-                    <strong>Department:</strong> {employee.department.name}
-                  </span>
-                )}
-                {employee.phone && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Phone className="size-3.5 text-[var(--ink-3)]" />
-                    <span className="mono">{employee.phone}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+                <BkFacts
+                  items={[
+                    { label: "Bank", value: employee.bankName || <None /> },
+                    { label: "Account", value: employee.bankAccountNumber || <None />, mono: true },
+                    { label: "Branch", value: employee.bankBranchCode || <None />, mono: true },
+                    {
+                      label: "Mobile money",
+                      value: employee.mobileMoneyProvider ? `${employee.mobileMoneyProvider} ${employee.mobileMoneyNumber ?? ""}` : <None />,
+                      mono: true,
+                    },
+                    { label: "ZIMRA BP number", value: employee.taxNumber || <None />, mono: true },
+                    { label: "NSSA number", value: employee.nssaNumber || <None />, mono: true },
+                    { label: "Tax status", value: words(employee.taxStatus || "STANDARD") },
+                    { label: "Overtime rate", value: employee.overtimeHourlyRate ? <Amt value={Number(employee.overtimeHourlyRate)} currency={employee.defaultCurrency} /> : "Company rule" },
+                  ]}
+                />
+              </BkBlock>
+              <Worksheet label="payslips" rows={employee.payrollLineItems} rowKey={(row) => row.id} columns={payslips} empty="No pay recorded yet." />
+            </>
+          ) : null}
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Button variant="quiet" onClick={() => setLeaveModalOpen(true)}>
-              Book leave
-            </Button>
-            <Button variant="primary" onClick={() => setEditDrawerOpen(true)}>
-              Edit details
-            </Button>
-          </div>
-        </div>
+          {tab === "attendance" ? (
+            <>
+              <Worksheet label="attendance" rows={employee.attendance} rowKey={(row) => row.id} columns={attendance} empty="No shifts recorded yet." />
+              <ButtonLink href="/people/attendance" variant="quiet">
+                Open the attendance register
+              </ButtonLink>
+            </>
+          ) : null}
 
-        {/* Horizontal Navigation Tabs */}
-        <BkTabs
-          label="Employee sections"
-          value={tab}
-          onChange={(v) => setTab(v as TabKey)}
-          items={[
-            { value: "overview", label: "Overview & Profile", icon: "users" },
-            {
-              value: "compensation",
-              label: "Compensation & Banking",
-              icon: "bank",
-              count: employee.fixedSalary ? 1 : undefined,
-            },
-            {
-              value: "attendance",
-              label: "Attendance & Shifts",
-              icon: "clock",
-              count: employee.attendance.length,
-            },
-            {
-              value: "leave",
-              label: "Leave & Balances",
-              icon: "calendar",
-              count: employee.leaveRequests.length,
-            },
-            {
-              value: "documents",
-              label: "Identity & Safety",
-              icon: "lock",
-              count: employee.hrIncidents.length > 0 ? employee.hrIncidents.length : undefined,
-            },
-          ]}
-        />
-
-        {/* Tab 1: Overview & Profile */}
-        {tab === "overview" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, marginTop: 16 }}>
-            {/* Personal Details */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <UserRound className="size-4 text-[var(--ink-3)]" />
-                Personal Information
-              </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px", fontSize: 13 }}>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Full name</span>
-                  <strong>{employee.name}</strong>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Phone number</span>
-                  <span className="mono">{employee.phone || "—"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>National ID</span>
-                  <span className="mono font-medium">{employee.nationalIdNumber || "—"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Date of birth</span>
-                  <span className="mono">{employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString("en-GB") : "—"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Village / Origin</span>
-                  <span>{employee.villageOfOrigin || "—"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Disability status</span>
-                  <span>{employee.hasDisability ? "Disability registered" : "None registered"}</span>
-                </div>
-              </div>
-
-              <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 16 }}>
-                <h4 style={{ margin: "0 0 8px 0", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>Next of Kin</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 13 }}>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Contact name</span>
-                    <span>{employee.nextOfKinName || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Contact phone</span>
-                    <span className="mono">{employee.nextOfKinPhone || "—"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Employment & Organization */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <Buildings className="size-4 text-[var(--ink-3)]" />
-                Employment & Placement
-              </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px", fontSize: 13 }}>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Department</span>
-                  <strong>{employee.department?.name || "Unassigned"}</strong>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Job Grade</span>
-                  <span>{employee.grade ? `${employee.grade.name} (${employee.grade.code})` : "Standard"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Position</span>
-                  <span>{employee.position}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Employment type</span>
-                  <span>{EMPLOYMENT_TYPE_LABEL[employee.employmentType] || employee.employmentType}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Hire date</span>
-                  <span className="mono">{employee.hireDate ? new Date(employee.hireDate).toLocaleDateString("en-GB") : "—"}</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Direct Supervisor</span>
-                  <span>{employee.supervisor ? employee.supervisor.name : "None (Reports to Head)"}</span>
-                </div>
-              </div>
-
-              {employee.supervisees.length > 0 && (
-                <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 16 }}>
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
-                    Direct Reports ({employee.supervisees.length})
-                  </h4>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {employee.supervisees.map((sub) => (
-                      <Link
-                        key={sub.id}
-                        href={`/people/${sub.id}`}
-                        className="chipsel"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
-                      >
-                        <Person name={sub.name} size={20} />
-                        <span>{sub.name}</span>
-                        <span className="mono muted">({sub.employeeId})</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* System Access & Assignments */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <Lock className="size-4 text-[var(--ink-3)]" />
-                System Account & Modules
-              </h3>
-              {employee.user ? (
-                <div style={{ fontSize: 13, display: "grid", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Mail className="size-4 text-[var(--ink-3)]" />
-                    <span><strong>Email:</strong> {employee.user.email}</span>
-                  </div>
-                  <div>
-                    <strong>System Role:</strong> <span className="mono">{employee.user.role}</span>
-                  </div>
-                  <div>
-                    <strong>Account Status:</strong>{" "}
-                    <St tone={employee.user.isActive ? "done" : "void"}>
-                      {employee.user.isActive ? "Active login" : "Suspended"}
-                    </St>
-                  </div>
-                </div>
-              ) : (
-                <p className="muted" style={{ fontSize: 13, margin: "0 0 12px 0" }}>
-                  No linked user account. This employee is currently managed strictly through HR/Payroll records.
-                </p>
-              )}
-
-              <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 16 }}>
-                <h4 style={{ margin: "0 0 8px 0", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
-                  Assigned Modules
-                </h4>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {employee.moduleAssignments.map((mod) => (
-                    <span
-                      key={mod.id}
-                      style={{
-                        fontSize: 12,
-                        padding: "3px 10px",
-                        background: mod.isPrimary ? "var(--accent-tint)" : "var(--surface-sunken)",
-                        color: mod.isPrimary ? "var(--accent)" : "var(--ink)",
-                        fontWeight: mod.isPrimary ? 600 : 500,
-                        borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--line)",
-                      }}
-                    >
-                      {mod.module} {mod.accessRole ? `(${mod.accessRole})` : ""}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Compensation & Banking */}
-        {tab === "compensation" && (
-          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
-              {/* Base Salary Card */}
-              <div className="bk-card" style={{ padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Wallet className="size-4 text-[var(--ink-3)]" />
-                  Base Compensation
-                </h3>
-                {employee.fixedSalary ? (
-                  <div>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: "var(--ink)" }}>
-                      <Amt value={employee.fixedSalary.monthlyAmount} currency={employee.fixedSalary.currency} />
-                      <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink-2)", marginLeft: 8 }}>
-                        per month
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 12, fontSize: 13, color: "var(--ink-2)" }}>
-                      Status:{" "}
-                      <St tone={employee.fixedSalary.isActive ? "done" : "void"}>
-                        {employee.fixedSalary.isActive ? "Active fixed salary" : "Inactive"}
-                      </St>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="muted" style={{ fontSize: 13 }}>No fixed base salary configured.</p>
-                    <Button variant="quiet" onClick={() => setEditDrawerOpen(true)}>
-                      Set monthly salary
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Disbursement / Banking Card */}
-              <div className="bk-card" style={{ padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                  <CreditCard className="size-4 text-[var(--ink-3)]" />
-                  Banking & Disbursement
-                </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", fontSize: 13 }}>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Bank name</span>
-                    <strong>{employee.bankName || "Not configured"}</strong>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Account number</span>
-                    <span className="mono font-semibold">{employee.bankAccountNumber || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Branch code</span>
-                    <span className="mono">{employee.bankBranchCode || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Mobile money</span>
-                    <span className="mono">
-                      {employee.mobileMoneyProvider ? `${employee.mobileMoneyProvider}: ${employee.mobileMoneyNumber}` : "None"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Statutory Registrations */}
-              <div className="bk-card" style={{ padding: 20 }}>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                  <FileCheck className="size-4 text-[var(--ink-3)]" />
-                  Statutory Registrations
-                </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px", fontSize: 13 }}>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>ZIMRA Tax BP #</span>
-                    <span className="mono font-medium">{employee.taxNumber || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>NSSA Number</span>
-                    <span className="mono font-medium">{employee.nssaNumber || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Tax Status</span>
-                    <span>{employee.taxStatus || "STANDARD"}</span>
-                  </div>
-                  <div>
-                    <span className="muted" style={{ display: "block", fontSize: 12 }}>Overtime rate</span>
-                    <span className="mono">{employee.overtimeHourlyRate ? `$${employee.overtimeHourlyRate}/hr` : "Standard rule"}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Payslips */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 12px 0", fontSize: 15, fontWeight: 600 }}>
-                Recent Payroll Runs & Payslip History
-              </h3>
-              <Worksheet
-                label="payroll-history"
-                rows={employee.payrollLineItems}
-                rowKey={(r) => r.id}
-                columns={payrollColumns}
-                empty="No payroll payments recorded for this employee yet."
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Attendance & Shifts */}
-        {tab === "attendance" && (
-          <div style={{ marginTop: 16 }}>
-            <div className="bk-card" style={{ padding: 20, marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-                    Attendance Logs & Timesheets
-                  </h3>
-                  <p className="muted" style={{ margin: "4px 0 0 0", fontSize: 13 }}>
-                    Showing recent work shifts, clock-ins, and recorded exceptions.
-                  </p>
-                </div>
-                <ButtonLink href="/people/attendance" variant="quiet">
-                  Open full attendance register
-                </ButtonLink>
-              </div>
-            </div>
-
-            <Worksheet
-              label="attendance-history"
-              rows={employee.attendance}
-              rowKey={(r) => r.id}
-              columns={attendanceColumns}
-              empty="No shift attendance records logged yet."
-            />
-          </div>
-        )}
-
-        {/* Tab 4: Leave & Balances */}
-        {tab === "leave" && (
-          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-            {/* Entitlements Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              {employee.leaveEntitlements.map((ent) => (
-                <div key={ent.id} className="bk-card" style={{ padding: 16 }}>
-                  <div style={{ fontSize: 13, color: "var(--ink-2)", fontWeight: 500 }}>
-                    {ent.leaveType.name} ({ent.year})
-                  </div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>
-                    {Number(ent.granted) + Number(ent.carriedOver) + Number(ent.adjustment)} days
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>
-                    Granted: {ent.granted}d | Carry: {ent.carriedOver}d
-                  </div>
-                </div>
-              ))}
-              {employee.leaveEntitlements.length === 0 && (
-                <div className="bk-card" style={{ padding: 16, gridColumn: "1 / -1" }}>
-                  <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                    Standard statutory leave entitlements apply (Annual leave, Sick leave, Compassionate).
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Leave Requests Table */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-                  Leave Request History
-                </h3>
-                <Button variant="primary" onClick={() => setLeaveModalOpen(true)}>
-                  Book leave
-                </Button>
-              </div>
-
-              <Worksheet
-                label="leave-history"
-                rows={employee.leaveRequests}
-                rowKey={(r) => r.id}
-                columns={leaveColumns}
-                empty="No leave requests submitted yet."
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 5: Identity & Safety / Incidents */}
-        {tab === "documents" && (
-          <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
-            {/* Statutory & Operational Compliance Certifications */}
-            <div className="bk-card" style={{ padding: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <div>
-                  <h3 style={{ margin: "0 0 4px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                    <Badge className="size-4 text-[var(--ink-3)]" />
-                    Statutory & Operational Compliance Certifications
-                  </h3>
-                  <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                    Mandatory mining safety, medical clearances, and machinery licensing renewals.
-                  </p>
-                </div>
-                {hasExpiredCerts ? (
-                  <St tone="void">Action Required: Expired Docs</St>
-                ) : hasExpiringSoonCerts ? (
-                  <St tone="warn">Renewal Approaching (&lt; 30d)</St>
-                ) : (
-                  <St tone="done">Fully Compliant</St>
-                )}
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                {certifications.map((cert) => {
-                  const isExpired = cert.status === "expired";
-                  const isExpiringSoon = cert.status === "expiring_soon";
-                  return (
-                    <div
-                      key={cert.id}
-                      style={{
-                        padding: "14px 16px",
-                        borderRadius: "var(--radius-md)",
-                        background: isExpired ? "var(--surface-void-soft, #fef2f2)" : isExpiringSoon ? "var(--surface-warn-soft, #fffbeb)" : "var(--surface-sunken)",
-                        border: `1px solid ${isExpired ? "var(--line-void, #fca5a5)" : isExpiringSoon ? "var(--line-warn, #fde68a)" : "var(--line)"}`,
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 16,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14 }}>
-                            {cert.title}
-                          </span>
-                          <span className="mono muted" style={{ fontSize: 12 }}>
-                            Ref: {cert.ref}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 4 }}>
-                          <span>Issuer: {cert.issuer}</span>
-                          <span style={{ margin: "0 8px", opacity: 0.5 }}>•</span>
-                          <span>{cert.notes}</span>
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ marginBottom: 4 }}>
-                          <St tone={isExpired ? "void" : isExpiringSoon ? "warn" : "done"}>
-                            {isExpired ? "Expired" : isExpiringSoon ? "Renewal Due" : "Valid"}
-                          </St>
-                        </div>
-                        <div className="mono" style={{ fontSize: 12, color: isExpired ? "var(--danger)" : isExpiringSoon ? "var(--warning)" : "var(--ink-2)" }}>
-                          Expires: {cert.expiryDate.toLocaleDateString("en-GB")}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
-                          {isExpired
-                            ? `${Math.abs(cert.daysRemaining)} days overdue`
-                            : isExpiringSoon
-                            ? `${cert.daysRemaining} days remaining`
-                            : `${cert.daysRemaining} days remaining`}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <ShieldCheck className="size-4 text-[var(--ink-3)]" />
-                Workforce Incidents & Safety Record
-              </h3>
-              {employee.hrIncidents.length > 0 ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {employee.hrIncidents.map((inc) => (
-                    <div
-                      key={inc.id}
-                      style={{
-                        padding: 12,
-                        borderRadius: "var(--radius-md)",
-                        background: "var(--surface-sunken)",
-                        border: "1px solid var(--line)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <div>
-                        <strong>{inc.title}</strong>
-                        <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 2 }}>
-                          Type: {inc.incidentType} | Date: {new Date(inc.incidentDate).toLocaleDateString("en-GB")}
-                        </div>
-                      </div>
-                      <St tone={inc.severity === "HIGH" ? "void" : "warn"}>
-                        {inc.severity}
-                      </St>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                  Clean safety record. No incidents or disciplinary actions logged.
-                </p>
-              )}
-            </div>
-
-            <div className="bk-card" style={{ padding: 20 }}>
-              <h3 style={{ margin: "0 0 16px 0", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <IdentificationCard className="size-4 text-[var(--ink-3)]" />
-                Attached Identity Documentation
-              </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>National ID Document</span>
-                  {employee.nationalIdDocumentUrl ? (
-                    <a
-                      href={employee.nationalIdDocumentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="chipsel"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                    >
-                      <FileCheck className="size-4" />
-                      View uploaded national ID
-                    </a>
-                  ) : (
-                    <span className="muted" style={{ fontSize: 13 }}>No document uploaded</span>
-                  )}
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>Passport Photograph</span>
-                  {employee.passportPhotoUrl ? (
-                    <a
-                      href={employee.passportPhotoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="chipsel"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                    >
-                      <UserCheck className="size-4" />
-                      View passport photograph
-                    </a>
-                  ) : (
-                    <span className="muted" style={{ fontSize: 13 }}>No photo uploaded</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          {tab === "leave" ? (
+            <>
+              <Worksheet label="leave-balances" rows={balances} rowKey={(row) => row.leaveTypeId} columns={balanceColumns} empty="No leave types set up." />
+              <Worksheet label="leave-requests" rows={employee.leaveRequests} rowKey={(row) => row.id} columns={requests} empty="No leave requested yet." />
+              <Button onClick={() => setLeaveOpen(true)} icon="calendar">
+                Book leave
+              </Button>
+            </>
+          ) : null}
+        </BkRecord>
       </BkPage>
 
-      {/* Edit Drawer */}
       <Drawer
-        open={editDrawerOpen}
-        onOpenChange={setEditDrawerOpen}
+        open={editOpen}
+        onOpenChange={setEditOpen}
         title={`Edit ${employee.name}`}
-      >
-        <form onSubmit={handleSaveEdit}>
-          <DrawerSection title="Personal details">
-            <Field label="Full name">
-              <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Phone number">
-              <Input
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                required
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Role & Placement">
-            <Field label="Job title">
-              <Input
-                value={editJobTitle}
-                onChange={(e) => setEditJobTitle(e.target.value)}
-                placeholder="e.g. Senior Accountant"
-              />
-            </Field>
-            <Field label="Department">
-              <select
-                className="select"
-                value={editDepartmentId}
-                onChange={(e) => setEditDepartmentId(e.target.value)}
-                style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)" }}
-              >
-                <option value="">Unassigned</option>
-                {departments.map((d: DepartmentRecord) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Job Grade">
-              <select
-                className="select"
-                value={editGradeId}
-                onChange={(e) => setEditGradeId(e.target.value)}
-                style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)" }}
-              >
-                <option value="">Standard Grade</option>
-                {grades.map((g: JobGradeRecord) => (
-                  <option key={g.id} value={g.id}>{g.name} ({g.code})</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Employment type">
-              <select
-                className="select"
-                value={editEmploymentType}
-                onChange={(e) => setEditEmploymentType(e.target.value)}
-                style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)" }}
-              >
-                <option value="FULL_TIME">Full Time</option>
-                <option value="PART_TIME">Part Time</option>
-                <option value="CONTRACT">Contract</option>
-                <option value="CASUAL">Casual</option>
-              </select>
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Compensation">
-            <Field label="Monthly basic salary (USD)">
-              <Input
-                type="number"
-                step="any"
-                value={editSalary}
-                onChange={(e) => setEditSalary(e.target.value)}
-                placeholder="e.g. 1500"
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Disbursement & Banking">
-            <Field label="Bank name">
-              <Input
-                value={editBankName}
-                onChange={(e) => setEditBankName(e.target.value)}
-                placeholder="e.g. Stanbic Bank"
-              />
-            </Field>
-            <Field label="Bank account number">
-              <Input
-                value={editBankAccount}
-                onChange={(e) => setEditBankAccount(e.target.value)}
-                placeholder="e.g. 9140001234567"
-              />
-            </Field>
-            <Field label="Branch code">
-              <Input
-                value={editBankBranch}
-                onChange={(e) => setEditBankBranch(e.target.value)}
-                placeholder="e.g. 02100"
-              />
-            </Field>
-            <Field label="Mobile money provider">
-              <Input
-                value={editMobileProvider}
-                onChange={(e) => setEditMobileProvider(e.target.value)}
-                placeholder="e.g. EcoCash"
-              />
-            </Field>
-            <Field label="Mobile money number">
-              <Input
-                value={editMobileNumber}
-                onChange={(e) => setEditMobileNumber(e.target.value)}
-                placeholder="e.g. 0771234567"
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Statutory identity">
-            <Field label="ZIMRA Tax BP number">
-              <Input
-                value={editTaxNumber}
-                onChange={(e) => setEditTaxNumber(e.target.value)}
-                placeholder="e.g. 200123456"
-              />
-            </Field>
-            <Field label="NSSA member number">
-              <Input
-                value={editNssaNumber}
-                onChange={(e) => setEditNssaNumber(e.target.value)}
-                placeholder="e.g. 80012345B"
-              />
-            </Field>
-          </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 16 }}>
-            <Button variant="quiet" onClick={() => setEditDrawerOpen(false)} type="button">
+        footer={
+          <>
+            <Button variant="quiet" type="button" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save changes"}
+            <Button variant="primary" type="submit" form="employee-edit" disabled={update.isPending}>
+              {update.isPending ? "Saving" : "Save"}
             </Button>
-          </div>
+          </>
+        }
+      >
+        {form ? (
+          <form id="employee-edit" onSubmit={save}>
+            <DrawerSection title="Person">
+              <Field label="Full name">
+                <Input value={form.name} onChange={set("name")} required />
+              </Field>
+              <Field label="Phone">
+                <Input value={form.phone} onChange={set("phone")} required />
+              </Field>
+            </DrawerSection>
+
+            <DrawerSection title="Job">
+              <Field label="Job title" optional>
+                <Input value={form.jobTitle} onChange={set("jobTitle")} />
+              </Field>
+              <Field label="Position">
+                <Select value={form.position} onChange={set("position")}>
+                  {positionOptions.some((option) => option.value === form.position) ? null : (
+                    <option value={form.position}>{employeePositionLabel(form.position)}</option>
+                  )}
+                  {positionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Department">
+                <Select value={form.departmentId} onChange={set("departmentId")}>
+                  <option value="">None</option>
+                  {departments.map((department: DepartmentRecord) => (
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Grade">
+                <Select value={form.gradeId} onChange={set("gradeId")}>
+                  <option value="">Standard</option>
+                  {grades.map((grade: JobGradeRecord) => (
+                    <option key={grade.id} value={grade.id}>
+                      {grade.name} ({grade.code})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Employment">
+                <Select value={form.employmentType} onChange={set("employmentType")}>
+                  {Object.entries(EMPLOYMENT_TYPE_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Hired">
+                <Input type="date" value={form.hireDate} onChange={set("hireDate")} />
+              </Field>
+            </DrawerSection>
+
+            <DrawerSection title="Pay">
+              <Field label="Monthly salary" optional>
+                <Input type="number" min={0} step="0.01" value={form.salary} onChange={set("salary")} />
+              </Field>
+              <Field label="Bank" optional>
+                <Input value={form.bankName} onChange={set("bankName")} />
+              </Field>
+              <Field label="Account number" optional>
+                <Input value={form.bankAccount} onChange={set("bankAccount")} />
+              </Field>
+              <Field label="Branch code" optional>
+                <Input value={form.bankBranch} onChange={set("bankBranch")} />
+              </Field>
+              <Field label="Mobile money provider" optional>
+                <Input value={form.mobileProvider} onChange={set("mobileProvider")} />
+              </Field>
+              <Field label="Mobile money number" optional>
+                <Input value={form.mobileNumber} onChange={set("mobileNumber")} />
+              </Field>
+            </DrawerSection>
+
+            <DrawerSection title="Tax">
+              <Field label="ZIMRA BP number" optional>
+                <Input value={form.taxNumber} onChange={set("taxNumber")} />
+              </Field>
+              <Field label="NSSA number" optional>
+                <Input value={form.nssaNumber} onChange={set("nssaNumber")} />
+              </Field>
+            </DrawerSection>
+          </form>
+        ) : null}
+      </Drawer>
+
+      <Drawer
+        open={leaveOpen}
+        onOpenChange={setLeaveOpen}
+        title={`Book leave for ${employee.name}`}
+        footer={
+          <>
+            <Button variant="quiet" type="button" onClick={() => setLeaveOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" form="employee-leave" disabled={requestLeave.isPending || !leave.leaveTypeId}>
+              {requestLeave.isPending ? "Sending" : "Request leave"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="employee-leave"
+          onSubmit={(event) => {
+            event.preventDefault();
+            requestLeave.mutate();
+          }}
+        >
+          <DrawerSection title="Leave">
+            <Field label="Type">
+              <Select value={leave.leaveTypeId} onChange={(event) => setLeave({ ...leave, leaveTypeId: event.target.value })} required>
+                <option value="">Choose</option>
+                {leaveTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="From">
+              <Input type="date" value={leave.startDate} onChange={(event) => setLeave({ ...leave, startDate: event.target.value })} required />
+            </Field>
+            <Field label="To">
+              <Input type="date" min={leave.startDate} value={leave.endDate} onChange={(event) => setLeave({ ...leave, endDate: event.target.value })} required />
+            </Field>
+            <Field label="Reason">
+              <Input value={leave.reason} onChange={(event) => setLeave({ ...leave, reason: event.target.value })} required />
+            </Field>
+          </DrawerSection>
         </form>
       </Drawer>
 
-      {/* Book Leave Drawer */}
       <Drawer
-        open={leaveModalOpen}
-        onOpenChange={setLeaveModalOpen}
-        title={`Book Leave for ${employee.name}`}
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            requestLeaveMutation.mutate({
-              leaveTypeId: leaveTypeId || employee.leaveEntitlements[0]?.leaveType.id || "",
-              startDate: leaveStartDate,
-              endDate: leaveEndDate,
-              reason: leaveReason,
-            });
-          }}
-        >
-          <DrawerSection title="Leave details">
-            <Field label="Leave type">
-              <select
-                className="select"
-                value={leaveTypeId}
-                onChange={(e) => setLeaveTypeId(e.target.value)}
-                style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--line)" }}
-                required
-              >
-                <option value="">Select type...</option>
-                {employee.leaveEntitlements.map((ent) => (
-                  <option key={ent.leaveType.id} value={ent.leaveType.id}>
-                    {ent.leaveType.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Start date">
-              <Input
-                type="date"
-                value={leaveStartDate}
-                onChange={(e) => setLeaveStartDate(e.target.value)}
-                required
-              />
-            </Field>
-            <Field label="End date">
-              <Input
-                type="date"
-                value={leaveEndDate}
-                onChange={(e) => setLeaveEndDate(e.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Reason / notes">
-              <Input
-                value={leaveReason}
-                onChange={(e) => setLeaveReason(e.target.value)}
-                placeholder="e.g. Annual holiday"
-                required
-              />
-            </Field>
-          </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: 16 }}>
-            <Button variant="quiet" onClick={() => setLeaveModalOpen(false)} type="button">
+        open={certOpen}
+        onOpenChange={setCertOpen}
+        title="Record a certificate"
+        sub={employee.name}
+        footer={
+          <>
+            <Button variant="quiet" type="button" onClick={() => setCertOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={requestLeaveMutation.isPending}>
-              {requestLeaveMutation.isPending ? "Submitting..." : "Submit request"}
+            <Button variant="primary" type="submit" form="employee-cert" disabled={addCertificate.isPending || !userId}>
+              {addCertificate.isPending ? "Saving" : "Save"}
             </Button>
-          </div>
+          </>
+        }
+      >
+        <form
+          id="employee-cert"
+          onSubmit={(event) => {
+            event.preventDefault();
+            addCertificate.mutate();
+          }}
+        >
+          <DrawerSection title="Certificate">
+            <Field label="Name">
+              <Input value={cert.trainingType} onChange={(event) => setCert({ ...cert, trainingType: event.target.value })} required />
+            </Field>
+            <Field label="Issued">
+              <Input type="date" value={cert.trainingDate} onChange={(event) => setCert({ ...cert, trainingDate: event.target.value })} required />
+            </Field>
+            <Field label="Expires" optional>
+              <Input type="date" min={cert.trainingDate} value={cert.expiryDate} onChange={(event) => setCert({ ...cert, expiryDate: event.target.value })} />
+            </Field>
+            <Field label="Issued by" optional>
+              <Input value={cert.trainedBy} onChange={(event) => setCert({ ...cert, trainedBy: event.target.value })} />
+            </Field>
+          </DrawerSection>
         </form>
       </Drawer>
     </>

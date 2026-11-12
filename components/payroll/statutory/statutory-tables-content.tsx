@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { BooksError, BooksLoading } from "@/components/books/books-state";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Amt,
+  BkEmpty,
   BkFilter,
+  BkNote,
   BkFinding,
   BkPage,
   BkScroll,
@@ -19,7 +21,7 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 
 type Band = {
   lowerBound: string;
@@ -282,33 +284,29 @@ export function StatutoryTablesContent() {
     {
       key: "currency",
       head: "Currency",
-      cell: (b) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {b.currency} ({b.cycle.toLowerCase()})
-        </span>
-      ),
+      cell: (b) => `${b.currency} ${b.cycle.toLowerCase()}`,
     },
     {
       key: "range",
-      head: "Taxable Gross Band",
+      head: "Taxable gross",
       cell: (b) => <span className="mono">{band(b)}</span>,
     },
     {
       key: "rate",
-      head: "Tax Rate",
+      head: "Rate",
       right: true,
-      cell: (b) => <span className="mono" style={{ fontWeight: 600 }}>{Number(b.ratePercent).toFixed(2)}%</span>,
+      cell: (b) => `${Number(b.ratePercent).toFixed(2)}%`,
     },
     {
       key: "deduct",
-      head: "Cumulative Deduct",
+      head: "Deduct",
       right: true,
       cell: (b) => <Amt value={parseFloat(b.deductAmount)} currency={b.currency} />,
     },
     {
       key: "seeded",
-      head: "Source origin",
-      cell: (b) => (b.isSeeded ? <St tone="draft">Seeded table</St> : <St tone="done">Enacted</St>),
+      head: "Source",
+      cell: (b) => (b.isSeeded ? <St tone="draft">Starting value</St> : <St tone="done">In force</St>),
     },
   ];
 
@@ -316,16 +314,12 @@ export function StatutoryTablesContent() {
   const rateColumns: Array<WsColumn<StatutoryRate>> = [
     {
       key: "name",
-      head: "Levy / Contribution",
+      head: "Levy",
       cell: (r) => (
-        <div>
-          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-            {RATE_LABELS[r.key] ?? r.key}
-          </div>
-          <div className="muted" style={{ fontSize: 11 }}>
-            {RATE_BASIS[r.key] ?? ""}
-          </div>
-        </div>
+        <>
+          {RATE_LABELS[r.key] ?? r.key}
+          {RATE_BASIS[r.key] ? <span className="muted"> {RATE_BASIS[r.key]}</span> : null}
+        </>
       ),
     },
     {
@@ -336,17 +330,14 @@ export function StatutoryTablesContent() {
     },
     {
       key: "rate",
-      head: "Statutory Rate",
+      head: "Rate",
       right: true,
-      cell: (r) => (
-        <span className="mono" style={{ fontWeight: 600 }}>
-          {Number(r.ratePercent).toFixed(2)}%
-        </span>
-      ),
+      className: "mono",
+      cell: (r) => `${Number(r.ratePercent).toFixed(2)}%`,
     },
     {
       key: "ceiling",
-      head: "Monthly Cap",
+      head: "Monthly cap",
       right: true,
       cell: (r) =>
         r.ceilingAmount ? (
@@ -358,7 +349,7 @@ export function StatutoryTablesContent() {
     {
       key: "status",
       head: "Status",
-      cell: (r) => (r.isSeeded ? <St tone="draft">Seeded rate</St> : <St tone="done">Active</St>),
+      cell: (r) => (r.isSeeded ? <St tone="draft">Starting value</St> : <St tone="done">In force</St>),
     },
   ];
 
@@ -366,12 +357,8 @@ export function StatutoryTablesContent() {
   const creditColumns: Array<WsColumn<TaxCredit>> = [
     {
       key: "name",
-      head: "Tax Credit Description",
-      cell: (c) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {CREDIT_LABELS[c.key] ?? c.key}
-        </span>
-      ),
+      head: "Credit",
+      cell: (c) => CREDIT_LABELS[c.key] ?? c.key,
     },
     {
       key: "currency",
@@ -381,19 +368,19 @@ export function StatutoryTablesContent() {
     },
     {
       key: "worth",
-      head: "Credit Allowance",
+      head: "Allowance",
       right: true,
       cell: (c) =>
         c.ratePercent ? (
           <span className="mono">{Number(c.ratePercent).toFixed(2)}% of cost</span>
         ) : (
-          <Amt value={parseFloat(c.amount ?? "0")} currency={c.currency} className="font-medium" />
+          <Amt value={parseFloat(c.amount ?? "0")} currency={c.currency} />
         ),
     },
     {
       key: "status",
       head: "Status",
-      cell: (c) => (c.isSeeded ? <St tone="draft">Seeded</St> : <St tone="done">Active</St>),
+      cell: (c) => (c.isSeeded ? <St tone="draft">Starting value</St> : <St tone="done">In force</St>),
     },
   ];
 
@@ -401,10 +388,8 @@ export function StatutoryTablesContent() {
   const necColumns: Array<WsColumn<NecAgreement>> = [
     {
       key: "council",
-      head: "National Employment Council",
-      cell: (n) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>{n.councilName}</span>
-      ),
+      head: "Council",
+      cell: (n) => n.councilName,
     },
     {
       key: "currency",
@@ -439,9 +424,9 @@ export function StatutoryTablesContent() {
   return (
     <PayrollShell
       activeTab="statutory-tables"
-      title="Statutory Tables & Tax Rates"
+      title="Tax tables"
       primary={{
-        label: "Export tax tables",
+        label: "Export",
         icon: "export",
         shortcut: "E",
         onClick: handleExportCsv,
@@ -451,22 +436,15 @@ export function StatutoryTablesContent() {
         <BkFinding
           fact={
             data?.seededCount
-              ? `${data.seededCount} statutory rate tables are currently using default seeded starting values.`
-              : `ZIMRA tax bands and NSSA contribution rates loaded for ${selectedMonthLabel}.`
+              ? `${data.seededCount} ${data.seededCount === 1 ? "table uses" : "tables use"} starting values.`
+              : `Rates for ${selectedMonthLabel}.`
           }
-          rest="Check figures against current statutory instruments before generating payroll runs."
         />
 
         {data && data.seededCount > 0 ? (
-          <div style={{ padding: "0 16px 8px" }}>
-            <Alert>
-              <AlertTitle>{data.seededCount} tables are seeded starting baselines</AlertTitle>
-              <AlertDescription className="text-xs">
-                Ensure rates match current statutory gazettes for {selectedMonthLabel}. Future legislative
-                changes should be added with a forward effective date to preserve past run integrity.
-              </AlertDescription>
-            </Alert>
-          </div>
+          <BkNote tone="warn" icon="warn">
+            <b>Starting values.</b> Check them against the current gazette for {selectedMonthLabel}.
+          </BkNote>
         ) : null}
 
         <BkTabs
@@ -474,15 +452,15 @@ export function StatutoryTablesContent() {
           value={tab}
           onChange={(next) => setTab(next as TabView)}
           items={[
-            { value: "paye", label: "PAYE tax bands", count: flattenedBands.length, icon: "docs" },
-            { value: "rates", label: "NSSA & statutory levies", count: data?.rates.length ?? 0, icon: "figure" },
+            { value: "paye", label: "PAYE", count: flattenedBands.length, icon: "docs" },
+            { value: "rates", label: "Levies", count: data?.rates.length ?? 0, icon: "figure" },
             { value: "credits", label: "Tax credits", count: data?.credits.length ?? 0, icon: "payments" },
-            { value: "nec", label: "NEC agreements", count: data?.necAgreements.length ?? 0, icon: "users" },
+            { value: "nec", label: "NEC", count: data?.necAgreements.length ?? 0, icon: "users" },
           ]}
         />
 
         <BkTools
-          find="Search statutory rates or council names..."
+          find="Search rates"
           query={search}
           onFind={setSearch}
           count={
@@ -496,7 +474,7 @@ export function StatutoryTablesContent() {
           }
           filters={
             <BkFilter
-              label="Effective Month"
+              label="Month"
               value={selectedMonthLabel}
               items={months.map((m) => ({
                 key: m.value,
@@ -511,13 +489,9 @@ export function StatutoryTablesContent() {
 
         <BkScroll>
           {query.isLoading ? (
-            <div style={{ padding: 48, textAlign: "center" }} className="muted">
-              Loading statutory tables for {selectedMonthLabel}...
-            </div>
+            <BooksLoading />
           ) : query.isError ? (
-            <div style={{ padding: 48, textAlign: "center", color: "var(--color-danger)" }}>
-              {getApiErrorMessage(query.error)}
-            </div>
+            <BooksError what="The tax tables" error={query.error} onRetry={() => void query.refetch()} />
           ) : tab === "paye" ? (
             <Worksheet
               label="PAYE progressive bands"
@@ -525,11 +499,7 @@ export function StatutoryTablesContent() {
               rowKey={(b) => `${b.currency}-${b.cycle}-${b.lowerBound}`}
               columns={payeColumns}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No PAYE tables in force for this month.
-                  </p>
-                </div>
+                <BkEmpty>No PAYE bands this month.</BkEmpty>
               }
             />
           ) : tab === "rates" ? (
@@ -539,11 +509,7 @@ export function StatutoryTablesContent() {
               rowKey={(r) => r.id}
               columns={rateColumns}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No statutory rates on file for this month.
-                  </p>
-                </div>
+                <BkEmpty>No levies this month.</BkEmpty>
               }
             />
           ) : tab === "credits" ? (
@@ -553,11 +519,7 @@ export function StatutoryTablesContent() {
               rowKey={(c) => c.id}
               columns={creditColumns}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No tax credits defined for this month.
-                  </p>
-                </div>
+                <BkEmpty>No credits this month.</BkEmpty>
               }
             />
           ) : (
@@ -567,11 +529,7 @@ export function StatutoryTablesContent() {
               rowKey={(n) => n.id}
               columns={necColumns}
               empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No National Employment Council agreements on file.
-                  </p>
-                </div>
+                <BkEmpty>No NEC agreements.</BkEmpty>
               }
             />
           )}

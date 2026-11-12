@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -19,6 +20,7 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Drawer,
@@ -26,6 +28,8 @@ import {
   Field,
   Input,
   Person,
+  Segmented,
+  Select,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
@@ -230,12 +234,7 @@ export default function AttendancePage() {
       key: "employee",
       head: "Employee",
       cell: (r) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.employee?.name || "Staff"} size={28} />
-          <span className="who" style={{ fontWeight: 500 }}>
-            {r.employee?.name || "—"}
-          </span>
-        </span>
+        <Person name={r.employee?.name || "Staff"} />
       ),
     },
     {
@@ -265,26 +264,21 @@ export default function AttendancePage() {
     },
     {
       key: "overtime",
-      head: "Overtime (hrs)",
+      head: "Overtime, hours",
       right: true,
       className: "mono",
       cell: (r) =>
-        r.overtime ? (
-          <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-            {r.overtime.toFixed(1)}h
-          </span>
-        ) : (
-          <None />
-        ),
+        r.overtime ? r.overtime.toFixed(1) : <None />,
     },
     {
       key: "shift",
-      head: "Shift / Site",
+      head: "Shift",
       className: "muted",
       cell: (r) => (
-        <span>
-          {r.shift || "Standard"} {r.site?.name ? `• ${r.site.name}` : ""}
-        </span>
+        <>
+          {r.shift || "Standard"}
+          {r.site?.name ? <span className="muted"> {r.site.name}</span> : null}
+        </>
       ),
     },
   ];
@@ -293,7 +287,7 @@ export default function AttendancePage() {
     `${totalRows} logs`,
     null,
     `${counts.present} present`,
-    `${counts.overtimeHours.toFixed(1)}h OT`,
+    `${counts.overtimeHours.toFixed(1)} overtime hours`,
     null,
   ];
 
@@ -316,8 +310,8 @@ export default function AttendancePage() {
     >
       <BkPage screen="attendance" scroll={false}>
         <BkFinding
-          fact={`Attendance for ${attendanceDate}: ${counts.present} present, ${counts.late} late, ${counts.absent} absent.`}
-          rest={`${counts.overtimeHours.toFixed(1)} overtime hours accumulated. Logs sync directly with payroll calculations.`}
+          fact={`${counts.present} present, ${counts.late} late, ${counts.absent} absent.`}
+          rest={attendanceDate}
         />
 
         <BkTabs
@@ -328,13 +322,13 @@ export default function AttendancePage() {
             setPage(1);
           }}
           items={[
-            { value: "today", label: "Today's logs", count: tab === "today" ? totalRows : undefined, icon: "clock" },
-            { value: "all", label: "Date picker / History", count: tab === "all" ? totalRows : undefined, icon: "calendar" },
+            { value: "today", label: "Today", count: tab === "today" ? totalRows : undefined, icon: "clock" },
+            { value: "all", label: "By date", count: tab === "all" ? totalRows : undefined, icon: "calendar" },
           ]}
         />
 
         <BkTools
-          find="Search by employee, shift, or site..."
+          find="Search attendance"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -344,18 +338,15 @@ export default function AttendancePage() {
           filters={
             <>
               {tab === "all" ? (
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 13, color: "var(--color-muted)" }}>Date:</span>
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => {
-                      setSelectedDate(e.target.value);
-                      setPage(1);
-                    }}
-                    style={{ height: 32, fontSize: 13, width: 140 }}
-                  />
-                </div>
+                <Input
+                  type="date"
+                  aria-label="Date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setPage(1);
+                  }}
+                />
               ) : null}
 
               <BkFilter
@@ -427,16 +418,9 @@ export default function AttendancePage() {
             totals={totals}
             empty={
               attendanceQuery.isLoading ? (
-                "Loading attendance..."
+                <BooksLoading />
               ) : (
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No attendance records for {attendanceDate}.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Staff can be marked present, late, or absent using the button above.
-                  </p>
-                </div>
+                <BkEmpty>No attendance for {attendanceDate}.</BkEmpty>
               )
             }
           />
@@ -454,15 +438,15 @@ export default function AttendancePage() {
           onClear={selection.clear}
         >
           <Button icon="export" onClick={handleExport}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           {canManage ? (
             <>
               <Button icon="done" onClick={() => void handleBulkStatus("PRESENT")}>
-                Mark Present
+                Mark present
               </Button>
               <Button icon="x" onClick={() => void handleBulkStatus("ABSENT")}>
-                Mark Absent
+                Mark absent
               </Button>
             </>
           ) : null}
@@ -473,8 +457,7 @@ export default function AttendancePage() {
       <Drawer
         open={markDrawerOpen}
         onOpenChange={setMarkDrawerOpen}
-        title="Mark Attendance Record"
-        sub="Log employee shift status, check-in, and overtime hours for payroll."
+        title="Mark attendance"
         footer={
           <>
             <Button variant="quiet" onClick={() => setMarkDrawerOpen(false)}>
@@ -496,100 +479,60 @@ export default function AttendancePage() {
                 });
               }}
             >
-              Save attendance
+              Save
             </Button>
           </>
         }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <DrawerSection title="Staff Member & Date">
-            <Field label="Employee">
-              <select
-                className="select"
-                value={markEmployeeId}
-                onChange={(e) => setMarkEmployeeId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select an employee...</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({e.employeeId || "No ID"})
-                  </option>
-                ))}
-              </select>
-            </Field>
+        <DrawerSection title="Who and when">
+          <Field label="Employee">
+            <Select value={markEmployeeId} onChange={(e) => setMarkEmployeeId(e.target.value)}>
+              <option value="">Choose</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.employeeId || "no ID"})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={markDate} onChange={(e) => setMarkDate(e.target.value)} />
+          </Field>
+        </DrawerSection>
 
-            <Field label="Date">
-              <Input
-                type="date"
-                value={markDate}
-                onChange={(e) => setMarkDate(e.target.value)}
-              />
-            </Field>
-          </DrawerSection>
+        <DrawerSection title="Status">
+          <Field label="Status">
+            <Segmented
+              label="Status"
+              value={markStatus}
+              onChange={setMarkStatus}
+              items={[
+                { value: "PRESENT", label: "Present" },
+                { value: "LATE", label: "Late" },
+                { value: "ABSENT", label: "Absent" },
+              ]}
+            />
+          </Field>
+          <Field label="Overtime, hours" optional>
+            <Input type="number" min="0" step="0.5" value={markOvertime} onChange={(e) => setMarkOvertime(e.target.value)} />
+          </Field>
+        </DrawerSection>
 
-          <DrawerSection title="Status & Hours">
-            <Field label="Attendance Status">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <Button
-                  variant={markStatus === "PRESENT" ? "primary" : "default"}
-                  onClick={() => setMarkStatus("PRESENT")}
-                >
-                  • Present
-                </Button>
-                <Button
-                  variant={markStatus === "LATE" ? "primary" : "default"}
-                  onClick={() => setMarkStatus("LATE")}
-                >
-                  • Late
-                </Button>
-                <Button
-                  variant={markStatus === "ABSENT" ? "danger" : "default"}
-                  onClick={() => setMarkStatus("ABSENT")}
-                >
-                  • Absent
-                </Button>
-              </div>
-            </Field>
-
-            <Field label="Overtime (hours)" help="Will be converted to minutes for payroll addition">
-              <Input
-                type="number"
-                min="0"
-                step="0.5"
-                value={markOvertime}
-                onChange={(e) => setMarkOvertime(e.target.value)}
-                placeholder="0.0"
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Shift & Location">
-            <Field label="Shift Name">
-              <Input
-                value={markShift}
-                onChange={(e) => setMarkShift(e.target.value)}
-                placeholder="e.g. Day Shift, Plant Night Crew"
-              />
-            </Field>
-
-            <Field label="Site / Facility">
-              <select
-                className="select"
-                value={markSiteId}
-                onChange={(e) => setMarkSiteId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Default Site</option>
-                {sites.map((s: Site) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </DrawerSection>
-        </div>
+        <DrawerSection title="Shift and site">
+          <Field label="Shift" optional>
+            <Input value={markShift} onChange={(e) => setMarkShift(e.target.value)} />
+          </Field>
+          <Field label="Site" optional>
+            <Select value={markSiteId} onChange={(e) => setMarkSiteId(e.target.value)}>
+              <option value="">Default site</option>
+              {sites.map((s: Site) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </DrawerSection>
       </Drawer>
     </PeopleShell>
   );

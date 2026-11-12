@@ -299,6 +299,12 @@ export function resolveVerticalDefaults(args: {
   return VERTICAL_DEFAULTS[resolveActiveWorkspaceProfile(args)];
 }
 
+/** The label for a stored position, or the value itself when it is not one of the known set. */
+export function employeePositionLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  return EMPLOYEE_POSITION_LABELS[value as EmployeePositionValue] ?? value;
+}
+
 export function getEmployeePositionOptions(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;

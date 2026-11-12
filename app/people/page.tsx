@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -20,6 +21,7 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Person,
@@ -47,6 +49,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  employeePositionLabel,
   getEmployeePositionOptions,
 } from "@/lib/platform/vertical-defaults";
 
@@ -161,7 +164,7 @@ function HumanResourcesContent() {
       const q = search.toLowerCase();
       const name = (emp.name || "").toLowerCase();
       const num = (emp.employeeId || "").toLowerCase();
-      const pos = (emp.position || "").toLowerCase();
+      const pos = `${emp.jobTitle || ""} ${employeePositionLabel(emp.position)}`.toLowerCase();
       const dept = (emp.department?.name || "").toLowerCase();
       return name.includes(q) || num.includes(q) || pos.includes(q) || dept.includes(q);
     });
@@ -251,7 +254,7 @@ function HumanResourcesContent() {
         e.employeeId || "",
         e.name,
         e.department?.name || "",
-        e.position || "",
+        e.jobTitle || employeePositionLabel(e.position),
         (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType : ""),
         e.isActive ? "Active" : "Inactive",
         e.hireDate || "",
@@ -289,17 +292,7 @@ function HumanResourcesContent() {
       key: "name",
       head: "Staff member",
       cell: (emp) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <Person name={emp.name} size={28} />
-          <span>
-            <span className="who" style={{ display: "block", fontWeight: 500 }}>
-              {emp.name}
-            </span>
-            <span className="muted mono" style={{ fontSize: 11 }}>
-              {emp.employeeId || "—"}
-            </span>
-          </span>
-        </span>
+        <Person name={emp.name} sub={emp.employeeId || "—"} />
       ),
     },
     {
@@ -311,7 +304,7 @@ function HumanResourcesContent() {
     {
       key: "position",
       head: "Position",
-      cell: (emp) => emp.position || <None />,
+      cell: (emp) => emp.jobTitle || employeePositionLabel(emp.position) || <None />,
     },
     {
       key: "status",
@@ -342,7 +335,7 @@ function HumanResourcesContent() {
         const items: MenuEntry[] = [
           {
             key: "edit",
-            label: "Edit employee profile",
+            label: "Edit",
             icon: "edit",
             onSelect: () => {
               setEditingEmployee(emp);
@@ -351,7 +344,7 @@ function HumanResourcesContent() {
           },
           {
             key: "delete",
-            label: "Delete record",
+            label: "Delete",
             icon: "retire",
             danger: true,
             onSelect: () => setDeletingId(emp.id),
@@ -387,8 +380,7 @@ function HumanResourcesContent() {
     >
       <BkPage screen="people" scroll={false}>
         <BkFinding
-          fact={`${counts.active} active employees across ${departments.length} departments.`}
-          rest="Select any row to view, update compensation, or adjust employment details."
+          fact={`${counts.active} active ${counts.active === 1 ? "employee" : "employees"}${departments.length ? ` in ${departments.length} ${departments.length === 1 ? "department" : "departments"}` : ""}.`}
         />
 
         <BkTabs
@@ -399,14 +391,14 @@ function HumanResourcesContent() {
             setPage(1);
           }}
           items={[
-            { value: "active", label: "Active staff", count: counts.active, icon: "users" },
-            { value: "all", label: "All records", count: counts.all, icon: "list" },
-            { value: "inactive", label: "Inactive / Departed", count: counts.inactive, icon: "retire" },
+            { value: "active", label: "Active", count: counts.active, icon: "users" },
+            { value: "all", label: "All", count: counts.all, icon: "list" },
+            { value: "inactive", label: "Inactive", count: counts.inactive, icon: "retire" },
           ]}
         />
 
         <BkTools
-          find="Search staff by name, number, or position..."
+          find="Search staff"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -515,24 +507,10 @@ function HumanResourcesContent() {
               some: selection.some,
               labelOf: (emp) => emp.name,
             }}
-            onOpen={(emp) => {
-              setEditingEmployee(emp);
-              setDrawerOpen(true);
-            }}
+            openHref={(emp) => `/people/${emp.id}`}
             totals={totals}
             empty={
-              employeesQuery.isLoading ? (
-                "Loading directory..."
-              ) : (
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No staff members match the criteria.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Try clearing filters or search query, or onboard a new employee.
-                  </p>
-                </div>
-              )
+              employeesQuery.isLoading ? <BooksLoading /> : <BkEmpty>No staff here.</BkEmpty>
             }
           />
         </BkScroll>
@@ -549,19 +527,19 @@ function HumanResourcesContent() {
           onClear={selection.clear}
         >
           <Button icon="export" onClick={handleExportSelected}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           <Button
             icon="done"
             onClick={() => void handleBulkStatus(true)}
           >
-            Mark Active
+            Mark active
           </Button>
           <Button
             icon="retire"
             onClick={() => void handleBulkStatus(false)}
           >
-            Mark Inactive
+            Mark inactive
           </Button>
         </BkSelectionBar>
       </BkPage>
@@ -621,9 +599,7 @@ export default function HumanResourcesPage() {
     <React.Suspense
       fallback={
         <PeopleShell activeTab="employees">
-          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
-            Loading employee directory...
-          </div>
+          <BooksLoading />
         </PeopleShell>
       }
     >

@@ -4,8 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { Amt, BkFinding, St } from "@/components/books/ui";
-import { Button, Drawer, DrawerSection } from "@/components/core";
+import { Amt, BkLoading } from "@/components/books/ui";
+import { Button, Drawer, DrawerRow, DrawerSection } from "@/components/core";
+import { shortDay } from "@/lib/books/format";
 import { fetchJson } from "@/lib/api-client";
 
 type PreFlightResponse = {
@@ -90,8 +91,8 @@ export function PreCloseChecklistDrawer({
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
-      title="Pre-close reconciliation checklist"
-      sub="Verify disbursement accounts, statutory tax identifiers, and pay variances before submitting."
+      title="Check the run"
+      sub={run ? `Run ${run.runNumber}, ${run.periodKey}, ${run.periodRange}` : undefined}
       width={560}
       footer={
         <>
@@ -105,285 +106,105 @@ export function PreCloseChecklistDrawer({
               if (runId) onSubmit(runId);
             }}
           >
-            {data?.canSubmit ? "Confirm & submit run" : "Resolve blockers to submit"}
+            {data?.canSubmit ? "Submit the run" : "Fix the blockers first"}
           </Button>
         </>
       }
     >
       {isLoading ? (
-        <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
-          Running pre-flight verification checks...
-        </div>
+        <BkLoading rows={6} />
       ) : !data ? (
-        <div style={{ padding: 24 }}>Failed to load pre-flight checklist.</div>
+        <p>The checks didn&rsquo;t load. Close this and try again.</p>
       ) : (
         <>
-          {/* RUN METRICS SUMMARY */}
-          <div
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              background: "var(--color-surface)",
-              boxShadow: "var(--shadow-ring)",
-              marginBottom: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              fontSize: 13,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span className="mono bold" style={{ fontSize: 14 }}>
-                Run #{run?.runNumber} • {run?.periodKey}
-              </span>
-              <St tone={run?.status === "DRAFT" ? "draft" : "info"}>
-                {run?.status ?? "DRAFT"}
-              </St>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span className="muted">Coverage interval</span>
-              <span className="mono">{run?.periodRange}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span className="muted">Employees included</span>
-              <span className="mono">{run?.lineCount}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--color-line-subtle)", paddingTop: 6 }}>
-              <span className="bold">Total Net Pay</span>
+          <DrawerSection title="Run">
+            <DrawerRow label="Employees">{run?.lineCount}</DrawerRow>
+            <DrawerRow label="Net pay">
               <Amt value={run?.netTotal ?? 0} currency="USD" />
-            </div>
-          </div>
+            </DrawerRow>
+            <DrawerRow label="Checks">
+              {data.passedCount} of {data.totalChecks} clean
+            </DrawerRow>
+          </DrawerSection>
 
-          {/* OVERALL READINESS SCORE */}
-          <div style={{ marginBottom: 16 }}>
-            {data.blockers.length > 0 ? (
-              <BkFinding
-                fact={`${data.blockers.length} Blocker(s) Found`}
-                rest={data.blockers.join(". ")}
-              />
-            ) : data.warnings.length > 0 ? (
-              <BkFinding
-                fact={`${data.passedCount} of ${data.totalChecks} checks clean (${data.warnings.length} warning)`}
-                rest="Pre-flight passed. You may proceed with submission, but review flagged warnings below."
-              />
-            ) : (
-              <BkFinding
-                fact="All 6 pre-flight checks passed"
-                rest="Disbursement details, statutory tax IDs, compensation contracts, and variance tolerances are completely verified."
-              />
-            )}
-          </div>
+          {data.blockers.length > 0 ? (
+            <DrawerSection title="Blockers">
+              {data.blockers.map((blocker) => (
+                <p key={blocker}>{blocker}</p>
+              ))}
+            </DrawerSection>
+          ) : null}
 
-          {/* SECTION 1: DISBURSEMENT ACCOUNTS */}
-          <DrawerSection title="1. Disbursement Readiness">
-            {details?.missingPaymentDetails && details.missingPaymentDetails.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--color-danger-ink)" }}>
-                  {details.missingPaymentDetails.length} employee(s) missing both bank account and mobile money:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {details.missingPaymentDetails.map((emp) => (
-                    <div
-                      key={emp.employeeId}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "6px 10px",
-                        background: "var(--color-danger-subtle)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span className="bold">
-                        {emp.name} ({emp.code})
-                      </span>
-                      <Link
-                        href={`/people/${emp.employeeId}`}
-                        target="_blank"
-                        style={{ color: "var(--color-brand)", textDecoration: "underline" }}
-                      >
-                        Edit account ↗
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <DrawerSection title="Payment details">
+            {details?.missingPaymentDetails.length ? (
+              details.missingPaymentDetails.map((emp) => (
+                <DrawerRow key={emp.employeeId} label={`${emp.name} ${emp.code}`}>
+                  No bank or mobile money. <Link href={`/people/${emp.employeeId}`} target="_blank">Add</Link>
+                </DrawerRow>
+              ))
             ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-                ✓ All {run?.lineCount} employees have valid bank or mobile money details.
-              </div>
+              <p className="muted">Everyone can be paid.</p>
             )}
           </DrawerSection>
 
-          {/* SECTION 2: STATUTORY COMPLIANCE */}
-          <DrawerSection title="2. Statutory Tax & NSSA Identifiers">
-            {details?.missingStatutory && details.missingStatutory.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--color-amber-ink)" }}>
-                  {details.missingStatutory.length} employee(s) have unrecorded tax (BP) or NSSA numbers:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {details.missingStatutory.map((emp) => (
-                    <div
-                      key={emp.employeeId}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "6px 10px",
-                        background: "var(--color-amber-subtle)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span>
-                        <span className="bold">{emp.name}</span> • Missing:{" "}
-                        {[emp.missingTax && "Tax BP", emp.missingNssa && "NSSA"]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                      <Link
-                        href={`/people/${emp.employeeId}`}
-                        target="_blank"
-                        style={{ color: "var(--color-brand)", textDecoration: "underline" }}
-                      >
-                        Update profile ↗
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <DrawerSection title="Tax and NSSA numbers">
+            {details?.missingStatutory.length ? (
+              details.missingStatutory.map((emp) => (
+                <DrawerRow key={emp.employeeId} label={emp.name}>
+                  Missing {[emp.missingTax && "tax BP", emp.missingNssa && "NSSA"].filter(Boolean).join(" and ")}.{" "}
+                  <Link href={`/people/${emp.employeeId}`} target="_blank">Add</Link>
+                </DrawerRow>
+              ))
             ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-                ✓ Complete tax numbers and NSSA registrations present across all entries.
-              </div>
+              <p className="muted">All numbers recorded.</p>
             )}
           </DrawerSection>
 
-          {/* SECTION 3: COMPENSATION INTEGRITY */}
-          <DrawerSection title="3. Compensation Profile Integrity">
-            {details?.unassignedProfiles && details.unassignedProfiles.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--color-amber-ink)" }}>
-                  {details.unassignedProfiles.length} employee(s) have no compensation profile or zero base salary:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {details.unassignedProfiles.map((emp) => (
-                    <div
-                      key={emp.employeeId}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "6px 10px",
-                        background: "var(--color-surface)",
-                        boxShadow: "var(--shadow-ring)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span className="bold">{emp.name}</span>
-                      <span className="mono muted">Base: ${emp.baseAmount.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <DrawerSection title="Salary">
+            {details?.unassignedProfiles.length ? (
+              details.unassignedProfiles.map((emp) => (
+                <DrawerRow key={emp.employeeId} label={emp.name}>
+                  No salary set. <Link href={`/people/${emp.employeeId}`} target="_blank">Set</Link>
+                </DrawerRow>
+              ))
             ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-                ✓ Every line item is mapped to an active compensation contract or salary template.
-              </div>
+              <p className="muted">Every line has a salary.</p>
             )}
           </DrawerSection>
 
-          {/* SECTION 4: PENDING LEAVE REQUESTS */}
-          <DrawerSection title="4. Pending Leave Approvals">
-            {details?.pendingLeaveList && details.pendingLeaveList.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--color-amber-ink)" }}>
-                  {details.pendingLeaveList.length} leave application(s) awaiting approval in this period:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {details.pendingLeaveList.map((lr) => (
-                    <div
-                      key={lr.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        padding: "6px 10px",
-                        background: "var(--color-surface)",
-                        boxShadow: "var(--shadow-ring)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span>
-                        <span className="bold">{lr.name}</span> ({lr.leaveType}) • {lr.workingDays}d
-                      </span>
-                      <span className="mono muted">
-                        {lr.startDate} to {lr.endDate}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, marginTop: 4 }}>
-                  <Link
-                    href="/people/leave"
-                    target="_blank"
-                    style={{ color: "var(--color-brand)", textDecoration: "underline" }}
-                  >
-                    Open Leave Management to review & decide ↗
-                  </Link>
-                </div>
-              </div>
+          <DrawerSection title="Leave waiting">
+            {details?.pendingLeaveList.length ? (
+              <>
+                {details.pendingLeaveList.map((leave) => (
+                  <DrawerRow key={leave.id} label={leave.name}>
+                    {leave.leaveType}, {leave.workingDays} {leave.workingDays === 1 ? "day" : "days"},{" "}
+                    <span className="mono">
+                      {shortDay(leave.startDate.slice(0, 10))} to {shortDay(leave.endDate.slice(0, 10))}
+                    </span>
+                  </DrawerRow>
+                ))}
+                <Link href="/people/leave" target="_blank">
+                  Decide in Time off
+                </Link>
+              </>
             ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-                ✓ No pending leave requests overlap this cycle.
-              </div>
+              <p className="muted">None overlaps this period.</p>
             )}
           </DrawerSection>
 
-          {/* SECTION 5: PAY VARIANCE OUTLIERS */}
-          <DrawerSection title="5. Net Pay Outlier Detection">
-            {details?.varianceOutliers && details.varianceOutliers.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--color-amber-ink)" }}>
-                  {details.varianceOutliers.length} employee(s) have net pay variance &gt;30% vs prior cycle:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {details.varianceOutliers.map((vo) => (
-                    <div
-                      key={vo.employeeId}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "6px 10px",
-                        background: "var(--color-surface)",
-                        boxShadow: "var(--shadow-ring)",
-                        borderRadius: 6,
-                        fontSize: 12,
-                      }}
-                    >
-                      <div>
-                        <span className="bold">{vo.name}</span>
-                        <div className="mono muted" style={{ fontSize: 11 }}>
-                          Prior: ${vo.previousNet.toFixed(2)} → Current: ${vo.currentNet.toFixed(2)}
-                        </div>
-                      </div>
-                      <span
-                        className="mono bold"
-                        style={{
-                          color: vo.deltaPercent > 0 ? "var(--color-success-ink)" : "var(--color-danger-ink)",
-                        }}
-                      >
-                        {vo.deltaPercent > 0 ? `+${vo.deltaPercent}%` : `${vo.deltaPercent}%`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <DrawerSection title="Big changes in net pay">
+            {details?.varianceOutliers.length ? (
+              details.varianceOutliers.map((outlier) => (
+                <DrawerRow key={outlier.employeeId} label={outlier.name}>
+                  <Amt value={outlier.previousNet} currency="USD" /> to <Amt value={outlier.currentNet} currency="USD" />,{" "}
+                  <span className="mono">
+                    {outlier.deltaPercent > 0 ? "+" : "−"}
+                    {Math.abs(outlier.deltaPercent)}%
+                  </span>
+                </DrawerRow>
+              ))
             ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-                ✓ All employee net earnings are within standard variance tolerances.
-              </div>
+              <p className="muted">Nobody moved more than 30%.</p>
             )}
           </DrawerSection>
         </>

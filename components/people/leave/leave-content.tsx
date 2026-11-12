@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -18,13 +19,18 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
+  ButtonGroup,
   Drawer,
+  DrawerRow,
   DrawerSection,
   Field,
   Input,
   Person,
+  Select,
+  TextArea,
   useSelection,
 } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
@@ -70,6 +76,8 @@ type LeaveRequestRow = {
 };
 
 type EmployeeOption = { id: string; name: string; employeeId: string };
+
+const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", SUBMITTED: "Waiting", APPROVED: "Approved", REJECTED: "Rejected", CANCELLED: "Cancelled", WITHDRAWN: "Withdrawn" };
 
 function formatRange(startDate: string, endDate: string) {
   const start = new Date(startDate);
@@ -146,13 +154,13 @@ export function LeaveContent() {
   const leaveTypesQuery = useQuery({
     queryKey: ["people", "leave-types"],
     queryFn: () =>
-      fetchJson<{ data: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
+      fetchJson<{ types: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
         "/api/people/leave/types"
       ),
   });
 
   const leaveTypes = React.useMemo(
-    () => leaveTypesQuery.data?.data ?? [],
+    () => leaveTypesQuery.data?.types ?? [],
     [leaveTypesQuery.data]
   );
 
@@ -217,10 +225,10 @@ export function LeaveContent() {
     }) =>
       fetchJson("/api/people/leave/requests", {
         method: "POST",
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, submit: true }),
       }),
     onSuccess: () => {
-      toast({ title: "Leave request submitted" });
+      toast({ title: "Leave requested" });
       setRequestDrawerOpen(false);
       setReqReason("");
       void queryClient.invalidateQueries({ queryKey: ["people", "leave-requests"] });
@@ -301,150 +309,50 @@ export function LeaveContent() {
   const approvedCount = requests.filter((r) => r.status === "APPROVED").length;
 
   const requestColumns: Array<WsColumn<LeaveRequestRow>> = [
-    {
-      key: "employee",
-      head: "Employee",
-      cell: (r) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Person name={r.employee?.name || "Staff"} size={24} />
-          <span className="who" style={{ fontWeight: 500 }}>
-            {r.employee?.name || "—"}
-          </span>
-        </span>
-      ),
-    },
+    { key: "employee", head: "Employee", cell: (r) => (r.employee ? <Person name={r.employee.name} /> : <None />) },
     {
       key: "type",
-      head: "Leave type",
+      head: "Leave",
       cell: (r) => (
-        <span>
-          {r.leaveType?.name || "Leave"}{" "}
-          {r.leaveType?.isPaid ? (
-            <span style={{ fontSize: 11, color: "var(--color-success)" }}>• Paid</span>
-          ) : (
-            <span style={{ fontSize: 11, color: "var(--color-muted)" }}>• Unpaid</span>
-          )}
-        </span>
+        <>
+          {r.leaveType?.name || "Leave"}
+          <span className="muted"> {r.leaveType?.isPaid ? "paid" : "unpaid"}</span>
+        </>
       ),
     },
-    {
-      key: "dates",
-      head: "Dates",
-      className: "muted",
-      cell: (r) => formatRange(r.startDate, r.endDate),
-    },
-    {
-      key: "days",
-      head: "Working days",
-      right: true,
-      className: "mono",
-      cell: (r) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          {parseFloat(r.workingDays) || 0}d
-        </span>
-      ),
-    },
+    { key: "dates", head: "Dates", className: "muted", cell: (r) => formatRange(r.startDate, r.endDate) },
+    { key: "days", head: "Days", right: true, className: "mono", cell: (r) => parseFloat(r.workingDays) || 0 },
     {
       key: "status",
       head: "Status",
-      cell: (r) => {
-        const tone =
-          r.status === "APPROVED"
-            ? "done"
-            : r.status === "SUBMITTED"
-            ? "warn"
-            : r.status === "REJECTED"
-            ? "bad"
-            : "void";
-        return <St tone={tone}>{r.status}</St>;
-      },
+      cell: (r) => <St tone={r.status === "APPROVED" ? "done" : r.status === "SUBMITTED" ? "warn" : r.status === "REJECTED" ? "bad" : "void"}>{STATUS_LABEL[r.status] ?? r.status}</St>,
     },
-    {
-      key: "reason",
-      head: "Reason / Note",
-      className: "muted",
-      cell: (r) => r.reason || <None />,
-    },
+    { key: "reason", head: "Reason", className: "muted", cell: (r) => r.reason || <None /> },
     {
       key: "actions",
       head: "",
       right: true,
       cell: (r) =>
         r.status === "SUBMITTED" ? (
-          <div style={{ display: "inline-flex", gap: 6 }}>
-            <Button
-              variant="default"
-              size="sm"
-              busy={decideMutation.isPending}
-              onClick={() => decideMutation.mutate({ id: r.id, decision: "APPROVE" })}
-            >
+          <ButtonGroup>
+            <Button size="sm" busy={decideMutation.isPending} onClick={() => decideMutation.mutate({ id: r.id, decision: "APPROVE" })}>
               Approve
             </Button>
-            <Button
-              variant="quiet"
-              size="sm"
-              busy={decideMutation.isPending}
-              onClick={() => decideMutation.mutate({ id: r.id, decision: "REJECT" })}
-            >
+            <Button variant="quiet" size="sm" busy={decideMutation.isPending} onClick={() => decideMutation.mutate({ id: r.id, decision: "REJECT" })}>
               Reject
             </Button>
-          </div>
+          </ButtonGroup>
         ) : null,
     },
   ];
 
   const balanceColumns: Array<WsColumn<LeaveBalance>> = [
-    {
-      key: "type",
-      head: "Leave policy",
-      cell: (b) => <span className="who" style={{ fontWeight: 500 }}>{b.name}</span>,
-    },
-    {
-      key: "code",
-      head: "Code",
-      className: "muted mono",
-      cell: (b) => b.code,
-    },
-    {
-      key: "entitled",
-      head: "Entitled",
-      right: true,
-      className: "mono",
-      cell: (b) => (b.isUnlimited ? "Unlimited" : `${b.entitled}d`),
-    },
-    {
-      key: "taken",
-      head: "Taken",
-      right: true,
-      className: "mono",
-      cell: (b) => `${b.taken}d`,
-    },
-    {
-      key: "pending",
-      head: "Pending",
-      right: true,
-      className: "mono",
-      cell: (b) => (parseFloat(b.pending) > 0 ? `${b.pending}d` : <None />),
-    },
-    {
-      key: "remaining",
-      head: "Remaining balance",
-      right: true,
-      className: "mono",
-      cell: (b) =>
-        b.isUnlimited ? (
-          <span style={{ color: "var(--color-success)", fontWeight: 500 }}>Unlimited</span>
-        ) : (
-          <span
-            style={{
-              fontWeight: 600,
-              color: parseFloat(b.remaining) <= 0 ? "var(--color-danger)" : "var(--color-ink)",
-            }}
-          >
-            {b.remaining}d
-          </span>
-        ),
-    },
+    { key: "type", head: "Leave", cell: (b) => b.name },
+    { key: "code", head: "Code", className: "muted mono", cell: (b) => b.code },
+    { key: "entitled", head: "Entitled", right: true, className: "mono", cell: (b) => (b.isUnlimited ? "No limit" : b.entitled) },
+    { key: "taken", head: "Taken", right: true, className: "mono", cell: (b) => b.taken },
+    { key: "pending", head: "Waiting", right: true, className: "mono", cell: (b) => (parseFloat(b.pending) > 0 ? b.pending : <None />) },
+    { key: "remaining", head: "Left", right: true, className: "mono", cell: (b) => (b.isUnlimited ? <None /> : b.remaining) },
   ];
 
   return (
@@ -462,8 +370,8 @@ export function LeaveContent() {
     >
       <BkPage screen="leave" scroll={false}>
         <BkFinding
-          fact={`${pendingCount} pending leave applications requiring approval. ${approvedCount} approved this cycle.`}
-          rest="Statutory annual, sick, and compassionate leave rules enforce working-day balance deductions."
+          fact={`${pendingCount} ${pendingCount === 1 ? "request" : "requests"} waiting for a decision.`}
+          rest={`${approvedCount} approved.`}
         />
 
         <BkTabs
@@ -474,13 +382,13 @@ export function LeaveContent() {
             setPage(1);
           }}
           items={[
-            { value: "requests", label: "Leave requests", count: requests.length, icon: "calendar" },
-            { value: "balances", label: "Staff balances", count: balances.length, icon: "users" },
+            { value: "requests", label: "Requests", count: requests.length, icon: "calendar" },
+            { value: "balances", label: "Balances", count: balances.length, icon: "users" },
           ]}
         />
 
         <BkTools
-          find={activeTab === "requests" ? "Search requests by employee, type..." : "Search staff..."}
+          find={activeTab === "requests" ? "Search requests" : "Search balances"}
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -505,7 +413,7 @@ export function LeaveContent() {
                   { separator: true },
                   ...employees.map((e) => ({
                     key: e.id,
-                    label: `${e.name} (${e.employeeId || "No ID"})`,
+                    label: `${e.name} (${e.employeeId || "no ID"})`,
                     checked: employeeId === e.id,
                     onSelect: () => {
                       setEmployeeId(e.id);
@@ -518,7 +426,7 @@ export function LeaveContent() {
               {activeTab === "requests" ? (
                 <BkFilter
                   label="Status"
-                  value={statusFilter === "ALL" ? "Any" : statusFilter}
+                  value={statusFilter === "ALL" ? "Any" : STATUS_LABEL[statusFilter] ?? statusFilter}
                   items={[
                     {
                       key: "ALL",
@@ -532,7 +440,7 @@ export function LeaveContent() {
                     { separator: true },
                     {
                       key: "SUBMITTED",
-                      label: "Pending (Submitted)",
+                      label: "Waiting",
                       checked: statusFilter === "SUBMITTED",
                       onSelect: () => {
                         setStatusFilter("SUBMITTED");
@@ -581,18 +489,7 @@ export function LeaveContent() {
                 labelOf: (r) => `${r.employee?.name} leave`,
               }}
               empty={
-                requestsQuery.isLoading ? (
-                  "Loading requests..."
-                ) : (
-                  <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                    <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                      No leave requests found.
-                    </p>
-                    <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                      Employees can submit time-off requests using the button above.
-                    </p>
-                  </div>
-                )
+                requestsQuery.isLoading ? <BooksLoading /> : <BkEmpty>No requests here.</BkEmpty>
               }
             />
           ) : (
@@ -602,18 +499,7 @@ export function LeaveContent() {
               rowKey={(b) => b.leaveTypeId}
               columns={balanceColumns}
               empty={
-                balancesQuery.isLoading ? (
-                  "Loading balances..."
-                ) : (
-                  <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                    <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                      No balances recorded for this employee.
-                    </p>
-                    <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                      Balances will calculate based on statutory accrual policies and hire date.
-                    </p>
-                  </div>
-                )
+                balancesQuery.isLoading ? <BooksLoading /> : <BkEmpty>No balances for this person.</BkEmpty>
               }
             />
           )}
@@ -631,7 +517,7 @@ export function LeaveContent() {
           onClear={selection.clear}
         >
           <Button icon="export" onClick={handleExport}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           {activeTab === "requests" ? (
             <>
@@ -646,121 +532,12 @@ export function LeaveContent() {
         </BkSelectionBar>
       </BkPage>
 
-      {/* Guided Drawer for requesting leave */}
       <Drawer
         open={requestDrawerOpen}
         onOpenChange={setRequestDrawerOpen}
-        title="Submit Leave Request"
-        sub="Select employee, leave policy type, and target date range."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <DrawerSection title="Staff Member & Leave Type">
-            <Field label="Employee">
-              <select
-                className="select"
-                value={reqEmployeeId}
-                onChange={(e) => setReqEmployeeId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select staff member...</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({e.employeeId || "No ID"})
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Leave Policy Type">
-              <select
-                className="select"
-                value={reqLeaveTypeId}
-                onChange={(e) => setReqLeaveTypeId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select policy...</option>
-                {leaveTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.code}) {t.isPaid ? "• Paid" : "• Unpaid"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Date Range & Working Days">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Field label="Start Date">
-                <Input
-                  type="date"
-                  value={reqStartDate}
-                  onChange={(e) => setReqStartDate(e.target.value)}
-                />
-              </Field>
-
-              <Field label="End Date">
-                <Input
-                  type="date"
-                  value={reqEndDate}
-                  onChange={(e) => setReqEndDate(e.target.value)}
-                />
-              </Field>
-            </div>
-
-            {reqStartDate && reqEndDate ? (
-              <div
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 6,
-                  background: "var(--color-fill)",
-                  border: "1px solid var(--color-line)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                  Calculated Working Days:
-                </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--color-ink)" }}>
-                  {calculatedDays} working days
-                </span>
-              </div>
-            ) : null}
-          </DrawerSection>
-
-          <DrawerSection title="Handover & Justification">
-            <Field label="Covering Colleague (Handover)">
-              <select
-                className="select"
-                value={reqCoveringId}
-                onChange={(e) => setReqCoveringId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">No covering colleague assigned</option>
-                {employees
-                  .filter((e) => e.id !== reqEmployeeId)
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-
-            <Field label="Reason / Notes">
-              <textarea
-                className="textarea"
-                rows={3}
-                value={reqReason}
-                onChange={(e) => setReqReason(e.target.value)}
-                placeholder="Brief justification or hand-over notes..."
-                style={{ width: "100%" }}
-              />
-            </Field>
-          </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+        title="Request leave"
+        footer={
+          <>
             <Button variant="quiet" onClick={() => setRequestDrawerOpen(false)}>
               Cancel
             </Button>
@@ -768,7 +545,7 @@ export function LeaveContent() {
               variant="primary"
               busy={createRequestMutation.isPending}
               disabled={!reqEmployeeId || !reqLeaveTypeId || !reqStartDate || !reqEndDate || !reqReason.trim()}
-              onClick={() => {
+              onClick={() =>
                 createRequestMutation.mutate({
                   employeeId: reqEmployeeId,
                   leaveTypeId: reqLeaveTypeId,
@@ -776,13 +553,64 @@ export function LeaveContent() {
                   endDate: reqEndDate,
                   reason: reqReason,
                   coveringEmployeeId: reqCoveringId || undefined,
-                });
-              }}
+                })
+              }
             >
-              Submit request
+              Request
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      >
+        <DrawerSection title="Who and what">
+          <Field label="Employee">
+            <Select value={reqEmployeeId} onChange={(e) => setReqEmployeeId(e.target.value)}>
+              <option value="">Choose</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.employeeId || "no ID"})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Leave">
+            <Select value={reqLeaveTypeId} onChange={(e) => setReqLeaveTypeId(e.target.value)}>
+              <option value="">Choose</option>
+              {leaveTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.isPaid ? "paid" : "unpaid"})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </DrawerSection>
+
+        <DrawerSection title="Dates">
+          <Field label="From">
+            <Input type="date" value={reqStartDate} onChange={(e) => setReqStartDate(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <Input type="date" min={reqStartDate} value={reqEndDate} onChange={(e) => setReqEndDate(e.target.value)} />
+          </Field>
+          {reqStartDate && reqEndDate ? <DrawerRow label="Working days">About {calculatedDays}</DrawerRow> : null}
+        </DrawerSection>
+
+        <DrawerSection title="Cover and reason">
+          <Field label="Covered by" optional>
+            <Select value={reqCoveringId} onChange={(e) => setReqCoveringId(e.target.value)}>
+              <option value="">Nobody</option>
+              {employees
+                .filter((e) => e.id !== reqEmployeeId)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <Field label="Reason">
+            <TextArea rows={3} value={reqReason} onChange={(e) => setReqReason(e.target.value)} />
+          </Field>
+        </DrawerSection>
       </Drawer>
     </PeopleShell>
   );

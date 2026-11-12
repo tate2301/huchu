@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   Amt,
+  BkEmpty,
   BkFinding,
   BkPage,
   BkPager,
@@ -20,15 +21,16 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Drawer,
   DrawerSection,
   Field,
   Input,
+  Select,
   useSelection,
 } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -39,26 +41,6 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { money } from "@/lib/books/format";
 
 type DisbursementTab = "pending" | "paid" | "all";
-
-type BatchDetails = {
-  id: string;
-  code: string;
-  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PAID" | "REJECTED";
-  totalAmount: number;
-  itemCount: number;
-  notes?: string | null;
-  cashCustodian?: string | null;
-  cashIssuedAt?: string | null;
-  createdAt?: string | null;
-  payrollRun?: {
-    runNumber: number;
-  };
-  items: Array<{
-    id: string;
-    amount: number;
-    employee: { id: string; name: string; employeeId: string };
-  }>;
-};
 
 function DisbursementsContent() {
   const { toast } = useToast();
@@ -104,15 +86,6 @@ function DisbursementsContent() {
   const [createDrawerOpen, setCreateDrawerOpen] = React.useState(false);
   const [selectedRunId, setSelectedRunId] = React.useState(searchParams.get("runId") || "");
   const [batchNotes, setBatchNotes] = React.useState("");
-  const [detailsBatchId, setDetailsBatchId] = React.useState<string | null>(null);
-
-  // Dual-custodian sign-off drawer
-  const [signOffBatchId, setSignOffBatchId] = React.useState<string | null>(null);
-  const [custodianName, setCustodianName] = React.useState("");
-  const [handoverRef, setHandoverRef] = React.useState("");
-  const [signOffNotes, setSignOffNotes] = React.useState("");
-  const [cashVerified, setCashVerified] = React.useState(false);
-
   const { data: batchesData } = useQuery({
     queryKey: ["disbursement-batches"],
     queryFn: () => fetchDisbursementBatches({ limit: 100 }),
@@ -127,14 +100,6 @@ function DisbursementsContent() {
     () => (runsData?.data ?? []).filter((r) => r.status === "APPROVED"),
     [runsData]
   );
-
-  const activeInspectBatchId = detailsBatchId ?? signOffBatchId;
-  const { data: batchDetails, isLoading: detailsLoading } = useQuery({
-    queryKey: ["disbursement-batch-details", activeInspectBatchId],
-    queryFn: () =>
-      fetchJson<BatchDetails>(`/api/disbursements/batches/${activeInspectBatchId}`),
-    enabled: Boolean(activeInspectBatchId),
-  });
 
   // Tab subsets
   const pendingBatches = React.useMemo(
@@ -161,56 +126,6 @@ function DisbursementsContent() {
     },
     onError: (err) => {
       toast({ title: "Failed to create batch", description: getApiErrorMessage(err), variant: "destructive" });
-    },
-  });
-
-  const submitBatchMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/disbursements/batches/${id}/submit`, { method: "POST" }),
-    onSuccess: () => {
-      toast({ title: "Disbursement batch submitted" });
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-    },
-  });
-
-  const approveBatchMutation = useMutation({
-    mutationFn: async (id: string) =>
-      fetchJson(`/api/disbursements/batches/${id}/approve`, { method: "POST" }),
-    onSuccess: () => {
-      toast({ title: "Disbursement batch approved" });
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-    },
-  });
-
-  const markPaidMutation = useMutation({
-    mutationFn: async ({
-      id,
-      cashCustodian,
-      items,
-    }: {
-      id: string;
-      cashCustodian: string;
-      items: Array<{ id: string; paidAmount: number; receiptReference?: string; notes?: string }>;
-    }) =>
-      fetchJson(`/api/disbursements/batches/${id}/mark-paid`, {
-        method: "POST",
-        body: JSON.stringify({
-          cashCustodian,
-          items,
-        }),
-      }),
-    onSuccess: () => {
-      toast({ title: "Dual-custodian payout authorized and marked as paid" });
-      setSignOffBatchId(null);
-      setCustodianName("");
-      setHandoverRef("");
-      setSignOffNotes("");
-      setCashVerified(false);
-      void queryClient.invalidateQueries({ queryKey: ["disbursement-batches"] });
-      void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
-    },
-    onError: (err) => {
-      toast({ title: "Payout authorization failed", description: getApiErrorMessage(err), variant: "destructive" });
     },
   });
 
@@ -261,29 +176,21 @@ function DisbursementsContent() {
     );
   };
 
-  const columns: Array<WsColumn<BatchDetails | (typeof batches)[number]>> = [
+  const columns: Array<WsColumn<(typeof batches)[number]>> = [
     {
       key: "code",
       head: "Batch code",
       cell: (b) => (
-        <div>
-          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>{b.code}</div>
-          {b.notes ? (
-            <div className="muted" style={{ fontSize: 11 }}>
-              {b.notes}
-            </div>
-          ) : null}
-          {b.cashCustodian ? (
-            <div className="muted mono" style={{ fontSize: 11, color: "var(--color-ink-muted)" }}>
-              Custodian: {b.cashCustodian}
-            </div>
-          ) : null}
-        </div>
+        <>
+          {b.code}
+          {b.cashCustodian ? <span className="muted"> Custodian {b.cashCustodian}</span> : null}
+          {b.notes ? <span className="muted truncate"> {b.notes}</span> : null}
+        </>
       ),
     },
     {
       key: "date",
-      head: "Created date",
+      head: "Created",
       className: "muted mono",
       cell: (b) => (b.createdAt ? format(new Date(b.createdAt), "dd MMM yyyy") : <None />),
     },
@@ -291,11 +198,11 @@ function DisbursementsContent() {
       key: "count",
       head: "Recipients",
       className: "mono",
-      cell: (b) => `${b.itemCount} employees`,
+      cell: (b) => `${b.itemCount} ${b.itemCount === 1 ? "employee" : "employees"}`,
     },
     {
       key: "amount",
-      head: "Total Amount",
+      head: "Total",
       right: true,
       cell: (b) => <Amt value={b.totalAmount} currency="USD" className="font-medium" />,
     },
@@ -311,70 +218,7 @@ function DisbursementsContent() {
             : b.status === "APPROVED"
             ? "info"
             : "warn";
-        return <St tone={tone}>{b.status}</St>;
-      },
-    },
-    {
-      key: "actions",
-      head: "",
-      right: true,
-      cell: (b) => {
-        const moreEntries: MenuEntry[] = [
-          {
-            key: "inspect",
-            label: "Inspect batch lines",
-            icon: "invoice",
-            onSelect: () => setDetailsBatchId(b.id),
-          },
-          ...(b.status === "DRAFT"
-            ? [
-                {
-                  key: "submit",
-                  label: "Submit batch",
-                  icon: "check" as const,
-                  onSelect: () => submitBatchMutation.mutate(b.id),
-                },
-              ]
-            : []),
-          ...(b.status === "SUBMITTED"
-            ? [
-                {
-                  key: "approve",
-                  label: "Approve batch",
-                  icon: "check" as const,
-                  onSelect: () => approveBatchMutation.mutate(b.id),
-                },
-              ]
-            : []),
-          ...(b.status === "APPROVED"
-            ? [
-                {
-                  key: "signoff",
-                  label: "Dual sign-off & mark paid",
-                  icon: "bank" as const,
-                  onSelect: () => setSignOffBatchId(b.id),
-                },
-              ]
-            : []),
-        ];
-
-        return (
-          <div
-            style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {b.status === "APPROVED" ? (
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => setSignOffBatchId(b.id)}
-              >
-                Mark paid
-              </Button>
-            ) : null}
-            <MenuButton label="More actions" items={moreEntries} />
-          </div>
-        );
+        return <St tone={tone}>{BATCH_STATUS[b.status] ?? b.status}</St>;
       },
     },
   ];
@@ -385,20 +229,14 @@ function DisbursementsContent() {
     null,
     <Amt key="tot" value={totalSum} currency="USD" className="font-medium" />,
     `${pendingBatches.length} pending`,
-    null,
   ];
-
-  const signOffTargetBatch = React.useMemo(() => {
-    if (!signOffBatchId) return null;
-    return batches.find((b) => b.id === signOffBatchId) ?? batchDetails;
-  }, [signOffBatchId, batches, batchDetails]);
 
   return (
     <PayrollShell
       activeTab="disbursements"
-      title="Salary Disbursements"
+      title="Disbursements"
       primary={{
-        label: "New disbursement batch",
+        label: "New batch",
         icon: "plus",
         shortcut: "N",
         onClick: () => {
@@ -411,8 +249,7 @@ function DisbursementsContent() {
     >
       <BkPage screen="disbursements" scroll={false}>
         <BkFinding
-          fact={`${pendingBatches.length} batches pending disbursement. Dual-custodian sign-off required for cash payouts.`}
-          rest="Reconcile bank and cash payouts against approved payroll runs before posting to the financial ledger."
+          fact={`${pendingBatches.length} ${pendingBatches.length === 1 ? "batch" : "batches"} waiting to be paid.`}
         />
 
         <BkTabs
@@ -425,14 +262,14 @@ function DisbursementsContent() {
             updateUrl({ tab: nextTab, page: 1 });
           }}
           items={[
-            { value: "pending", label: "Pending Payout", count: pendingBatches.length, icon: "bank" },
-            { value: "paid", label: "Paid batches", count: paidBatches.length, icon: "done" },
-            { value: "all", label: "All batches", count: batches.length, icon: "list" },
+            { value: "pending", label: "To pay", count: pendingBatches.length, icon: "bank" },
+            { value: "paid", label: "Paid", count: paidBatches.length, icon: "done" },
+            { value: "all", label: "All", count: batches.length, icon: "list" },
           ]}
         />
 
         <BkTools
-          find="Search batches by code, status, notes, or custodian..."
+          find="Search batches"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -450,6 +287,7 @@ function DisbursementsContent() {
             rowKey={(b) => b.id}
             columns={columns}
             totals={totals}
+            openHref={(b) => `/payroll/disbursements/${b.id}`}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -459,14 +297,7 @@ function DisbursementsContent() {
               labelOf: (b) => b.code,
             }}
             empty={
-              <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                  No disbursement batches found.
-                </p>
-                <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                  Create a new payout batch from an approved payroll run.
-                </p>
-              </div>
+              <BkEmpty>No batches here.</BkEmpty>
             }
           />
         </BkScroll>
@@ -483,7 +314,7 @@ function DisbursementsContent() {
 
         <BkSelectionBar count={selection.selected.size} onClear={selection.clear}>
           <Button icon="export" onClick={handleExportCsv}>
-            Export selected ({selection.selected.size})
+            Export
           </Button>
         </BkSelectionBar>
       </BkPage>
@@ -492,8 +323,8 @@ function DisbursementsContent() {
       <Drawer
         open={createDrawerOpen}
         onOpenChange={setCreateDrawerOpen}
-        title="Create disbursement batch"
-        sub="Group approved payroll run line items into a physical or electronic payout batch."
+        title="New batch"
+        sub="From an approved payroll run"
         width={480}
         footer={
           <>
@@ -506,261 +337,49 @@ function DisbursementsContent() {
               disabled={!selectedRunId}
               onClick={() => createBatchMutation.mutate()}
             >
-              Generate batch
+              Create batch
             </Button>
           </>
         }
       >
-        <DrawerSection title="Source Payroll Run">
+        <DrawerSection title="Payroll run">
           <Field label="Approved payroll run" htmlFor="batch-run">
-            <select
-              id="batch-run"
-              className="select"
-              value={selectedRunId}
-              onChange={(e) => setSelectedRunId(e.target.value)}
-              style={{ width: "100%", height: 36 }}
-            >
-              <option value="">Select an approved run...</option>
+            <Select id="batch-run" value={selectedRunId} onChange={(e) => setSelectedRunId(e.target.value)}>
+              <option value="">Choose</option>
               {approvedRuns.length === 0 ? (
-                <option disabled>No approved runs waiting for payout</option>
+                <option disabled>No approved runs waiting</option>
               ) : (
                 approvedRuns.map((r) => (
                   <option key={r.id} value={r.id}>
-                    Run #{r.runNumber} • {r.period?.periodKey ?? "Unknown period"} • {money(r.netTotal, "USD")}
+                    Run {r.runNumber}, {r.period?.periodKey ?? "no period"}, {money(r.netTotal, "USD")}
                   </option>
                 ))
               )}
-            </select>
+            </Select>
           </Field>
 
-          <Field label="Batch notes / Description" htmlFor="batch-notes" optional>
+          <Field label="Notes" htmlFor="batch-notes" optional>
             <Input
               id="batch-notes"
-              placeholder="e.g. Standard Bank Electronic Transfer or Mine Vault Cash"
-              value={batchNotes}
+                            value={batchNotes}
               onChange={(e) => setBatchNotes(e.target.value)}
             />
           </Field>
         </DrawerSection>
       </Drawer>
 
-      {/* DUAL-CUSTODIAN SIGN-OFF DRAWER */}
-      <Drawer
-        open={Boolean(signOffBatchId)}
-        onOpenChange={(open) => !open && setSignOffBatchId(null)}
-        title="Dual-Custodian Cash Payout Sign-Off"
-        sub="Dual authorization by Disbursing Manager and Cash Custodian prior to issuing funds."
-        width={540}
-        footer={
-          <>
-            <Button onClick={() => setSignOffBatchId(null)}>Cancel</Button>
-            <Button
-              variant="primary"
-              icon="check"
-              busy={markPaidMutation.isPending}
-              disabled={!custodianName.trim() || !cashVerified || !batchDetails}
-              onClick={() => {
-                if (!signOffBatchId || !batchDetails) return;
-                const itemsPayload = batchDetails.items.map((item) => ({
-                  id: item.id,
-                  paidAmount: item.amount,
-                  receiptReference: handoverRef.trim() || undefined,
-                  notes: signOffNotes.trim() || undefined,
-                }));
-                markPaidMutation.mutate({
-                  id: signOffBatchId,
-                  cashCustodian: custodianName.trim(),
-                  items: itemsPayload,
-                });
-              }}
-            >
-              Authorize & Mark Paid
-            </Button>
-          </>
-        }
-      >
-        {signOffTargetBatch ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <DrawerSection title="Batch Summary">
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--surface)",
-                  border: "1px solid var(--line)",
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                  fontSize: 13,
-                }}
-              >
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Batch code</span>
-                  <strong>{signOffTargetBatch.code}</strong>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Staff recipients</span>
-                  <span className="mono font-semibold">{signOffTargetBatch.itemCount} employees</span>
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Total Net Payout</span>
-                  <Amt value={signOffTargetBatch.totalAmount} currency="USD" className="font-semibold text-base" />
-                </div>
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 12 }}>Payment Method</span>
-                  <St tone="info">PHYSICAL CASH</St>
-                </div>
-              </div>
-            </DrawerSection>
-
-            <DrawerSection title="Custodian Witness & Authorization">
-              <Field label="Cash Custodian / Witness Name" htmlFor="custodian-name">
-                <Input
-                  id="custodian-name"
-                  placeholder="e.g. Tendai Moyo (Site Vault Officer)"
-                  value={custodianName}
-                  onChange={(e) => setCustodianName(e.target.value)}
-                />
-              </Field>
-
-              <Field label="Handover Voucher / Receipt Ref" htmlFor="handover-ref" optional>
-                <Input
-                  id="handover-ref"
-                  placeholder="e.g. CSH-VCHR-2026-031"
-                  value={handoverRef}
-                  onChange={(e) => setHandoverRef(e.target.value)}
-                />
-              </Field>
-
-              <Field label="Handover Notes / Location" htmlFor="signoff-notes" optional>
-                <Input
-                  id="signoff-notes"
-                  placeholder="e.g. Mine site cashier office, cash verified in presence of witness"
-                  value={signOffNotes}
-                  onChange={(e) => setSignOffNotes(e.target.value)}
-                />
-              </Field>
-
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 10,
-                  padding: 12,
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--surface-sunken)",
-                  border: "1px solid var(--line)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={cashVerified}
-                  onChange={(e) => setCashVerified(e.target.checked)}
-                  style={{ marginTop: 3 }}
-                />
-                <span>
-                  <strong>Dual Sign-Off Declaration:</strong> I confirm the physical cash of{" "}
-                  <span className="mono font-semibold">{money(signOffTargetBatch.totalAmount, "USD")}</span> has been
-                  counted, verified with the cash custodian, and disbursed according to the approved payroll schedule.
-                </span>
-              </label>
-            </DrawerSection>
-          </div>
-        ) : (
-          <div style={{ padding: 24, textAlign: "center" }} className="muted">
-            Loading batch details...
-          </div>
-        )}
-      </Drawer>
-
-      {/* BATCH LINE ITEMS INSPECTION DRAWER */}
-      <Drawer
-        open={Boolean(detailsBatchId)}
-        onOpenChange={(open) => !open && setDetailsBatchId(null)}
-        title={batchDetails ? `Batch ${batchDetails.code}` : "Disbursement Details"}
-        sub={
-          batchDetails
-            ? `${batchDetails.itemCount} recipients • Total ${money(batchDetails.totalAmount, "USD")}`
-            : "Loading..."
-        }
-        width={640}
-        footer={<Button onClick={() => setDetailsBatchId(null)}>Close</Button>}
-      >
-        {detailsLoading ? (
-          <div style={{ padding: 24, textAlign: "center" }} className="muted">
-            Loading batch line items...
-          </div>
-        ) : batchDetails ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {batchDetails.cashCustodian ? (
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--surface-sunken)",
-                  border: "1px solid var(--line)",
-                  fontSize: 13,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <span className="muted" style={{ display: "block", fontSize: 11 }}>
-                    Dual-Custodian Verification
-                  </span>
-                  <strong>{batchDetails.cashCustodian}</strong>
-                </div>
-                {batchDetails.cashIssuedAt ? (
-                  <span className="mono muted" style={{ fontSize: 12 }}>
-                    {format(new Date(batchDetails.cashIssuedAt), "dd MMM yyyy, HH:mm")}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
-            <table className="bkt" style={{ width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th className="num">Disbursement Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batchDetails.items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                        {item.employee.name}
-                      </div>
-                      <div className="muted mono" style={{ fontSize: 11 }}>
-                        {item.employee.employeeId}
-                      </div>
-                    </td>
-                    <td className="num">
-                      <Amt value={item.amount} currency="USD" className="font-medium" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </Drawer>
     </PayrollShell>
   );
 }
+
+const BATCH_STATUS: Record<string, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved", PAID: "Paid", REJECTED: "Rejected" };
 
 export default function DisbursementsPage() {
   return (
     <React.Suspense
       fallback={
         <PayrollShell activeTab="disbursements">
-          <div style={{ padding: 24, textAlign: "center", color: "var(--color-ink-muted)" }}>
-            Loading disbursements...
-          </div>
+          <BooksLoading />
         </PayrollShell>
       }
     >
