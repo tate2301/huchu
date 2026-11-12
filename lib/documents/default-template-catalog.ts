@@ -214,6 +214,15 @@ export const DEFAULT_TEMPLATE_CATALOG: DefaultTemplateCatalogEntry[] = [
     description: "A credit against an invoice, on your letterhead.",
     schema: recordTemplate("Credit note"),
   },
+  {
+    key: "accounting.sales.statement",
+    sourceKey: "accounting.sales.statement",
+    documentType: "GENERIC_RECORD",
+    targetType: "RECORD",
+    name: "Customer statement",
+    description: "A statement of account showing invoices, payments, aging analysis, and balance due.",
+    schema: recordTemplate("Statement of account"),
+  },
   // Iteration 5 — the school's paper. Each of these is bound to a real template a
   // school can edit the wording of, which is the difference between a document and
   // a hard-coded print view.

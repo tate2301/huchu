@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  BkEmpty,
   BkFinding,
   BkPage,
   BkPager,
@@ -17,15 +18,20 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
-import {
-  Button,
-  Drawer,
-  DrawerSection,
-  Person,
-  useSelection,
-} from "@/components/core";
+import { BooksLoading } from "@/components/books/books-state";
+import { Button, Person, useSelection } from "@/components/core";
 import { PeopleShell } from "@/components/people/people-shell";
 import { fetchJson } from "@/lib/api-client";
+import { shortDay } from "@/lib/books/format";
+
+const ACTION_LABEL: Record<string, string> = { REQUESTED: "Requested", APPROVED: "Approved", REJECTED: "Rejected", CANCELLED: "Cancelled" };
+const WHAT: Record<string, { label: string; href?: (id: string) => string }> = {
+  PAYROLL_RUN: { label: "Pay run", href: (id) => `/payroll/runs/${id}` },
+  DISBURSEMENT_BATCH: { label: "Payout batch", href: (id) => `/payroll/disbursements/${id}` },
+  DISCIPLINARY_ACTION: { label: "Disciplinary action" },
+  LEAVE_REQUEST: { label: "Leave request" },
+  ADJUSTMENT_ENTRY: { label: "Pay adjustment" },
+};
 
 type ApprovalAuditRow = {
   id: string;
@@ -42,8 +48,6 @@ export default function PeopleApprovalsPage() {
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
   const pageSize = 15;
-
-  const [inspectRow, setInspectRow] = React.useState<ApprovalAuditRow | null>(null);
 
   const auditQuery = useQuery({
     queryKey: ["people-approvals-audit", tab],
@@ -85,7 +89,7 @@ export default function PeopleApprovalsPage() {
     const target = selectedRows.length > 0 ? selectedRows : filtered;
     downloadCsv(
       "approval-audit-trail.csv",
-      ["Date", "Decision", "Workflow Item", "Approver", "Notes"],
+      ["Date", "Decision", "What", "Decided by", "Note"],
       target.map((r) => [
         r.createdAt,
         r.action,
@@ -104,94 +108,47 @@ export default function PeopleApprovalsPage() {
   }, [records]);
 
   const columns: Array<WsColumn<ApprovalAuditRow>> = [
-    {
-      key: "date",
-      head: "Timestamp",
-      className: "muted mono",
-      cell: (r) => new Date(r.createdAt).toLocaleString("en-GB"),
-    },
+    { key: "date", head: "When", className: "mono", cell: (r) => `${shortDay(r.createdAt.slice(0, 10))}, ${r.createdAt.slice(11, 16)}` },
     {
       key: "decision",
-      head: "Action / Decision",
-      cell: (r) => {
-        const tone =
-          r.action === "APPROVED"
-            ? "done"
-            : r.action === "REJECTED"
-            ? "bad"
-            : r.action === "REQUESTED"
-            ? "warn"
-            : "void";
-        return <St tone={tone}>{r.action}</St>;
-      },
+      head: "Decision",
+      cell: (r) => <St tone={r.action === "APPROVED" ? "done" : r.action === "REJECTED" ? "bad" : r.action === "REQUESTED" ? "warn" : "void"}>{ACTION_LABEL[r.action] ?? r.action}</St>,
     },
     {
       key: "workflow",
-      head: "Workflow entity",
-      cell: (r) => (
-        <span>
-          <span className="who" style={{ display: "block", fontWeight: 500 }}>
-            {r.sourceType.replace(/_/g, " ")}
-          </span>
-          <span className="muted mono" style={{ fontSize: 11 }}>
-            ID: {r.sourceId.slice(0, 12)}...
-          </span>
-        </span>
-      ),
+      head: "What",
+      cell: (r) => {
+        const what = WHAT[r.sourceType];
+        const label = what?.label ?? r.sourceType.toLowerCase().replace(/_/g, " ");
+        return what?.href ? <a href={what.href(r.sourceId)}>{label}</a> : label;
+      },
     },
-    {
-      key: "actor",
-      head: "Decision maker",
-      cell: (r) =>
-        r.actor ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={r.actor.name} size={24} />
-            <span>
-              <span className="who" style={{ display: "block", fontWeight: 500 }}>
-                {r.actor.name}
-              </span>
-              <span className="muted" style={{ fontSize: 11 }}>
-                {r.actor.role}
-              </span>
-            </span>
-          </span>
-        ) : (
-          <span className="muted">Automated Engine</span>
-        ),
-    },
-    {
-      key: "comment",
-      head: "Notes / Justification",
-      className: "muted",
-      cell: (r) => r.comment || <None />,
-    },
+    { key: "actor", head: "Decided by", cell: (r) => (r.actor ? <Person name={r.actor.name} sub={r.actor.role.toLowerCase().replace(/_/g, " ")} /> : <span className="muted">System</span>) },
+    { key: "comment", head: "Note", className: "muted", cell: (r) => r.comment || <None /> },
   ];
 
   return (
-    <PeopleShell activeTab="approvals">
+    <PeopleShell activeTab="approvals" title="Approvals">
       <BkPage screen="approvals" scroll={false}>
-        <BkFinding
-          fact={`${counts.approved} approvals recorded, ${counts.rejected} rejected, ${counts.pending} pending action.`}
-          rest="Audit ledger maintains immutable records of staff leave, payroll approvals, and overtime decisions."
-        />
+        <BkFinding fact={`${counts.pending} waiting, ${counts.approved} approved, ${counts.rejected} rejected.`} />
 
         <BkTabs
-          label="Approval audit views"
+          label="Approval views"
           value={tab}
           onChange={(v) => {
             setTab(v);
             setPage(1);
           }}
           items={[
-            { value: "all", label: "All decisions", count: counts.all, icon: "list" },
+            { value: "all", label: "All", count: counts.all, icon: "list" },
             { value: "approved", label: "Approved", count: counts.approved, icon: "done" },
-            { value: "pending", label: "Under review", count: counts.pending, icon: "clock" },
+            { value: "pending", label: "Waiting", count: counts.pending, icon: "clock" },
             { value: "rejected", label: "Rejected", count: counts.rejected, icon: "issue" },
           ]}
         />
 
         <BkTools
-          find="Search audit trail by approver, entity, notes..."
+          find="Search approvals"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -215,112 +172,18 @@ export default function PeopleApprovalsPage() {
               some: selection.some,
               labelOf: (r) => `${r.sourceType} decision`,
             }}
-            onOpen={(r) => setInspectRow(r)}
-            empty={
-              auditQuery.isLoading ? (
-                "Loading approval history..."
-              ) : (
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No decisions match the filter.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Audit decisions will record as managers act on leave or compensation requests.
-                  </p>
-                </div>
-              )
-            }
+            empty={auditQuery.isLoading ? <BooksLoading /> : <BkEmpty>No decisions here.</BkEmpty>}
           />
         </BkScroll>
 
-        <BkPager
-          page={page}
-          size={pageSize}
-          total={totalRows}
-          onPage={setPage}
-        />
+        <BkPager page={page} size={pageSize} total={totalRows} onPage={setPage} />
 
-        <BkSelectionBar
-          count={selection.selected.size}
-          onClear={selection.clear}
-        >
+        <BkSelectionBar count={selection.selected.size} onClear={selection.clear}>
           <Button icon="export" onClick={handleExport}>
-            Export ({selection.selected.size})
+            Export
           </Button>
         </BkSelectionBar>
       </BkPage>
-
-      {/* Slideout detail drawer for inspecting audit decision */}
-      <Drawer
-        open={Boolean(inspectRow)}
-        onOpenChange={(open) => !open && setInspectRow(null)}
-        title="Approval Audit Decision"
-        sub="Immutable snapshot of workflow verification."
-      >
-        {inspectRow ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <DrawerSection title="Decision Details">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Outcome</span>
-                  <div style={{ marginTop: 4 }}>
-                    <St
-                      tone={
-                        inspectRow.action === "APPROVED"
-                          ? "done"
-                          : inspectRow.action === "REJECTED"
-                          ? "bad"
-                          : "warn"
-                      }
-                    >
-                      {inspectRow.action}
-                    </St>
-                  </div>
-                </div>
-
-                <div>
-                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Date & Time</span>
-                  <div style={{ marginTop: 4, fontFamily: "var(--font-mono)", fontSize: 13 }}>
-                    {new Date(inspectRow.createdAt).toLocaleString("en-GB")}
-                  </div>
-                </div>
-              </div>
-            </DrawerSection>
-
-            <DrawerSection title="Entity & Approver">
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div>
-                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Source Type</span>
-                  <div style={{ fontWeight: 500, color: "var(--color-ink)", marginTop: 2 }}>
-                    {inspectRow.sourceType}
-                  </div>
-                </div>
-
-                <div>
-                  <span style={{ fontSize: 12, color: "var(--color-muted)" }}>Decision Maker</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    <Person name={inspectRow.actor?.name || "System"} size={28} />
-                    <div>
-                      <div style={{ fontWeight: 500 }}>
-                        {inspectRow.actor?.name || "Automated Workflow"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                        {inspectRow.actor?.role || "Engine"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </DrawerSection>
-
-            <DrawerSection title="Notes">
-              <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.5 }}>
-                {inspectRow.comment || "No decision notes entered."}
-              </p>
-            </DrawerSection>
-          </div>
-        ) : null}
-      </Drawer>
     </PeopleShell>
   );
 }

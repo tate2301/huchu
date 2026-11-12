@@ -2,15 +2,23 @@
 
 import * as React from "react";
 
-import { Button, ButtonLink, Empty, Icon, Select, TableFoot, TableShell } from "@/components/core";
+import { Button, ButtonLink, Empty, Icon, Select, SelectCell, TableFoot, TableShell, useSelection } from "@/components/core";
 import { MenuButton } from "@/components/core/menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { money } from "@/lib/books/format";
 import type { NeedsPostingQuery, NeedsPostingRow, NeedsPostingTab, NeedsPostingView } from "@/lib/books/needs-posting";
 
 import { BooksFinding } from "./figures";
 
 export type NeedsPostingData = NeedsPostingView & {
-  can: { retry: boolean; map: boolean; redate: boolean };
+  can: { retry: boolean; map: boolean; redate: boolean; delete: boolean };
   accounts: Array<{ id: string; code: string; name: string }>;
 };
 
@@ -34,6 +42,7 @@ function FixPanel({
   onMap,
   onRedate,
   onRetry,
+  onDelete,
 }: {
   row: NeedsPostingRow;
   can: NeedsPostingData["can"];
@@ -42,6 +51,7 @@ function FixPanel({
   onMap: (accountId: string) => void;
   onRedate: () => void;
   onRetry: () => void;
+  onDelete: () => void;
 }) {
   const [account, setAccount] = React.useState("");
   React.useEffect(() => setAccount(""), [row.id]);
@@ -134,7 +144,22 @@ function FixPanel({
   }
   return (
     <div className="bk-map" aria-label={`Fix ${row.ref ?? row.title}`}>
-      <div>{left}</div>
+      <div>
+        {left}
+        {can.delete ? (
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--color-border-subtle, rgba(0,0,0,0.08))" }}>
+            <Button
+              variant="quiet"
+              icon="x"
+              disabled={busy}
+              onClick={onDelete}
+              style={{ color: "var(--color-danger, #d32f2f)" }}
+            >
+              Delete event
+            </Button>
+          </div>
+        ) : null}
+      </div>
       <div>
         <div className="bk-h3">Tries</div>
         <dl className="attrs">
@@ -166,6 +191,7 @@ export function NeedsPostingPageView({
   onRetry,
   onMap,
   onRedate,
+  onDelete,
 }: {
   data: NeedsPostingData;
   selectedId: string | null;
@@ -176,6 +202,7 @@ export function NeedsPostingPageView({
   onRetry: (ids: string[]) => void;
   onMap: (id: string, accountId: string) => void;
   onRedate: (id: string) => void;
+  onDelete: (ids: string[]) => void;
 }) {
   const [q, setQ] = React.useState(data.query.q);
   React.useEffect(() => {
@@ -183,6 +210,12 @@ export function NeedsPostingPageView({
     const timer = window.setTimeout(() => onQuery({ q }), 300);
     return () => window.clearTimeout(timer);
   }, [q, data.query.q, onQuery]);
+
+  const ids = React.useMemo(() => data.rows.map((row) => row.id), [data.rows]);
+  const selection = useSelection(ids);
+  const selectedIds = React.useMemo(() => data.rows.filter((row) => selection.isSelected(row.id)).map((row) => row.id), [data.rows, selection]);
+  const [confirmDeleteIds, setConfirmDeleteIds] = React.useState<string[] | null>(null);
+
   const selected = data.rows.find((row) => row.id === selectedId) ?? data.rows[0] ?? null;
   const source = data.sources.find((option) => option.value === data.query.source);
   const tabWord = data.query.tab === "failed" ? "failed" : "waiting";
@@ -247,19 +280,58 @@ export function NeedsPostingPageView({
                 ...(data.total ? [{ label: "Amount", value: money(data.total.amount, data.total.currency) }] : []),
                 ...(data.heldUp ? [{ label: "Month held up", value: data.heldUp }] : []),
               ]}
+              selection={
+                selectedIds.length === 0
+                  ? undefined
+                  : {
+                      count: selectedIds.length,
+                      onClear: selection.clear,
+                      actions: (
+                        <>
+                          {data.can.retry ? (
+                            <Button
+                              icon="arrow"
+                              disabled={busy}
+                              onClick={() => onRetry(selectedIds)}
+                            >
+                              Retry selected
+                            </Button>
+                          ) : null}
+                          {data.can.delete ? (
+                            <Button
+                              variant="danger"
+                              icon="x"
+                              disabled={busy}
+                              onClick={() => setConfirmDeleteIds(selectedIds)}
+                            >
+                              Delete selected
+                            </Button>
+                          ) : null}
+                        </>
+                      ),
+                    }
+              }
             />
           }
         >
           <table className="table">
             <colgroup>
+              <col style={{ width: 44 }} />
               <col />
               <col style={{ width: "1%" }} />
               <col style={{ width: "1%" }} />
               <col style={{ width: "1%" }} />
-              <col style={{ width: "1%" }} />
+              <col style={{ width: 100 }} />
             </colgroup>
             <thead>
               <tr>
+                <SelectCell
+                  head
+                  checked={selection.all}
+                  indeterminate={selection.some}
+                  onChange={selection.toggleAll}
+                  label="Select every event on this page"
+                />
                 <th>Document</th>
                 <th>Since</th>
                 <th className="num">Amount</th>
@@ -274,7 +346,7 @@ export function NeedsPostingPageView({
                   <React.Fragment key={row.id}>
                     <tr
                       className={on ? "bk-sel" : undefined}
-                      aria-selected={on || undefined}
+                      aria-selected={on || selection.isSelected(row.id) || undefined}
                       tabIndex={0}
                       style={{ cursor: "pointer" }}
                       onClick={() => onSelect(row.id)}
@@ -282,6 +354,11 @@ export function NeedsPostingPageView({
                         if (event.key === "Enter" && event.target === event.currentTarget) onSelect(row.id);
                       }}
                     >
+                      <SelectCell
+                        checked={selection.isSelected(row.id)}
+                        onChange={() => selection.toggle(row.id)}
+                        label={`Select ${row.ref ?? row.title}`}
+                      />
                       <td className="fill bk-fw">
                         <span className="cell-lead">
                           {row.ref ? <span className="ref">{row.ref}</span> : null} {row.href ? <a href={row.href} onClick={(event) => event.stopPropagation()}>{row.title}</a> : row.title}
@@ -302,19 +379,29 @@ export function NeedsPostingPageView({
                         <span style={{ color: "var(--color-ink)" }}>{row.why}</span>
                       </td>
                       <td>
-                        {data.can.retry && !row.held ? (
-                          <Button
-                            size="sm"
-                            icon="arrow"
-                            disabled={busy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onRetry([row.id]);
-                            }}
-                          >
-                            Retry
-                          </Button>
-                        ) : null}
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }} onClick={(event) => event.stopPropagation()}>
+                          {data.can.retry && !row.held ? (
+                            <Button
+                              size="sm"
+                              icon="arrow"
+                              disabled={busy}
+                              onClick={() => onRetry([row.id])}
+                            >
+                              Retry
+                            </Button>
+                          ) : null}
+                          {data.can.delete ? (
+                            <Button
+                              size="sm"
+                              variant="quiet"
+                              icon="x"
+                              disabled={busy}
+                              aria-label="Delete event"
+                              title="Delete event and remove from failed to post"
+                              onClick={() => setConfirmDeleteIds([row.id])}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   </React.Fragment>
@@ -331,10 +418,44 @@ export function NeedsPostingPageView({
               onMap={(accountId) => onMap(selected.id, accountId)}
               onRedate={() => onRedate(selected.id)}
               onRetry={() => onRetry([selected.id])}
+              onDelete={() => setConfirmDeleteIds([selected.id])}
             />
           ) : null}
         </TableShell>
       )}
+      <Dialog open={Boolean(confirmDeleteIds)} onOpenChange={(open) => { if (!open) setConfirmDeleteIds(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmDeleteIds?.length === 1 ? "Delete failed event?" : `Delete ${confirmDeleteIds?.length} failed events?`}
+            </DialogTitle>
+            <DialogDescription>
+              This will remove {confirmDeleteIds?.length === 1 ? "this event" : "these events"} from failed to post and permanently delete the integration event {confirmDeleteIds?.length === 1 ? "record" : "records"}. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="quiet" onClick={() => setConfirmDeleteIds(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon="x"
+              busy={busy}
+              disabled={busy}
+              onClick={() => {
+                if (confirmDeleteIds) {
+                  const target = [...confirmDeleteIds];
+                  setConfirmDeleteIds(null);
+                  onDelete(target);
+                  selection.clear();
+                }
+              }}
+            >
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

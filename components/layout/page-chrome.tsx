@@ -126,7 +126,7 @@ function PageChrome({
   phoneMenu,
   children,
 }: {
-  title: string;
+  title?: string | null;
   reference?: string | null;
   /** Where "up" goes. Both this and `backLabel` are needed for a back link. */
   backHref?: string;
@@ -147,15 +147,17 @@ function PageChrome({
   const pickerKey = picker ? JSON.stringify(picker) : null;
 
   React.useEffect(() => {
-    setIdentity({
-      title,
-      reference,
-      sub,
-      subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
-      picker: pickerKey ? (JSON.parse(pickerKey) as PagePicker) : null,
-      back: backHref && backLabel ? { href: backHref, label: backLabel } : undefined,
-    });
-    return () => setIdentity(null);
+    if (title && title.trim().length > 0) {
+      setIdentity({
+        title,
+        reference,
+        sub,
+        subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
+        picker: pickerKey ? (JSON.parse(pickerKey) as PagePicker) : null,
+        back: backHref && backLabel ? { href: backHref, label: backLabel } : undefined,
+      });
+      return () => setIdentity(null);
+    }
   }, [title, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {

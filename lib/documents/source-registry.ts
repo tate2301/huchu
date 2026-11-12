@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { docLabel } from "@/lib/books/doc-number";
+import { readCustomer } from "@/lib/books/customers";
 import { prisma } from "@/lib/prisma";
 import {
   DOCUMENT_RESOURCES_SELECT,
@@ -484,6 +485,124 @@ async function resolveCreditNote(companyId: string, recordId: string): Promise<S
   };
 }
 
+async function resolveCustomerStatement(
+  companyId: string,
+  recordId: string,
+  filters?: Record<string, string>,
+): Promise<SourceResolution> {
+  const customerView = await readCustomer(prisma, companyId, recordId, {
+    from: filters?.from,
+    to: filters?.to,
+  });
+
+  if (!customerView) {
+    throw new Error("Customer not found");
+  }
+
+  const { statement, ages, currency, name, contact, tax } = customerView;
+  const customerDoc = await prisma.customer.findUnique({
+    where: { id: recordId },
+    select: { code: true },
+  });
+
+  const lineRows: Array<Record<string, unknown>> = [];
+  if (statement.opening !== 0) {
+    lineRows.push({
+      date: statement.from,
+      reference: "—",
+      detail: "Opening balance",
+      invoiced: "—",
+      paid: "—",
+      balance: fmtMoney(statement.opening),
+    });
+  }
+
+  for (const line of statement.lines) {
+    lineRows.push({
+      date: line.date,
+      reference: line.document,
+      detail: line.detail,
+      invoiced: line.invoiced !== null ? fmtMoney(line.invoiced) : "—",
+      paid: line.paid !== null ? fmtMoney(line.paid) : "—",
+      balance: fmtMoney(line.balance),
+    });
+  }
+
+  const badge =
+    statement.closing > 0.005
+      ? { label: "Payment due", tone: "warning" as const }
+      : statement.closing < -0.005
+        ? { label: "In credit", tone: "positive" as const }
+        : { label: "Settled", tone: "neutral" as const };
+
+  const agingNotes = [
+    `Aging analysis as at ${statement.to}: Current: ${currency} ${fmtMoney(ages["Not yet due"])}  ·  1–30 days: ${currency} ${fmtMoney(ages["1 to 30 days"])}  ·  31–60 days: ${currency} ${fmtMoney(ages["31 to 60 days"])}  ·  61–90 days: ${currency} ${fmtMoney(ages["61 to 90 days"])}  ·  90+ days: ${currency} ${fmtMoney(ages["Over 90 days"])}`,
+    "Please quote your account reference with all remittances and bank transfers.",
+  ];
+
+  const codeSlug = (customerDoc?.code ?? name).replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+
+  return {
+    targetType: "RECORD",
+    documentType: "GENERIC_RECORD",
+    sourceKey: "accounting.sales.statement",
+    fileName: `statement-${codeSlug}-${statement.to}.pdf`,
+    payload: {
+      title: "Statement of account",
+      subtitle: name,
+      badge,
+      meta: [
+        { label: "Account No.", value: customerDoc?.code ?? recordId.slice(0, 8).toUpperCase() },
+        { label: "Statement date", value: statement.to },
+        { label: "Period", value: `${statement.from} to ${statement.to}` },
+        { label: "Currency", value: currency },
+      ],
+      parties: [
+        customerParty("Bill to", {
+          name,
+          address: contact.address,
+          phone: contact.phone,
+          email: contact.email,
+          vatNumber: tax.vatNumber,
+          taxNumber: tax.tin,
+        }),
+      ],
+      totals: [
+        { label: "Opening balance", value: `${currency} ${fmtMoney(statement.opening)}` },
+        { label: "Invoiced", value: `${currency} ${fmtMoney(statement.invoiced)}` },
+        { label: "Paid / Credited", value: `${currency} ${fmtMoney(statement.paid)}` },
+        { label: "Balance due", value: `${currency} ${fmtMoney(statement.closing)}`, emphasis: true },
+      ],
+      notes: agingNotes,
+      record: {
+        sections: [
+          {
+            title: "Aging summary",
+            rows: [
+              { label: "Current", value: `${currency} ${fmtMoney(ages["Not yet due"])}` },
+              { label: "1–30 days", value: `${currency} ${fmtMoney(ages["1 to 30 days"])}` },
+              { label: "31–60 days", value: `${currency} ${fmtMoney(ages["31 to 60 days"])}` },
+              { label: "61–90 days", value: `${currency} ${fmtMoney(ages["61 to 90 days"])}` },
+              { label: "90+ days", value: `${currency} ${fmtMoney(ages["Over 90 days"])}` },
+              { label: "Total outstanding", value: `${currency} ${fmtMoney(statement.closing)}` },
+            ],
+          },
+        ],
+        lineColumns: [
+          { key: "date", label: "Date" },
+          { key: "reference", label: "Reference" },
+          { key: "detail", label: "Description" },
+          { key: "invoiced", label: "Invoiced" },
+          { key: "paid", label: "Paid" },
+          { key: "balance", label: "Balance" },
+        ],
+        lines: lineRows,
+      },
+    },
+    rowsForCsv: lineRows,
+  };
+}
+
 async function resolveBill(companyId: string, recordId: string): Promise<SourceResolution> {
   const bill = await prisma.purchaseBill.findUnique({
     where: { id: recordId },
@@ -933,6 +1052,9 @@ export async function resolveSourcePayload(
     case "accounting.sales.credit-note":
       if (!input.recordId) throw new Error("recordId is required for credit note export");
       return resolveCreditNote(companyId, input.recordId);
+    case "accounting.sales.statement":
+      if (!input.recordId) throw new Error("recordId is required for statement export");
+      return resolveCustomerStatement(companyId, input.recordId, input.filters);
     case "accounting.purchase.bill":
       if (!input.recordId) throw new Error("recordId is required for bill export");
       return resolveBill(companyId, input.recordId);

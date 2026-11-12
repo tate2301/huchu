@@ -79,14 +79,10 @@ export function PageHeader() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // A Management page names itself after its row, under Management.
-  const managementRow = nav.inManagement
-    ? nav.managementGroups.flatMap((group) => group.items).find((item) => item.id === nav.managementActive)
-    : undefined;
-  const title =
-    identity?.title ?? managementRow?.label ?? nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view"));
-  const back =
-    identity?.back ?? (managementRow && nav.management ? { href: nav.management.href, label: "Management" } : undefined);
+  const title = (identity?.title && identity.title.trim().length > 0)
+    ? identity.title
+    : (nav.pageLabel ?? getCurrentPageTitle(pathname, searchParams.get("view")));
+  const back = identity?.back;
   // A record opened from a list steps to its neighbours in it.
   const step = useRecordStep(Boolean(identity?.back));
   const primaryHref =

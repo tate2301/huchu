@@ -85,6 +85,26 @@ function NeedsPosting() {
     onSuccess: done,
     onError: failed("The posting was not changed"),
   });
+  const remove = useMutation({
+    mutationFn: (ids: string[]) =>
+      fetchJson<{ deleted: number }>("/api/books/needs-posting", {
+        method: "DELETE",
+        body: JSON.stringify({ ids }),
+      }),
+    onSuccess: (summary, ids) => {
+      toast({
+        title: "Deleted",
+        description: summary.deleted === 1 ? "1 event removed and deleted." : `${summary.deleted} events removed and deleted.`,
+      });
+      if (selected && ids.includes(selected)) {
+        const merged = new URLSearchParams(params.toString());
+        merged.delete("event");
+        replace(merged);
+      }
+      refresh();
+    },
+    onError: failed("Could not delete event"),
+  });
 
   const data = view.data;
   const forbidden = view.error instanceof ApiError && view.error.status === 403;
@@ -110,13 +130,14 @@ function NeedsPosting() {
           <NeedsPostingPageView
             data={data}
             selectedId={selected}
-            busy={retry.isPending || change.isPending}
+            busy={retry.isPending || change.isPending || remove.isPending}
             exportHref={`/api/books/needs-posting?${new URLSearchParams([...listParams.entries(), ["format", "csv"]]).toString()}`}
             onQuery={onQuery}
             onSelect={select}
             onRetry={(ids) => retry.mutate(ids)}
             onMap={(id, accountId) => change.mutate({ id, body: { action: "map", accountId } })}
             onRedate={(id) => change.mutate({ id, body: { action: "this-month" } })}
+            onDelete={(ids) => remove.mutate(ids)}
           />
         ) : forbidden ? (
           <Empty icon="lock" title="Needs posting is for the people who keep the books">

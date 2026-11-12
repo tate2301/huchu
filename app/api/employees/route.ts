@@ -67,6 +67,21 @@ const employeeSchema = z.object({
     .optional(),
   defaultCurrency: z.string().min(1).max(10).optional(),
   isActive: z.boolean().optional(),
+  taxNumber: z.string().trim().max(100).optional(),
+  nssaNumber: z.string().trim().max(100).optional(),
+  taxStatus: z.enum(["STANDARD", "EXEMPT", "CONTRACTOR"]).optional(),
+  dateOfBirth: z
+    .string()
+    .datetime()
+    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+    .optional(),
+  hasDisability: z.boolean().optional(),
+  bankName: z.string().trim().max(100).optional(),
+  bankAccountNumber: z.string().trim().max(100).optional(),
+  bankBranchCode: z.string().trim().max(100).optional(),
+  mobileMoneyProvider: z.string().trim().max(100).optional(),
+  mobileMoneyNumber: z.string().trim().max(100).optional(),
+  monthlyAmount: z.number().nonnegative().optional(),
   compensationTemplateId: z.string().uuid().optional(),
   moduleAssignments: z
     .array(
@@ -559,6 +574,16 @@ export async function POST(request: NextRequest) {
           employmentType: validated.employmentType ?? "FULL_TIME",
           hireDate,
           terminationDate,
+          dateOfBirth: validated.dateOfBirth ? new Date(validated.dateOfBirth) : undefined,
+          hasDisability: validated.hasDisability ?? false,
+          taxNumber: validated.taxNumber,
+          nssaNumber: validated.nssaNumber,
+          taxStatus: validated.taxStatus ?? "STANDARD",
+          bankName: validated.bankName,
+          bankAccountNumber: validated.bankAccountNumber,
+          bankBranchCode: validated.bankBranchCode,
+          mobileMoneyProvider: validated.mobileMoneyProvider,
+          mobileMoneyNumber: validated.mobileMoneyNumber,
           defaultCurrency: validated.defaultCurrency ?? "USD",
           isActive: validated.isActive ?? true,
           companyId: session.user.companyId,
@@ -574,6 +599,17 @@ export async function POST(request: NextRequest) {
           },
         },
       })
+
+      if (validated.monthlyAmount !== undefined && validated.monthlyAmount > 0) {
+        await tx.fixedSalary.create({
+          data: {
+            employeeId: createdEmployee.id,
+            monthlyAmount: validated.monthlyAmount,
+            currency: validated.defaultCurrency ?? "USD",
+            isActive: true,
+          },
+        })
+      }
 
       if (!compensationTemplate) {
         return {

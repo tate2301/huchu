@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { booksActor, canDo } from "@/lib/books/core";
 import { needsPostingCsv, needsPostingQuerySchema, readNeedsPosting } from "@/lib/books/needs-posting";
-import { retryNeedsPosting } from "@/lib/books/needs-posting-actions";
+import { deleteNeedsPosting, retryNeedsPosting } from "@/lib/books/needs-posting-actions";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       retry: canDo(actor, "posting.retry").allowed,
       map: canDo(actor, "posting.map").allowed,
       redate: canDo(actor, "posting.redate").allowed,
+      delete: canDo(actor, "posting.delete").allowed,
     };
     const accounts =
       can.map && view.rows.some((row) => row.fix?.kind === "map")
@@ -63,5 +64,24 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
     console.error("[API] POST /api/books/needs-posting error:", error);
     return errorResponse("Could not retry the postings");
+  }
+}
+
+const deleteSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
+
+/** Delete unposted event(s) and remove them from failed to post. */
+export async function DELETE(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const actor = await booksActor(sessionResult.session);
+    const may = canDo(actor, "posting.delete");
+    if (!may.allowed) return errorResponse(may.reason, 403);
+    const body = deleteSchema.parse(await request.json().catch(() => ({})));
+    return successResponse(await deleteNeedsPosting(actor, body.ids));
+  } catch (error) {
+    if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
+    console.error("[API] DELETE /api/books/needs-posting error:", error);
+    return errorResponse("Could not delete the posting events");
   }
 }

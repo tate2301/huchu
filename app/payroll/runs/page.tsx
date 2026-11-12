@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   Amt,
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -21,17 +22,20 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Drawer,
+  DrawerRow,
   DrawerSection,
   Field,
   Input,
   Person,
+  Select,
   useSelection,
 } from "@/components/core";
-import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { PreCloseChecklistDrawer } from "@/components/payroll/runs/pre-close-checklist-drawer";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchPayrollConfig,
@@ -41,42 +45,54 @@ import {
   type PayrollRunRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { money } from "@/lib/books/format";
 
 type ViewTab = "periods" | "pending" | "archived";
 
-type RunDetails = {
-  id: string;
-  runNumber: number;
-  status: string;
-  netTotal: number;
-  lineItems: Array<{
-    id: string;
-    employee: { id: string; employeeId: string; name: string };
-    baseAmount: number;
-    variableAmount: number;
-    allowancesTotal: number;
-    deductionsTotal: number;
-    netAmount: number;
-  }>;
-};
+const RUN_STATUS: Record<string, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved", POSTED: "Posted", REJECTED: "Rejected" };
+const PERIOD_STATUS: Record<string, string> = { DRAFT: "Open", SUBMITTED: "Submitted", APPROVED: "Approved", PROCESSING: "Processing", CLOSED: "Closed" };
 
-export default function SalaryPayrollPage() {
+function SalaryPayrollContent() {
   const { toast } = useToast();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<ViewTab>("periods");
-  const [search, setSearch] = React.useState("");
-  const [cycleFilter, setCycleFilter] = React.useState<string | null>(null);
-  const [page, setPage] = React.useState(1);
+  const tab = (searchParams.get("tab") as ViewTab) || "periods";
+  const search = searchParams.get("q") || "";
+  const cycleFilter = searchParams.get("cycle") || null;
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 20;
+
+  const onQuery = React.useCallback(
+    (next: { tab?: string; q?: string; cycle?: string | null; page?: number }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "periods") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: ViewTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setCycleFilter = (nextCycle: string | null) => onQuery({ cycle: nextCycle, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   // Drawers
   const [generateDrawerOpen, setGenerateDrawerOpen] = React.useState(false);
   const [selectedPeriodForRun, setSelectedPeriodForRun] = React.useState<string>("");
   const [runNotes, setRunNotes] = React.useState("");
-  const [runDetailsId, setRunDetailsId] = React.useState<string | null>(null);
+  const [preCloseRunId, setPreCloseRunId] = React.useState<string | null>(null);
 
   // Queries
   useQuery({
@@ -98,12 +114,6 @@ export default function SalaryPayrollPage() {
   });
 
   const runs = React.useMemo(() => runsData?.data ?? [], [runsData]);
-
-  const { data: runDetails, isLoading: detailsLoading } = useQuery({
-    queryKey: ["payroll-run-details", runDetailsId],
-    queryFn: () => fetchJson<RunDetails>(`/api/payroll/runs/${runDetailsId}`),
-    enabled: Boolean(runDetailsId),
-  });
 
   // Tab counts
   const openPeriods = React.useMemo(() => periods.filter((p) => p.status !== "CLOSED"), [periods]);
@@ -140,6 +150,7 @@ export default function SalaryPayrollPage() {
     mutationFn: async (runId: string) =>
       fetchJson(`/api/payroll/runs/${runId}/submit`, { method: "POST" }),
     onSuccess: () => {
+      setPreCloseRunId(null);
       toast({ title: "Payroll run submitted for approval" });
       void queryClient.invalidateQueries({ queryKey: ["payroll-runs"] });
     },
@@ -261,16 +272,10 @@ export default function SalaryPayrollPage() {
       key: "period",
       head: "Period",
       cell: (p) => (
-        <div>
-          <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-            {p.periodKey}
-          </div>
-          {p.notes ? (
-            <div className="muted" style={{ fontSize: 11 }}>
-              {p.notes}
-            </div>
-          ) : null}
-        </div>
+        <>
+          {p.periodKey}
+          {p.notes ? <span className="muted truncate"> {p.notes}</span> : null}
+        </>
       ),
     },
     {
@@ -281,21 +286,15 @@ export default function SalaryPayrollPage() {
     },
     {
       key: "dates",
-      head: "Coverage dates",
+      head: "Covers",
       className: "muted mono",
-      cell: (p) => (
-        <span>
-          {p.startDate ? format(new Date(p.startDate), "dd MMM") : "—"}
-          {" – "}
-          {p.endDate ? format(new Date(p.endDate), "dd MMM yyyy") : "—"}
-        </span>
-      ),
+      cell: (p) => `${p.startDate ? format(new Date(p.startDate), "d MMM") : "—"} to ${p.endDate ? format(new Date(p.endDate), "d MMM yyyy") : "—"}`,
     },
     {
       key: "due",
-      head: "Due date",
+      head: "Due",
       className: "mono",
-      cell: (p) => (p.dueDate ? format(new Date(p.dueDate), "dd MMM yyyy") : <None />),
+      cell: (p) => (p.dueDate ? format(new Date(p.dueDate), "d MMM yyyy") : <None />),
     },
     {
       key: "status",
@@ -307,7 +306,7 @@ export default function SalaryPayrollPage() {
             : (p.status as string) === "PROCESSING"
             ? "info"
             : "done";
-        return <St tone={tone}>{p.status}</St>;
+        return <St tone={tone}>{PERIOD_STATUS[p.status as string] ?? p.status}</St>;
       },
     },
     {
@@ -334,37 +333,30 @@ export default function SalaryPayrollPage() {
   const runColumns: Array<WsColumn<PayrollRunRecord>> = [
     {
       key: "runNumber",
-      head: "Run #",
-      cell: (r) => (
-        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-          Run #{r.runNumber}
-        </span>
-      ),
+      head: "Run",
+      cell: (r) => `Run ${r.runNumber}`,
     },
     {
       key: "date",
-      head: "Created date",
+      head: "Created",
       className: "muted mono",
-      cell: (r) => (r.createdAt ? format(new Date(r.createdAt), "dd MMM yyyy HH:mm") : <None />),
+      cell: (r) => (r.createdAt ? format(new Date(r.createdAt), "d MMM yyyy, HH:mm") : <None />),
     },
     {
       key: "createdBy",
       head: "Prepared by",
       cell: (r) =>
         r.createdBy?.name ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={r.createdBy.name} size={24} />
-            <span>{r.createdBy.name}</span>
-          </span>
+          <Person name={r.createdBy.name} />
         ) : (
           <None />
         ),
     },
     {
       key: "netTotal",
-      head: "Net Payout",
+      head: "Net pay",
       right: true,
-      cell: (r) => <Amt value={r.netTotal} currency="USD" className="font-medium" />,
+      cell: (r) => <Amt value={r.netTotal} currency="USD" />,
     },
     {
       key: "status",
@@ -378,87 +370,27 @@ export default function SalaryPayrollPage() {
             : r.status === "SUBMITTED"
             ? "info"
             : "warn";
-        return <St tone={tone}>{r.status}</St>;
+        return <St tone={tone}>{RUN_STATUS[r.status] ?? r.status}</St>;
       },
     },
     {
       key: "actions",
       head: "",
       right: true,
-      cell: (r) => {
-        const moreEntries: MenuEntry[] = [
-          {
-            key: "details",
-            label: "Inspect line items",
-            icon: "invoice",
-            onSelect: () => setRunDetailsId(r.id),
-          },
-          ...(r.status === "DRAFT"
-            ? [
-                {
-                  key: "submit",
-                  label: "Submit for approval",
-                  icon: "check" as const,
-                  onSelect: () => submitRunMutation.mutate(r.id),
-                },
-              ]
-            : []),
-          ...(r.status === "SUBMITTED"
-            ? [
-                {
-                  key: "approve",
-                  label: "Approve run",
-                  icon: "check" as const,
-                  onSelect: () => approveRunMutation.mutate(r.id),
-                },
-              ]
-            : []),
-          ...(r.status === "APPROVED"
-            ? [
-                {
-                  key: "disburse",
-                  label: "Go to disbursements",
-                  icon: "bank" as const,
-                  onSelect: () => router.push(`/payroll/disbursements?runId=${r.id}`),
-                },
-              ]
-            : []),
-        ];
-
-        return (
-          <div
-            style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {r.status === "DRAFT" ? (
-              <Button
-                size="sm"
-                busy={submitRunMutation.isPending}
-                onClick={() => submitRunMutation.mutate(r.id)}
-              >
-                Submit
-              </Button>
-            ) : r.status === "SUBMITTED" ? (
-              <Button
-                size="sm"
-                variant="primary"
-                busy={approveRunMutation.isPending}
-                onClick={() => approveRunMutation.mutate(r.id)}
-              >
-                Approve
-              </Button>
-            ) : r.status === "APPROVED" ? (
-              <Button
-                size="sm"
-                onClick={() => router.push(`/payroll/disbursements?runId=${r.id}`)}
-              >
-                Disburse
-              </Button>
-            ) : null}
-            <MenuButton label="More actions" items={moreEntries} />
-          </div>
-        );
-      },
+      cell: (r) =>
+        r.status === "DRAFT" ? (
+          <Button size="sm" onClick={() => setPreCloseRunId(r.id)}>
+            Submit
+          </Button>
+        ) : r.status === "SUBMITTED" ? (
+          <Button size="sm" variant="primary" busy={approveRunMutation.isPending} onClick={() => approveRunMutation.mutate(r.id)}>
+            Approve
+          </Button>
+        ) : r.status === "APPROVED" ? (
+          <Button size="sm" onClick={() => router.push(`/payroll/disbursements?runId=${r.id}`)}>
+            Pay out
+          </Button>
+        ) : null,
     },
   ];
 
@@ -483,9 +415,9 @@ export default function SalaryPayrollPage() {
   return (
     <PayrollShell
       activeTab="runs"
-      title="Salary Payroll Runs"
+      title="Pay runs"
       primary={{
-        label: "New pay run",
+        label: "New run",
         icon: "plus",
         shortcut: "N",
         onClick: () => {
@@ -502,7 +434,7 @@ export default function SalaryPayrollPage() {
           busy={seedPeriodsMutation.isPending}
           onClick={() => seedPeriodsMutation.mutate()}
         >
-          Generate future periods
+          Add periods
         </Button>
       }
     >
@@ -510,12 +442,11 @@ export default function SalaryPayrollPage() {
         <BkFinding
           fact={
             tab === "periods"
-              ? `${openPeriods.length} open payroll periods awaiting completion.`
+              ? `${openPeriods.length} open ${openPeriods.length === 1 ? "period" : "periods"}.`
               : tab === "pending"
-              ? `${pendingRuns.length} pending runs requiring review or submission.`
-              : `${archivedRuns.length} approved and posted payroll batches.`
+              ? `${pendingRuns.length} ${pendingRuns.length === 1 ? "run" : "runs"} to submit or approve.`
+              : `${archivedRuns.length} approved or posted.`
           }
-          rest="Select any record to view details, inspect employee line items, or advance approval stages."
         />
 
         <BkTabs
@@ -527,14 +458,14 @@ export default function SalaryPayrollPage() {
             selection.clear();
           }}
           items={[
-            { value: "periods", label: "Payroll periods", count: openPeriods.length, icon: "calendar" },
-            { value: "pending", label: "Pending runs", count: pendingRuns.length, icon: "clock" },
-            { value: "archived", label: "Approved & Posted", count: archivedRuns.length, icon: "done" },
+            { value: "periods", label: "Periods", count: openPeriods.length, icon: "calendar" },
+            { value: "pending", label: "To approve", count: pendingRuns.length, icon: "clock" },
+            { value: "archived", label: "Approved", count: archivedRuns.length, icon: "done" },
           ]}
         />
 
         <BkTools
-          find={tab === "periods" ? "Search periods by key or note..." : "Search runs..."}
+          find={tab === "periods" ? "Search periods" : "Search runs"}
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -598,22 +529,8 @@ export default function SalaryPayrollPage() {
                 labelOf: (p) => p.periodKey,
               }}
               totals={periodTotals}
-              onOpen={(p) => {
-                if (p.status !== "CLOSED") {
-                  setSelectedPeriodForRun(p.id);
-                  setGenerateDrawerOpen(true);
-                }
-              }}
-              empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No payroll periods found.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Generate future periods above or create your next cycle.
-                  </p>
-                </div>
-              }
+              openHref={(p) => (p.runs?.length ? `/payroll/runs/${p.runs[0]!.id}` : null)}
+              empty={<BkEmpty action={<Button onClick={() => seedPeriodsMutation.mutate()}>Add periods</Button>}>No periods yet.</BkEmpty>}
             />
           ) : (
             <Worksheet
@@ -627,20 +544,11 @@ export default function SalaryPayrollPage() {
                 toggleAll: selection.toggleAll,
                 all: selection.all,
                 some: selection.some,
-                labelOf: (r) => `Run #${r.runNumber}`,
+                labelOf: (r) => `Run ${r.runNumber}`,
               }}
               totals={runTotals}
-              onOpen={(r) => setRunDetailsId(r.id)}
-              empty={
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No payroll runs found in this view.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Generate a new payroll run from the open periods tab.
-                  </p>
-                </div>
-              }
+              openHref={(r) => `/payroll/runs/${r.id}`}
+              empty={<BkEmpty>No runs here.</BkEmpty>}
             />
           )}
         </BkScroll>
@@ -657,7 +565,7 @@ export default function SalaryPayrollPage() {
           onClear={selection.clear}
         >
           <Button icon="export" onClick={handleExportCsv}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           {tab === "pending" ? (
             <Button icon="done" onClick={() => void handleBulkApprove()}>
@@ -671,8 +579,7 @@ export default function SalaryPayrollPage() {
       <Drawer
         open={generateDrawerOpen}
         onOpenChange={setGenerateDrawerOpen}
-        title="Generate payroll run"
-        sub="Automatically calculate base salaries, allowances, and statutory tax deductions."
+        title="New run"
         width={480}
         footer={
           <>
@@ -688,62 +595,36 @@ export default function SalaryPayrollPage() {
                 }
               }}
             >
-              Run payroll now
+              Create run
             </Button>
           </>
         }
       >
-        <DrawerSection title="Period & Cycle">
+        <DrawerSection title="Period">
           <Field label="Payroll period" htmlFor="run-period">
-            <select
-              id="run-period"
-              className="select"
-              value={selectedPeriod?.id || ""}
-              onChange={(e) => setSelectedPeriodForRun(e.target.value)}
-              style={{ width: "100%", height: 36 }}
-            >
+            <Select id="run-period" value={selectedPeriod?.id || ""} onChange={(e) => setSelectedPeriodForRun(e.target.value)}>
               {periods
                 .filter((p) => p.status !== "CLOSED")
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.periodKey} • Due {p.dueDate ? format(new Date(p.dueDate), "dd MMM yyyy") : ""}
+                    {p.periodKey}, due {p.dueDate ? format(new Date(p.dueDate), "d MMM yyyy") : "no date"}
                   </option>
                 ))}
-            </select>
+            </Select>
           </Field>
 
           {selectedPeriod ? (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 8,
-                background: "var(--color-surface)",
-                boxShadow: "var(--shadow-ring)",
-                fontSize: 13,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span className="muted">Coverage dates</span>
-                <span className="mono">
-                  {selectedPeriod.startDate ? format(new Date(selectedPeriod.startDate), "dd MMM") : ""}
-                  {" – "}
-                  {selectedPeriod.endDate ? format(new Date(selectedPeriod.endDate), "dd MMM yyyy") : ""}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span className="muted">Cycle</span>
-                <span style={{ fontWeight: 500 }}>{selectedPeriod.cycle}</span>
-              </div>
-            </div>
+            <>
+              <DrawerRow label="Covers">
+                {selectedPeriod.startDate ? format(new Date(selectedPeriod.startDate), "d MMM") : ""} to {selectedPeriod.endDate ? format(new Date(selectedPeriod.endDate), "d MMM yyyy") : ""}
+              </DrawerRow>
+              <DrawerRow label="Cycle">{selectedPeriod.cycle === "FORTNIGHTLY" ? "Fortnightly" : "Monthly"}</DrawerRow>
+            </>
           ) : null}
 
-          <Field label="Notes / Reference" htmlFor="run-notes" optional>
+          <Field label="Notes" htmlFor="run-notes" optional>
             <Input
               id="run-notes"
-              placeholder="e.g. March 2026 Monthly Salary Batch"
               value={runNotes}
               onChange={(e) => setRunNotes(e.target.value)}
             />
@@ -751,59 +632,28 @@ export default function SalaryPayrollPage() {
         </DrawerSection>
       </Drawer>
 
-      {/* RUN LINE ITEMS DRAWER */}
-      <Drawer
-        open={Boolean(runDetailsId)}
-        onOpenChange={(open) => !open && setRunDetailsId(null)}
-        title={runDetails ? `Run #${runDetails.runNumber} Line Items` : "Run Details"}
-        sub={runDetails ? `Total Net Payout: ${money(runDetails.netTotal, "USD")}` : "Loading..."}
-        width={640}
-        footer={
-          <Button onClick={() => setRunDetailsId(null)}>Close</Button>
-        }
-      >
-        {detailsLoading ? (
-          <div style={{ padding: 24, textAlign: "center" }} className="muted">
-            Loading line items...
-          </div>
-        ) : runDetails ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <table className="bkt" style={{ width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th className="num">Base</th>
-                  <th className="num">Deductions</th>
-                  <th className="num">Net</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runDetails.lineItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <div style={{ fontWeight: 500, color: "var(--color-ink)" }}>
-                        {item.employee.name}
-                      </div>
-                      <div className="muted mono" style={{ fontSize: 11 }}>
-                        {item.employee.employeeId}
-                      </div>
-                    </td>
-                    <td className="num">
-                      <Amt value={item.baseAmount} currency="USD" />
-                    </td>
-                    <td className="num" style={{ color: "var(--color-danger)" }}>
-                      −{money(item.deductionsTotal, "USD")}
-                    </td>
-                    <td className="num" style={{ fontWeight: 600 }}>
-                      <Amt value={item.netAmount} currency="USD" className="font-medium" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </Drawer>
+      {/* PRE-CLOSE RECONCILIATION CHECKLIST DRAWER */}
+      <PreCloseChecklistDrawer
+        runId={preCloseRunId}
+        open={Boolean(preCloseRunId)}
+        onOpenChange={(open) => !open && setPreCloseRunId(null)}
+        onSubmit={(id) => submitRunMutation.mutate(id)}
+        isSubmitting={submitRunMutation.isPending}
+      />
     </PayrollShell>
+  );
+}
+
+export default function SalaryPayrollPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PayrollShell activeTab="runs">
+          <BooksLoading />
+        </PayrollShell>
+      }
+    >
+      <SalaryPayrollContent />
+    </React.Suspense>
   );
 }

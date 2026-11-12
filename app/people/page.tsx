@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -19,6 +21,7 @@ import {
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
+import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
   Person,
@@ -46,22 +49,59 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  employeePositionLabel,
   getEmployeePositionOptions,
 } from "@/lib/platform/vertical-defaults";
 
 type StatusTab = "active" | "all" | "inactive";
 
-export default function HumanResourcesPage() {
+function HumanResourcesContent() {
   const { toast } = useToast();
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = React.useState<StatusTab>("active");
-  const [search, setSearch] = React.useState("");
-  const [departmentFilter, setDepartmentFilter] = React.useState<string | null>(null);
-  const [employmentFilter, setEmploymentFilter] = React.useState<string | null>(null);
-  const [page, setPage] = React.useState(1);
+  const tab = (searchParams.get("tab") as StatusTab) || "active";
+  const search = searchParams.get("q") || "";
+  const departmentFilter = searchParams.get("dept") || null;
+  const employmentFilter = searchParams.get("type") || null;
+  const page = Number(searchParams.get("page")) || 1;
   const pageSize = 25;
+
+  const onQuery = React.useCallback(
+    (next: {
+      tab?: string;
+      q?: string;
+      dept?: string | null;
+      type?: string | null;
+      page?: number;
+    }) => {
+      const merged = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(next)) {
+        const empty =
+          value === null ||
+          value === undefined ||
+          value === "" ||
+          (key === "tab" && value === "active") ||
+          (key === "page" && value === 1);
+        if (empty) merged.delete(key);
+        else merged.set(key, String(value));
+      }
+      const query = merged.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const setTab = (nextTab: StatusTab) => onQuery({ tab: nextTab, page: 1 });
+  const setSearch = (nextQ: string) => onQuery({ q: nextQ, page: 1 });
+  const setDepartmentFilter = (nextDept: string | null) =>
+    onQuery({ dept: nextDept, page: 1 });
+  const setEmploymentFilter = (nextType: string | null) =>
+    onQuery({ type: nextType, page: 1 });
+  const setPage = (nextPage: number) => onQuery({ page: nextPage });
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [editingEmployee, setEditingEmployee] = React.useState<EmployeeSummary | null>(null);
@@ -124,7 +164,7 @@ export default function HumanResourcesPage() {
       const q = search.toLowerCase();
       const name = (emp.name || "").toLowerCase();
       const num = (emp.employeeId || "").toLowerCase();
-      const pos = (emp.position || "").toLowerCase();
+      const pos = `${emp.jobTitle || ""} ${employeePositionLabel(emp.position)}`.toLowerCase();
       const dept = (emp.department?.name || "").toLowerCase();
       return name.includes(q) || num.includes(q) || pos.includes(q) || dept.includes(q);
     });
@@ -214,7 +254,7 @@ export default function HumanResourcesPage() {
         e.employeeId || "",
         e.name,
         e.department?.name || "",
-        e.position || "",
+        e.jobTitle || employeePositionLabel(e.position),
         (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType : ""),
         e.isActive ? "Active" : "Inactive",
         e.hireDate || "",
@@ -252,17 +292,7 @@ export default function HumanResourcesPage() {
       key: "name",
       head: "Staff member",
       cell: (emp) => (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <Person name={emp.name} size={28} />
-          <span>
-            <span className="who" style={{ display: "block", fontWeight: 500 }}>
-              {emp.name}
-            </span>
-            <span className="muted mono" style={{ fontSize: 11 }}>
-              {emp.employeeId || "—"}
-            </span>
-          </span>
-        </span>
+        <Person name={emp.name} sub={emp.employeeId || "—"} />
       ),
     },
     {
@@ -274,7 +304,7 @@ export default function HumanResourcesPage() {
     {
       key: "position",
       head: "Position",
-      cell: (emp) => emp.position || <None />,
+      cell: (emp) => emp.jobTitle || employeePositionLabel(emp.position) || <None />,
     },
     {
       key: "status",
@@ -305,7 +335,7 @@ export default function HumanResourcesPage() {
         const items: MenuEntry[] = [
           {
             key: "edit",
-            label: "Edit employee profile",
+            label: "Edit",
             icon: "edit",
             onSelect: () => {
               setEditingEmployee(emp);
@@ -314,7 +344,7 @@ export default function HumanResourcesPage() {
           },
           {
             key: "delete",
-            label: "Delete record",
+            label: "Delete",
             icon: "retire",
             danger: true,
             onSelect: () => setDeletingId(emp.id),
@@ -350,8 +380,7 @@ export default function HumanResourcesPage() {
     >
       <BkPage screen="people" scroll={false}>
         <BkFinding
-          fact={`${counts.active} active employees across ${departments.length} departments.`}
-          rest="Select any row to view, update compensation, or adjust employment details."
+          fact={`${counts.active} active ${counts.active === 1 ? "employee" : "employees"}${departments.length ? ` in ${departments.length} ${departments.length === 1 ? "department" : "departments"}` : ""}.`}
         />
 
         <BkTabs
@@ -362,14 +391,14 @@ export default function HumanResourcesPage() {
             setPage(1);
           }}
           items={[
-            { value: "active", label: "Active staff", count: counts.active, icon: "users" },
-            { value: "all", label: "All records", count: counts.all, icon: "list" },
-            { value: "inactive", label: "Inactive / Departed", count: counts.inactive, icon: "retire" },
+            { value: "active", label: "Active", count: counts.active, icon: "users" },
+            { value: "all", label: "All", count: counts.all, icon: "list" },
+            { value: "inactive", label: "Inactive", count: counts.inactive, icon: "retire" },
           ]}
         />
 
         <BkTools
-          find="Search staff by name, number, or position..."
+          find="Search staff"
           query={search}
           onFind={(q) => {
             setSearch(q);
@@ -478,24 +507,10 @@ export default function HumanResourcesPage() {
               some: selection.some,
               labelOf: (emp) => emp.name,
             }}
-            onOpen={(emp) => {
-              setEditingEmployee(emp);
-              setDrawerOpen(true);
-            }}
+            openHref={(emp) => `/people/${emp.id}`}
             totals={totals}
             empty={
-              employeesQuery.isLoading ? (
-                "Loading directory..."
-              ) : (
-                <div style={{ textAlign: "center", padding: "32px 16px" }}>
-                  <p style={{ fontWeight: 500, color: "var(--color-ink)", marginBottom: 4 }}>
-                    No staff members match the criteria.
-                  </p>
-                  <p style={{ color: "var(--color-muted)", fontSize: 13 }}>
-                    Try clearing filters or search query, or onboard a new employee.
-                  </p>
-                </div>
-              )
+              employeesQuery.isLoading ? <BooksLoading /> : <BkEmpty>No staff here.</BkEmpty>
             }
           />
         </BkScroll>
@@ -512,19 +527,19 @@ export default function HumanResourcesPage() {
           onClear={selection.clear}
         >
           <Button icon="export" onClick={handleExportSelected}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           <Button
             icon="done"
             onClick={() => void handleBulkStatus(true)}
           >
-            Mark Active
+            Mark active
           </Button>
           <Button
             icon="retire"
             onClick={() => void handleBulkStatus(false)}
           >
-            Mark Inactive
+            Mark inactive
           </Button>
         </BkSelectionBar>
       </BkPage>
@@ -576,5 +591,19 @@ export default function HumanResourcesPage() {
         </DialogContent>
       </Dialog>
     </PeopleShell>
+  );
+}
+
+export default function HumanResourcesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <PeopleShell activeTab="employees">
+          <BooksLoading />
+        </PeopleShell>
+      }
+    >
+      <HumanResourcesContent />
+    </React.Suspense>
   );
 }
