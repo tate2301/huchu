@@ -47,6 +47,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  employeePositionLabel,
   getEmployeePositionOptions,
 } from "@/lib/platform/vertical-defaults";
 
@@ -161,7 +162,7 @@ function HumanResourcesContent() {
       const q = search.toLowerCase();
       const name = (emp.name || "").toLowerCase();
       const num = (emp.employeeId || "").toLowerCase();
-      const pos = (emp.position || "").toLowerCase();
+      const pos = `${emp.jobTitle || ""} ${employeePositionLabel(emp.position)}`.toLowerCase();
       const dept = (emp.department?.name || "").toLowerCase();
       return name.includes(q) || num.includes(q) || pos.includes(q) || dept.includes(q);
     });
@@ -251,7 +252,7 @@ function HumanResourcesContent() {
         e.employeeId || "",
         e.name,
         e.department?.name || "",
-        e.position || "",
+        e.jobTitle || employeePositionLabel(e.position),
         (e.employmentType ? EMPLOYMENT_TYPE_LABEL[e.employmentType] || e.employmentType : ""),
         e.isActive ? "Active" : "Inactive",
         e.hireDate || "",
@@ -311,7 +312,7 @@ function HumanResourcesContent() {
     {
       key: "position",
       head: "Position",
-      cell: (emp) => emp.position || <None />,
+      cell: (emp) => emp.jobTitle || employeePositionLabel(emp.position) || <None />,
     },
     {
       key: "status",

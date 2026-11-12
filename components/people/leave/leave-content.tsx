@@ -146,13 +146,13 @@ export function LeaveContent() {
   const leaveTypesQuery = useQuery({
     queryKey: ["people", "leave-types"],
     queryFn: () =>
-      fetchJson<{ data: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
+      fetchJson<{ types: Array<{ id: string; name: string; code: string; isPaid: boolean }> }>(
         "/api/people/leave/types"
       ),
   });
 
   const leaveTypes = React.useMemo(
-    () => leaveTypesQuery.data?.data ?? [],
+    () => leaveTypesQuery.data?.types ?? [],
     [leaveTypesQuery.data]
   );
 

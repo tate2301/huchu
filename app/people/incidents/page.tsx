@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   Amt,
+  BkEmpty,
   BkFilter,
   BkFinding,
   BkPage,
@@ -17,31 +18,31 @@ import {
   None,
   St,
   Worksheet,
+  type BkTone,
   type WsColumn,
 } from "@/components/books/ui";
 import { BkQuietTools, downloadCsv } from "@/components/books/bk-list";
 import { BooksLoading } from "@/components/books/books-state";
 import {
   Button,
+  ButtonGroup,
   Drawer,
+  DrawerRow,
   DrawerSection,
   Field,
   Input,
   Person,
+  Segmented,
+  Select,
+  TextArea,
   useSelection,
 } from "@/components/core";
+import { MenuButton, type MenuEntry } from "@/components/core/menu";
 import { PeopleShell } from "@/components/people/people-shell";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchEmployees, fetchSites, type Site } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import {
-  CheckCircle,
-  Clock,
-  Gavel,
-  Plus,
-  ShieldAlert,
-  ShieldCheck,
-} from "@/lib/icons";
+import { shortDay } from "@/lib/books/format";
 
 export type HrIncidentRecord = {
   id: string;
@@ -99,13 +100,53 @@ export type DisciplinaryActionRecord = {
   employee: { id: string; employeeId: string; name: string };
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<HrIncidentRecord["category"], string> = {
+  SAFETY_POLICY: "Safety and policy",
   MISCONDUCT: "Misconduct",
   ATTENDANCE: "Attendance",
-  SAFETY_POLICY: "Safety & Policy",
   PERFORMANCE: "Performance",
-  OTHER: "General / Other",
+  OTHER: "Other",
 };
+
+type Severity = HrIncidentRecord["severity"];
+type ActionStatus = DisciplinaryActionRecord["status"];
+
+const SEVERITY_LABEL: Record<Severity, string> = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", CRITICAL: "Critical" };
+const SEVERITY_TONE: Record<Severity, BkTone> = { LOW: "info", MEDIUM: "warn", HIGH: "bad", CRITICAL: "bad" };
+const STATUS_LABEL: Record<HrIncidentRecord["status"], string> = { OPEN: "Open", UNDER_REVIEW: "Under review", CLOSED: "Closed" };
+const STATUS_TONE: Record<HrIncidentRecord["status"], BkTone> = { OPEN: "bad", UNDER_REVIEW: "warn", CLOSED: "done" };
+
+const ACTION_LABEL: Record<DisciplinaryActionRecord["actionType"], string> = {
+  WARNING: "Warning",
+  PENALTY: "Fine",
+  SUSPENSION: "Suspension",
+  TERMINATION: "Termination",
+  OTHER: "Other",
+};
+const ACTION_STATUS_LABEL: Record<ActionStatus, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved", REJECTED: "Rejected", APPLIED: "Applied" };
+const ACTION_TONE: Record<ActionStatus, BkTone> = { DRAFT: "draft", SUBMITTED: "warn", APPROVED: "info", REJECTED: "bad", APPLIED: "done" };
+const ACTION_DONE = { submit: "Sent for approval", approve: "Approved", apply: "Applied", reject: "Rejected" } as const;
+const PENALTY_LABEL: Record<DisciplinaryActionRecord["penaltyStatus"], string> = {
+  NONE: "",
+  PENDING: "to settle",
+  DEDUCTED: "deducted from pay",
+  PAID: "paid",
+  WAIVED: "waived",
+};
+/** How an approved penalty is settled when it is applied (the route takes the same three). */
+const PENALTY_CHOICES = [
+  { value: "DEDUCTED", label: "Deduct from pay" },
+  { value: "PAID", label: "Mark as paid" },
+  { value: "WAIVED", label: "Waive it" },
+] as const;
+
+/** The kit's status dot, for inside a drawer (the Books states are drawn only on the page). */
+function Status({ tone, children }: { tone: BkTone; children: React.ReactNode }) {
+  const kit = tone === "done" ? " status-success" : tone === "warn" ? " status-warning" : tone === "bad" ? " status-danger" : "";
+  return <span className={`status${kit}`}>{children}</span>;
+}
+
+const day = (value: string) => shortDay(value.slice(0, 10));
 
 function SafetyIncidentsContent() {
   const { toast } = useToast();
@@ -163,6 +204,8 @@ function SafetyIncidentsContent() {
   const [actionPenaltyAmount, setActionPenaltyAmount] = React.useState<number>(0);
   const [actionPenaltyCurrency, setActionPenaltyCurrency] = React.useState("USD");
   const [actionNotes, setActionNotes] = React.useState("");
+  const [rejecting, setRejecting] = React.useState<string | null>(null);
+  const [rejectNote, setRejectNote] = React.useState("");
 
   // Fetch incidents
   const incidentsQuery = useQuery({
@@ -305,14 +348,17 @@ function SafetyIncidentsContent() {
   });
 
   const transitionActionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "submit" | "approve" | "apply" }) =>
+    mutationFn: ({ id, action, body }: { id: string; action: "submit" | "approve" | "apply" | "reject"; body?: Record<string, unknown> }) =>
       fetchJson(`/api/hr/disciplinary-actions/${id}/${action}`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(body ?? {}),
       }),
     onSuccess: (_, variables) => {
-      toast({ title: `Disciplinary action ${variables.action}ed successfully` });
+      toast({ title: ACTION_DONE[variables.action] });
+      setRejecting(null);
+      setRejectNote("");
       void queryClient.invalidateQueries({ queryKey: ["disciplinary-actions", selectedIncident?.id] });
+      void queryClient.invalidateQueries({ queryKey: ["hr-incidents"] });
     },
     onError: (err) => {
       toast({ title: getApiErrorMessage(err), variant: "destructive" });
@@ -332,13 +378,13 @@ function SafetyIncidentsContent() {
     const target = selectedRows.length > 0 ? selectedRows : filtered;
     downloadCsv(
       "safety-incidents.csv",
-      ["Date", "Title", "Category", "Severity", "Status", "Employee", "Site", "Disciplinary Actions"],
+      ["Date", "Title", "Category", "Severity", "Status", "Employee", "Site", "Disciplinary actions"],
       target.map((r) => [
-        new Date(r.incidentDate).toLocaleDateString("en-GB"),
+        day(r.incidentDate),
         r.title,
         CATEGORY_LABELS[r.category] || r.category,
-        r.severity,
-        r.status,
+        SEVERITY_LABEL[r.severity],
+        STATUS_LABEL[r.status],
         r.employee?.name || "",
         r.site?.name || "",
         String(r._count?.actions ?? 0),
@@ -373,167 +419,60 @@ function SafetyIncidentsContent() {
   ).length;
 
   const columns: Array<WsColumn<HrIncidentRecord>> = [
-    {
-      key: "date",
-      head: "Date",
-      className: "mono muted",
-      cell: (r) => (
-        <span className="mono font-medium">
-          {new Date(r.incidentDate).toLocaleDateString("en-GB")}
-        </span>
-      ),
-    },
-    {
-      key: "category",
-      head: "Category",
-      cell: (r) => (
-        <span
-          style={{
-            fontSize: 12,
-            padding: "2px 8px",
-            borderRadius: "var(--radius-full)",
-            background: "var(--surface-sunken)",
-            color: "var(--ink)",
-            fontWeight: 500,
-          }}
-        >
-          {CATEGORY_LABELS[r.category] || r.category}
-        </span>
-      ),
-    },
+    { key: "date", head: "Date", className: "mono", cell: (r) => day(r.incidentDate) },
     {
       key: "title",
-      head: "Incident / Occurrence",
+      head: "Incident",
       cell: (r) => (
-        <div>
-          <button
-            type="button"
-            onClick={() => handleOpenIncidentDetails(r)}
-            style={{
-              all: "unset",
-              cursor: "pointer",
-              fontWeight: 600,
-              color: "var(--ink)",
-              display: "block",
-            }}
-            className="hover:underline"
-          >
-            {r.title}
-          </button>
-          {r.description ? (
-            <span className="muted" style={{ fontSize: 12, display: "block", marginTop: 2 }}>
-              {r.description.length > 70 ? `${r.description.slice(0, 70)}...` : r.description}
-            </span>
-          ) : null}
-        </div>
+        <>
+          {r.title}
+          {r.description ? <span className="muted truncate"> {r.description}</span> : null}
+        </>
       ),
     },
     {
       key: "employee",
-      head: "Employee involved",
+      head: "Employee",
       cell: (r) =>
         r.employee ? (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Person name={r.employee.name} size={24} />
-            <div>
-              <span className="who font-medium" style={{ display: "block", fontSize: 13 }}>
-                {r.employee.name}
-              </span>
-              <span className="mono muted" style={{ fontSize: 11 }}>
-                {r.employee.employeeId}
-              </span>
-            </div>
-          </div>
+          <>
+            <Person name={r.employee.name} size={20} /> {r.employee.name} <span className="muted mono">{r.employee.employeeId}</span>
+          </>
         ) : (
           <None />
         ),
     },
-    {
-      key: "severity",
-      head: "Severity",
-      cell: (r) => {
-        const tone =
-          r.severity === "CRITICAL" || r.severity === "HIGH"
-            ? "bad"
-            : r.severity === "MEDIUM"
-            ? "warn"
-            : "info";
-        return <St tone={tone}>{r.severity}</St>;
-      },
-    },
-    {
-      key: "status",
-      head: "Status",
-      cell: (r) => {
-        const tone =
-          r.status === "CLOSED" ? "done" : r.status === "UNDER_REVIEW" ? "warn" : "bad";
-        const label =
-          r.status === "CLOSED" ? "Closed" : r.status === "UNDER_REVIEW" ? "Under Review" : "Open";
-        return <St tone={tone}>{label}</St>;
-      },
-    },
-    {
-      key: "site",
-      head: "Site / Facility",
-      className: "muted",
-      cell: (r) => r.site?.name || <None />,
-    },
-    {
-      key: "actions",
-      head: "Disciplinary actions",
-      cell: (r) => {
-        const count = r._count?.actions ?? 0;
-        return count > 0 ? (
-          <span
-            style={{
-              fontSize: 12,
-              padding: "2px 8px",
-              borderRadius: "var(--radius-full)",
-              background: "var(--surface-warn-soft, #fef3c7)",
-              color: "var(--ink)",
-              fontWeight: 500,
-            }}
-          >
-            {count} action{count > 1 ? "s" : ""}
-          </span>
-        ) : (
-          <span className="muted" style={{ fontSize: 12 }}>
-            None
-          </span>
-        );
-      },
-    },
-    {
-      key: "inspect",
-      head: "",
-      right: true,
-      cell: (r) => (
-        <Button
-          variant="quiet"
-          onClick={() => handleOpenIncidentDetails(r)}
-          style={{ fontSize: 12, padding: "2px 8px", height: 26 }}
-        >
-          Inspect ↗
-        </Button>
-      ),
-    },
+    { key: "category", head: "Category", className: "muted", cell: (r) => CATEGORY_LABELS[r.category] ?? r.category },
+    { key: "severity", head: "Severity", cell: (r) => <St tone={SEVERITY_TONE[r.severity]}>{SEVERITY_LABEL[r.severity]}</St> },
+    { key: "status", head: "Status", cell: (r) => <St tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</St> },
+    { key: "site", head: "Site", className: "muted", cell: (r) => r.site?.name || <None /> },
+    { key: "actions", head: "Actions", right: true, className: "mono", cell: (r) => (r._count?.actions ? r._count.actions : <None />) },
+  ];
+
+  const incident = selectedIncident;
+  const incidentActions = disciplinaryActionsQuery.data ?? [];
+
+  const filterItems = <K extends string>(current: string, key: string, all: string, labels: Record<K, string>): MenuEntry[] => [
+    { key: "ALL", label: all, checked: current === "ALL", onSelect: () => updateParam(key, "ALL") },
+    { separator: true },
+    ...(Object.keys(labels) as K[]).map((value) => ({
+      key: value,
+      label: labels[value],
+      checked: current === value,
+      onSelect: () => updateParam(key, value),
+    })),
   ];
 
   return (
     <PeopleShell
       activeTab="incidents"
-      title="Workforce Incidents & Disciplinary Actions"
-      primary={{
-        label: "Report incident",
-        icon: "plus",
-        shortcut: "N",
-        onClick: () => setCreateDrawerOpen(true),
-      }}
+      title="Incidents"
+      primary={{ label: "Report an incident", icon: "plus", shortcut: "N", onClick: () => setCreateDrawerOpen(true) }}
     >
       <BkPage screen="incidents" scroll={false}>
         <BkFinding
-          fact={`${openCount} workforce incident${openCount === 1 ? "" : "s"} open or under review. ${criticalCount} marked high / critical severity.`}
-          rest="Statutory workplace health & safety reporting with immutable disciplinary audit timeline and penalty tracking."
+          fact={`${openCount} ${openCount === 1 ? "incident" : "incidents"} open.`}
+          rest={criticalCount ? `${criticalCount} high or critical.` : undefined}
         />
 
         <BkTabs
@@ -541,116 +480,33 @@ function SafetyIncidentsContent() {
           value={tab}
           onChange={(v) => updateParam("tab", v)}
           items={[
-            { value: "open", label: "Open & Under Review", count: openCount, icon: "issue" },
-            { value: "all", label: "All incident logs", count: records.length, icon: "list" },
-            {
-              value: "closed",
-              label: "Closed / Resolved",
-              count: records.length - openCount,
-              icon: "done",
-            },
+            { value: "open", label: "Open", count: openCount, icon: "issue" },
+            { value: "all", label: "All", count: records.length, icon: "list" },
+            { value: "closed", label: "Closed", count: records.length - openCount, icon: "done" },
           ]}
         />
 
         <BkTools
-          find="Search incidents by employee, title, description, site..."
+          find="Search incidents"
           query={search}
           onFind={(q) => updateParam("search", q)}
           count={totalRows}
           filters={
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <BkFilter
-                label="Severity"
-                value={severityFilter === "ALL" ? "Any" : severityFilter}
-                items={[
-                  {
-                    key: "ALL",
-                    label: "Any severity",
-                    checked: severityFilter === "ALL",
-                    onSelect: () => updateParam("severity", "ALL"),
-                  },
-                  { separator: true },
-                  {
-                    key: "CRITICAL",
-                    label: "Critical",
-                    checked: severityFilter === "CRITICAL",
-                    onSelect: () => updateParam("severity", "CRITICAL"),
-                  },
-                  {
-                    key: "HIGH",
-                    label: "High",
-                    checked: severityFilter === "HIGH",
-                    onSelect: () => updateParam("severity", "HIGH"),
-                  },
-                  {
-                    key: "MEDIUM",
-                    label: "Medium",
-                    checked: severityFilter === "MEDIUM",
-                    onSelect: () => updateParam("severity", "MEDIUM"),
-                  },
-                  {
-                    key: "LOW",
-                    label: "Low",
-                    checked: severityFilter === "LOW",
-                    onSelect: () => updateParam("severity", "LOW"),
-                  },
-                ]}
-              />
-
-              <BkFilter
-                label="Category"
-                value={categoryFilter === "ALL" ? "All categories" : CATEGORY_LABELS[categoryFilter] || categoryFilter}
-                items={[
-                  {
-                    key: "ALL",
-                    label: "All categories",
-                    checked: categoryFilter === "ALL",
-                    onSelect: () => updateParam("category", "ALL"),
-                  },
-                  { separator: true },
-                  {
-                    key: "SAFETY_POLICY",
-                    label: "Safety & Policy",
-                    checked: categoryFilter === "SAFETY_POLICY",
-                    onSelect: () => updateParam("category", "SAFETY_POLICY"),
-                  },
-                  {
-                    key: "MISCONDUCT",
-                    label: "Misconduct",
-                    checked: categoryFilter === "MISCONDUCT",
-                    onSelect: () => updateParam("category", "MISCONDUCT"),
-                  },
-                  {
-                    key: "ATTENDANCE",
-                    label: "Attendance",
-                    checked: categoryFilter === "ATTENDANCE",
-                    onSelect: () => updateParam("category", "ATTENDANCE"),
-                  },
-                  {
-                    key: "PERFORMANCE",
-                    label: "Performance",
-                    checked: categoryFilter === "PERFORMANCE",
-                    onSelect: () => updateParam("category", "PERFORMANCE"),
-                  },
-                  {
-                    key: "OTHER",
-                    label: "General / Other",
-                    checked: categoryFilter === "OTHER",
-                    onSelect: () => updateParam("category", "OTHER"),
-                  },
-                ]}
-              />
-            </div>
+            <>
+              <BkFilter label="Severity" value={severityFilter === "ALL" ? "Any" : SEVERITY_LABEL[severityFilter as Severity] ?? severityFilter} items={filterItems(severityFilter, "severity", "Any severity", SEVERITY_LABEL)} />
+              <BkFilter label="Category" value={categoryFilter === "ALL" ? "Any" : CATEGORY_LABELS[categoryFilter as HrIncidentRecord["category"]] ?? categoryFilter} items={filterItems(categoryFilter, "category", "Any category", CATEGORY_LABELS)} />
+            </>
           }
           end={<BkQuietTools onExport={handleExport} />}
         />
 
         <BkScroll>
           <Worksheet
-            label="workforce incidents"
+            label="incidents"
             rows={pageRows}
             rowKey={(r) => r.id}
             columns={columns}
+            onOpen={handleOpenIncidentDetails}
             selection={{
               selected: selection.selected,
               toggle: selection.toggle,
@@ -663,166 +519,30 @@ function SafetyIncidentsContent() {
               incidentsQuery.isLoading ? (
                 <BooksLoading />
               ) : (
-                <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                  <ShieldCheck className="size-8 text-[var(--ink-4)]" style={{ margin: "0 auto 8px auto" }} />
-                  <p style={{ fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
-                    No workforce incidents reported.
-                  </p>
-                  <p className="muted" style={{ fontSize: 13 }}>
-                    Log operational safety occurrences, safety policy violations, or disciplinary matters using the button above.
-                  </p>
-                </div>
+                <BkEmpty action={<Button onClick={() => setCreateDrawerOpen(true)}>Report an incident</Button>}>No incidents here.</BkEmpty>
               )
             }
           />
         </BkScroll>
 
-        <BkPager
-          page={page}
-          size={pageSize}
-          total={totalRows}
-          onPage={(p) => updateParam("page", String(p))}
-        />
+        <BkPager page={page} size={pageSize} total={totalRows} onPage={(p) => updateParam("page", String(p))} />
 
         <BkSelectionBar count={selection.selected.size} onClear={selection.clear}>
           <Button icon="export" onClick={handleExport}>
-            Export ({selection.selected.size})
+            Export
           </Button>
           <Button icon="done" onClick={() => void handleBulkClose()}>
-            Mark Closed
+            Close
           </Button>
         </BkSelectionBar>
       </BkPage>
 
-      {/* Guided Drawer for reporting workforce incident */}
       <Drawer
         open={createDrawerOpen}
         onOpenChange={setCreateDrawerOpen}
-        title="Report Workforce Incident"
-        sub="Statutory compliance record of incident, severity, involved personnel, and corrective notes."
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <DrawerSection title="Involved Employee & Site">
-            <Field label="Involved Employee *">
-              <select
-                className="select"
-                value={newEmployeeId}
-                onChange={(e) => setNewEmployeeId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select team member...</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} ({e.employeeId})
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Operational Site">
-              <select
-                className="select"
-                value={newSiteId}
-                onChange={(e) => setNewSiteId(e.target.value)}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="">Select location site...</option>
-                {sites.map((s: Site) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Incident Date *">
-              <Input
-                type="date"
-                value={newIncidentDate}
-                onChange={(e) => setNewIncidentDate(e.target.value)}
-              />
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Incident Classification">
-            <Field label="Category *">
-              <select
-                className="select"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value as HrIncidentRecord["category"])}
-                style={{ width: "100%", height: 36 }}
-              >
-                <option value="SAFETY_POLICY">Safety & Policy</option>
-                <option value="MISCONDUCT">Misconduct</option>
-                <option value="ATTENDANCE">Attendance</option>
-                <option value="PERFORMANCE">Performance</option>
-                <option value="OTHER">General / Other</option>
-              </select>
-            </Field>
-
-            <Field label="Severity Rating">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
-                <Button
-                  variant={newSeverity === "LOW" ? "primary" : "default"}
-                  onClick={() => setNewSeverity("LOW")}
-                >
-                  Low
-                </Button>
-                <Button
-                  variant={newSeverity === "MEDIUM" ? "primary" : "default"}
-                  onClick={() => setNewSeverity("MEDIUM")}
-                >
-                  Medium
-                </Button>
-                <Button
-                  variant={newSeverity === "HIGH" ? "primary" : "default"}
-                  onClick={() => setNewSeverity("HIGH")}
-                >
-                  High
-                </Button>
-                <Button
-                  variant={newSeverity === "CRITICAL" ? "danger" : "default"}
-                  onClick={() => setNewSeverity("CRITICAL")}
-                >
-                  Critical
-                </Button>
-              </div>
-            </Field>
-          </DrawerSection>
-
-          <DrawerSection title="Incident Details & Investigation">
-            <Field label="Incident Title *">
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="e.g. Failure to wear PPE at Processing Plant ball mill"
-              />
-            </Field>
-
-            <Field label="Full Description *">
-              <textarea
-                className="textarea"
-                rows={3}
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                placeholder="What occurred, equipment involved, personnel impacted, immediate risks..."
-                style={{ width: "100%" }}
-              />
-            </Field>
-
-            <Field label="Initial Investigation Notes">
-              <textarea
-                className="textarea"
-                rows={2}
-                value={newInvestigationNotes}
-                onChange={(e) => setNewInvestigationNotes(e.target.value)}
-                placeholder="Supervisor interview observations, witnesses, immediate remedial actions..."
-                style={{ width: "100%" }}
-              />
-            </Field>
-          </DrawerSection>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+        title="Report an incident"
+        footer={
+          <>
             <Button variant="quiet" onClick={() => setCreateDrawerOpen(false)}>
               Cancel
             </Button>
@@ -830,7 +550,7 @@ function SafetyIncidentsContent() {
               variant="primary"
               busy={createIncidentMutation.isPending}
               disabled={!newTitle.trim() || !newDescription.trim() || !newEmployeeId}
-              onClick={() => {
+              onClick={() =>
                 createIncidentMutation.mutate({
                   title: newTitle.trim(),
                   employeeId: newEmployeeId,
@@ -840,526 +560,297 @@ function SafetyIncidentsContent() {
                   severity: newSeverity,
                   description: newDescription.trim(),
                   investigationNotes: newInvestigationNotes.trim() || undefined,
-                });
-              }}
+                })
+              }
             >
-              Submit incident log
+              Report
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      >
+        <DrawerSection title="Who and where">
+          <Field label="Employee">
+            <Select value={newEmployeeId} onChange={(e) => setNewEmployeeId(e.target.value)}>
+              <option value="">Choose</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.employeeId})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Site" optional>
+            <Select value={newSiteId} onChange={(e) => setNewSiteId(e.target.value)}>
+              <option value="">None</option>
+              {sites.map((s: Site) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Date">
+            <Input type="date" value={newIncidentDate} onChange={(e) => setNewIncidentDate(e.target.value)} />
+          </Field>
+        </DrawerSection>
+
+        <DrawerSection title="What kind">
+          <Field label="Category">
+            <Select value={newCategory} onChange={(e) => setNewCategory(e.target.value as HrIncidentRecord["category"])}>
+              {(Object.keys(CATEGORY_LABELS) as Array<HrIncidentRecord["category"]>).map((value) => (
+                <option key={value} value={value}>
+                  {CATEGORY_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Severity">
+            <Segmented
+              label="Severity"
+              value={newSeverity}
+              onChange={setNewSeverity}
+              items={(Object.keys(SEVERITY_LABEL) as Severity[]).map((value) => ({ value, label: SEVERITY_LABEL[value] }))}
+            />
+          </Field>
+        </DrawerSection>
+
+        <DrawerSection title="What happened">
+          <Field label="Title">
+            <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          </Field>
+          <Field label="Description">
+            <TextArea rows={3} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+          </Field>
+          <Field label="First notes" optional>
+            <TextArea rows={2} value={newInvestigationNotes} onChange={(e) => setNewInvestigationNotes(e.target.value)} />
+          </Field>
+        </DrawerSection>
       </Drawer>
 
-      {/* Incident Details & Disciplinary Action Audit Timeline Drawer */}
       <Drawer
         open={detailDrawerOpen}
         onOpenChange={setDetailDrawerOpen}
-        title={selectedIncident ? selectedIncident.title : "Incident Details"}
-        sub={
-          selectedIncident
-            ? `Logged ${new Date(selectedIncident.createdAt).toLocaleDateString("en-GB")} | Category: ${CATEGORY_LABELS[selectedIncident.category]}`
-            : undefined
+        title={incident ? incident.title : "Incident"}
+        sub={incident ? `${CATEGORY_LABELS[incident.category]}, ${day(incident.incidentDate)}` : undefined}
+        width={640}
+        footer={
+          incident ? (
+            <>
+              {incident.status !== "OPEN" ? (
+                <Button variant="quiet" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "OPEN" } })}>
+                  Reopen
+                </Button>
+              ) : null}
+              {incident.status === "OPEN" ? (
+                <Button busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "UNDER_REVIEW" } })}>
+                  Start review
+                </Button>
+              ) : null}
+              {incident.status !== "CLOSED" ? (
+                <Button variant="primary" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { status: "CLOSED" } })}>
+                  Close incident
+                </Button>
+              ) : null}
+            </>
+          ) : undefined
         }
       >
-        {selectedIncident && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Header Status & Quick Actions */}
-            <div
-              style={{
-                padding: "16px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--surface-sunken)",
-                border: "1px solid var(--line)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 12,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <St
-                  tone={
-                    selectedIncident.status === "CLOSED"
-                      ? "done"
-                      : selectedIncident.status === "UNDER_REVIEW"
-                      ? "warn"
-                      : "bad"
-                  }
-                >
-                  Status: {selectedIncident.status.replace("_", " ")}
-                </St>
-                <St
-                  tone={
-                    selectedIncident.severity === "CRITICAL" || selectedIncident.severity === "HIGH"
-                      ? "bad"
-                      : selectedIncident.severity === "MEDIUM"
-                      ? "warn"
-                      : "info"
-                  }
-                >
-                  Severity: {selectedIncident.severity}
-                </St>
-              </div>
-
-              {/* Status Switcher */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {selectedIncident.status !== "OPEN" && (
-                  <Button
-                    variant="quiet"
-                    onClick={() =>
-                      updateIncidentMutation.mutate({
-                        id: selectedIncident.id,
-                        patch: { status: "OPEN" },
-                      })
-                    }
-                    busy={updateIncidentMutation.isPending}
-                    style={{ fontSize: 12 }}
-                  >
-                    Set Open
-                  </Button>
-                )}
-                {selectedIncident.status !== "UNDER_REVIEW" && (
-                  <Button
-                    variant="default"
-                    onClick={() =>
-                      updateIncidentMutation.mutate({
-                        id: selectedIncident.id,
-                        patch: { status: "UNDER_REVIEW" },
-                      })
-                    }
-                    busy={updateIncidentMutation.isPending}
-                    style={{ fontSize: 12 }}
-                  >
-                    Reviewing
-                  </Button>
-                )}
-                {selectedIncident.status !== "CLOSED" && (
-                  <Button
-                    variant="primary"
-                    onClick={() =>
-                      updateIncidentMutation.mutate({
-                        id: selectedIncident.id,
-                        patch: { status: "CLOSED" },
-                      })
-                    }
-                    busy={updateIncidentMutation.isPending}
-                    style={{ fontSize: 12 }}
-                  >
-                    Close Incident
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Primary Incident Metadata */}
-            <DrawerSection title="Incident Information">
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <div>
-                  <span className="muted" style={{ fontSize: 12, display: "block" }}>
-                    Involved Employee
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                    <Person name={selectedIncident.employee.name} size={24} />
-                    <div>
-                      <strong style={{ fontSize: 13 }}>{selectedIncident.employee.name}</strong>
-                      <div className="mono muted" style={{ fontSize: 11 }}>
-                        {selectedIncident.employee.employeeId}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="muted" style={{ fontSize: 12, display: "block" }}>
-                    Operational Site
-                  </span>
-                  <span style={{ fontWeight: 500, fontSize: 13, display: "block", marginTop: 4 }}>
-                    {selectedIncident.site?.name || "Unassigned"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="muted" style={{ fontSize: 12, display: "block" }}>
-                    Incident Date
-                  </span>
-                  <span className="mono" style={{ fontSize: 13, display: "block", marginTop: 4 }}>
-                    {new Date(selectedIncident.incidentDate).toLocaleDateString("en-GB")}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="muted" style={{ fontSize: 12, display: "block" }}>
-                    Reported By
-                  </span>
-                  <span style={{ fontSize: 13, display: "block", marginTop: 4 }}>
-                    {selectedIncident.reportedBy?.name || "System"}
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <span className="muted" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                  Full Description
-                </span>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    padding: 10,
-                    background: "var(--surface-sunken)",
-                    borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--line)",
-                  }}
-                >
-                  {selectedIncident.description}
-                </p>
-              </div>
-
-              <div style={{ marginTop: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    Investigation & Remedial Notes
-                  </span>
-                  {!editingNotes && (
-                    <Button
-                      variant="quiet"
-                      onClick={() => setEditingNotes(true)}
-                      style={{ fontSize: 12, padding: "0 6px", height: 22 }}
-                    >
-                      Edit notes
-                    </Button>
-                  )}
-                </div>
-
-                {editingNotes ? (
-                  <div>
-                    <textarea
-                      className="textarea"
-                      rows={3}
-                      value={notesValue}
-                      onChange={(e) => setNotesValue(e.target.value)}
-                      style={{ width: "100%" }}
-                    />
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
-                      <Button variant="quiet" onClick={() => setEditingNotes(false)} style={{ fontSize: 12 }}>
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="primary"
-                        busy={updateIncidentMutation.isPending}
-                        onClick={() =>
-                          updateIncidentMutation.mutate({
-                            id: selectedIncident.id,
-                            patch: { investigationNotes: notesValue },
-                          })
-                        }
-                        style={{ fontSize: 12 }}
-                      >
-                        Save notes
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 13,
-                      lineHeight: 1.5,
-                      padding: 10,
-                      background: "var(--surface-sunken)",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--line)",
-                      color: selectedIncident.investigationNotes ? "var(--ink)" : "var(--ink-3)",
-                      fontStyle: selectedIncident.investigationNotes ? "normal" : "italic",
-                    }}
-                  >
-                    {selectedIncident.investigationNotes || "No investigation notes recorded yet."}
-                  </p>
-                )}
-              </div>
+        {incident ? (
+          <>
+            <DrawerSection title="Incident">
+              <DrawerRow label="Status">
+                <Status tone={STATUS_TONE[incident.status]}>{STATUS_LABEL[incident.status]}</Status>
+              </DrawerRow>
+              <DrawerRow label="Severity">
+                <Status tone={SEVERITY_TONE[incident.severity]}>{SEVERITY_LABEL[incident.severity]}</Status>
+              </DrawerRow>
+              <DrawerRow label="Employee">
+                <Person name={incident.employee.name} size={20} /> {incident.employee.name} <span className="muted">{incident.employee.employeeId}</span>
+              </DrawerRow>
+              <DrawerRow label="Site">{incident.site?.name || "None"}</DrawerRow>
+              <DrawerRow label="Reported by">{incident.reportedBy?.name || "System"}</DrawerRow>
+              <p>{incident.description}</p>
             </DrawerSection>
 
-            {/* Disciplinary Action Audit Timeline */}
-            <DrawerSection title="Disciplinary Actions & Audit Timeline">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Gavel className="size-4 text-[var(--ink-3)]" />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
-                    Actions linked to incident ({disciplinaryActionsQuery.data?.length ?? 0})
-                  </span>
-                </div>
-                {!showAddActionForm && (
-                  <Button
-                    variant="default"
-                    onClick={() => setShowAddActionForm(true)}
-                    style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Log Action</span>
+            <DrawerSection title="Investigation notes">
+              {editingNotes ? (
+                <>
+                  <TextArea rows={4} value={notesValue} onChange={(e) => setNotesValue(e.target.value)} />
+                  <ButtonGroup>
+                    <Button variant="quiet" onClick={() => setEditingNotes(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary" busy={updateIncidentMutation.isPending} onClick={() => updateIncidentMutation.mutate({ id: incident.id, patch: { investigationNotes: notesValue } })}>
+                      Save notes
+                    </Button>
+                  </ButtonGroup>
+                </>
+              ) : (
+                <>
+                  <p className={incident.investigationNotes ? undefined : "muted"}>{incident.investigationNotes || "None yet."}</p>
+                  <Button variant="quiet" onClick={() => setEditingNotes(true)}>
+                    Edit notes
                   </Button>
-                )}
-              </div>
+                </>
+              )}
+            </DrawerSection>
 
-              {/* Form to log new disciplinary action */}
-              {showAddActionForm && (
-                <div
-                  style={{
-                    padding: 14,
-                    background: "var(--surface-sunken)",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--line)",
-                    marginBottom: 16,
-                  }}
-                >
-                  <h4 style={{ margin: "0 0 10px 0", fontSize: 13, fontWeight: 600 }}>
-                    Log New Disciplinary Action
-                  </h4>
+            <DrawerSection title={`Disciplinary actions (${incidentActions.length})`}>
+              {disciplinaryActionsQuery.isLoading ? (
+                <BooksLoading rows={3} />
+              ) : incidentActions.length === 0 && !showAddActionForm ? (
+                <p className="muted">None recorded.</p>
+              ) : null}
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <Field label="Action Type">
-                      <select
-                        className="select"
-                        value={actionType}
-                        onChange={(e) => setActionType(e.target.value as DisciplinaryActionRecord["actionType"])}
-                        style={{ width: "100%", height: 34, fontSize: 13 }}
-                      >
-                        <option value="WARNING">Formal Warning</option>
-                        <option value="PENALTY">Financial Penalty / Fine</option>
-                        <option value="SUSPENSION">Suspension</option>
-                        <option value="TERMINATION">Termination</option>
-                        <option value="OTHER">Other Disciplinary Measure</option>
-                      </select>
-                    </Field>
+              {incidentActions.map((action) => (
+                <div key={action.id} className="dsec">
+                  <DrawerRow label={ACTION_LABEL[action.actionType]}>
+                    <Status tone={ACTION_TONE[action.status]}>{ACTION_STATUS_LABEL[action.status]}</Status>
+                    {action.penaltyAmount > 0 ? (
+                      <>
+                        {" "}
+                        <Amt value={action.penaltyAmount} currency={action.penaltyCurrency} /> <span className="muted">{PENALTY_LABEL[action.penaltyStatus]}</span>
+                      </>
+                    ) : null}
+                  </DrawerRow>
+                  <p>{action.summary}</p>
+                  {action.notes ? <p className="muted">{action.notes}</p> : null}
+                  <ul className="muted">
+                    <li>
+                      Logged by {action.createdBy.name}, <span className="mono">{day(action.createdAt)}</span>
+                    </li>
+                    {action.submittedAt ? (
+                      <li>
+                        Sent for approval by {action.submittedBy?.name ?? "someone"}, <span className="mono">{day(action.submittedAt)}</span>
+                      </li>
+                    ) : null}
+                    {action.approvedAt ? (
+                      <li>
+                        Approved by {action.approvedBy?.name ?? "someone"}, <span className="mono">{day(action.approvedAt)}</span>
+                      </li>
+                    ) : null}
+                    {action.appliedAt ? (
+                      <li>
+                        Applied by {action.appliedBy?.name ?? "someone"}, <span className="mono">{day(action.appliedAt)}</span>
+                      </li>
+                    ) : null}
+                  </ul>
 
-                    <Field label="Penalty Amount (optional)">
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <select
-                          className="select"
-                          value={actionPenaltyCurrency}
-                          onChange={(e) => setActionPenaltyCurrency(e.target.value)}
-                          style={{ width: 80, height: 34, fontSize: 13 }}
+                  {rejecting === action.id ? (
+                    <Field label="Why is it rejected?">
+                      <Input value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} autoFocus />
+                      <ButtonGroup>
+                        <Button variant="quiet" onClick={() => setRejecting(null)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="danger"
+                          busy={transitionActionMutation.isPending}
+                          disabled={!rejectNote.trim()}
+                          onClick={() => transitionActionMutation.mutate({ id: action.id, action: "reject", body: { note: rejectNote.trim() } })}
                         >
-                          <option value="USD">USD</option>
-                          <option value="ZiG">ZiG</option>
-                        </select>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={actionPenaltyAmount}
-                          onChange={(e) => setActionPenaltyAmount(parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          style={{ height: 34 }}
-                        />
-                      </div>
+                          Reject
+                        </Button>
+                      </ButtonGroup>
                     </Field>
-                  </div>
+                  ) : (
+                    <ButtonGroup>
+                      {action.status === "DRAFT" || action.status === "REJECTED" ? (
+                        <Button busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "submit" })}>
+                          Send for approval
+                        </Button>
+                      ) : null}
+                      {action.status === "SUBMITTED" ? (
+                        <>
+                          <Button variant="quiet" onClick={() => setRejecting(action.id)}>
+                            Reject
+                          </Button>
+                          <Button variant="primary" busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "approve" })}>
+                            Approve
+                          </Button>
+                        </>
+                      ) : null}
+                      {action.status === "APPROVED" && action.penaltyAmount > 0 ? (
+                        <MenuButton
+                          variant="primary"
+                          label="How the penalty is settled"
+                          items={PENALTY_CHOICES.map((choice) => ({
+                            key: choice.value,
+                            label: choice.label,
+                            onSelect: () => transitionActionMutation.mutate({ id: action.id, action: "apply", body: { penaltyStatus: choice.value } }),
+                          }))}
+                        >
+                          Apply
+                        </MenuButton>
+                      ) : null}
+                      {action.status === "APPROVED" && action.penaltyAmount <= 0 ? (
+                        <Button variant="primary" busy={transitionActionMutation.isPending} onClick={() => transitionActionMutation.mutate({ id: action.id, action: "apply" })}>
+                          Apply
+                        </Button>
+                      ) : null}
+                    </ButtonGroup>
+                  )}
+                </div>
+              ))}
 
-                  <div style={{ marginTop: 8 }}>
-                    <Field label="Action Summary *">
-                      <Input
-                        value={actionSummary}
-                        onChange={(e) => setActionSummary(e.target.value)}
-                        placeholder="e.g. First written warning regarding PPE compliance breach"
-                        style={{ height: 34 }}
-                      />
-                    </Field>
-                  </div>
-
-                  <div style={{ marginTop: 8 }}>
-                    <Field label="Notes / Reason">
-                      <textarea
-                        className="textarea"
-                        rows={2}
-                        value={actionNotes}
-                        onChange={(e) => setActionNotes(e.target.value)}
-                        placeholder="Details of warning served, corrective action meeting..."
-                        style={{ width: "100%", fontSize: 13 }}
-                      />
-                    </Field>
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-                    <Button variant="quiet" onClick={() => setShowAddActionForm(false)} style={{ fontSize: 12 }}>
+              {showAddActionForm ? (
+                <div className="dsec">
+                  <Field label="Action">
+                    <Select value={actionType} onChange={(e) => setActionType(e.target.value as DisciplinaryActionRecord["actionType"])}>
+                      {(Object.keys(ACTION_LABEL) as Array<DisciplinaryActionRecord["actionType"]>).map((value) => (
+                        <option key={value} value={value}>
+                          {ACTION_LABEL[value]}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Summary">
+                    <Input value={actionSummary} onChange={(e) => setActionSummary(e.target.value)} />
+                  </Field>
+                  <Field label="Penalty" optional>
+                    <Input type="number" step="0.01" min="0" value={actionPenaltyAmount || ""} onChange={(e) => setActionPenaltyAmount(parseFloat(e.target.value) || 0)} />
+                  </Field>
+                  <Field label="Currency">
+                    <Select value={actionPenaltyCurrency} onChange={(e) => setActionPenaltyCurrency(e.target.value)}>
+                      <option value="USD">USD</option>
+                      <option value="ZiG">ZiG</option>
+                    </Select>
+                  </Field>
+                  <Field label="Notes" optional>
+                    <TextArea rows={2} value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} />
+                  </Field>
+                  <ButtonGroup>
+                    <Button variant="quiet" onClick={() => setShowAddActionForm(false)}>
                       Cancel
                     </Button>
                     <Button
                       variant="primary"
                       busy={createDisciplinaryActionMutation.isPending}
                       disabled={!actionSummary.trim()}
-                      onClick={() => {
+                      onClick={() =>
                         createDisciplinaryActionMutation.mutate({
-                          incidentId: selectedIncident.id,
-                          employeeId: selectedIncident.employee.id,
+                          incidentId: incident.id,
+                          employeeId: incident.employee.id,
                           actionType,
                           summary: actionSummary.trim(),
                           penaltyAmount: actionPenaltyAmount,
                           penaltyCurrency: actionPenaltyCurrency,
                           notes: actionNotes.trim() || undefined,
-                        });
-                      }}
-                      style={{ fontSize: 12 }}
+                        })
+                      }
                     >
-                      Save Disciplinary Action
+                      Save
                     </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* List of disciplinary actions with audit timeline */}
-              {disciplinaryActionsQuery.isLoading ? (
-                <BooksLoading />
-              ) : (disciplinaryActionsQuery.data?.length ?? 0) === 0 ? (
-                <div style={{ textAlign: "center", padding: "16px", color: "var(--ink-3)", fontSize: 13 }}>
-                  No disciplinary actions recorded for this incident.
+                  </ButtonGroup>
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {disciplinaryActionsQuery.data?.map((action) => {
-                    const statusTone =
-                      action.status === "APPLIED"
-                        ? "done"
-                        : action.status === "APPROVED"
-                        ? "info"
-                        : action.status === "SUBMITTED"
-                        ? "warn"
-                        : action.status === "REJECTED"
-                        ? "bad"
-                        : "void";
-
-                    return (
-                      <div
-                        key={action.id}
-                        style={{
-                          padding: "14px",
-                          borderRadius: "var(--radius-md)",
-                          background: "var(--surface)",
-                          border: "1px solid var(--line)",
-                        }}
-                      >
-                        {/* Action Header */}
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <strong style={{ fontSize: 14 }}>{action.actionType}</strong>
-                            <St tone={statusTone}>{action.status}</St>
-                          </div>
-                          {action.penaltyAmount > 0 && (
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>
-                              Penalty: <Amt value={action.penaltyAmount} currency={action.penaltyCurrency} />
-                            </div>
-                          )}
-                        </div>
-
-                        <p style={{ margin: "0 0 10px 0", fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>
-                          {action.summary}
-                        </p>
-
-                        {action.notes && (
-                          <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "var(--ink-2)", lineHeight: 1.4 }}>
-                            {action.notes}
-                          </p>
-                        )}
-
-                        {/* Audit Timeline Steps */}
-                        <div
-                          style={{
-                            padding: "10px 12px",
-                            background: "var(--surface-sunken)",
-                            borderRadius: "var(--radius-sm)",
-                            fontSize: 12,
-                            display: "grid",
-                            gap: 6,
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Clock className="size-3.5 text-[var(--ink-3)]" />
-                            <span>
-                              <strong>Created:</strong> by {action.createdBy.name} on{" "}
-                              <span className="mono">{new Date(action.createdAt).toLocaleDateString("en-GB")}</span>
-                            </span>
-                          </div>
-
-                          {action.submittedAt && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Clock className="size-3.5 text-[var(--ink-3)]" />
-                              <span>
-                                <strong>Submitted:</strong> by {action.submittedBy?.name || "Approver"} on{" "}
-                                <span className="mono">{new Date(action.submittedAt).toLocaleDateString("en-GB")}</span>
-                              </span>
-                            </div>
-                          )}
-
-                          {action.approvedAt && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <CheckCircle className="size-3.5 text-[var(--color-done)]" />
-                              <span>
-                                <strong>Approved:</strong> by {action.approvedBy?.name || "Manager"} on{" "}
-                                <span className="mono">{new Date(action.approvedAt).toLocaleDateString("en-GB")}</span>
-                              </span>
-                            </div>
-                          )}
-
-                          {action.appliedAt && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <ShieldAlert className="size-3.5 text-[var(--color-primary)]" />
-                              <span>
-                                <strong>Applied to Payroll/File:</strong> by {action.appliedBy?.name || "HR Admin"} on{" "}
-                                <span className="mono">{new Date(action.appliedAt).toLocaleDateString("en-GB")}</span>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Lifecycle Action Buttons */}
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 10 }}>
-                          {(action.status === "DRAFT" || action.status === "REJECTED") && (
-                            <Button
-                              variant="default"
-                              busy={transitionActionMutation.isPending}
-                              onClick={() =>
-                                transitionActionMutation.mutate({ id: action.id, action: "submit" })
-                              }
-                              style={{ fontSize: 12 }}
-                            >
-                              Submit for Approval
-                            </Button>
-                          )}
-
-                          {action.status === "SUBMITTED" && (
-                            <Button
-                              variant="primary"
-                              busy={transitionActionMutation.isPending}
-                              onClick={() =>
-                                transitionActionMutation.mutate({ id: action.id, action: "approve" })
-                              }
-                              style={{ fontSize: 12 }}
-                            >
-                              Approve Action
-                            </Button>
-                          )}
-
-                          {action.status === "APPROVED" && (
-                            <Button
-                              variant="primary"
-                              busy={transitionActionMutation.isPending}
-                              onClick={() =>
-                                transitionActionMutation.mutate({ id: action.id, action: "apply" })
-                              }
-                              style={{ fontSize: 12 }}
-                            >
-                              Apply Action
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <Button icon="add" onClick={() => setShowAddActionForm(true)}>
+                  Log an action
+                </Button>
               )}
             </DrawerSection>
-          </div>
-        )}
+          </>
+        ) : null}
       </Drawer>
     </PeopleShell>
   );
@@ -1369,7 +860,7 @@ export default function SafetyIncidentsPage() {
   return (
     <React.Suspense
       fallback={
-        <PeopleShell activeTab="incidents" title="Workforce Incidents & Disciplinary Actions">
+        <PeopleShell activeTab="incidents" title="Incidents">
           <BkPage screen="incidents">
             <BooksLoading />
           </BkPage>

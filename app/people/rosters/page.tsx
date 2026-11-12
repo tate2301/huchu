@@ -39,6 +39,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { canManageRosters } from "@/lib/people/rosters";
+import { employeePositionLabel } from "@/lib/platform/vertical-defaults";
 
 type ViewTab = "active" | "all";
 
@@ -417,7 +418,7 @@ export default function RostersPage() {
                 <option value="">Select crew supervisor...</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.name} ({e.position || "Staff"})
+                    {e.name} ({employeePositionLabel(e.position) || "Staff"})
                   </option>
                 ))}
               </select>
