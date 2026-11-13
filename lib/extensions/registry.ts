@@ -1,7 +1,10 @@
 import type { ClientBundleTemplateDefinition } from "@/lib/platform/client-templates";
 import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platform/feature-catalog";
 import type { NavGroupId, NavKid, NavNode } from "@/lib/nav/registry";
+import type { FeatureRoleRegistration } from "@/lib/platform/vertical-role-registry";
 import type { FeatureRouteEntry } from "@/lib/platform/gating/types";
+import type { ReportDefinition, ReportLoader } from "@/lib/reports/types";
+import type { VerticalProductBundleDefinition, VerticalProductId } from "@/lib/workspace-products";
 
 import type { CorelithExtension } from "./types";
 
@@ -218,4 +221,116 @@ export function extensionNavAddresses(extensions: readonly CorelithExtension[]):
       [node, ...(node.kids ?? [])].flatMap((kid) => [kid.href, ...(kid.live ?? [])]),
     ),
   );
+}
+
+/** The product bundle an extension owns. */
+export function extensionProductId(extension: Pick<CorelithExtension, "id">): VerticalProductId {
+  return `ext.${extension.id}`;
+}
+
+export function mergeProducts(
+  core: readonly VerticalProductBundleDefinition[],
+  extensions: readonly CorelithExtension[],
+): VerticalProductBundleDefinition[] {
+  const merged = [...core];
+  for (const extension of extensions) {
+    const product = extension.product;
+    if (!product) continue;
+    if (product.preferredHomeHref && !insideRoot(extension, product.preferredHomeHref)) {
+      throw new ExtensionError(extension.id, `the product's home "${product.preferredHomeHref}" must be under "/${extension.id}"`);
+    }
+    merged.push({
+      ...product,
+      id: extensionProductId(extension),
+      templateCodes: (extension.templates ?? []).map((template) => template.code),
+    });
+  }
+  return merged;
+}
+
+/** The first registered extension with a product whose features this workspace holds, or null. */
+export function extensionProductFor(
+  extensions: readonly CorelithExtension[],
+  enabledFeatures: readonly string[] | undefined,
+): VerticalProductId | null {
+  const held = (enabledFeatures ?? []).map((key) => key.trim().toLowerCase());
+  const extension = extensions.find(
+    (candidate) => candidate.product && held.some((key) => key.startsWith(`${candidate.id}.`)),
+  );
+  return extension ? extensionProductId(extension) : null;
+}
+
+export function mergeReports(
+  core: readonly ReportDefinition[],
+  extensions: readonly CorelithExtension[],
+): ReportDefinition[] {
+  const merged = [...core];
+  const keys = new Set(core.map((report) => report.key));
+  for (const extension of extensions) {
+    for (const report of extension.reports ?? []) {
+      if (!report.key.startsWith(`${extension.id}-`)) {
+        throw new ExtensionError(extension.id, `report "${report.key}" must have a key starting "${extension.id}-"`);
+      }
+      if (keys.has(report.key)) throw new ExtensionError(extension.id, `report "${report.key}" is declared twice`);
+      if (!report.featureKey || !ownsKey(extension, report.featureKey)) {
+        throw new ExtensionError(extension.id, `report "${report.key}" must be gated on one of its own features`);
+      }
+      if (!insideRoot(extension, report.href)) {
+        throw new ExtensionError(extension.id, `report "${report.key}" must be about a page under "/${extension.id}"`);
+      }
+      keys.add(report.key);
+      merged.push(report);
+    }
+  }
+  return merged;
+}
+
+/** Core's loaders and the extensions' (`extensions/server.ts`); an extension may not replace a core loader. */
+export function mergeReportLoaders(
+  core: Readonly<Record<string, ReportLoader>>,
+  extensionLoaders: Readonly<Record<string, ReportLoader>>,
+): Record<string, ReportLoader> {
+  for (const key of Object.keys(extensionLoaders)) {
+    if (core[key]) throw new ExtensionError(key.split("-")[0] ?? key, `loader "${key}" would replace a core report's`);
+  }
+  return { ...core, ...extensionLoaders };
+}
+
+export function mergeFeatureRoles(
+  core: readonly FeatureRoleRegistration[],
+  extensions: readonly CorelithExtension[],
+): FeatureRoleRegistration[] {
+  return [
+    ...core,
+    ...extensions
+      .filter((extension) => extension.roles?.length)
+      .map((extension) => ({ id: `ext.${extension.id}`, roles: [...extension.roles!], featurePrefixes: [`${extension.id}.`] })),
+  ];
+}
+
+const CATEGORY = /^[A-Z][A-Z0-9_]{1,40}$/;
+
+/**
+ * A workspace's equipment categories with those of every extension whose
+ * features it holds, each once, `OTHER` kept last.
+ */
+export function withExtensionEquipmentCategories(
+  base: readonly string[],
+  extensions: readonly CorelithExtension[],
+  enabledFeatures: readonly string[] | undefined,
+): string[] {
+  const held = (enabledFeatures ?? []).map((key) => key.trim().toLowerCase());
+  const added: string[] = [];
+  for (const extension of extensions) {
+    if (!held.some((key) => key.startsWith(`${extension.id}.`))) continue;
+    for (const category of extension.defaults?.equipmentCategories ?? []) {
+      if (!CATEGORY.test(category)) {
+        throw new ExtensionError(extension.id, `equipment category "${category}" must be an upper-case code`);
+      }
+      added.push(category);
+    }
+  }
+  const merged = [...base.filter((category) => category !== "OTHER"), ...added];
+  const unique = [...new Set(merged)];
+  return base.includes("OTHER") ? [...unique.filter((category) => category !== "OTHER"), "OTHER"] : unique;
 }

@@ -1,3 +1,5 @@
+import { registeredExtensionLoaders } from "@/extensions/server";
+import { mergeReportLoaders } from "@/lib/extensions/registry";
 import { BOOKS_LOADERS } from "@/lib/reports/loaders/books";
 import { CRM_LOADERS } from "@/lib/reports/loaders/crm";
 import { OPERATIONS_LOADERS } from "@/lib/reports/loaders/operations";
@@ -7,7 +9,7 @@ import { SCHOOL_LOADERS } from "@/lib/reports/loaders/schools";
 import { getReportDefinition } from "@/lib/reports/registry";
 import type { ReportDefinition, ReportLoader } from "@/lib/reports/types";
 
-const LOADERS: Record<string, ReportLoader> = {
+const CORE_LOADERS: Record<string, ReportLoader> = {
   ...OPERATIONS_LOADERS,
   ...SCHOOL_LOADERS,
   ...RETAIL_LOADERS,
@@ -15,6 +17,9 @@ const LOADERS: Record<string, ReportLoader> = {
   ...PEOPLE_LOADERS,
   ...BOOKS_LOADERS,
 };
+
+/** Core's loaders, then the extensions' (`extensions/server.ts`). */
+const LOADERS = mergeReportLoaders(CORE_LOADERS, registeredExtensionLoaders);
 
 /** A report with the query behind it. Null for a key nobody defined. */
 export function getReport(key: string): { definition: ReportDefinition; loader: ReportLoader } | null {

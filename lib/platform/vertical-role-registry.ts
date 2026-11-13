@@ -1,3 +1,5 @@
+import { registeredExtensions } from "@/extensions";
+import { mergeFeatureRoles } from "@/lib/extensions/registry";
 import type { UserRole } from "@/lib/roles";
 import type { WorkspaceProfile } from "@/lib/workspace-products";
 import {
@@ -75,7 +77,7 @@ export const VERTICAL_ROLE_REGISTRY: Record<ActiveWorkspaceProfile, VerticalRole
   GENERAL: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "OPERATOR", "FINANCE_OFFICER"] },
 };
 
-export const FEATURE_ROLE_REGISTRY: FeatureRoleRegistration[] = [
+const CORE_FEATURE_ROLE_REGISTRY: FeatureRoleRegistration[] = [
   {
     id: "crm",
     roles: ["SALES_EXEC", "SALES_REP"],
@@ -83,6 +85,12 @@ export const FEATURE_ROLE_REGISTRY: FeatureRoleRegistration[] = [
     featurePrefixes: ["crm."],
   },
 ];
+
+/** Core's feature-granted roles, then each registered extension's, offered when its features are on. */
+export const FEATURE_ROLE_REGISTRY: FeatureRoleRegistration[] = mergeFeatureRoles(
+  CORE_FEATURE_ROLE_REGISTRY,
+  registeredExtensions,
+);
 
 function normalizeFeatureKey(value: string): string {
   return value.trim().toLowerCase();
