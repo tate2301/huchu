@@ -1,3 +1,6 @@
+import { registeredExtensions } from "@/extensions";
+import { mergeBundleDependencies, mergeBundles, mergeFeatures } from "@/lib/extensions/registry";
+
 import { resolveFeatureKeyForPath as resolveFeatureKeyForPathFromRegistry } from "./gating/route-registry";
 
 export type FeatureDomain =
@@ -15,7 +18,9 @@ export type FeatureDomain =
   | "portal"
   | "reports"
   | "settlements"
-  | "admin";
+  | "admin"
+  /** Every feature a registered extension adds (`lib/extensions`). */
+  | "extension";
 
 export interface FeatureCatalogEntry {
   key: string;
@@ -64,7 +69,7 @@ function f(entry: FeatureCatalogEntry): FeatureCatalogEntry {
   return entry;
 }
 
-export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
+const CORE_FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "core.auth.login", name: "Login", description: "Authentication and session access.", domain: "core", defaultEnabled: true }),
   f({ key: "core.help.quick-tips", name: "Quick Tips", description: "In-app quick tips and onboarding help.", domain: "core", defaultEnabled: true }),
   f({ key: "core.notifications.center", name: "Notification Center", description: "In-app notification center.", domain: "core", defaultEnabled: true }),
@@ -235,7 +240,10 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "admin.subscription-console", name: "Subscription Console", description: "Subscription/tier controls in platform.", domain: "admin", defaultEnabled: true }),
 ];
 
-export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
+/** Core's features, then each registered extension's (`extensions/index.ts`). */
+export const FEATURE_CATALOG: FeatureCatalogEntry[] = mergeFeatures(CORE_FEATURE_CATALOG, registeredExtensions);
+
+const CORE_FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_OPERATIONS_CORE",
     base: true,
@@ -523,7 +531,9 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
 ];
 
-export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
+export const FEATURE_BUNDLES: FeatureBundleDefinition[] = mergeBundles(CORE_FEATURE_BUNDLES, registeredExtensions);
+
+const CORE_BUNDLE_DEPENDENCIES: Record<string, string[]> = {
   ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
   ADDON_BOOKS_SCREENS: ["ADDON_ACCOUNTING_CORE"],
   ADDON_BOOKS_ADVANCED: ["ADDON_BOOKS_SCREENS"],
@@ -538,6 +548,11 @@ export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
   // CRM quoting/invoicing writes real accounting AR documents.
   ADDON_CRM_SUITE: ["ADDON_ACCOUNTING_CORE", "ADDON_ACCOUNTING_ADVANCED"],
 };
+
+export const BUNDLE_DEPENDENCIES: Record<string, string[]> = mergeBundleDependencies(
+  CORE_BUNDLE_DEPENDENCIES,
+  registeredExtensions,
+);
 
 const PLATFORM_BASE_FEATURES = [
   "core.auth.login",

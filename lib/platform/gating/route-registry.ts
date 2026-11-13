@@ -1,7 +1,9 @@
+import { registeredExtensions } from "@/extensions";
+import { mergeRoutes } from "@/lib/extensions/registry";
 import { BOOKS_SCREENS_KEY, booksTierKeyForPath } from "@/lib/books/tiers";
 import type { FeatureRouteEntry } from "@/lib/platform/gating/types";
 
-export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
+const CORE_PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/login", featureKey: "core.auth.login" },
   { scope: "page", prefix: "/help", featureKey: "core.help.quick-tips" },
   { scope: "page", prefix: "/preferences/organization/branding", featureKey: "core.branding.manage" },
@@ -276,7 +278,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // The entries above keep the grants the mining reports have always had.
 ];
 
-export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
+export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = mergeRoutes(CORE_PAGE_FEATURE_ROUTES, registeredExtensions, "page");
+
+const CORE_API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/notifications/push-subscriptions", featureKey: "core.notifications.push" },
   { scope: "api", prefix: "/api/notifications", featureKey: "core.notifications.center" },
   { scope: "api", prefix: "/api/settings/branding/domain/verify", featureKey: "core.branding.custom-domain" },
@@ -563,6 +567,8 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/compliance/incidents", featureKey: "compliance.incidents" },
   { scope: "api", prefix: "/api/compliance/training-records", featureKey: "compliance.training-records" },
 ];
+
+export const API_FEATURE_ROUTES: FeatureRouteEntry[] = mergeRoutes(CORE_API_FEATURE_ROUTES, registeredExtensions, "api");
 
 export const ALTERNATIVE_FEATURE_ROUTES: Array<{ scope: "page" | "api"; prefix: string; featureKeys: string[] }> = [
   // Canonical stock, product, and buying pages accessible via stores.* and crm.* features

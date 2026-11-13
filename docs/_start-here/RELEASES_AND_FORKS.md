@@ -80,7 +80,39 @@ The schema is a folder (`prisma.config.ts` points at `prisma/schema`). Core's
 models live in `prisma/schema/core.prisma`, and a fork adds
 `prisma/schema/<flavour>.prisma` beside it. Anything that reads the schema as
 text goes through `readPrismaSchema()` in `lib/prisma-schema-source.ts`, so it
-sees a fork's tables too. The `extensions/` registry lands in a later change.
+sees a fork's tables too.
+
+### Registering the vertical
+
+A fork describes its vertical as a `CorelithExtension` (`lib/extensions/types.ts`)
+in `extensions/<flavour>/index.ts`, and adds it to the one line in
+`extensions/index.ts` (empty in core). Core merges it into its catalogues at
+load, so gating and provisioning treat it like a core vertical:
+
+| The extension declares | Core merges it into | Naming rule, checked at load |
+| --- | --- | --- |
+| `features` | `FEATURE_CATALOG` (domain `extension`) | key `<flavour>.<name>` |
+| `featureDependencies` | `getFeatureDependencies` | own features only |
+| `bundles` | `FEATURE_BUNDLES` | code `ADDON_<FLAVOUR>` or `ADDON_<FLAVOUR>_…` |
+| `bundleDependencies` | `BUNDLE_DEPENDENCIES` | own bundles only |
+| `routes.pages` / `routes.apis` | the route → feature registry | under `/<flavour>` / `/api/<flavour>/`, gated on own features |
+| `templates` | `CLIENT_BUNDLE_TEMPLATES` (provisioning) | code `TEMPLATE_<FLAVOUR>` or `TEMPLATE_<FLAVOUR>_…` |
+
+`lib/extensions/registry.ts` throws on a contribution that breaks a rule, so a
+bad extension fails its build and tests instead of a tenant. The proxy does not
+see most of `/api`, so a route handler under `/api/<flavour>/` must also check
+access itself (`canAccessRouteForCompany` in `lib/platform/gating/enforcer-server.ts`).
+
+Extensions sit on the proxy's import path: keep them plain data, with no Prisma,
+no server-only modules and no React.
+
+Core proves the seams with `extensions/__fixture__`, a stand-in vertical that
+`lib/extensions/contract.test.ts` registers. If a core change stops an
+extension from reaching gating or provisioning, that test fails in core
+before any fork syncs it.
+
+Navigation, the product home, reports, roles and vertical defaults are later
+seams; until then an extension's screens are reached by URL.
 
 ## Creating a fork
 
