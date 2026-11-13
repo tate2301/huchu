@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { isEquipmentCategoryAllowed } from "@/lib/maintenance/equipment-categories"
 
 const equipmentUpdateSchema = z
   .object({
     equipmentCode: z.string().min(1).max(50).optional(),
     name: z.string().min(1).max(200).optional(),
-    category: z.enum(["CRUSHER", "MILL", "PUMP", "GENERATOR", "VEHICLE", "OTHER"]).optional(),
+    // Checked against the workspace's own list below (isEquipmentCategoryAllowed).
+    category: z.string().trim().min(1).max(50).optional(),
     siteId: z.string().uuid().optional(),
     locationId: z.string().uuid().optional(),
     numberOfItems: z.number().int().min(1).optional(),
@@ -91,6 +93,18 @@ export async function PATCH(
 
     if (existing.site.companyId !== session.user.companyId) {
       return errorResponse("Forbidden", 403)
+    }
+
+    if (
+      validated.category &&
+      !isEquipmentCategoryAllowed({
+        category: validated.category,
+        workspaceProfile: session.user.workspaceProfile,
+        enabledFeatures: session.user.enabledFeatures,
+        current: existing.category,
+      })
+    ) {
+      return errorResponse(`"${validated.category}" is not an equipment category in this workspace`, 400)
     }
 
     const targetSiteId = validated.siteId ?? existing.siteId

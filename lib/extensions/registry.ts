@@ -307,3 +307,30 @@ export function mergeFeatureRoles(
       .map((extension) => ({ id: `ext.${extension.id}`, roles: [...extension.roles!], featurePrefixes: [`${extension.id}.`] })),
   ];
 }
+
+const CATEGORY = /^[A-Z][A-Z0-9_]{1,40}$/;
+
+/**
+ * A workspace's equipment categories with those of every extension whose
+ * features it holds, each once, `OTHER` kept last.
+ */
+export function withExtensionEquipmentCategories(
+  base: readonly string[],
+  extensions: readonly CorelithExtension[],
+  enabledFeatures: readonly string[] | undefined,
+): string[] {
+  const held = (enabledFeatures ?? []).map((key) => key.trim().toLowerCase());
+  const added: string[] = [];
+  for (const extension of extensions) {
+    if (!held.some((key) => key.startsWith(`${extension.id}.`))) continue;
+    for (const category of extension.defaults?.equipmentCategories ?? []) {
+      if (!CATEGORY.test(category)) {
+        throw new ExtensionError(extension.id, `equipment category "${category}" must be an upper-case code`);
+      }
+      added.push(category);
+    }
+  }
+  const merged = [...base.filter((category) => category !== "OTHER"), ...added];
+  const unique = [...new Set(merged)];
+  return base.includes("OTHER") ? [...unique.filter((category) => category !== "OTHER"), "OTHER"] : unique;
+}

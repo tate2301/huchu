@@ -3,11 +3,13 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
+import { isEquipmentCategoryAllowed } from '@/lib/maintenance/equipment-categories';
 
 const equipmentSchema = z.object({
   equipmentCode: z.string().min(1).max(50).optional(),
   name: z.string().min(1).max(200),
-  category: z.enum(['CRUSHER', 'MILL', 'PUMP', 'GENERATOR', 'VEHICLE', 'OTHER']),
+  // Checked against the workspace's own list below (isEquipmentCategoryAllowed).
+  category: z.string().trim().min(1).max(50),
   siteId: z.string().uuid(),
   locationId: z.string().uuid(),
   numberOfItems: z.number().int().min(1).optional().default(1),
@@ -62,6 +64,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = equipmentSchema.parse(body);
+    if (
+      !isEquipmentCategoryAllowed({
+        category: validated.category,
+        workspaceProfile: session.user.workspaceProfile,
+        enabledFeatures: session.user.enabledFeatures,
+      })
+    ) {
+      return errorResponse(`"${validated.category}" is not an equipment category in this workspace`, 400);
+    }
     const equipmentCode = validated.equipmentCode
       ? normalizeProvidedId(validated.equipmentCode, "EQUIPMENT")
       : await reserveIdentifier(prisma, {

@@ -28,6 +28,8 @@ import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@/lib/platform
 import { composeNav } from "@/lib/nav/compose";
 import { canOpenFor, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
 import { GROUP_LABEL, NAV_NODES, PRODUCT_GROUPS } from "@/lib/nav/registry";
+import { isEquipmentCategoryAllowed } from "@/lib/maintenance/equipment-categories";
+import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 import { getRegisteredRoles } from "@/lib/platform/vertical-role-registry";
 import { canReadReport } from "@/lib/reports/access";
 import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
@@ -156,5 +158,26 @@ describe("an extension's product, reports and roles", () => {
   it("offers its roles to a workspace that runs it", () => {
     expect(getRegisteredRoles("GENERAL", provisioned)).toContain("STOCK_CLERK");
     expect(getRegisteredRoles("GENERAL", without)).not.toContain("STOCK_CLERK");
+  });
+});
+
+describe("an extension's defaults", () => {
+  const provisioned = getClientTemplateFeatureKeys("TEMPLATE_FIXTURE");
+  const without = provisioned.filter((key) => !key.startsWith("fixture."));
+
+  it("adds its equipment categories, before OTHER, while the workspace runs it", () => {
+    const categories = resolveVerticalDefaults({ workspaceProfile: "GENERAL", enabledFeatures: provisioned }).maintenance
+      .equipmentCategories;
+    expect(categories).toContain("FIXTURE_LINE");
+    expect(categories.at(-1)).toBe("OTHER");
+    expect(
+      resolveVerticalDefaults({ workspaceProfile: "GENERAL", enabledFeatures: without }).maintenance.equipmentCategories,
+    ).not.toContain("FIXTURE_LINE");
+  });
+
+  it("lets the equipment API save under them", () => {
+    const args = { category: "FIXTURE_LINE", workspaceProfile: "GENERAL" };
+    expect(isEquipmentCategoryAllowed({ ...args, enabledFeatures: provisioned })).toBe(true);
+    expect(isEquipmentCategoryAllowed({ ...args, enabledFeatures: without })).toBe(false);
   });
 });

@@ -1,3 +1,5 @@
+import { registeredExtensions } from "@/extensions";
+import { withExtensionEquipmentCategories } from "@/lib/extensions/registry";
 import type { WorkspaceProfile } from "@/lib/workspace-products";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -296,7 +298,19 @@ export function resolveVerticalDefaults(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
 }): VerticalDefaultConfig {
-  return VERTICAL_DEFAULTS[resolveActiveWorkspaceProfile(args)];
+  const defaults = VERTICAL_DEFAULTS[resolveActiveWorkspaceProfile(args)];
+  if (registeredExtensions.length === 0) return defaults;
+  return {
+    ...defaults,
+    maintenance: {
+      ...defaults.maintenance,
+      equipmentCategories: withExtensionEquipmentCategories(
+        defaults.maintenance.equipmentCategories,
+        registeredExtensions,
+        args.enabledFeatures,
+      ),
+    },
+  };
 }
 
 /** The label for a stored position, or the value itself when it is not one of the known set. */

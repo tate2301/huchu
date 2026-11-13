@@ -61,6 +61,13 @@ export interface CorelithExtension {
   reports?: ReportDefinition[];
   /** Roles a workspace running this extension may assign, on top of its profile's. */
   roles?: UserRole[];
+  /** Additions to the workspace's defaults while it holds the extension's features. */
+  defaults?: ExtensionDefaults;
+}
+
+export interface ExtensionDefaults {
+  /** Equipment categories, upper-case codes such as `ROLLER_MILL`; listed before `OTHER`. */
+  equipmentCategories?: string[];
 }
 
 /** A product bundle without the parts core derives: its id is `ext.<id>`, its templates are the extension's. */

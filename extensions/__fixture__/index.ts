@@ -64,6 +64,7 @@ export const fixtureExtension: CorelithExtension = {
     },
   ],
   roles: ["STOCK_CLERK"],
+  defaults: { equipmentCategories: ["FIXTURE_LINE"] },
   nav: {
     label: "The fixture",
     nodes: [

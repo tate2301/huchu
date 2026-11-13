@@ -8,6 +8,7 @@ import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import {
   ExtensionError,
   mergeNavNodes,
+  withExtensionEquipmentCategories,
   mergeProducts,
   mergeReportLoaders,
   mergeReports,
@@ -118,5 +119,19 @@ describe("an extension's product and reports stay inside its paths", () => {
   it("refuses a loader that would replace a core report's", () => {
     const loader = { load: async () => ({ rows: [], truncated: false }) };
     expect(() => mergeReportLoaders({ "payroll-pay": loader }, { "payroll-pay": loader })).toThrow(/replace a core/);
+  });
+});
+
+describe("an extension's equipment categories", () => {
+  const milling = { ...base, defaults: { equipmentCategories: ["ROLLER_MILL", "PUMP"] } };
+
+  it("are added once each, OTHER kept last, only for a workspace holding its features", () => {
+    expect(withExtensionEquipmentCategories(["PUMP", "OTHER"], [milling], ["milling.runs"])).toEqual(["PUMP", "ROLLER_MILL", "OTHER"]);
+    expect(withExtensionEquipmentCategories(["PUMP", "OTHER"], [milling], ["retail.pos"])).toEqual(["PUMP", "OTHER"]);
+  });
+
+  it("must be upper-case codes", () => {
+    const bad = { ...base, defaults: { equipmentCategories: ["Roller mill"] } };
+    expect(() => withExtensionEquipmentCategories(["OTHER"], [bad], ["milling.runs"])).toThrow(/upper-case code/);
   });
 });

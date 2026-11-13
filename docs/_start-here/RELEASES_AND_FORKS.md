@@ -102,6 +102,7 @@ load, so gating and provisioning treat it like a core vertical:
 | `reports` | `REPORT_DEFINITIONS`, readable only with their feature | key `<flavour>-<name>`, `featureKey` its own, page under `/<flavour>` |
 | loaders in `extensions/server.ts` | the report loaders (server-only, may query) | same key as a report it declares; never a core key |
 | `roles` | `FEATURE_ROLE_REGISTRY`: roles a workspace running it may assign | — |
+| `defaults.equipmentCategories` | `resolveVerticalDefaults` (the maintenance screen and the equipment API), before `OTHER`, while the workspace holds its features | upper-case codes |
 
 `lib/extensions/registry.ts` throws on a contribution that breaks a rule, so a
 bad extension fails its build and tests instead of a tenant. The proxy does not
@@ -126,7 +127,8 @@ Report loaders query the database, so they are registered in
 `extensions/server.ts`, never in the proxy-safe `extensions/index.ts`. The report
 registry test fails on a report without a loader or a loader without a report.
 
-Vertical defaults (equipment categories, employee positions) are a later seam.
+Employee positions are a database enum (`EmployeePosition`), so an extension
+cannot add one; it maps its jobs onto the existing positions.
 
 ## Creating a fork
 
