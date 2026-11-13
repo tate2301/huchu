@@ -54,6 +54,9 @@
     "dev:e2e": "node scripts/dev-e2e.mjs",
     "e2e:bootstrap": "node scripts/e2e-bootstrap.mjs",
     "verify:migrations": "node scripts/verify-migrations-from-scratch.mjs",
+    "release:promote": "node scripts/release/promote.mjs",
+    "fork:bootstrap": "node scripts/fork/bootstrap.mjs",
+    "fork:boundary": "node scripts/fork/boundary.mjs",
     "start:e2e": "node scripts/start-e2e.mjs"
   },
   "dependencies": {

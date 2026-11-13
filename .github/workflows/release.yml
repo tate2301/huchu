@@ -1,0 +1,59 @@
+# Publish a release when `pnpm release:promote` pushes its tag, and tell the forks.
+#
+# Runs in core and in every fork (they share this file through the sync):
+#   - any `v*` tag becomes a GitHub Release, its notes taken from the
+#     annotated tag that promote.mjs wrote;
+#   - a core tag (`vYYYY.MM.N`, no suffix) is also sent as `core-release` to
+#     each repository in the FORK_REPOS variable, which starts their
+#     `fork-upstream-sync.yml`. Forks leave FORK_REPOS unset, so they never
+#     dispatch.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: GitHub Release from the tag's notes
+        run: |
+          git fetch --force --tags origin
+          git tag --list --format='%(contents)' "$TAG" > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag
+          fi
+
+  notify-forks:
+    needs: publish
+    if: vars.FORK_REPOS != '' && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.FORK_DISPATCH_TOKEN }}
+      TAG: ${{ github.ref_name }}
+      FORK_REPOS: ${{ vars.FORK_REPOS }}
+    steps:
+      - name: Send core-release to each fork
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::FORK_DISPATCH_TOKEN is not set; forks were not told about $TAG."
+            exit 1
+          fi
+          for repo in $FORK_REPOS; do
+            gh api "repos/$repo/dispatches" -f event_type=core-release -f "client_payload[tag]=$TAG"
+            echo "Sent $TAG to $repo"
+          done
