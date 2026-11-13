@@ -1,3 +1,5 @@
+import { registeredExtensions } from "@/extensions";
+import { extensionProductFor, mergeProducts } from "@/lib/extensions/registry";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 
 export const WORKSPACE_PROFILES = [
@@ -45,7 +47,9 @@ export type VerticalProductId =
   | "crm-sales"
   | "service-workshop"
   | "payroll-services"
-  | "general-business";
+  | "general-business"
+  /** A registered extension's own product (`lib/extensions`). */
+  | `ext.${string}`;
 
 type ModuleCopyOverride = {
   title?: string;
@@ -183,7 +187,7 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
 };
 
-export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
+const CORE_VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
   {
     id: "gold-operations",
     label: "Gold Operations",
@@ -347,6 +351,12 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     foundationalModules: ["accounting", "management", "maintenance"],
   },
 ];
+
+/** Core's products, then each registered extension's (`extensions/index.ts`). */
+export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = mergeProducts(
+  CORE_VERTICAL_PRODUCT_BUNDLES,
+  registeredExtensions,
+);
 
 function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfile {
   return normalizeWorkspaceProfileInput(value) ?? DEFAULT_WORKSPACE_PROFILE;
@@ -522,6 +532,13 @@ export function resolveWorkspaceVerticalProductBundle(
     requestedProfile === "GENERAL" && inferredProfile
       ? inferredProfile
       : requestedProfile;
+
+  // A fork cell runs its vertical on a GENERAL profile: the extension whose
+  // features the workspace holds is its product, before core's inference.
+  if (effectiveProfile === "GENERAL") {
+    const extensionProduct = extensionProductFor(registeredExtensions, args.enabledFeatures);
+    if (extensionProduct) return getBundleById(extensionProduct);
+  }
 
   switch (effectiveProfile) {
     case "GOLD_MINE":

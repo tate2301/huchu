@@ -1,5 +1,8 @@
 import type { ClientBundleTemplateDefinition } from "@/lib/platform/client-templates";
 import type { NavKid } from "@/lib/nav/registry";
+import type { ReportDefinition } from "@/lib/reports/types";
+import type { UserRole } from "@/lib/roles";
+import type { VerticalProductBundleDefinition } from "@/lib/workspace-products";
 import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platform/feature-catalog";
 
 /**
@@ -17,6 +20,7 @@ import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platfor
  *   page routes       `/<id>` and below
  *   API routes        `/api/<id>/` and below
  *   nav node ids      `<id>.<name>`, every address under `/<id>`
+ *   report keys       `<id>-<name>`, gated on its own features
  *
  * `lib/extensions/registry.ts` checks these when the catalogues load, so a
  * malformed extension fails the build and its tests, not a tenant.
@@ -44,7 +48,23 @@ export interface CorelithExtension {
    * must hold that feature and be allowed the route by their role.
    */
   nav?: ExtensionNav;
+  /**
+   * What the workspace is called and where it opens. A tenant on the GENERAL
+   * profile that holds any of the extension's features runs this product: its
+   * label sits above the sidebar and its home is where sign-in lands.
+   */
+  product?: ExtensionProduct;
+  /**
+   * Report definitions, merged into `REPORT_DEFINITIONS`. Each needs a loader
+   * of the same key in `extensions/server.ts` (server-only, it may query).
+   */
+  reports?: ReportDefinition[];
+  /** Roles a workspace running this extension may assign, on top of its profile's. */
+  roles?: UserRole[];
 }
+
+/** A product bundle without the parts core derives: its id is `ext.<id>`, its templates are the extension's. */
+export type ExtensionProduct = Omit<VerticalProductBundleDefinition, "id" | "templateCodes">;
 
 export interface ExtensionNav {
   /** The group's heading, e.g. "The mill". */

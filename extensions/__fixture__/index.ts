@@ -41,6 +41,29 @@ export const fixtureExtension: CorelithExtension = {
       verticalProductId: "general-business",
     },
   ],
+  product: {
+    label: "Fixture operations",
+    workspaceLabel: "The fixture",
+    description: "A workspace that runs the fixture vertical.",
+    customerExamples: ["Core's own tests"],
+    preferredHomeHref: "/fixture",
+    primaryModules: ["stores", "reporting"],
+    foundationalModules: ["people", "accounting"],
+  },
+  reports: [
+    {
+      key: "fixture-runs",
+      title: "Runs",
+      area: "Fixture",
+      href: "/fixture/runs",
+      featureKey: "fixture.runs",
+      profiles: ["GENERAL"],
+      params: [],
+      columns: [{ key: "run", label: "Run", kind: "code" }],
+      defaults: {},
+    },
+  ],
+  roles: ["STOCK_CLERK"],
   nav: {
     label: "The fixture",
     nodes: [

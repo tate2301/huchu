@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { fixtureExtension } from "@/extensions/__fixture__";
 import { registeredExtensions } from "@/extensions";
+import { registeredExtensionLoaders } from "@/extensions/server";
 import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 
 import {
   ExtensionError,
   mergeNavNodes,
+  mergeProducts,
+  mergeReportLoaders,
+  mergeReports,
   mergeBundleDependencies,
   mergeBundles,
   mergeFeatureDependencies,
@@ -22,6 +26,7 @@ const feature = (key: string) => ({ key, name: key, description: key, defaultEna
 describe("core ships with no extension registered", () => {
   it("has an empty extensions/index.ts and no extension features", () => {
     expect(registeredExtensions).toEqual([]);
+    expect(registeredExtensionLoaders).toEqual({});
     expect(FEATURE_CATALOG.filter((entry) => entry.domain === "extension")).toEqual([]);
   });
 });
@@ -90,5 +95,28 @@ describe("an extension's sidebar rows stay inside its paths", () => {
     expect(() =>
       mergeNavNodes([{ id: "milling.runs", label: "x", icon: "home", href: "/x", group: "top" }], [nav("milling.runs", "/milling")]),
     ).toThrow(/declared twice/);
+  });
+});
+
+describe("an extension's product and reports stay inside its paths", () => {
+  const report = { ...fixtureExtension.reports![0]!, key: "milling-runs", href: "/milling/runs", featureKey: "milling.runs" };
+
+  it("refuses a product home outside its root", () => {
+    const product = { ...fixtureExtension.product!, preferredHomeHref: "/retail" };
+    expect(() => mergeProducts([], [{ ...base, product }])).toThrow(/home "\/retail"/);
+    expect(mergeProducts([], [{ ...base, product: { ...product, preferredHomeHref: "/milling" } }])[0]?.id).toBe("ext.milling");
+  });
+
+  it("refuses report keys, gates and pages that are not its own", () => {
+    expect(() => mergeReports([], [{ ...base, reports: [report] }])).not.toThrow();
+    expect(() => mergeReports([], [{ ...base, reports: [{ ...report, key: "runs" }] }])).toThrow(/starting "milling-"/);
+    expect(() => mergeReports([], [{ ...base, reports: [{ ...report, featureKey: undefined }] }])).toThrow(/own features/);
+    expect(() => mergeReports([], [{ ...base, reports: [{ ...report, featureKey: "retail.pos" }] }])).toThrow(/own features/);
+    expect(() => mergeReports([], [{ ...base, reports: [{ ...report, href: "/retail/sales" }] }])).toThrow(/under "\/milling"/);
+  });
+
+  it("refuses a loader that would replace a core report's", () => {
+    const loader = { load: async () => ({ rows: [], truncated: false }) };
+    expect(() => mergeReportLoaders({ "payroll-pay": loader }, { "payroll-pay": loader })).toThrow(/replace a core/);
   });
 });

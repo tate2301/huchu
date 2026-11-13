@@ -61,7 +61,7 @@ Moving the fork's `stable` deploys every cell built from it.
 These are the only paths a fork may change (enforced by `boundary-lib.mjs`):
 
 - `FORK.md`
-- `extensions/index.ts`
+- `extensions/index.ts` and `extensions/server.ts`
 - `extensions/<flavour>/**`
 - `lib/<flavour>/**`
 - `app/<flavour>/**`
@@ -98,6 +98,10 @@ load, so gating and provisioning treat it like a core vertical:
 | `routes.pages` / `routes.apis` | the route → feature registry | under `/<flavour>` / `/api/<flavour>/`, gated on own features |
 | `templates` | `CLIENT_BUNDLE_TEMPLATES` (provisioning) | code `TEMPLATE_<FLAVOUR>` or `TEMPLATE_<FLAVOUR>_…` |
 | `nav` | its own sidebar group `ext.<flavour>`, first among the tenant's products (`NAV_NODES`, `PRODUCT_GROUPS`, `GROUP_LABEL`) | row ids `<flavour>.<name>`, every address under `/<flavour>` |
+| `product` | `VERTICAL_PRODUCT_BUNDLES` as `ext.<flavour>`; a GENERAL workspace holding any `<flavour>.` feature runs it (label above the sidebar, home) | home under `/<flavour>` |
+| `reports` | `REPORT_DEFINITIONS`, readable only with their feature | key `<flavour>-<name>`, `featureKey` its own, page under `/<flavour>` |
+| loaders in `extensions/server.ts` | the report loaders (server-only, may query) | same key as a report it declares; never a core key |
+| `roles` | `FEATURE_ROLE_REGISTRY`: roles a workspace running it may assign | — |
 
 `lib/extensions/registry.ts` throws on a contribution that breaks a rule, so a
 bad extension fails its build and tests instead of a tenant. The proxy does not
@@ -118,7 +122,11 @@ shows), the workspace has to hold that feature and its dependencies, and the
 person's role has to be allowed the route. That check is `lib/nav/gate.ts`,
 using the proxy's own enforcer and role limits.
 
-The product home, reports, roles and vertical defaults are later seams.
+Report loaders query the database, so they are registered in
+`extensions/server.ts`, never in the proxy-safe `extensions/index.ts`. The report
+registry test fails on a report without a loader or a loader without a report.
+
+Vertical defaults (equipment categories, employee positions) are a later seam.
 
 ## Creating a fork
 

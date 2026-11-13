@@ -12,6 +12,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/extensions", async () => ({
   registeredExtensions: [(await import("@/extensions/__fixture__")).fixtureExtension],
 }));
+vi.mock("@/extensions/server", async () => ({
+  registeredExtensionLoaders: (await import("@/extensions/__fixture__/server")).FIXTURE_LOADERS,
+}));
 
 import { getBundleDefinition, BUNDLE_DEPENDENCIES, FEATURE_BUNDLES, FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import {
@@ -25,6 +28,11 @@ import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@/lib/platform
 import { composeNav } from "@/lib/nav/compose";
 import { canOpenFor, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
 import { GROUP_LABEL, NAV_NODES, PRODUCT_GROUPS } from "@/lib/nav/registry";
+import { getRegisteredRoles } from "@/lib/platform/vertical-role-registry";
+import { canReadReport } from "@/lib/reports/access";
+import { getReportDefinition, REPORT_DEFINITIONS } from "@/lib/reports/registry";
+import { getReport, unpairedReportKeys } from "@/lib/reports/server";
+import { getVerticalProductBundleForTemplate, resolveWorkspaceVerticalProductBundle } from "@/lib/workspace-products";
 
 describe("an extension's contributions reach core", () => {
   it("its features are known catalogue entries in the extension domain", () => {
@@ -110,5 +118,43 @@ describe("an extension's sidebar group", () => {
   it("hides rows the role may not reach, as the proxy refuses them", () => {
     const rep = { ...manager, role: "SALES_REP" };
     expect(visibleAddresses(rep).has("/fixture")).toBe(false);
+  });
+});
+
+describe("an extension's product, reports and roles", () => {
+  const provisioned = getClientTemplateFeatureKeys("TEMPLATE_FIXTURE");
+  const without = provisioned.filter((key) => !key.startsWith("fixture."));
+
+  it("is the product of a GENERAL workspace that holds its features, with its own home", () => {
+    const product = resolveWorkspaceVerticalProductBundle({ workspaceProfile: "GENERAL", enabledFeatures: provisioned });
+    expect(product.id).toBe("ext.fixture");
+    expect(product.workspaceLabel).toBe("The fixture");
+    expect(product.preferredHomeHref).toBe("/fixture");
+    expect(resolveWorkspaceVerticalProductBundle({ workspaceProfile: "GENERAL", enabledFeatures: without }).id).not.toBe(
+      "ext.fixture",
+    );
+    expect(getVerticalProductBundleForTemplate("TEMPLATE_FIXTURE")?.id).toBe("ext.fixture");
+  });
+
+  it("does not take over a workspace a core vertical claims", () => {
+    expect(resolveWorkspaceVerticalProductBundle({ workspaceProfile: "SCHOOLS", enabledFeatures: provisioned }).id).toBe(
+      "school-operations",
+    );
+  });
+
+  it("adds its reports, readable only with its feature, each paired with its loader", async () => {
+    const runs = getReportDefinition("fixture-runs");
+    expect(runs?.area).toBe("Fixture");
+    expect(REPORT_DEFINITIONS.at(-1)?.key).toBe("fixture-runs");
+    expect(unpairedReportKeys(REPORT_DEFINITIONS)).toEqual([]);
+    expect(canReadReport(runs!, { role: "MANAGER", enabledFeatures: provisioned })).toBe(true);
+    expect(canReadReport(runs!, { role: "MANAGER", enabledFeatures: without })).toBe(false);
+    const report = getReport("fixture-runs");
+    expect(report?.definition.key).toBe("fixture-runs");
+  });
+
+  it("offers its roles to a workspace that runs it", () => {
+    expect(getRegisteredRoles("GENERAL", provisioned)).toContain("STOCK_CLERK");
+    expect(getRegisteredRoles("GENERAL", without)).not.toContain("STOCK_CLERK");
   });
 });
