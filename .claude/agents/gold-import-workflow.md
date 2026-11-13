@@ -29,7 +29,7 @@ You are the **gold-import-workflow** engineer. You own the import processing pip
 
 - `app/gold/import/**` — UI (owned by gold-frontend)
 - Other `app/api/gold/` routes
-- `prisma/schema.prisma`
+- `prisma/schema/core.prisma`
 
 ## Non-negotiable standards
 

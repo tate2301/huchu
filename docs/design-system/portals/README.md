@@ -35,7 +35,7 @@ done
 
 ## Feature inventory extracted from the demos
 
-Anything marked **(no model)** has no backing table in `prisma/schema.prisma` today.
+Anything marked **(no model)** has no backing table in `prisma/schema/core.prisma` today.
 
 ### Parent — bottom nav: Home · Fees · News · You
 

@@ -1,5 +1,5 @@
 {
- "$comment": "The model every screen in design/teams is a view of. Written 19 Oct 2026 against huchu main (bd003c69b). Names, codes, figures and times here are the only ones screens may use. 'schema' notes say what exists in prisma/schema.prisma and what must be added; the model is written as the business lives it. model.md is the readable version.",
+ "$comment": "The model every screen in design/teams is a view of. Written 19 Oct 2026 against huchu main (bd003c69b). Names, codes, figures and times here are the only ones screens may use. 'schema' notes say what exists in prisma/schema/core.prisma and what must be added; the model is written as the business lives it. model.md is the readable version.",
  "tenancy": {
   "unit": "workspace",
   "sub": {

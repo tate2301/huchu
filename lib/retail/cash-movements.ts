@@ -15,7 +15,7 @@
  * the sector uses it for drawer → safe, and a label that can be read either way on
  * a row that moves `expectedCash` is how the defect S-7.1 fixes would come back.
  *
- * These mirror `RetailCashMovementType` in `prisma/schema.prisma` exactly.
+ * These mirror `RetailCashMovementType` in `prisma/schema/core.prisma` exactly.
  * `lib/retail/cash-up.ts` asserts the two agree, so a value added to the schema and
  * forgotten here is a compile error rather than a movement the till cannot name.
  */
@@ -64,7 +64,7 @@ export const RETAIL_CASH_MOVEMENT_LABELS: Record<RetailCashMovementTypeName, str
 /* ── Reasons ─────────────────────────────────────────────────────────────── */
 
 /**
- * Mirrors `RetailCashMovementReason` in `prisma/schema.prisma`.
+ * Mirrors `RetailCashMovementReason` in `prisma/schema/core.prisma`.
  *
  * A fixed list rather than a text box, which is what
  * `docs/design-system/portals/pos.html` does and for a reason worth keeping: a

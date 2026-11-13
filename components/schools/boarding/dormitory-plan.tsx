@@ -560,7 +560,7 @@ export function DormitoryPlanLegend({ size = "full" }: { size?: PlanSize }) {
  *
  * `bay`, `tier`, `status` and `statusReason` are **optional here and required
  * in the database**. The columns are real (see `SchoolHostelBed` in
- * `prisma/schema.prisma`) but `hostelOccupancy()` does not select them yet, so
+ * `prisma/schema/core.prisma`) but `hostelOccupancy()` does not select them yet, so
  * they are typed as "may be missing from this response" rather than asserted.
  * A bed that arrives without a bay is reported as off-plan rather than drawn in
  * a place the room does not have — which is the whole reason the geometry is

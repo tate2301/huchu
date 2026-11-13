@@ -11,7 +11,7 @@
 #
 # Run this whenever a migration is added. It builds a throwaway database from
 # nothing but prisma/migrations, then asserts the result matches
-# prisma/schema.prisma in BOTH directions. The second check is the one that
+# prisma/schema in BOTH directions. The second check is the one that
 # matters: a deploy that succeeds into the wrong schema has fixed nothing.
 #
 #   PGUSER=huchu PGPASSWORD=… ./scripts/verify-migration-replay.sh
@@ -68,14 +68,14 @@ fi
 DATABASE_URL="$SCRATCH_URL" npx prisma migrate deploy
 
 echo
-echo "==> Asserting the result matches prisma/schema.prisma"
+echo "==> Asserting the result matches prisma/schema"
 
 forward=$(DATABASE_URL="$SCRATCH_URL" npx prisma migrate diff \
-  --from-config-datasource --to-schema prisma/schema.prisma --script 2>/dev/null |
+  --from-config-datasource --to-schema prisma/schema --script 2>/dev/null |
   grep -v '^Loaded Prisma config' | grep -v '^\s*$' || true)
 
 reverse=$(DATABASE_URL="$SCRATCH_URL" npx prisma migrate diff \
-  --from-schema prisma/schema.prisma --to-config-datasource --script 2>/dev/null |
+  --from-schema prisma/schema --to-config-datasource --script 2>/dev/null |
   grep -v '^Loaded Prisma config' | grep -v '^\s*$' || true)
 
 status=0
@@ -94,7 +94,7 @@ echo
 if [ "$status" -eq 0 ]; then
   echo "PASS — the migration history builds this schema from empty."
 else
-  echo "FAIL — the migration history does not build prisma/schema.prisma."
+  echo "FAIL — the migration history does not build prisma/schema."
   echo "Write a migration for the drift above rather than reaching for db push."
 fi
 exit "$status"

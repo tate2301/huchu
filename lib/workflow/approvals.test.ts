@@ -25,10 +25,10 @@
 
 import { describe, expect, it } from "vitest";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { $Enums } from "@prisma/client";
+
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 
 /**
  * Values that exist only to keep old rows readable.
@@ -47,7 +47,7 @@ describe("ApprovalTargetType", () => {
   it.each(RETIRED_BUT_DECLARED)("has the schema explain why %s is kept", (value) => {
     // A bare value with no comment is one somebody deletes while tidying. The
     // explanation is the guard that outlives whoever reads this test.
-    const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
+    const schema = readPrismaSchema();
     const enumBlock = schema.slice(
       schema.indexOf("enum ApprovalTargetType {"),
       schema.indexOf("enum ApprovalActionType {"),

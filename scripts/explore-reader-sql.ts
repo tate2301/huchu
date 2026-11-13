@@ -8,16 +8,15 @@
  *   pnpm explore:reader-sql                       explore_reader's login, binding, policies and grants
  *   pnpm explore:reader-sql --vane-new            Vane's lines for Explore's own tables
  *
- * Both read prisma/schema.prisma.
+ * Both read prisma/schema/core.prisma.
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 import { exploreReaderSql } from "@/lib/explore/reader-access";
 import { parseSchema, readerAccess, readerSql } from "@/lib/vane/reader-access";
 
 const root = process.cwd();
-const access = readerAccess(parseSchema(readFileSync(path.join(root, "prisma/schema.prisma"), "utf8")));
+const access = readerAccess(parseSchema(readPrismaSchema(root)));
 
 if (process.argv.includes("--vane-new")) {
   const added = new Set(["ExploreReaderScope", "ExploreSettings", "ExploreQuestionRun"]);

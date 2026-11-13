@@ -7,12 +7,11 @@
  *   pnpm vane:reader-sql --summary             what each role reads, by table
  *   pnpm vane:reader-sql --rep                 the sales rep's role, as in 20261015100000_vane_finish
  */
-import { readFileSync } from "node:fs";
-import path from "node:path";
 
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 import { parseSchema, readerAccess, readerSql, repReaderSql } from "@/lib/vane/reader-access";
 
-const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
+const schema = readPrismaSchema();
 const access = readerAccess(parseSchema(schema));
 
 if (process.argv.includes("--summary")) {

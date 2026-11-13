@@ -241,7 +241,7 @@ what they say.
 
 **Two migrations had drifted from the schema they claim to write.**
 `add_correction_models` gave `id` a database default and `createdAt` a wider
-type than `prisma/schema.prisma` declares. More interesting:
+type than `prisma/schema/core.prisma` declares. More interesting:
 `add_company_id_to_buyer_receipt` deliberately created
 `BuyerReceipt_companyId_receiptNumber_key` as a *partial* index — `WHERE
 "companyId" IS NOT NULL`, with a comment explaining why — but Prisma has no way

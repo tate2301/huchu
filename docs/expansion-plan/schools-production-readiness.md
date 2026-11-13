@@ -3,7 +3,7 @@
 Goal being assessed: **provision a tenant as a school and have it work end to end**, without
 engineering intervention per customer.
 
-Audit date: 2026-08-04. Source of truth read: `prisma/schema.prisma`, `app/schools/**`,
+Audit date: 2026-08-04. Source of truth read: `prisma/schema/core.prisma`, `app/schools/**`,
 `app/api/v2/schools/**`, `lib/schools/**`, `components/schools/**`, `lib/platform/**`,
 `lib/accounting/**`, `proxy.ts`.
 

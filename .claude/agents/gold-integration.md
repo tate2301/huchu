@@ -28,7 +28,7 @@ You are the **gold-integration** engineer. You own the seams between Gold and ev
 ## Files you NEVER edit
 
 - Core Gold business logic in `lib/gold/**` (owned by gold-domain-backend)
-- `prisma/schema.prisma`
+- `prisma/schema/core.prisma`
 - Gold UI files
 
 ## Key boundary violations to fix (§6.4)

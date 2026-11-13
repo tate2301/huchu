@@ -31,7 +31,7 @@ The user-visible symptom was "Failed to fetch import" — the GET route does `in
 - Action: `prisma migrate resolve --applied 20260510000001_add_shift_group_id_to_allocation`
 
 ### 2. Diffed Neon vs target schema
-- `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+- `prisma migrate diff --from-config-datasource --to-schema prisma/schema/core.prisma --script`
 - Result: only 2174 bytes of DDL (10 operations) actually missing from Neon — all strictly additive (`ADD COLUMN`, `CREATE TABLE`, `ADD CONSTRAINT`)
 - Confirmed no destructive operations needed
 - Saved as `./neon-catchup.sql` (kept in working tree for reference; safe to delete)
@@ -81,7 +81,7 @@ The same drift will happen again unless the deploy chain is fixed:
 
 2. **`prisma db push` against prod is now banned.** Update `AGENTS.md` and the `gold-data-foundation` charter to forbid `db push` against any DB except local development.
 
-3. **Pre-deploy migration check.** Add a CI/pre-push hook: `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code`. Exit code 2 means schema drift exists; block the push until a migration is created.
+3. **Pre-deploy migration check.** Add a CI/pre-push hook: `prisma migrate diff --from-config-datasource --to-schema prisma/schema/core.prisma --exit-code`. Exit code 2 means schema drift exists; block the push until a migration is created.
 
 4. **Never use `db push` from agents.** The `gold-data-foundation` agent definition says "Run `prisma migrate dev` for all schema changes" but the agent violated this in the recent sprint. Add a hook in `.claude/settings.json` that blocks `db push` calls.
 

@@ -200,7 +200,7 @@ Everything else mutating carries a `schoolPermissionDenial` (or `importPermissio
 
 ## C. Data model
 
-### Models (prisma/schema.prisma)
+### Models (prisma/schema/core.prisma)
 
 Academic ladder: `SchoolIdentitySettings` (6845), `SchoolAcademicYear` (6881), `SchoolTerm` (6904), `SchoolClass` (6944), `SchoolStream` (6983), `SchoolSubject` (7053), `SchoolClassSubject` (7082, the teacher assignment), `SchoolPeriod` (7886), `SchoolRoom` (7915), `SchoolTimetableSlot` (7951), `SchoolCalendarEvent` (8001), `SchoolSchemeOfWork` (6751), `SchoolGradingScheme` (8040), `SchoolGradingBand` (8069).
 

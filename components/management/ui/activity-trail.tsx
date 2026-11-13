@@ -9,7 +9,7 @@ import styles from "./settings.module.css";
 
 /**
  * One row of the trail, typed against the real `PlatformAuditEvent`
- * (`prisma/schema.prisma`) rather than against the board.
+ * (`prisma/schema/core.prisma`) rather than against the board.
  *
  * Two things the model does and the drawing does not admit:
  *

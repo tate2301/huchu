@@ -10,7 +10,7 @@ This repository is broad. In the current checkout:
 
 - `273` App Router page files live under `app/`.
 - `449` API route handlers live under `app/api/`.
-- `215` Prisma models live in `prisma/schema.prisma`.
+- `215` Prisma models live in `prisma/schema/core.prisma`.
 - `31` Vitest files and `1` Playwright spec are present.
 - Core workspace families include gold, scrap metal, schools, retail/POS, auto sales, accounting, HR/payroll, stores, maintenance, compliance, CCTV, reports, admin, and platform management.
 
@@ -330,7 +330,7 @@ Run any script with `--help` for exact flags when available.
 When a new module, vertical, or major surface is added, update all relevant layers instead of only adding pages:
 
 1. Data model:
-   - Add or update Prisma models in `prisma/schema.prisma`.
+   - Add or update Prisma models in `prisma/schema/core.prisma`.
    - Add a migration under `prisma/migrations` for shared/prod-bound schema work.
    - Run `pnpm db:generate`.
    - Use `pnpm db:push` only against local development databases.
@@ -447,7 +447,7 @@ pnpm db:push
 
 For shared, production-bound, or risky schema work:
 
-1. Update `prisma/schema.prisma`.
+1. Update `prisma/schema/core.prisma`.
 2. Add a migration in `prisma/migrations`.
 3. Add or update paired tests.
 4. Run `pnpm db:generate`.

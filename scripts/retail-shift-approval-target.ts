@@ -26,7 +26,7 @@
  * Postgres refuses to drop a value a row still uses, and the alternatives —
  * rewriting those rows, or deleting them — falsify or destroy an audit trail.
  * `ApprovalTargetType` still carries `IRREGULAR_PAYOUT_BATCH` for exactly that
- * reason, and there is a note in `prisma/schema.prisma` explaining it.
+ * reason, and there is a note in `prisma/schema/core.prisma` explaining it.
  *
  * Idempotent: `ADD VALUE IF NOT EXISTS`, and a second run reports it present.
  */

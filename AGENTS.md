@@ -13,7 +13,7 @@
 - `app/` holds the Next.js App Router routes and feature modules (e.g., `app/shift-report`, `app/gold`).
 - `components/` contains reusable UI and feature components, with primitives in `components/ui`.
 - `lib/` and `hooks/` provide shared utilities and React hooks.
-- `prisma/` contains the Prisma schema and database configuration.
+- `prisma/` contains the Prisma schema and database configuration. The schema is a folder: core models are in `prisma/schema/core.prisma` (forks add `prisma/schema/<flavour>.prisma`); read it as text with `readPrismaSchema()` from `lib/prisma-schema-source.ts`.
 - `scripts/` includes operational CLI scripts for admin tasks (users, inventory, equipment).
 - `public/` is for static assets; `types/` holds shared TypeScript types.
 - `docker-compose.yml` defines the local development database.

@@ -14,7 +14,7 @@ Source of truth in code:
 - API routes: `app/api/accounting/*`
 - Domain services: `lib/accounting/*`
 - Typed client API: `lib/api.ts`
-- Persistence: `prisma/schema.prisma`
+- Persistence: `prisma/schema/core.prisma`
 
 ## 2. Design Principles
 - One posting engine for all accounting sources.
@@ -304,4 +304,4 @@ Use `docs/expansion-plan/platform-holy-grail.md` as the full platform-wide modul
 This accounting document is the finance domain deep dive and should stay in sync with:
 - navigation (`lib/navigation.ts`, `lib/accounting/tab-config.ts`)
 - route gating (`lib/platform/gating/route-registry.ts`)
-- schema (`prisma/schema.prisma`)
+- schema (`prisma/schema/core.prisma`)

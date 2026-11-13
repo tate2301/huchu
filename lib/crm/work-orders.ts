@@ -449,7 +449,7 @@ export function workOrderInvoiceBlockers(order: {
 /**
  * Where a job records the invoice it produced.
  *
- * `CrmWorkOrder` has no column for it and `prisma/schema.prisma` is not ours to
+ * `CrmWorkOrder` has no column for it and `prisma/schema/core.prisma` is not ours to
  * change, so the link sits in the job's `customFields` under a key a person
  * cannot make: `normalizeFieldKey` strips leading underscores, so no custom
  * field will ever be called `__invoice` and collide with this.

@@ -20,7 +20,7 @@ Source of truth in code:
 - API routes: `app/api/v2/autos/*`
 - Domain services: `lib/autos/*`
 - Typed client API: `lib/autos/autos-v2.ts`
-- Persistence: `prisma/schema.prisma`
+- Persistence: `prisma/schema/core.prisma`
 
 ## 2. Design Principles
 - **Lead-first funnel**: Leads are the entry point; conversion to deals tracks lineage.
@@ -267,7 +267,7 @@ flowchart LR
 
 | Requirement Theme | Status | Notes |
 |---|---|---|
-| Database schema | ✅ Complete | All models exist in `prisma/schema.prisma` |
+| Database schema | ✅ Complete | All models exist in `prisma/schema/core.prisma` |
 | Basic dashboard | ✅ Delivered | Shows metrics from `/api/v2` with vertical tabs |
 | Detail pages | ❌ Missing | Need lead/vehicle/deal detail pages with tabs |
 | Payment workflows | ⚠️ Partial | Basic API exists; posting integration needed |
@@ -322,6 +322,6 @@ This auto sales document should stay in sync with:
 - Navigation: `lib/navigation.ts`
 - Route gating: `lib/platform/gating/route-registry.ts`
 - Feature catalog: `lib/platform/feature-catalog.ts`
-- Schema: `prisma/schema.prisma`
+- Schema: `prisma/schema/core.prisma`
 - Posting engine: `lib/accounting/posting.ts`
 - Document lifecycle: `lib/platform/document-lifecycle.ts` (new)

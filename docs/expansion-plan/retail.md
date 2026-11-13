@@ -13,7 +13,7 @@ Source of truth in code:
 - UI routes: `app/thrift/*` (product name: "Smart Shop")
 - API routes: `app/api/v2/thrift/*`
 - Domain services: `lib/thrift/*` (new)
-- Persistence: `prisma/schema.prisma`
+- Persistence: `prisma/schema/core.prisma`
 
 ## 2. Design Principles
 - **POS-first experience**: Cashier portal is the primary interface; back-office is secondary.
@@ -575,6 +575,6 @@ This retail document should stay in sync with:
 - Navigation: `lib/navigation.ts`
 - Route gating: `lib/platform/gating/route-registry.ts`
 - Feature catalog: `lib/platform/feature-catalog.ts`
-- Schema: `prisma/schema.prisma`
+- Schema: `prisma/schema/core.prisma`
 - Posting engine: `lib/accounting/posting.ts`
 - Document lifecycle: `lib/platform/document-lifecycle.ts` (new)

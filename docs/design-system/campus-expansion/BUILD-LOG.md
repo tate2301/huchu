@@ -50,7 +50,7 @@ every new table, per the spec's own cheap answer. Nothing reads it yet.
 ### Foundation — schema, permissions, navigation, gating
 
 All three areas' tables landed in one pass, so `db push` and `prisma generate`
-ran once. `prisma/schema.prisma` gained 30 models and 14 enums across three
+ran once. `prisma/schema/core.prisma` gained 30 models and 14 enums across three
 commented blocks — conduct and pastoral, public exams, leavers and alumni —
 plus four columns on `SchoolStudent` (`certifiedName`, `nationalId`,
 `birthCertificateNo`, `house`) that the exam entry file and the leaving

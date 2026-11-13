@@ -1,7 +1,7 @@
 # Audit: the admin portal as it ships
 
 Source: the repository at `4c1ff468` (`app/portal/admin`, `components/admin-portal`,
-`app/api/platform-admin`, `lib/admin-portal*`, `scripts/platform`, `prisma/schema.prisma`).
+`app/api/platform-admin`, `lib/admin-portal*`, `scripts/platform`, `prisma/schema/core.prisma`).
 Date: 13 October 2026. No screenshots yet; values below are read from code, not measured.
 
 ## Screens

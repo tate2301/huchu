@@ -14,7 +14,7 @@ Part of the rollout program governed by `docs/rollout/master-rollout-plan.md`.
   ordered first despite its number, because the marketing plan needs a referral offer inside the
   90 days and it does not depend on the membership work.
 
-Sources this roadmap is derived from: `prisma/schema.prisma` (`User.companyId` — a single
+Sources this roadmap is derived from: `prisma/schema/core.prisma` (`User.companyId` — a single
 required FK today), `components/admin-portal/` (the staff multi-client console whose patterns
 this borrows), `lib/platform/gating/portal-isolation.ts`, the `SupportAccessRequest`
 approval-gated impersonation model, `lib/platform/client-templates.ts`

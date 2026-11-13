@@ -70,7 +70,7 @@ Internal codebase evidence reviewed:
 - `lib/workspace-products.ts`
 - `lib/navigation.ts`
 - `lib/retail/tab-config.ts`
-- `prisma/schema.prisma`
+- `prisma/schema/core.prisma`
 - `app/retail/*`
 - `app/portal/pos/*`
 - `app/api/v2/retail/*`
@@ -263,7 +263,7 @@ Checked directly against the tree on 2026-08-24. Six rows changed.
 | Retail-native fiscalisation — underexposed | **Closed** | `lib/retail/fiscalisation.ts`: `fiscaliseRetailSale`, `loadRetailTaxResolver`, `buildRetailSaleSigningInput`, `retailReceiptType` |
 | Register and device operations — gap | **Half closed** | `RetailRegister` and `RetailTillPin` models exist; `RetailDevice` was never built, so register and device are still not separated |
 | WhatsApp receipts — **major gap** | **Still open** | "whatsapp" appears only in `app/home/*` marketing pages and `lib/crm/sources.ts` — nothing in the POS receipt path, and no receipt-delivery service abstraction |
-| Supplier returns — gap | **Still open** | No `SupplierReturn` match anywhere in `prisma/schema.prisma`, `lib/` or `app/` |
+| Supplier returns — gap | **Still open** | No `SupplierReturn` match anywhere in `prisma/schema/core.prisma`, `lib/` or `app/` |
 | Employee performance and commissions | **Still open** | No commission logic under `lib/retail` or `app/api/v2/retail` |
 
 Of the recommended first-class domain objects in §12, only `RetailRegister` was built.

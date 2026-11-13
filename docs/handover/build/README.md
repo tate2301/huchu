@@ -120,7 +120,7 @@ Team shape that works:
   on anything a packet leaves open (record it in `../98-decisions.md`), pushes.
 - **Builders** (`retail-builder`, from `agents/retail-builder.md`): 2–3 at a time at most. Only run two builders together when
   their packets touch different files and neither adds a migration; packets in one stage often share
-  `lib/retail/**` files, `scripts/seed-retail-demo.ts` and `prisma/schema.prisma`, and two teammates editing one
+  `lib/retail/**` files, `scripts/seed-retail-demo.ts` and `prisma/schema/core.prisma`, and two teammates editing one
   file overwrite each other. When in doubt, build in sequence.
 - **Tester** (`retail-tester`, from `agents/retail-tester.md`): one per section, after all builds are committed.
 

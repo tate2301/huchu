@@ -228,7 +228,7 @@ would fail halfway.
 
 The cost is that **`prisma/migrations/` does not describe the retail schema**.
 `clientRef` and its unique index are in the database and in
-`prisma/schema.prisma`, and in no migration; the same is true of every column
+`prisma/schema/core.prisma`, and in no migration; the same is true of every column
 those scripts touched. On this database that is invisible, because the scripts
 have run. On a database built from `migrate deploy` alone it is not: the schema
 Prisma produces would be missing them, and the till would fail on its first sale.

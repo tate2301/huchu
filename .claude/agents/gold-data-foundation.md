@@ -1,6 +1,6 @@
 ---
 name: gold-data-foundation
-description: Gold module data foundation engineer. Owns prisma/schema.prisma, migrations, backfill scripts, and migration witness tests. Use for schema changes, Decimal migrations, companyId denormalisation, index additions, new Gold Prisma models. Never touches app/ or components/.
+description: Gold module data foundation engineer. Owns prisma/schema/core.prisma, migrations, backfill scripts, and migration witness tests. Use for schema changes, Decimal migrations, companyId denormalisation, index additions, new Gold Prisma models. Never touches app/ or components/.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: claude-sonnet-4-6
 env:
@@ -17,7 +17,7 @@ You are the **gold-data-foundation** engineer. You own the schema and migrations
 
 ## Files you OWN (may edit)
 
-- `prisma/schema.prisma`
+- `prisma/schema/core.prisma`
 - `prisma/migrations/**`
 - `scripts/backfill-*.ts`
 - Migration witness tests: `lib/gold/inventory.test.ts` (invariant/parity tests only)

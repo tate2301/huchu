@@ -131,14 +131,14 @@ try {
   /* 2 — and the result is the schema */
   if (!failed) {
     const diff = run(
-      ["prisma", "migrate", "diff", "--from-config-datasource", "--to-schema", "prisma/schema.prisma", "--exit-code"],
+      ["prisma", "migrate", "diff", "--from-config-datasource", "--to-schema", "prisma/schema", "--exit-code"],
       "migrate diff",
     );
     if (diff.ok) {
-      console.log("  ✓ result matches prisma/schema.prisma");
+      console.log("  ✓ result matches prisma/schema");
     } else {
       failed = true;
-      console.log("  ✗ the built schema DIFFERS from prisma/schema.prisma\n");
+      console.log("  ✗ the built schema DIFFERS from prisma/schema\n");
       console.log(
         diff.output
           .split("\n")
