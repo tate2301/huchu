@@ -87,7 +87,7 @@ jobs:
   # (lib/extensions/contract.test.ts): pure logic, no database.
   release-tooling:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -98,6 +98,14 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The contract test loads the report loaders (lib/reports/server.ts),
+      # which import @prisma/client. It never connects, but the generated
+      # client must exist. Same cache as the typecheck job.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.pnpm/@prisma+client@*/node_modules/.prisma
+          key: prisma-client-${{ hashFiles('prisma/schema/**', 'prisma.config.ts', 'pnpm-lock.yaml') }}
+      - run: node scripts/prisma-generate-if-changed.mjs
       - run: pnpm vitest run scripts/release scripts/fork lib/extensions lib/prisma-schema-source.test.ts
         env:
           # vitest.setup.ts refuses to start without a test database; these
