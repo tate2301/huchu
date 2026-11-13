@@ -41,4 +41,20 @@ export const fixtureExtension: CorelithExtension = {
       verticalProductId: "general-business",
     },
   ],
+  nav: {
+    label: "The fixture",
+    nodes: [
+      { id: "fixture.home", label: "Overview", icon: "home", href: "/fixture" },
+      {
+        id: "fixture.runs",
+        label: "Runs",
+        icon: "checklist",
+        href: "/fixture/runs",
+        kids: [
+          { id: "fixture.runs-open", label: "Open", icon: "checklist", href: "/fixture/runs?state=open" },
+          { id: "fixture.runs-approved", label: "Approved", icon: "check-circle", href: "/fixture/runs?state=approved" },
+        ],
+      },
+    ],
+  },
 };

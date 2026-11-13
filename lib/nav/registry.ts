@@ -12,10 +12,13 @@
  * rights are the existing checks, asked of the address (`gate.ts`).
  */
 
+import { registeredExtensions } from "@/extensions";
+import { extensionNavGroups, mergeNavNodes } from "@/lib/extensions/registry";
+
 export type NavIconName = string;
 
 /** A product's own group, or one of the shared groups every workspace has. */
-export type NavGroupId =
+type CoreNavGroupId =
   | "top"
   | "tender"
   | "crm"
@@ -28,6 +31,9 @@ export type NavGroupId =
   | "people"
   | "insights"
   | "saved";
+
+/** Core's groups, and `ext.<id>` for each registered extension's own group (`lib/extensions`). */
+export type NavGroupId = CoreNavGroupId | `ext.${string}`;
 
 export type NavKid = {
   id: string;
@@ -56,9 +62,15 @@ export const SHARED_GROUP_ORDER: readonly NavGroupId[] = [
   "saved",
 ];
 
-export const PRODUCT_GROUPS: readonly NavGroupId[] = ["tender", "crm", "campus", "huchu"];
+export const PRODUCT_GROUPS: readonly NavGroupId[] = [
+  "tender",
+  "crm",
+  "campus",
+  "huchu",
+  ...extensionNavGroups(registeredExtensions).map((group) => group.id),
+];
 
-export const GROUP_LABEL: Record<NavGroupId, string> = {
+const CORE_GROUP_LABEL: Record<CoreNavGroupId, string> = {
   top: "",
   tender: "The floor",
   crm: "Sales",
@@ -73,7 +85,12 @@ export const GROUP_LABEL: Record<NavGroupId, string> = {
   saved: "Pinned",
 };
 
-export const NAV_NODES: readonly NavNode[] = [
+export const GROUP_LABEL: Record<NavGroupId, string> = {
+  ...CORE_GROUP_LABEL,
+  ...Object.fromEntries(extensionNavGroups(registeredExtensions).map((group) => [group.id, group.label])),
+};
+
+const CORE_NAV_NODES: readonly NavNode[] = [
   { id: "home", label: "Home", icon: "home", href: "/", group: "top" },
   { id: "sales", label: "Sales", icon: "receipt", href: "/retail/sales", group: "tender", kids: [
       { id: "sales-all", label: "All sales", icon: "receipt", href: "/retail/sales" },
@@ -260,3 +277,6 @@ export const NAV_NODES: readonly NavNode[] = [
   { id: "explore", label: "Explore", icon: "explore", href: "/explore", group: "insights" },
   { id: "build", label: "Build", icon: "studio", href: "/build", group: "insights" },
 ];
+
+/** Core's rows, then each registered extension's own group (`extensions/index.ts`). */
+export const NAV_NODES: readonly NavNode[] = mergeNavNodes(CORE_NAV_NODES, registeredExtensions);

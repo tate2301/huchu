@@ -97,6 +97,7 @@ load, so gating and provisioning treat it like a core vertical:
 | `bundleDependencies` | `BUNDLE_DEPENDENCIES` | own bundles only |
 | `routes.pages` / `routes.apis` | the route → feature registry | under `/<flavour>` / `/api/<flavour>/`, gated on own features |
 | `templates` | `CLIENT_BUNDLE_TEMPLATES` (provisioning) | code `TEMPLATE_<FLAVOUR>` or `TEMPLATE_<FLAVOUR>_…` |
+| `nav` | its own sidebar group `ext.<flavour>`, first among the tenant's products (`NAV_NODES`, `PRODUCT_GROUPS`, `GROUP_LABEL`) | row ids `<flavour>.<name>`, every address under `/<flavour>` |
 
 `lib/extensions/registry.ts` throws on a contribution that breaks a rule, so a
 bad extension fails its build and tests instead of a tenant. The proxy does not
@@ -111,8 +112,13 @@ Core proves the seams with `extensions/__fixture__`, a stand-in vertical that
 extension from reaching gating or provisioning, that test fails in core
 before any fork syncs it.
 
-Navigation, the product home, reports, roles and vertical defaults are later
-seams; until then an extension's screens are reached by URL.
+A sidebar row shows only to someone the proxy would let in. Its address has
+to be gated on one of the extension's features (an ungated address never
+shows), the workspace has to hold that feature and its dependencies, and the
+person's role has to be allowed the route. That check is `lib/nav/gate.ts`,
+using the proxy's own enforcer and role limits.
+
+The product home, reports, roles and vertical defaults are later seams.
 
 ## Creating a fork
 

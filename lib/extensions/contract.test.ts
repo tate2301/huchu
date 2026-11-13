@@ -22,6 +22,9 @@ import {
 import { isKnownFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { composeNav } from "@/lib/nav/compose";
+import { canOpenFor, productGroupsFor, visibleAddresses } from "@/lib/nav/gate";
+import { GROUP_LABEL, NAV_NODES, PRODUCT_GROUPS } from "@/lib/nav/registry";
 
 describe("an extension's contributions reach core", () => {
   it("its features are known catalogue entries in the extension domain", () => {
@@ -61,5 +64,51 @@ describe("an extension's contributions reach core", () => {
     expect(getClientTemplateFeatureKeys("TEMPLATE_FIXTURE")).toEqual(
       expect.arrayContaining(["fixture.home", "fixture.runs", "stores.inventory"]),
     );
+  });
+});
+
+describe("an extension's sidebar group", () => {
+  const provisioned = getClientTemplateFeatureKeys("TEMPLATE_FIXTURE");
+  const manager = { role: "MANAGER", enabledFeatures: provisioned, workspaceProfile: "GENERAL" };
+
+  it("is a product group with its own heading and rows", () => {
+    expect(PRODUCT_GROUPS).toContain("ext.fixture");
+    expect(GROUP_LABEL["ext.fixture"]).toBe("The fixture");
+    expect(NAV_NODES.filter((node) => node.group === "ext.fixture").map((node) => node.id)).toEqual([
+      "fixture.home",
+      "fixture.runs",
+    ]);
+  });
+
+  it("shows to a workspace that has the features, first among its products", () => {
+    const open = visibleAddresses(manager);
+    expect(open.has("/fixture")).toBe(true);
+    expect(open.has("/fixture/runs")).toBe(true);
+    expect(productGroupsFor(open, "GENERAL")[0]).toBe("ext.fixture");
+
+    const groups = composeNav({ canOpen: canOpenFor(manager), products: productGroupsFor(open, "GENERAL") });
+    const fixture = groups.find((group) => group.id === "ext.fixture");
+    expect(fixture?.label).toBe("The fixture");
+    expect(fixture?.items.map((item) => item.href)).toEqual(["/fixture", "/fixture/runs"]);
+    expect(fixture?.items[1]?.kids.map((kid) => kid.href)).toEqual([
+      "/fixture/runs?state=open",
+      "/fixture/runs?state=approved",
+    ]);
+  });
+
+  it("hides rows whose feature the workspace lacks, and the group when none is left", () => {
+    const homeOnly = { ...manager, enabledFeatures: provisioned.filter((key) => key !== "fixture.runs") };
+    const open = visibleAddresses(homeOnly);
+    expect(open.has("/fixture")).toBe(true);
+    expect(open.has("/fixture/runs")).toBe(false);
+
+    const none = { ...manager, enabledFeatures: provisioned.filter((key) => !key.startsWith("fixture.")) };
+    const groups = composeNav({ canOpen: canOpenFor(none), products: productGroupsFor(visibleAddresses(none), "GENERAL") });
+    expect(groups.some((group) => group.id === "ext.fixture")).toBe(false);
+  });
+
+  it("hides rows the role may not reach, as the proxy refuses them", () => {
+    const rep = { ...manager, role: "SALES_REP" };
+    expect(visibleAddresses(rep).has("/fixture")).toBe(false);
   });
 });

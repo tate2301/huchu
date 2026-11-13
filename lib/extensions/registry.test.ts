@@ -6,6 +6,7 @@ import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 
 import {
   ExtensionError,
+  mergeNavNodes,
   mergeBundleDependencies,
   mergeBundles,
   mergeFeatureDependencies,
@@ -72,5 +73,22 @@ describe("an extension stays inside its own namespace", () => {
     expect(() => mergeRoutes([], [pages("/milling/runs", "retail.pos")], "page")).toThrow(/its own features/);
     const apis = { ...base, routes: { apis: [{ prefix: "/api/retail/x", featureKey: "milling.runs" }] } };
     expect(() => mergeRoutes([], [apis], "api")).toThrow(/under "\/api\/milling\/"/);
+  });
+});
+
+describe("an extension's sidebar rows stay inside its paths", () => {
+  const nav = (id: string, href: string) => ({ ...base, nav: { label: "The mill", nodes: [{ id, label: "x", icon: "home", href }] } });
+
+  it("accepts its own rows and gives them its group", () => {
+    expect(mergeNavNodes([], [nav("milling.runs", "/milling/runs?state=open")])[0]?.group).toBe("ext.milling");
+  });
+
+  it("refuses ids outside its prefix, addresses outside its root, and duplicates", () => {
+    expect(() => mergeNavNodes([], [nav("runs", "/milling/runs")])).toThrow(/starting "milling."/);
+    expect(() => mergeNavNodes([], [nav("milling.runs", "/retail/sales")])).toThrow(/outside "\/milling"/);
+    expect(() => mergeNavNodes([], [nav("milling.runs", "/millingx")])).toThrow(ExtensionError);
+    expect(() =>
+      mergeNavNodes([{ id: "milling.runs", label: "x", icon: "home", href: "/x", group: "top" }], [nav("milling.runs", "/milling")]),
+    ).toThrow(/declared twice/);
   });
 });

@@ -1,4 +1,5 @@
 import type { ClientBundleTemplateDefinition } from "@/lib/platform/client-templates";
+import type { NavKid } from "@/lib/nav/registry";
 import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platform/feature-catalog";
 
 /**
@@ -15,6 +16,7 @@ import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platfor
  *   template codes    `TEMPLATE_<ID>…`      e.g. `TEMPLATE_MILLING`
  *   page routes       `/<id>` and below
  *   API routes        `/api/<id>/` and below
+ *   nav node ids      `<id>.<name>`, every address under `/<id>`
  *
  * `lib/extensions/registry.ts` checks these when the catalogues load, so a
  * malformed extension fails the build and its tests, not a tenant.
@@ -35,7 +37,23 @@ export interface CorelithExtension {
   bundleDependencies?: Record<string, string[]>;
   routes?: ExtensionRoutes;
   templates?: ClientBundleTemplateDefinition[];
+  /**
+   * The extension's own sidebar group, shown first for a tenant that runs it.
+   * A row shows only to someone the proxy would let in: its address must be
+   * gated on one of the extension's features (`routes.pages`) and the person
+   * must hold that feature and be allowed the route by their role.
+   */
+  nav?: ExtensionNav;
 }
+
+export interface ExtensionNav {
+  /** The group's heading, e.g. "The mill". */
+  label: string;
+  nodes: ExtensionNavNode[];
+}
+
+/** A sidebar row and its children; icons are names from `NAV_ICONS`. */
+export type ExtensionNavNode = NavKid & { kids?: NavKid[] };
 
 /** A catalogue entry whose domain is always "extension". */
 export type ExtensionFeature = Omit<FeatureCatalogEntry, "domain" | "alwaysOn">;

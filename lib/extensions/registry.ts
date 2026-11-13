@@ -1,5 +1,6 @@
 import type { ClientBundleTemplateDefinition } from "@/lib/platform/client-templates";
 import type { FeatureBundleDefinition, FeatureCatalogEntry } from "@/lib/platform/feature-catalog";
+import type { NavGroupId, NavKid, NavNode } from "@/lib/nav/registry";
 import type { FeatureRouteEntry } from "@/lib/platform/gating/types";
 
 import type { CorelithExtension } from "./types";
@@ -162,4 +163,59 @@ export function mergeTemplates(
     }
   }
   return merged;
+}
+
+/** The sidebar group an extension owns. */
+export function extensionGroupId(extension: Pick<CorelithExtension, "id">): NavGroupId {
+  return `ext.${extension.id}`;
+}
+
+function insideRoot(extension: CorelithExtension, href: string): boolean {
+  const path = href.split("?")[0] ?? href;
+  const root = `/${extension.id}`;
+  return path === root || path.startsWith(`${root}/`);
+}
+
+function checkNavKid(extension: CorelithExtension, kid: NavKid, ids: Set<string>): void {
+  if (!ownsKey(extension, kid.id)) {
+    throw new ExtensionError(extension.id, `nav row "${kid.id}" must have an id starting "${extension.id}."`);
+  }
+  if (ids.has(kid.id)) throw new ExtensionError(extension.id, `nav row "${kid.id}" is declared twice`);
+  ids.add(kid.id);
+  for (const href of [kid.href, ...(kid.live ?? [])]) {
+    if (!insideRoot(extension, href)) {
+      throw new ExtensionError(extension.id, `nav row "${kid.id}" points at "${href}", outside "/${extension.id}"`);
+    }
+  }
+}
+
+export function mergeNavNodes(core: readonly NavNode[], extensions: readonly CorelithExtension[]): NavNode[] {
+  const merged = [...core];
+  const ids = new Set(core.flatMap((node) => [node.id, ...(node.kids ?? []).map((kid) => kid.id)]));
+  for (const extension of extensions) {
+    for (const node of extension.nav?.nodes ?? []) {
+      checkNavKid(extension, node, ids);
+      for (const kid of node.kids ?? []) checkNavKid(extension, kid, ids);
+      merged.push({ ...node, group: extensionGroupId(extension) });
+    }
+  }
+  return merged;
+}
+
+/** Each extension that has a sidebar group: its id, heading and the address prefix it runs under. */
+export function extensionNavGroups(
+  extensions: readonly CorelithExtension[],
+): Array<{ id: NavGroupId; label: string; prefix: string }> {
+  return extensions
+    .filter((extension) => extension.nav)
+    .map((extension) => ({ id: extensionGroupId(extension), label: extension.nav!.label, prefix: `/${extension.id}` }));
+}
+
+/** Every address an extension's sidebar can show, children and `live` alternatives included. */
+export function extensionNavAddresses(extensions: readonly CorelithExtension[]): string[] {
+  return extensions.flatMap((extension) =>
+    (extension.nav?.nodes ?? []).flatMap((node) =>
+      [node, ...(node.kids ?? [])].flatMap((kid) => [kid.href, ...(kid.live ?? [])]),
+    ),
+  );
 }
