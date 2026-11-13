@@ -31,7 +31,7 @@ import { prisma } from "@/lib/prisma";
 type Disposition = "DROP" | "DELETE";
 
 interface ModuleTable {
-  /** Model name exactly as it reads in `prisma/schema.prisma`. */
+  /** Model name exactly as it reads in `prisma/schema/core.prisma`. */
   model: string;
   /** Rows belonging to one company, via companyId or the nearest scoped parent. */
   countForCompany: (companyId: string) => Promise<number>;
@@ -140,7 +140,7 @@ function table(
 /**
  * A table this audit is about to see deleted, counted through raw SQL.
  *
- * ST-3 removes these models from `prisma/schema.prisma`, so `prisma.nVR` and
+ * ST-3 removes these models from `prisma/schema/core.prisma`, so `prisma.nVR` and
  * its siblings stop existing the moment the client is regenerated. The audit is
  * the tool an operator reaches for when deciding whether a drop is safe, and it
  * has to keep working against a database that has not been migrated yet — which

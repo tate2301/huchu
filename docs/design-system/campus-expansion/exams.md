@@ -100,7 +100,7 @@ designed.
 
 ### Models that do not exist at all
 
-Verified against `prisma/schema.prisma` (66 `School*` models, from `SchoolPortalInvite` at line
+Verified against `prisma/schema/core.prisma` (66 `School*` models, from `SchoolPortalInvite` at line
 6702 to `SchoolImportArtifact`, which ends at line 8904). **None of the following is present:**
 
 | Model | Exists? | What would hold |

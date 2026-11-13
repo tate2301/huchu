@@ -14,7 +14,7 @@ Source of truth in code:
 - API routes: `app/api/v2/schools/*`
 - Domain services: `lib/schools/*`
 - Typed client API: `lib/schools/schools-v2.ts`
-- Persistence: `prisma/schema.prisma`
+- Persistence: `prisma/schema/core.prisma`
 
 ## 2. Design Principles
 - **Fee-first wedge**: School fees and receipts are the primary entry point; academics/boarding follow.
@@ -418,6 +418,6 @@ This schools document should stay in sync with:
 - Navigation: `lib/navigation.ts`
 - Route gating: `lib/platform/gating/route-registry.ts`
 - Feature catalog: `lib/platform/feature-catalog.ts`
-- Schema: `prisma/schema.prisma`
+- Schema: `prisma/schema/core.prisma`
 - Posting engine: `lib/accounting/posting.ts`
 - Document lifecycle: `lib/platform/document-lifecycle.ts` (new)

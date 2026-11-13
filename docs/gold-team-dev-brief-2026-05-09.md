@@ -32,7 +32,7 @@ Seven agents live in `.claude/agents/`. Claude Code loads the matching file as t
 |---|---|---|---|
 | `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files | opus-4-7 |
 | `gold-data-foundation` | `prisma/`, `migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source | sonnet-4-6 |
-| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `prisma/schema.prisma`, UI files | sonnet-4-6 |
+| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `prisma/schema/core.prisma`, UI files | sonnet-4-6 |
 | `gold-import-workflow` | `app/api/gold/imports/**`, `lib/gold/import-*`, worker | UI, other Gold APIs | sonnet-4-6 |
 | `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `prisma/` | sonnet-4-6 |
 | `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files | sonnet-4-6 |

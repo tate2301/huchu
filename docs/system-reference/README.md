@@ -13,7 +13,7 @@ It was assembled from the live codebase and the existing product/planning docs s
 
 - `234` App Router pages under `app/`.
 - `375` API route handlers under `app/api/`.
-- `191` Prisma models in `prisma/schema.prisma`.
+- `191` Prisma models in `prisma/schema/core.prisma`.
 - `124` feature catalog entries across `16` feature domains.
 - `20` add-on bundles and `3` subscription tiers.
 - `9` client templates / vertical presets.
@@ -34,7 +34,7 @@ The docs in this folder were grounded in:
 
 - App routes in `app/*`.
 - API routes in `app/api/*`.
-- Schema and data model definitions in `prisma/schema.prisma`.
+- Schema and data model definitions in `prisma/schema/core.prisma`.
 - Feature, bundle, tier, and template definitions in:
   - `lib/platform/feature-catalog.ts`
   - `lib/platform/client-templates.ts`

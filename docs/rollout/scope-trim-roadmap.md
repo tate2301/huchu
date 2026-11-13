@@ -20,7 +20,7 @@ Sources this roadmap is derived from: the accounting and module dependency audit
 (recorded in this document's scope notes), `lib/platform/feature-catalog.ts`,
 `lib/platform/client-templates.ts`, `lib/platform/gating/route-registry.ts`,
 `lib/accounting/posting.ts`, `lib/accounting/integration.ts`, `lib/commodity-billing.ts`,
-`prisma/schema.prisma`.
+`prisma/schema/core.prisma`.
 
 ## Why this trim, and where the line is
 
@@ -88,7 +88,7 @@ deepest AR consumer).
 
 The program DoD in `docs/rollout/master-rollout-plan.md` applies to every story. For this
 document additionally: any story that deletes a Prisma model ships its migration with a
-`prisma migrate diff` check against `prisma/schema.prisma` in both directions, and names in its
+`prisma migrate diff` check against `prisma/schema/core.prisma` in both directions, and names in its
 changelog row where the exported data landed.
 
 ## Status legend

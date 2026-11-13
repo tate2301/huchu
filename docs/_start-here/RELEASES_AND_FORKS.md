@@ -76,7 +76,11 @@ Anything else is a core change:
 2. Release core.
 3. Sync it into the fork.
 
-Some of the paths above, such as `extensions/` and `prisma/schema/`, depend on the core extension seams, which land in a separate change.
+The schema is a folder (`prisma.config.ts` points at `prisma/schema`). Core's
+models live in `prisma/schema/core.prisma`, and a fork adds
+`prisma/schema/<flavour>.prisma` beside it. Anything that reads the schema as
+text goes through `readPrismaSchema()` in `lib/prisma-schema-source.ts`, so it
+sees a fork's tables too. The `extensions/` registry lands in a later change.
 
 ## Creating a fork
 

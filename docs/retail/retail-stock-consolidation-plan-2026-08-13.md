@@ -122,7 +122,7 @@ what retail needs rather than retail keeping a private copy:
   slip.
 
 **The offline constraint, and why this is not patchwork.** The schema comment at
-`prisma/schema.prisma:4301` states the blocker plainly: the offline POS reads
+`prisma/schema/core.prisma:4301` states the blocker plainly: the offline POS reads
 `unitPrice`/`taxPercent` literally and "must not have to resolve a price list
 with no network". That is a real constraint and it stays satisfied — by making
 the till cache a **materialised projection**, not a second source of truth:

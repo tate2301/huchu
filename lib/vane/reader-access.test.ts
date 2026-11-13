@@ -8,9 +8,10 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 import { isCredentialColumn, parseSchema, readerAccess, readerSql, REP_TABLES, repReaderSql } from "@/lib/vane/reader-access";
 
-const models = parseSchema(readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8"));
+const models = parseSchema(readPrismaSchema());
 const access = readerAccess(models);
 const byTable = new Map(access.readable.map((t) => [t.table, t]));
 

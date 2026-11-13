@@ -18,7 +18,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -31,8 +31,13 @@ const root = join(dirname(new URL(import.meta.url).pathname), "..");
 const clientDir = join(dirname(require.resolve("@prisma/client")), "..", "..", ".prisma", "client");
 const marker = join(clientDir, ".generated-from");
 
-const key = createHash("sha256")
-  .update(readFileSync(join(root, "prisma", "schema.prisma")))
+// Every file in the schema folder: core.prisma and, in a fork, its own file.
+const schemaDir = join(root, "prisma", "schema");
+const hash = createHash("sha256");
+for (const name of readdirSync(schemaDir).filter((file) => file.endsWith(".prisma")).sort()) {
+  hash.update(name).update(readFileSync(join(schemaDir, name)));
+}
+const key = hash
   .update(readFileSync(join(root, "prisma.config.ts")))
   .update(require("prisma/package.json").version)
   .update(require("@prisma/client/package.json").version)
@@ -43,7 +48,7 @@ const current =
   existsSync(marker) && existsSync(join(clientDir, "index.js")) && readFileSync(marker, "utf8") === key;
 
 if (current && !force) {
-  console.log("Prisma Client is up to date with prisma/schema.prisma; skipping generate.");
+  console.log("Prisma Client is up to date with prisma/schema; skipping generate.");
   process.exit(0);
 }
 

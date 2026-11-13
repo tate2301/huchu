@@ -15,7 +15,7 @@ lifecycle. Part of the rollout program governed by `docs/rollout/master-rollout-
 
 Sources this roadmap is derived from: `lib/platform/gating/policy.ts`,
 `lib/platform/gating/route-registry.ts`, `proxy.ts`, `lib/platform/subscription.ts`,
-`prisma/schema.prisma` (`CompanySubscription`), `scripts/provision-school.ts`,
+`prisma/schema/core.prisma` (`CompanySubscription`), `scripts/provision-school.ts`,
 `lib/schools/provision.ts`, `scripts/seed-staging-tenant.ts`, `components/onboarding/`,
 `components/preferences/organization/billing-preferences.tsx`, `lib/audit/platform.ts`,
 `lib/notifications.ts`, `scripts/platform/audit-feature-gates.ts`.

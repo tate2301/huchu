@@ -95,7 +95,7 @@ On Windows without `openssl`, PowerShell will do:
 ## 5. Schema
 
 ```bash
-pnpm db:push        # creates every table from prisma/schema.prisma
+pnpm db:push        # creates every table from prisma/schema/core.prisma
 pnpm db:generate    # regenerate the typed client
 ```
 

@@ -314,7 +314,7 @@ models this section used to list no longer exist: they were deleted under ST-2.3
 `docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
 Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
-in `prisma/schema.prisma`.
+in `prisma/schema/core.prisma`.
 
 The detail that used to live here is preserved in git history; do not restore a feature
 key or route from it to make an old test pass.
@@ -434,7 +434,7 @@ models this section used to list no longer exist: they were deleted under ST-2.1
 `docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
 Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
-in `prisma/schema.prisma`.
+in `prisma/schema/core.prisma`.
 
 The detail that used to live here is preserved in git history; do not restore a feature
 key or route from it to make an old test pass.
@@ -656,7 +656,7 @@ models this section used to list no longer exist: they were deleted under ST-2.2
 `docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
 Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
-in `prisma/schema.prisma`.
+in `prisma/schema/core.prisma`.
 
 The detail that used to live here is preserved in git history; do not restore a feature
 key or route from it to make an old test pass.

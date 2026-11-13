@@ -18,7 +18,7 @@ It is grounded in the current codebase:
 - APIs in `app/api/*`
 - shared logic in `lib/*`
 - shared UI in `components/*`
-- persisted model in `prisma/schema.prisma`
+- persisted model in `prisma/schema/core.prisma`
 
 ## 1. Platform At a Glance
 Huchu is a multi-tenant mine operations platform where `Company` is the primary tenant boundary. Every major domain module hangs off `companyId` directly or through `Site`.
@@ -634,7 +634,7 @@ flowchart TB
 - uploads: `lib/uploads/*`
 
 ### Persistence
-- `prisma/schema.prisma`
+- `prisma/schema/core.prisma`
 - `lib/prisma.ts`
 
 ### Platform Operations Tooling
@@ -646,7 +646,7 @@ flowchart TB
 2. Register page and API route feature mapping in `lib/platform/gating/route-registry.ts`.
 3. Add navigation entry in `lib/navigation.ts` and module shell tabs if needed.
 4. Implement route handlers under `app/api/<domain>` using `validateSession`.
-5. Add or extend Prisma models in `prisma/schema.prisma` and update domain services in `lib/*`.
+5. Add or extend Prisma models in `prisma/schema/core.prisma` and update domain services in `lib/*`.
 6. Wire reporting and dashboard surfaces only after domain writes are stable.
 
 ## 11. Non-Negotiable Platform Invariants

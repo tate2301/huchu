@@ -292,7 +292,7 @@ async function main() {
 
   console.log(
     `\nDone. ${survivors} sale line(s) intact, every one naming its product and its item. ` +
-      "Remove the model from prisma/schema.prisma and run `npx prisma generate`.",
+      "Remove the model from prisma/schema/core.prisma and run `npx prisma generate`.",
   )
 }
 

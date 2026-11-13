@@ -37,7 +37,7 @@ Legend for status columns: **Implemented** = end-to-end, backed by a real API an
 
 ### A.4 How a teacher gets an account and maps to a record
 
-- There is **no invite/claim flow for teachers**: `SchoolPortalInviteSubject` is `STUDENT | GUARDIAN` only (`portal-invites.ts:82`, schema `prisma/schema.prisma:6706-6730`). A teacher is a `User` with role `TEACHER` created by an administrator, plus a `SchoolTeacherProfile` whose `userId` is required (`schema.prisma:7008-7011`), created via `POST /api/v2/schools/teachers/profiles` (`app/api/v2/schools/teachers/profiles/route.ts:117`).
+- There is **no invite/claim flow for teachers**: `SchoolPortalInviteSubject` is `STUDENT | GUARDIAN` only (`portal-invites.ts:82`, schema `prisma/schema/core.prisma:6706-6730`). A teacher is a `User` with role `TEACHER` created by an administrator, plus a `SchoolTeacherProfile` whose `userId` is required (`schema.prisma:7008-7011`), created via `POST /api/v2/schools/teachers/profiles` (`app/api/v2/schools/teachers/profiles/route.ts:117`).
 - The portal resolves the caller with `getTeacherProfile(companyId, userId)` and requires `isActive` (`lib/schools/governance-v2.ts:16-28`). No profile → `teacher: null` and every screen shows the "ask the office to link your account" empty state (`teacher-today-content.tsx:59-66`).
 - **Employee link** is optional and deliberate: `SchoolTeacherProfile.employeeId` nullable+unique (`schema.prisma:7018`); `lib/schools/teacher-identity.ts:52-173` suggests (same login = certain, exact name = likely) and links only on a person's click, refusing cross-tenant, already-linked and different-login employees. The portal reads `employee.jobTitle` for the profile card (`teacher-day-loader.ts:29-38`).
 - Privileged staff (SUPERADMIN/MANAGER/SCHOOL_ADMIN/REGISTRAR/BURSAR, `governance-v2.ts:4-10`) are waved through ownership checks on register/lessons/attendance/marks routes, but since they have no profile the *portal* shows them the empty state (`e2e/teacher-portal-shots.spec.ts:8-12` notes this).
@@ -265,7 +265,7 @@ Shared routes reached from the teacher portal and their scoping for a TEACHER:
 
 | Trigger | Exists? | Channel | Evidence |
 |---|---|---|---|
-| School notice (office → parents/students/teachers, optional class/pupil shortlist) | Yes | **In-app only** (`Notification` + `NotificationRecipient`) | `lib/schools/notices.ts:129-200`; types `SCHOOL_NOTICE_*` (`prisma/schema.prisma:2783-2786`); `POST /api/v2/schools/notices` (`reports create`). |
+| School notice (office → parents/students/teachers, optional class/pupil shortlist) | Yes | **In-app only** (`Notification` + `NotificationRecipient`) | `lib/schools/notices.ts:129-200`; types `SCHOOL_NOTICE_*` (`prisma/schema/core.prisma:2783-2786`); `POST /api/v2/schools/notices` (`reports create`). |
 | Results published | **No** | — | `results/sheets/[id]/publish/route.ts` has no notification call (grep). |
 | Invoice issued / receipt posted / fee reminder | **No** automatic trigger | — | `lib/schools/fees-v2.ts`, fees routes: no notification emission. Arrears board can send a targeted notice manually (notices.ts `studentIds`). |
 | Absence | **No** automatic alert | — | `attendance/follow-up` is an office list of repeat absentees, not a push (`follow-up/route.ts:8-26`). |

@@ -49,7 +49,7 @@ of the five is drawn at group scope, and none of them has been designed for it.
 
 **Nothing in this page exists.** Not the tables, not the routes, not the permission
 resource, not the navigation rows. This is the honest list, checked against
-`prisma/schema.prisma`, `app/api/v2/schools/`, `app/schools/`, `components/schools/`,
+`prisma/schema/core.prisma`, `app/api/v2/schools/`, `app/schools/`, `components/schools/`,
 `lib/schools/permissions.ts`, `lib/platform/personas.ts`,
 `lib/platform/gating/route-registry.ts` and `lib/navigation.ts` on 16 September 2026.
 

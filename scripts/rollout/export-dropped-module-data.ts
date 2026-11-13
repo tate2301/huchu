@@ -43,7 +43,7 @@ const DEFAULT_OUT_DIR = "exports/rollout/dropped-module-data";
 type RowRecord = Record<string, unknown>;
 
 interface ExportTable {
-  /** Model name exactly as it reads in `prisma/schema.prisma`. */
+  /** Model name exactly as it reads in `prisma/schema/core.prisma`. */
   model: string;
   /** Every row belonging to one company, via companyId or the nearest scoped parent. */
   fetch: (companyId: string) => Promise<unknown[]>;
@@ -148,7 +148,7 @@ function jsonReplacer(_key: string, value: unknown) {
 /**
  * A dropped table, read through raw SQL rather than the Prisma client.
  *
- * ST-3 removes these models from `prisma/schema.prisma`, so `prisma.nVR` and
+ * ST-3 removes these models from `prisma/schema/core.prisma`, so `prisma.nVR` and
  * its siblings stop existing the moment the client is regenerated and a typed
  * read here would no longer compile. Deleting this script alongside them was
  * the alternative, and it is the wrong one: the export is the undo for an

@@ -61,7 +61,7 @@ sidebar, 48px app bar, sticky band, `page()` content. It is not restated here.
 
 This is the section that stops somebody starting on a Tuesday. **Almost nothing
 these four screens need exists.** The schema has been read; what follows is what is
-actually in `prisma/schema.prisma` today.
+actually in `prisma/schema/core.prisma` today.
 
 ### What exists and can be used as-is
 
@@ -145,7 +145,7 @@ a free-text `grade: String?`. `Grade` is the one column of the five that has a h
 `Level`, `Points` and `Series` have none, and nothing can express `7 at B or better`
 or a points total.
 
-**No campus.** `campusId` does not appear anywhere in `prisma/schema.prisma`. The
+**No campus.** `campusId` does not appear anywhere in `prisma/schema/core.prisma`. The
 `scope` in the sidebar header, `BOR/LC/2026/0184`, and `Borrowdale campus` on the
 certificate all depend on **S-11.1**. These screens can be built single-campus and
 will need the campus prefix retrofitted; the document number format is the place that

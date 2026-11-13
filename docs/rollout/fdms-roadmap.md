@@ -15,7 +15,7 @@ Gateway API v7.2. This is the rollout program's critical path: everything else i
 - **Iterations ship in order.** A later iteration never leaves an earlier one broken.
 
 Sources this roadmap is derived from: `lib/accounting/fiscalisation.ts`,
-`lib/accounting/fdms-connector.ts`, `lib/schools/fiscalisation.ts`, `prisma/schema.prisma`
+`lib/accounting/fdms-connector.ts`, `lib/schools/fiscalisation.ts`, `prisma/schema/core.prisma`
 (`FiscalisationProviderConfig`, `FiscalReceipt`), `app/api/accounting/fiscalisation/replay/route.ts`
 and its sibling routes, `app/accounting/fiscalisation/page.tsx`,
 `docs/accounting/zimra-fiscalisation.md`, and the ZIMRA Fiscal Device Gateway API v7.2

@@ -48,7 +48,7 @@ Then the page spec for whatever you are building.
 ## None of this exists in the database yet
 
 This is the part worth reading before planning a sprint. Verified against
-`prisma/schema.prisma`:
+`prisma/schema/core.prisma`:
 
 - **No `SchoolIncident`, `SchoolMerit`, `SchoolDetention` or `SchoolPastoralNote`.** The
   whole conduct page is new tables. `DisciplinaryAction` exists but is an HR model for

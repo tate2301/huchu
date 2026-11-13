@@ -30,7 +30,7 @@ in the component.
 
 ## 1. Layers, in build order
 
-### 1a. Schema (`prisma/schema.prisma`)
+### 1a. Schema (`prisma/schema/core.prisma`)
 
 Everything is `companyId`-scoped **on the row**, not through a relation. Schools
 learned this the easy way; `Attendance` learned it the hard way — it was scoped

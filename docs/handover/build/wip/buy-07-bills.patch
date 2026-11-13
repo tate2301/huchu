@@ -2308,10 +2308,10 @@ index 00000000..5c6e4b19
 +
 +-- AddForeignKey
 +ALTER TABLE "PurchaseBill" ADD CONSTRAINT "PurchaseBill_goodsReceiptId_fkey" FOREIGN KEY ("goodsReceiptId") REFERENCES "RetailGoodsReceipt"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+diff --git a/prisma/schema/core.prisma b/prisma/schema/core.prisma
 index c23bde71..ab6492c2 100644
---- a/prisma/schema.prisma
-+++ b/prisma/schema.prisma
+--- a/prisma/schema/core.prisma
++++ b/prisma/schema/core.prisma
 @@ -5520,6 +5520,7 @@ model RetailGoodsReceipt {
  
    lines       RetailGoodsReceiptLine[]

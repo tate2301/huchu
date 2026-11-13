@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 import { ROLES } from "@/lib/roles";
 import {
   FEATURE_ROLE_REGISTRY,
@@ -17,9 +18,9 @@ function sorted(values: Iterable<string>): string[] {
 }
 
 function readPrismaUserRoles(): string[] {
-  const schema = fs.readFileSync(path.join(REPO_ROOT, "prisma/schema.prisma"), "utf8");
+  const schema = readPrismaSchema(REPO_ROOT);
   const match = schema.match(/enum UserRole\s*\{([^}]*)\}/);
-  if (!match) throw new Error("UserRole enum not found in prisma/schema.prisma");
+  if (!match) throw new Error("UserRole enum not found in prisma/schema/core.prisma");
 
   return match[1]
     .split(/\r?\n/)

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { readPrismaSchema } from "@/lib/prisma-schema-source";
 import { REPORT_DEFINITIONS } from "@/lib/reports/registry";
 import { sqlName } from "@/lib/reports/sql/schema";
 import { parseSchema, readerAccess } from "@/lib/vane/reader-access";
@@ -145,7 +146,7 @@ describe("saved questions", () => {
 });
 
 describe("explore_reader's access", () => {
-  const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
+  const schema = readPrismaSchema();
   const access = readerAccess(parseSchema(schema));
 
   it("reads what Vane's reader reads, less pay and Vane's and Explore's own tables", () => {

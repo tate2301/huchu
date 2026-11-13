@@ -136,7 +136,7 @@ const SEVERITY_FILTER_OPTIONS = [
  *
  * `Incidents.dc.html` draws them as a numbered list with an Action column and
  * a Status column, and puts `Add action` on the heading. `Incident` carries
- * one nullable text column, `actionsTaken` (`prisma/schema.prisma:6533`), and
+ * one nullable text column, `actionsTaken` (`prisma/schema/core.prisma:6533`), and
  * the PATCH schema takes that one string — so the list is a reading of that
  * string rather than a table the endpoint does not have:
  *
