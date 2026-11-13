@@ -28,6 +28,10 @@
 - `pnpm db:generate` - generate the Prisma client.
 - `pnpm db:push` - push the schema to the database (dev workflow).
 - `pnpm db:up` / `pnpm db:down` - start or stop the Postgres container on its own.
+- `pnpm verify:migrations` - rebuild the schema from an empty local database using only `prisma/migrations`; CI runs it on every PR.
+- `pnpm release:promote [--dry-run]` - tag a release from `main` and fast-forward `stable`, which dedicated cells deploy. In a fork it tags `<core tag>-<flavour>.<n>`. See `docs/_start-here/RELEASES_AND_FORKS.md`.
+- `pnpm fork:bootstrap --repo <owner/name> --flavour <flavour>` - create an industry fork from an empty repository; `pnpm fork:boundary <base>` checks a fork diff stays inside its paths.
+- Dedicated (enterprise) cells: `docs/_start-here/DEDICATED_CELL.md`.
 - Admin scripts (examples):
   - `pnpm create-user --email user@example.com --name "User" --password "..." --role manager --company-id <uuid>`
   - `pnpm manage-inventory list --company-id <uuid> --category consumables`

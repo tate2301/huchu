@@ -1,0 +1,47 @@
+# Merge each core release into an industry fork and open the PR for it.
+#
+# Lives in core so every fork gets improvements to it through the sync
+# itself. In core it does nothing: the job only runs where the repository
+# variable FORK_FLAVOUR is set (see scripts/fork/bootstrap.mjs and FORK.md).
+name: Fork · upstream sync
+
+on:
+  repository_dispatch:
+    types: [core-release]
+  schedule:
+    # Weekly safety net, in case a dispatch was missed.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Core tag to sync (default: the newest on core's stable)"
+        required: false
+
+concurrency:
+  group: fork-upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: vars.FORK_FLAVOUR != '' && vars.UPSTREAM_REPO != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # A PAT or app token, not GITHUB_TOKEN: it must read core, and a PR
+      # opened with GITHUB_TOKEN would not start the fork's checks.
+      GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+      UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO }}
+      REQUESTED_TAG: ${{ inputs.tag || github.event.client_payload.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.FORK_SYNC_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/fork/sync.mjs

@@ -1,0 +1,94 @@
+# Checks only an industry fork needs, on top of checks.yml (which every fork
+# also runs). Does nothing in core: each job needs FORK_FLAVOUR.
+#
+#   boundary            the PR changes nothing outside the fork's paths
+#                       (scripts/fork/boundary-lib.mjs). Sync PRs are exempt.
+#   rehearse-migrations every pending migration applies to a copy of the cell's
+#                       production database, and nothing drifts. This is what
+#                       proves a core migration dated before an applied fork
+#                       migration still lands on real data.
+name: Fork checks
+
+on:
+  pull_request:
+
+concurrency:
+  group: fork-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  boundary:
+    if: vars.FORK_FLAVOUR != '' && !startsWith(github.head_ref, 'sync/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FORK_FLAVOUR: ${{ vars.FORK_FLAVOUR }}
+      HOTFIX: ${{ contains(github.event.pull_request.labels.*.name, 'core-hotfix-approved') }}
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fork boundary
+        run: |
+          if node scripts/fork/boundary.mjs "${{ github.event.pull_request.base.sha }}"; then
+            exit 0
+          fi
+          if [ "$HOTFIX" != "true" ]; then
+            exit 1
+          fi
+          title="Upstream the core hotfix from #$PR"
+          if ! gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number' | grep -q .; then
+            gh label create core-hotfix --color b60205 --description "Core change made in the fork; must go upstream" --force
+            gh issue create --title "$title" --label core-hotfix \
+              --body "PR #$PR changed core files under \`core-hotfix-approved\`. Make the same change in core, release it, and remove the difference at the next sync (FORK.md)."
+          fi
+          echo "::warning::Core files changed under core-hotfix-approved; tracking issue opened."
+
+  rehearse-migrations:
+    if: vars.FORK_FLAVOUR != '' && vars.NEON_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Branch the cell's production database
+        id: branch
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          parent: ${{ vars.NEON_PARENT_BRANCH }}
+          branch_name: rehearse-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          username: ${{ vars.NEON_DB_ROLE || 'neondb_owner' }}
+          database: ${{ vars.NEON_DB_NAME || 'neondb' }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Apply pending migrations to the copy
+        env:
+          DATABASE_URL: ${{ steps.branch.outputs.db_url }}
+        run: npx prisma migrate deploy
+      - name: Every migrated column exists
+        env:
+          DATABASE_URL: ${{ steps.branch.outputs.db_url }}
+        run: node scripts/check-schema-drift.mjs
+      - name: Drop the copy
+        if: always() && steps.branch.outputs.branch_id != ''
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ${{ steps.branch.outputs.branch_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
