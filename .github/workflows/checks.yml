@@ -83,7 +83,8 @@ jobs:
         env:
           DATABASE_URL_TEST: postgresql://postgres@localhost:5432/postgres
 
-  # Release and fork tooling: pure logic, no database.
+  # Release and fork tooling, and the extension seams a fork plugs into
+  # (lib/extensions/contract.test.ts): pure logic, no database.
   release-tooling:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -97,7 +98,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run scripts/release scripts/fork
+      - run: pnpm vitest run scripts/release scripts/fork lib/extensions lib/prisma-schema-source.test.ts
         env:
           # vitest.setup.ts refuses to start without a test database; these
           # tests never connect to it.

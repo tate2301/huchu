@@ -1,3 +1,5 @@
+import { registeredExtensions } from "@/extensions";
+import { mergeTemplates } from "@/lib/extensions/registry";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "./feature-catalog";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import {
@@ -76,7 +78,7 @@ const CRM_FEATURE_KEYS = [
   "crm.settings",
 ] as const;
 
-export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
+const CORE_CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_CORE_STARTER",
     label: "General Business Starter",
@@ -367,6 +369,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     includeAllFeatures: true,
   },
 ];
+
+export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = mergeTemplates(
+  CORE_CLIENT_BUNDLE_TEMPLATES,
+  registeredExtensions,
+);
 
 const TEMPLATE_ALIASES: Record<string, string> = {
   BASE: "TEMPLATE_CORE_STARTER",

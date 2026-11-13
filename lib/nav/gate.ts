@@ -1,3 +1,8 @@
+import { registeredExtensions } from "@/extensions";
+import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { extensionNavAddresses, extensionNavGroups } from "@/lib/extensions/registry";
+import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { getWorkspaceOptions, getWorkspaceSidebarModel } from "@/lib/workspaces";
 
 import type { NavGroupId } from "./registry";
@@ -28,7 +33,21 @@ export function visibleAddresses(who: Who): Set<string> {
       for (const item of section.items) seen.add(item.href);
     }
   }
+  for (const href of extensionNavAddresses(registeredExtensions)) {
+    if (extensionAddressOpens(who, href)) seen.add(href);
+  }
   return seen;
+}
+
+/**
+ * An extension's row shows when the proxy would let this person in: the
+ * address is gated on a feature (an ungated address never shows), the
+ * workspace has it with its dependencies, and the role may reach it.
+ */
+function extensionAddressOpens(who: Who, href: string): boolean {
+  const path = pathOf(href);
+  if (!resolveFeatureKeyForPath(path)) return false;
+  return canAccessRouteWithToken(path, who.enabledFeatures).allowed && isRouteAllowedForRole(who.role, path);
 }
 
 /** The price each locked page shows, by address: Books' pages the workspace's plan does not include. */
@@ -55,17 +74,20 @@ const PRODUCT_PREFIXES: Array<[NavGroupId, string[]]> = [
   ["crm", ["/crm"]],
   ["campus", ["/schools"]],
   ["huchu", ["/gold", "/maintenance"]],
+  ...extensionNavGroups(registeredExtensions).map(({ id, prefix }): [NavGroupId, string[]] => [id, [prefix]]),
 ];
 
 /**
  * The product groups this person's workspace runs, the tenant's own first.
  * `profile` is the stored workspace profile (SCHOOLS, GOLD_MINE, RETAIL, ...).
+ * A registered extension's group is the tenant's own when no core profile
+ * claims the workspace: a fork cell runs its vertical on a GENERAL profile.
  */
 export function productGroupsFor(open: Set<string>, profile: string | null | undefined): NavGroupId[] {
   const own: Record<string, NavGroupId> = { SCHOOLS: "campus", GOLD_MINE: "huchu", RETAIL: "tender" };
   const running = PRODUCT_PREFIXES.filter(([, prefixes]) =>
     [...open].some((href) => prefixes.some((prefix) => pathOf(href) === prefix || pathOf(href).startsWith(`${prefix}/`))),
   ).map(([id]) => id);
-  const first = own[String(profile ?? "").toUpperCase()];
+  const first = own[String(profile ?? "").toUpperCase()] ?? running.find((id) => id.startsWith("ext."));
   return first && running.includes(first) ? [first, ...running.filter((id) => id !== first)] : running;
 }

@@ -1,6 +1,8 @@
+import { registeredExtensions } from "@/extensions";
+import { mergeFeatureDependencies } from "@/lib/extensions/registry";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 
-const FEATURE_DEPENDENCIES: Record<string, string[]> = {
+const CORE_FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "gold.intake.pours": ["gold.home"],
   "gold.dispatches": ["gold.home"],
   "gold.receipts": ["gold.home"],
@@ -76,6 +78,8 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "portal.schools": ["portal.core", "schools.core"],
   "portal.pos": ["portal.core", "retail.pos"],
 };
+
+const FEATURE_DEPENDENCIES = mergeFeatureDependencies(CORE_FEATURE_DEPENDENCIES, registeredExtensions);
 
 export function getFeatureDependencies(featureKey: string): string[] {
   const normalized = normalizeFeatureKey(featureKey);
