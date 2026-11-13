@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * Device sync — the mission-control view behind the app bar's sync icon.
+ * Device sync — the mission-control view behind the sidebar foot's sync word
+ * and the till's sync button.
  *
  * One row per thing that has to be true for this device to work offline, each
  * with a canonical status and the numbers behind it, then the queue itself.
  * Nothing decorative: a cashier opens this to answer "is my work safe, and can
- * I keep going without the line?", and every row is part of that answer.
+ * I keep going without the line?", and every row is part of that answer. The
+ * words are the Offline and sync page's; the panel explains nothing about itself.
  */
 
 import { Button, Meter, Status, SyncPanel, type StatusTone, type SyncGroup } from "@corelithzw/react";
@@ -15,6 +17,7 @@ import { useOfflineRuntime } from "@/components/offline/offline-runtime";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { deriveOfflineStatus, type OfflineSnapshot } from "@/lib/offline/runtime-store";
+import { OFFLINE_STATUS_WORD } from "@/lib/offline/status-words";
 import type { OfflineOutboxSummaryItem } from "@/lib/offline/types";
 
 type CanonicalStatus = "Needs input" | "Running" | "Completed" | "Idle" | "Not started";
@@ -40,11 +43,6 @@ function plural(count: number, one: string, many = `${one}s`) {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }
 
-/** "1 needs" / "2 need" — the verb agrees with the count. */
-function needs(count: number) {
-  return count === 1 ? "needs" : "need";
-}
-
 /** 24-hour clock today; the date as well for anything older. */
 export function formatSyncTime(iso: string | null, now = new Date()) {
   if (!iso) return null;
@@ -67,56 +65,52 @@ export function buildSyncRows(state: OfflineSnapshot, now = new Date()): SyncRow
   const readyRoutes = pages.routes.filter((route) => route.kept).length;
   const missingRoutes = pages.routes.filter((route) => !route.kept).map((route) => route.label);
 
-  const bundleRow: SyncRow = (() => {
-    const base = { id: "bundle" as const, label: "App bundle" };
-    if (bundle.state === "unsupported") {
-      return { ...base, status: "Not started", detail: "This browser cannot keep the app offline" };
-    }
-    if (bundle.state === "disabled") {
-      return { ...base, status: "Not started", detail: "Switched off in development builds" };
-    }
-    if (bundle.state === "failed") {
-      return { ...base, status: "Needs input", detail: "Could not install. Reload the page to try again" };
-    }
-    const files = bundle.total > 0 ? `${bundle.cached.toLocaleString()} of ${plural(bundle.total, "file")} on this device` : "Checking what is on this device";
+  const appRow: SyncRow = (() => {
+    const base = { id: "bundle" as const, label: "App" };
+    if (bundle.state === "unsupported") return { ...base, status: "Not started", detail: "Not supported in this browser" };
+    if (bundle.state === "disabled") return { ...base, status: "Not started", detail: "Off in development" };
+    if (bundle.state === "failed") return { ...base, status: "Needs input", detail: "Not installed. Reload to try again" };
+    const files = bundle.total > 0 ? `${bundle.cached.toLocaleString()} of ${plural(bundle.total, "file")}` : "Checking";
     const complete = bundle.total > 0 && bundle.cached >= bundle.total;
     return {
       ...base,
       status: complete && bundle.state === "ready" ? "Completed" : "Running",
-      detail: bundle.updateWaiting ? `${files} · a newer version is downloaded` : files,
+      detail: bundle.updateWaiting ? `${files} · Update ready` : files,
       progress: bundle.total > 0 ? Math.min(1, bundle.cached / bundle.total) : undefined,
     };
   })();
 
   const pagesRow: SyncRow = (() => {
-    const base = { id: "pages" as const, label: "Offline pages" };
+    const base = { id: "pages" as const, label: "Pages" };
     // Pages are kept by the service worker; without one, nothing is.
     if (bundle.state === "disabled" || bundle.state === "unsupported" || bundle.state === "failed") {
-      return { ...base, status: "Not started", detail: "Not kept while the app bundle is off" };
+      return { ...base, status: "Not started", detail: "None kept" };
     }
-    const total = `${plural(pages.keptCount, "page")} kept in total`;
     if (pages.routes.length === 0) {
-      if (pages.warming) return { ...base, status: "Running", detail: `Keeping pages now · ${total}` };
-      return { ...base, status: pages.keptCount > 0 ? "Completed" : "Idle", detail: `Pages you open are kept · ${total}` };
+      return {
+        ...base,
+        status: pages.warming ? "Running" : pages.keptCount > 0 ? "Completed" : "Idle",
+        detail: `${pages.keptCount.toLocaleString()} kept`,
+      };
     }
-    const ready = `${readyRoutes} of ${plural(pages.routes.length, "workspace page")} ready`;
-    if (pages.warming) return { ...base, status: "Running", detail: `${ready} · keeping the rest now`, progress: readyRoutes / pages.routes.length };
-    if (missingRoutes.length === 0) return { ...base, status: "Completed", detail: `${ready} · ${total}`, progress: 1 };
+    const ready = `${readyRoutes} of ${pages.routes.length} ready`;
+    if (pages.warming) return { ...base, status: "Running", detail: ready, progress: readyRoutes / pages.routes.length };
+    if (missingRoutes.length === 0) return { ...base, status: "Completed", detail: ready, progress: 1 };
     return {
       ...base,
       status: state.online ? "Needs input" : "Not started",
-      detail: `${ready} · not yet kept: ${missingRoutes.slice(0, 3).join(", ")}${missingRoutes.length > 3 ? ` and ${missingRoutes.length - 3} more` : ""}`,
+      detail: `${ready} · Missing ${missingRoutes.slice(0, 3).join(", ")}${missingRoutes.length > 3 ? ` and ${missingRoutes.length - 3} more` : ""}`,
       progress: readyRoutes / pages.routes.length,
     };
   })();
 
   const queueRow: SyncRow = (() => {
-    const base = { id: "queue" as const, label: "Pending actions" };
-    if (queue.pending === 0) return { ...base, status: "Completed", detail: "Nothing waiting to go up" };
-    const waiting = `${plural(queue.pending, "action")} waiting`;
-    if (queue.blocking > 0) return { ...base, status: "Needs input", detail: `${waiting} · ${queue.blocking} ${needs(queue.blocking)} review before ${queue.blocking === 1 ? "it" : "they"} can go up` };
-    if (state.syncing) return { ...base, status: "Running", detail: `${waiting} · sending now` };
-    return { ...base, status: "Idle", detail: state.online ? `${waiting} · next attempt within a minute` : `${waiting} · they go up when the line is back` };
+    const base = { id: "queue" as const, label: "Waiting actions" };
+    if (queue.pending === 0) return { ...base, status: "Completed", detail: "None" };
+    const waiting = plural(queue.pending, "action");
+    if (queue.blocking > 0) return { ...base, status: "Needs input", detail: `${waiting} · ${queue.blocking} to review` };
+    if (state.syncing) return { ...base, status: "Running", detail: `${waiting} · Sending` };
+    return { ...base, status: "Idle", detail: waiting };
   })();
 
   return [
@@ -126,46 +120,61 @@ export function buildSyncRows(state: OfflineSnapshot, now = new Date()): SyncRow
       status: state.online ? "Completed" : "Needs input",
       detail: state.online ? "Online" : lastOnline ? `Offline since ${lastOnline}` : "Offline",
     },
-    bundleRow,
+    appRow,
     pagesRow,
     {
       id: "data",
       label: "Saved data",
       status: state.data.queryCount > 0 ? "Completed" : "Idle",
-      detail:
-        state.data.queryCount > 0
-          ? `${plural(state.data.queryCount, "result")} kept for this workspace`
-          : "Nothing kept yet — pages save their data as they load",
+      detail: state.data.queryCount > 0 ? plural(state.data.queryCount, "result") : "None yet",
     },
     queueRow,
     {
       id: "sync",
       label: "Last sync",
       status: state.lastSyncError ? "Needs input" : lastSynced ? "Completed" : "Not started",
-      detail: state.lastSyncError
-        ? `Failed: ${state.lastSyncError}`
-        : lastSynced
-          ? `${lastSynced}${state.online ? "" : lastOnline ? ` · last online ${lastOnline}` : ""}`
-          : "Not yet on this device",
+      detail: state.lastSyncError ? `Failed: ${state.lastSyncError}` : (lastSynced ?? "Not yet"),
     },
   ];
 }
 
-function headline(state: OfflineSnapshot) {
+/** What sits beside the state word in the header: since when, how many, how far. */
+export function buildSyncMeta(state: OfflineSnapshot, now = new Date()): string | null {
   const status = deriveOfflineStatus(state);
   if (status === "OFFLINE") {
-    return state.queue.pending > 0
-      ? `Offline. ${plural(state.queue.pending, "action")} saved on this device and will go up when the line is back.`
-      : "Offline. Kept pages still open, and new work is saved on this device.";
+    const since = formatSyncTime(state.lastOnlineAt, now);
+    return since ? `since ${since}` : null;
   }
-  if (status === "ATTENTION") {
-    const count = state.queue.blocking;
-    return `${plural(count, "action")} ${needs(count)} review before ${count === 1 ? "it" : "they"} can go up.`;
+  if ((status === "ATTENTION" || status === "SYNCING") && state.queue.pending > 0) {
+    return plural(state.queue.pending, "action");
   }
-  if (status === "SYNCING") return "Sending waiting actions now.";
-  if (status === "PREPARING") return "Keeping the pages and data this device needs offline.";
-  if (status === "UPDATE_READY") return "Everything is in order. A newer version is ready to apply.";
-  return "Everything is in order. This device can keep working without the line.";
+  if (status === "PREPARING") {
+    if (state.bundle.state === "installing" && state.bundle.total > 0) {
+      return `${state.bundle.cached.toLocaleString()} of ${state.bundle.total.toLocaleString()}`;
+    }
+    if (state.pages.routes.length > 0) {
+      return `${state.pages.routes.filter((route) => route.kept).length} of ${state.pages.routes.length}`;
+    }
+  }
+  return null;
+}
+
+/** The word on a queue row: what is happening to it, and nothing else. */
+export function queueRowWord(item: OfflineOutboxSummaryItem, now = new Date()): string {
+  if (item.status === "SYNCING") return "Sending";
+  if (item.waitingOn) return `Waiting on ${item.waitingOn}`;
+  if (item.status === "FAILED_RETRYABLE") {
+    const next = formatSyncTime(item.nextRetryAt ?? null, now);
+    return next ? `Will be tried again at ${next}` : "Will be tried again";
+  }
+  return "Waiting";
+}
+
+/** The cash is already in the drawer when a sale is queued; losing it loses the sale. */
+function removeDescription(item: OfflineOutboxSummaryItem) {
+  return item.operation === "create-sale"
+    ? "The customer has already paid. Removing it loses the sale"
+    : "It has not reached the server. Removing it cannot be undone";
 }
 
 function QueueRowActions({
@@ -194,12 +203,13 @@ function QueueRowActions({
 export function OfflineRuntimePanel() {
   const runtime = useOfflineRuntime();
   const rows = buildSyncRows(runtime);
+  const meta = buildSyncMeta(runtime);
   const now = new Date();
 
   const removeItem = async (item: OfflineOutboxSummaryItem) => {
     const confirmed = await dsConfirm({
       title: `Remove ${item.label}`,
-      description: "It has not reached the server. Removing it cannot be undone",
+      description: removeDescription(item),
       confirmLabel: "Remove",
       variant: "danger",
     });
@@ -219,10 +229,8 @@ export function OfflineRuntimePanel() {
     if (confirmed) await runtime.clearQueue();
   };
 
-  const needsReview = runtime.operations.filter(
-    (item) => item.status === "FAILED_BLOCKING" || Boolean(item.blockedByOperationId),
-  );
-  const waiting = runtime.operations.filter((item) => !needsReview.includes(item));
+  const needsReview = runtime.operations.filter((item) => item.status === "FAILED_BLOCKING");
+  const waiting = runtime.operations.filter((item) => item.status !== "FAILED_BLOCKING");
   const candidateGroups: (SyncGroup | null)[] = [
     needsReview.length > 0
       ? {
@@ -232,7 +240,7 @@ export function OfflineRuntimePanel() {
             label: item.label,
             time: formatSyncTime(item.createdAt, now) ?? undefined,
             failed: true,
-            detail: item.blockedReason ?? item.lastError ?? "The server refused it",
+            detail: item.lastError ?? "Refused",
             action: (
               <QueueRowActions
                 item={item}
@@ -249,7 +257,7 @@ export function OfflineRuntimePanel() {
           label: `Waiting · ${waiting.length}`,
           items: waiting.map((item) => ({
             label: item.label,
-            value: item.status === "FAILED_RETRYABLE" ? "Will be tried again" : undefined,
+            value: queueRowWord(item, now),
             time: formatSyncTime(item.createdAt, now) ?? undefined,
             status: item.status === "SYNCING" ? "progress" : "attention",
           })),
@@ -261,10 +269,11 @@ export function OfflineRuntimePanel() {
   return (
     <div className="flex flex-col">
       <DialogHeader className="gap-1 border-b border-[var(--border-default)] px-5 py-4 pr-12">
-        <DialogTitle className="text-base font-semibold text-[var(--text-strong)]">Device sync</DialogTitle>
-        <DialogDescription className="not-sr-only text-sm text-[var(--text-muted)]">
-          {headline(runtime)}
-        </DialogDescription>
+        <DialogTitle className="flex items-baseline gap-2 text-base font-semibold text-[var(--text-strong)]">
+          {OFFLINE_STATUS_WORD[runtime.status]}
+          {meta ? <span className="text-sm font-normal text-[var(--text-muted)] tabular-nums">{meta}</span> : null}
+        </DialogTitle>
+        <DialogDescription className="sr-only">Device sync</DialogDescription>
       </DialogHeader>
 
       <dl className="divide-y divide-[var(--border-default)]">
@@ -291,7 +300,7 @@ export function OfflineRuntimePanel() {
               {row.id === "pages" && row.status === "Needs input" ? (
                 <div>
                   <Button size="sm" variant="secondary" onClick={() => void runtime.warmNow()}>
-                    Keep pages now
+                    Keep pages
                   </Button>
                 </div>
               ) : null}
@@ -303,7 +312,7 @@ export function OfflineRuntimePanel() {
       {groups.length > 0 ? (
         <div className="border-t border-[var(--border-default)] px-5 py-3">
           <SyncPanel
-            title={`Queue · ${plural(runtime.pendingCount, "action")}`}
+            title="Queue"
             action={
               <Button size="sm" variant="ghost" onClick={() => void clearQueue()}>
                 Clear queue

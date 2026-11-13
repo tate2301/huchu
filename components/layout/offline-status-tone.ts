@@ -7,6 +7,7 @@ import {
 import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
 import { DeployedCodeUpdate, SignalWifiOff } from "@/lib/icons";
+import { OFFLINE_STATUS_WORD } from "@/lib/offline/status-words";
 
 type StatusTone = {
   colorVar: string;
@@ -20,40 +21,40 @@ export function getOfflineStatusTone(status: OfflineStatus): StatusTone {
     return {
       colorVar: "--status-warning-text",
       icon: SignalWifiOff,
-      text: "Offline",
+      text: OFFLINE_STATUS_WORD.OFFLINE,
     };
   }
   if (status === "ATTENTION") {
     return {
       colorVar: "--status-error-text",
       icon: ExclamationCircleSolid,
-      text: "Needs attention",
+      text: OFFLINE_STATUS_WORD.ATTENTION,
     };
   }
   if (status === "PREPARING") {
     return {
       colorVar: "--action-primary-bg",
       icon: CircleHalfDottedClock,
-      text: "Preparing",
+      text: OFFLINE_STATUS_WORD.PREPARING,
     };
   }
   if (status === "UPDATE_READY") {
     return {
       colorVar: "--action-primary-bg",
       icon: DeployedCodeUpdate,
-      text: "Update available",
+      text: OFFLINE_STATUS_WORD.UPDATE_READY,
     };
   }
   if (status === "SYNCING") {
     return {
       colorVar: "--action-primary-bg",
       icon: CircleThreeQuartersSolid,
-      text: "Syncing",
+      text: OFFLINE_STATUS_WORD.SYNCING,
     };
   }
   return {
     colorVar: "--status-success-text",
     icon: CheckCircleSolid,
-    text: "Ready",
+    text: OFFLINE_STATUS_WORD.ONLINE,
   };
 }

@@ -146,14 +146,3 @@ export function deriveOfflineStatus(state: OfflineSnapshot): OfflineStatus {
   if (state.bundle.updateWaiting) return "UPDATE_READY";
   return "ONLINE";
 }
-
-export function getOfflineStatusLabel(state: OfflineSnapshot) {
-  const status = deriveOfflineStatus(state);
-  const pending = state.queue.pending;
-  if (status === "OFFLINE") return "Offline";
-  if (status === "ATTENTION") return `Attention ${state.queue.blocking}`;
-  if (status === "SYNCING") return pending > 0 ? `Syncing ${pending}` : "Syncing";
-  if (status === "PREPARING") return "Preparing";
-  if (status === "UPDATE_READY") return "Update available";
-  return "Ready";
-}

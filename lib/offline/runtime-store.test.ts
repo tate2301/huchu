@@ -4,13 +4,13 @@ import {
   SERVER_SNAPSHOT,
   deriveOfflineStatus,
   getOfflineSnapshot,
-  getOfflineStatusLabel,
   getServerOfflineSnapshot,
   resetOfflineSnapshot,
   subscribeOfflineRuntime,
   updateOfflineSnapshot,
   type OfflineSnapshot,
 } from "./runtime-store";
+import { OFFLINE_STATUS_WORD } from "./status-words";
 
 function state(patch: Partial<OfflineSnapshot>): OfflineSnapshot {
   return { ...SERVER_SNAPSHOT, ...patch };
@@ -33,8 +33,8 @@ describe("the server snapshot", () => {
     expect(deriveOfflineStatus(getServerOfflineSnapshot())).toBe("ONLINE");
   });
 
-  it("reads as ready — the state the app bar renders on the server", () => {
-    expect(getOfflineStatusLabel(SERVER_SNAPSHOT)).toBe("Ready");
+  it("reads as up to date — the state the app bar renders on the server", () => {
+    expect(OFFLINE_STATUS_WORD[deriveOfflineStatus(SERVER_SNAPSHOT)]).toBe("Up to date");
   });
 });
 
@@ -68,11 +68,18 @@ describe("the one word for the whole state", () => {
 
   it("puts work that needs a person above a running sync", () => {
     expect(deriveOfflineStatus(state({ queue: queue(2, 1), syncing: true }))).toBe("ATTENTION");
-    expect(getOfflineStatusLabel(state({ queue: queue(2, 1) }))).toBe("Attention 1");
+    expect(OFFLINE_STATUS_WORD.ATTENTION).toBe("Needs attention");
   });
 
-  it("reports a sync with its count", () => {
-    expect(getOfflineStatusLabel(state({ queue: queue(4), syncing: true }))).toBe("Syncing 4");
+  it("names all six states once", () => {
+    expect(Object.values(OFFLINE_STATUS_WORD)).toEqual([
+      "Up to date",
+      "Offline",
+      "Needs attention",
+      "Syncing",
+      "Getting ready to work offline",
+      "Update ready",
+    ]);
   });
 
   it("is preparing while pages are being kept or the bundle is downloading", () => {

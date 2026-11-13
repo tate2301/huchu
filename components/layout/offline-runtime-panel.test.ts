@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSyncRows, formatSyncTime } from "./offline-runtime-panel";
+import { buildSyncMeta, buildSyncRows, formatSyncTime, queueRowWord } from "./offline-runtime-panel";
 import { SERVER_SNAPSHOT, type OfflineSnapshot } from "@/lib/offline/runtime-store";
 
 const NOW = new Date("2026-09-28T14:40:00");
@@ -45,9 +45,9 @@ describe("the device sync rows", () => {
   it("reads as completed across the board when everything is in order", () => {
     const rows = buildSyncRows(HEALTHY, NOW);
     expect(rows.every((entry) => entry.status === "Completed")).toBe(true);
-    expect(row(HEALTHY, "bundle").detail).toBe("412 of 412 files on this device");
-    expect(row(HEALTHY, "pages").detail).toBe("2 of 2 workspace pages ready · 9 pages kept in total");
-    expect(row(HEALTHY, "data").detail).toBe("86 results kept for this workspace");
+    expect(row(HEALTHY, "bundle").detail).toBe("412 of 412 files");
+    expect(row(HEALTHY, "pages").detail).toBe("2 of 2 ready");
+    expect(row(HEALTHY, "data").detail).toBe("86 results");
     expect(row(HEALTHY, "sync").detail).toBe("14:38");
   });
 
@@ -77,22 +77,15 @@ describe("the device sync rows", () => {
       status: "Needs input",
       detail: "Offline since 13:05",
     });
-    expect(row(offline, "queue").detail).toBe(
-      "3 actions waiting · they go up when the line is back",
-    );
+    expect(row(offline, "queue").detail).toBe("3 actions");
   });
 
   it("asks for a person when an action is blocked", () => {
     const blocked = state({ queue: { pending: 2, blocking: 1, operations: [] } });
     expect(row(blocked, "queue")).toMatchObject({
       status: "Needs input",
-      detail: "2 actions waiting · 1 needs review before it can go up",
+      detail: "2 actions · 1 to review",
     });
-  });
-
-  it("agrees the verb with the count", () => {
-    const two = state({ queue: { pending: 3, blocking: 2, operations: [] } });
-    expect(row(two, "queue").detail).toBe("3 actions waiting · 2 need review before they can go up");
   });
 
   it("names the pages not yet kept, and how far it has got", () => {
@@ -110,28 +103,25 @@ describe("the device sync rows", () => {
     });
     const pages = row(partial, "pages");
     expect(pages.status).toBe("Needs input");
-    expect(pages.detail).toBe("1 of 3 workspace pages ready · not yet kept: /held, /shift");
+    expect(pages.detail).toBe("1 of 3 ready · Missing /held, /shift");
     expect(pages.progress).toBeCloseTo(1 / 3);
   });
 
-  it("explains a switched-off worker rather than reporting it as broken", () => {
+  it("reports a switched-off worker as not started rather than broken", () => {
     const dev = state({ bundle: { ...SERVER_SNAPSHOT.bundle, state: "disabled" } });
     expect(row(dev, "bundle")).toMatchObject({
       status: "Not started",
-      detail: "Switched off in development builds",
+      detail: "Off in development",
     });
     // …and does not claim pages are being kept when nothing can keep them.
-    expect(row(dev, "pages")).toMatchObject({
-      status: "Not started",
-      detail: "Not kept while the app bundle is off",
-    });
+    expect(row(dev, "pages")).toMatchObject({ status: "Not started", detail: "None kept" });
   });
 
   it("shows a warm-up as running even on a workspace with no module pages", () => {
     const warming = state({ ...HEALTHY, pages: { warming: true, routes: [], keptCount: 4 } });
     expect(row(warming, "pages")).toMatchObject({
       status: "Running",
-      detail: "Keeping pages now · 4 pages kept in total",
+      detail: "4 kept",
     });
   });
 
@@ -145,8 +135,19 @@ describe("the device sync rows", () => {
   it("mentions a downloaded update in the bundle row", () => {
     const update = state({ ...HEALTHY, bundle: { ...HEALTHY.bundle, updateWaiting: true } });
     expect(row(update, "bundle").detail).toBe(
-      "412 of 412 files on this device · a newer version is downloaded",
+      "412 of 412 files · Update ready",
     );
+  });
+
+  it("names the rows as the design does", () => {
+    expect(buildSyncRows(HEALTHY, NOW).map((entry) => entry.label)).toEqual([
+      "Connection",
+      "App",
+      "Pages",
+      "Saved data",
+      "Waiting actions",
+      "Last sync",
+    ]);
   });
 
   it("shows a failed sync with its reason", () => {
@@ -170,5 +171,55 @@ describe("sync times", () => {
   it("says nothing rather than inventing a time", () => {
     expect(formatSyncTime(null, NOW)).toBeNull();
     expect(formatSyncTime("not a date", NOW)).toBeNull();
+  });
+});
+
+describe("the header beside the state word", () => {
+  it("says since when while offline", () => {
+    const offline = state({ ...HEALTHY, online: false, lastOnlineAt: "2026-09-28T08:12:00" });
+    expect(buildSyncMeta(offline, NOW)).toBe("since 08:12");
+  });
+
+  it("counts actions while syncing or needing attention", () => {
+    expect(buildSyncMeta(state({ syncing: true, queue: { pending: 2, blocking: 0, operations: [] } }), NOW)).toBe("2 actions");
+    expect(buildSyncMeta(state({ queue: { pending: 1, blocking: 1, operations: [] } }), NOW)).toBe("1 action");
+  });
+
+  it("counts how far it has got while getting ready", () => {
+    const installing = state({
+      bundle: { state: "installing", cached: 2, total: 5, updateWaiting: false, updating: false },
+    });
+    expect(buildSyncMeta(installing, NOW)).toBe("2 of 5");
+  });
+
+  it("says nothing when the device is up to date", () => {
+    expect(buildSyncMeta(HEALTHY, NOW)).toBeNull();
+  });
+});
+
+describe("the queue row words", () => {
+  const item = {
+    operationId: "op:1",
+    tenantKey: "t",
+    moduleId: "retail-pos",
+    entityType: "sale",
+    operation: "create-sale",
+    label: "Sale",
+    createdAt: "2026-09-28T09:00:00",
+  } as const;
+
+  it("uses the design's vocabulary", () => {
+    expect(queueRowWord({ ...item, status: "QUEUED" }, NOW)).toBe("Waiting");
+    expect(queueRowWord({ ...item, status: "SYNCING" }, NOW)).toBe("Sending");
+    expect(queueRowWord({ ...item, status: "FAILED_RETRYABLE" }, NOW)).toBe("Will be tried again");
+    expect(
+      queueRowWord({ ...item, status: "FAILED_RETRYABLE", nextRetryAt: "2026-09-28T14:41:00" }, NOW),
+    ).toBe("Will be tried again at 14:41");
+  });
+
+  it("names what a dependent item is waiting on", () => {
+    expect(queueRowWord({ ...item, status: "QUEUED", waitingOn: "New customer" }, NOW)).toBe(
+      "Waiting on New customer",
+    );
   });
 });

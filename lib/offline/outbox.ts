@@ -13,15 +13,17 @@ function nowIso() {
 function describeOperation(operation: OfflineOutboxOperation) {
   switch (operation.operation) {
     case "create-seller":
-      return "Seller create";
+      return "New seller";
     case "create-inbound-ticket":
       return "Inbound ticket";
     case "create-outbound-ticket":
       return "Outbound ticket";
     case "create-customer":
-      return "Customer create";
+      return "New customer";
     case "create-sale":
-      return "POS sale";
+      return "Sale";
+    case "reverse-sale":
+      return "Refund or void";
     default:
       return operation.operation;
   }
@@ -237,9 +239,10 @@ export async function getOfflineOutboxSummaryForTenant(tenantKey?: string) {
     pending.map((operation) => [operation.operationId, operation]),
   );
   const items: OfflineOutboxSummaryItem[] = pending.map((operation) => {
-    const blockingDependency = operation.dependsOn
+    const dependencies = operation.dependsOn
       .map((dependencyId) => operationMap.get(dependencyId) ?? null)
-      .find((dependency) => dependency?.status === "FAILED_BLOCKING");
+      .filter((dependency): dependency is OfflineOutboxOperation => dependency !== null);
+    const blockingDependency = dependencies.find((dependency) => dependency.status === "FAILED_BLOCKING");
 
     return {
       operationId: operation.operationId,
@@ -251,20 +254,16 @@ export async function getOfflineOutboxSummaryForTenant(tenantKey?: string) {
       status: operation.status,
       createdAt: operation.createdAt,
       lastError: operation.lastError,
+      nextRetryAt: operation.nextRetryAt,
       blockedByOperationId: blockingDependency?.operationId,
-      blockedReason: blockingDependency
-        ? blockingDependency.lastError ||
-          `Waiting for ${describeOperation(blockingDependency)}`
-        : undefined,
+      waitingOn: dependencies[0] ? describeOperation(dependencies[0]) : undefined,
     };
   });
   return {
     pendingCount: pending.length,
-    blockingCount: items.filter(
-      (operation) =>
-        operation.status === "FAILED_BLOCKING" ||
-        Boolean(operation.blockedByOperationId),
-    ).length,
+    // Items a person has to look at. What sits behind one follows it, so it is
+    // not counted twice.
+    blockingCount: items.filter((operation) => operation.status === "FAILED_BLOCKING").length,
     operations: pending,
     items,
   };

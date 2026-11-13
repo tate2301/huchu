@@ -14,7 +14,7 @@ import {
 /**
  * The app bar's device-sync button, hydrated for real.
  *
- * The bug this pins: the server rendered "Device sync — ready", and the
+ * The bug this pins: the server rendered "Device sync — up to date", and the
  * button's first client render said "preparing", because by the time the
  * navbar's Suspense boundary hydrated, the device had already started keeping
  * pages. React logged "A tree hydrated but some attributes of the server
@@ -72,7 +72,7 @@ describe("OfflineStatusButton", () => {
     const server = renderToStaticMarkup(<OfflineStatusButton />);
     updateOfflineSnapshot(PREPARING);
     expect(renderToStaticMarkup(<OfflineStatusButton />)).toBe(server);
-    expect(server).toContain('aria-label="Device sync — ready"');
+    expect(server).toContain('aria-label="Device sync — up to date"');
   });
 
   it("hydrates without a mismatch when the device is already preparing", async () => {
@@ -81,7 +81,7 @@ describe("OfflineStatusButton", () => {
     expect(consoleError).not.toHaveBeenCalled();
     expect(recoverable).not.toHaveBeenCalled();
     // …and the live state takes over in the render straight after.
-    expect(label(container)).toBe("Device sync — preparing");
+    expect(label(container)).toBe("Device sync — getting ready to work offline");
   });
 
   it("hydrates without a mismatch when the device is offline with work queued", async () => {

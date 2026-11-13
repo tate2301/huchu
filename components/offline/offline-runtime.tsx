@@ -22,7 +22,6 @@ import {
 import {
   deriveOfflineStatus,
   getOfflineSnapshot,
-  getOfflineStatusLabel,
   getServerOfflineSnapshot,
   subscribeOfflineRuntime,
 } from "@/lib/offline/runtime-store";
@@ -91,7 +90,6 @@ export function useOfflineRuntime() {
       ...snapshot,
       ...actions,
       status: deriveOfflineStatus(snapshot),
-      statusLabel: getOfflineStatusLabel(snapshot),
       isOffline: !snapshot.online,
       isSyncing: snapshot.syncing,
       pendingCount: snapshot.queue.pending,

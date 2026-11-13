@@ -158,8 +158,12 @@ export type OfflineOutboxSummaryItem = {
   status: OfflineOutboxStatus;
   createdAt: string;
   lastError?: string;
+  /** When the next automatic try is due, for an item that will be tried again. */
+  nextRetryAt?: string;
+  /** The failed item this one is stuck behind. */
   blockedByOperationId?: string;
-  blockedReason?: string;
+  /** The item this one has to follow, by name, while that item has not gone up. */
+  waitingOn?: string;
 };
 
 export type OfflineStatus =

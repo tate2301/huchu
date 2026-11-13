@@ -5,7 +5,9 @@ import Link from "next/link";
 
 import { OfflineStatusDialog } from "@/components/layout/offline-status-row";
 import { useOfflineRuntime } from "@/components/offline/offline-runtime";
+import { OFFLINE_STATUS_WORD } from "@/lib/offline/status-words";
 import type { ChromeIconName } from "@/lib/nav/chrome";
+import type { OfflineStatus } from "@/lib/offline/types";
 import { cn } from "@/lib/utils";
 
 import { ChromeIcon, CorelithMark } from "./parts";
@@ -13,18 +15,22 @@ import styles from "./sidebar.module.css";
 
 const noopSubscribe = () => () => {};
 
+const FOOT_SYNC = {
+  ONLINE: { icon: "ready", tone: "ok" },
+  OFFLINE: { icon: "offline", tone: "warn" },
+  ATTENTION: { icon: "attention", tone: "bad" },
+  SYNCING: { icon: "syncing", tone: "ok" },
+  PREPARING: { icon: "syncing", tone: "ok" },
+  UPDATE_READY: { icon: "update", tone: "ok" },
+} as const satisfies Record<OfflineStatus, { icon: ChromeIconName; tone: "ok" | "warn" | "bad" }>;
+
 /** The device's state in the foot's words: what the Tools board on the App bar page draws. */
-function useFootSync(): { word: string; icon: ChromeIconName; tone: "ok" | "warn" | "bad" } {
-  const { status, showUpdatePrompt } = useOfflineRuntime();
+function useFootSync() {
+  const { status } = useOfflineRuntime();
   // The device's state is the browser's own, so it is drawn after hydration.
   const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
-  if (!mounted) return { word: "Up to date", icon: "ready", tone: "ok" };
-  if (status === "ATTENTION") return { word: "Needs attention", icon: "attention", tone: "bad" };
-  if (status === "OFFLINE") return { word: "Offline", icon: "offline", tone: "warn" };
-  if (status === "UPDATE_READY" || showUpdatePrompt) return { word: "Update ready", icon: "update", tone: "ok" };
-  if (status === "PREPARING") return { word: "Getting ready to work offline", icon: "syncing", tone: "ok" };
-  if (status === "SYNCING") return { word: "Syncing", icon: "syncing", tone: "ok" };
-  return { word: "Up to date", icon: "ready", tone: "ok" };
+  const shown: OfflineStatus = mounted ? status : "ONLINE";
+  return { word: OFFLINE_STATUS_WORD[shown], ...FOOT_SYNC[shown] };
 }
 
 /**

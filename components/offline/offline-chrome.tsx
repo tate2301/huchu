@@ -27,20 +27,10 @@ export function OfflineChrome() {
   }
 
   /*
-    Two of the three pieces that used to live here are gone product-wide.
-
-    The runtime banner was a ~120px block in the document flow reporting the
-    progress of a cache warm nobody can hurry, and the floating pill was pinned
-    bottom-right at `z-70` — on the POS terminal, directly over the keypad's
-    backspace key. Both now live behind "This device" in the account menu (and
-    `OfflineStatusButton` on the till), which opens the full
-    `OfflineRuntimePanel`: same information, plus queued counts and Sync now,
-    none of it in the way.
-
-    The connectivity strip stays. It is 40px, it appears only when the line is
-    actually down, and unlike the other two it is the one thing a person needs
-    interrupting for — an icon alone is too quiet to carry "you are offline" to
-    somebody mid-task who is about to keep typing.
+    The strip is the one piece of offline chrome that stays: 40px, shown only
+    while the line is down, and the one thing a person needs interrupting for.
+    Everything else is behind the sync word in the sidebar foot and the till's
+    sync button, which open Device sync.
   */
   return <OfflineBanner />;
 }
