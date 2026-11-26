@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
@@ -18,25 +17,42 @@ import {
   Calendar,
   CalendarCheck,
   ChartLine,
+  ChatCircle,
+  Checklist,
   Clock,
+  FileText,
   Mail,
   MapPin,
-  NoteAdd,
   Payments,
   Phone,
+  Plus,
+  Receipt,
+  Tag,
   TrendingUp,
   UserRound,
   Users,
   Work,
 } from "@/lib/icons";
 import { daysSince, dealStageStatus, resolveNextStep } from "@/lib/crm/tones";
-import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import {
+  fetchCrmFieldDefinitions,
+  fetchCrmTasks,
+  type CrmFieldDefinitionRecord,
+  type CrmLeadOwner,
+} from "@/lib/crm/crm-v2";
 import { isDealStale } from "@/lib/crm/pipelines";
 import { visitItemsToQuotationLines } from "@/lib/crm/site-visits";
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
+import { buildStory } from "@/lib/crm/story";
 
-import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
+import {
+  ConversationComposer,
+  useComposeShortcut,
+  type ComposeRequest,
+  type ContactKind,
+} from "@/components/crm/collaboration/conversation-composer";
 import { DocumentList } from "@/components/crm/documents/document-list";
+import { useDocumentActions } from "@/components/crm/documents/document-actions";
 import { formatMoney, invoiceOutstanding } from "@/components/crm/documents/document-types";
 import type { LeadDocument } from "@/components/crm/documents/document-types";
 import {
@@ -47,26 +63,19 @@ import {
   tasksTab,
   useRecordComments,
 } from "./record-tabs";
-import {
-  ContactList,
-  ContactTally,
-  EmailPreview,
-  MeetingCard,
-  NextInteractionCard,
-  type NextInteraction,
-  type RailTally,
-} from "./record-panels";
-import { NextStepButton, NextStepCard } from "./next-step-card";
-import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
+import { EmailPreview, MeetingCard } from "./record-panels";
+import { NextStepButton, STEP_ICON } from "./next-step-card";
+import { NextActionCard, dueText, type NextAction } from "./next-action-card";
+import { BillingSection, ContactCounts } from "./details-sections";
 import { RecordStory } from "@/components/crm/records/record-story";
-import { buildStory } from "@/lib/crm/story";
 import { VisitsTab } from "@/components/crm/lead-detail/visits-tab";
 import type { LeadActivity, LeadAppointment, LeadFollowUp } from "@/components/crm/lead-detail/lead-types";
-import type { CrmLeadOwner } from "@/lib/crm/crm-v2";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 import { StartProjectDialog } from "@/components/crm/money/start-project-dialog";
+import { TaskFormSheet } from "@/components/crm/tasks/task-form-sheet";
+import { useTaskCompletion } from "@/components/crm/tasks/use-task-completion";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
@@ -76,23 +85,13 @@ import { RecordAttributes } from "@/components/records/record-attributes";
 import { RelationAttribute } from "./relation-attribute";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
+import { FaceStack } from "@/components/records/face-stack";
 import { DealStageBar, StageChecklist } from "./deal-stage-bar";
 import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
-import { Stack } from "@corelithzw/react";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { useListHref } from "@/components/crm/registers/list-href";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
-
-const ROLE_LABELS: Record<string, string> = {
-  PRIMARY: "Primary contact",
-  DECISION_MAKER: "Decision-maker",
-  FINANCE: "Finance",
-  SITE: "Site contact",
-  TECHNICAL: "Technical",
-  INFLUENCER: "Influencer",
-  REFERRER: "Referrer",
-};
 
 type DealDetail = {
   id: string;
@@ -154,6 +153,13 @@ function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
   );
 }
 
+/** The channel each of the panel's Call / Email / Message buttons opens. */
+const QUICK_CONTACT: Array<{ kind: ContactKind; label: string; icon: typeof Phone }> = [
+  { kind: "CALL", label: "Call", icon: Phone },
+  { kind: "EMAIL", label: "Email", icon: Mail },
+  { kind: "WHATSAPP", label: "Message", icon: ChatCircle },
+];
+
 export function DealDetailPage({ dealId }: { dealId: string }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -164,8 +170,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const [tab, setTab] = useState("timeline");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [startProjectOpen, setStartProjectOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
   const [reportFor, setReportFor] = useState<LeadAppointment | null>(null);
   const [quotationPrefill, setQuotationPrefill] = useState<CrmDocumentLineInput[] | undefined>();
+  const [compose, setCompose] = useState<ComposeRequest | null>(null);
 
   const dealQuery = useQuery({
     queryKey: ["crm", "deal", dealId],
@@ -183,6 +191,14 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     queryKey: ["crm", "field-definitions", "DEAL"],
     queryFn: () => fetchCrmFieldDefinitions("DEAL"),
   });
+  // The same list, under the same key, as the Tasks section — so a task ticked
+  // off there leaves the next-action queue here, and the other way round.
+  const taskRecord = useMemo(() => ({ dealId }), [dealId]);
+  const tasksQuery = useQuery({
+    queryKey: ["crm-tasks", "record", taskRecord],
+    queryFn: () => fetchCrmTasks({ ...taskRecord, queue: "ALL", limit: 100 }),
+  });
+  const completion = useTaskCompletion({ currentUserId });
 
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
   // Comments join the story rather than sitting in a section of their own.
@@ -190,6 +206,20 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const deal = dealQuery.data;
   const project = deal?.projects?.[0] ?? null;
+
+  // Quote, Invoice, Record payment and Remind are pressed from the header, the
+  // figures, the next action and the panel — one set of sheets for all of them.
+  const money = useDocumentActions({
+    basePath: `/api/v2/crm/deals/${dealId}`,
+    currency: deal?.currency ?? "USD",
+  });
+
+  /** Open the composer, on the conversation, ready for this. */
+  const openComposer = useCallback((mode: ComposeRequest["mode"], kind?: ContactKind) => {
+    setTab("timeline");
+    setCompose({ mode, kind, nonce: Date.now() });
+  }, []);
+  useComposeShortcut(useCallback(() => openComposer("COMMENT"), [openComposer]));
 
   // The work the deal has turned into. Raising one is the same act wherever it
   // is pressed from — the bar's next step, the actions menu, or the section
@@ -218,10 +248,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-20 w-full" />
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Skeleton className="h-96 lg:col-span-2" />
-          <Skeleton className="h-96" />
-        </div>
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }
@@ -237,62 +265,15 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     );
   }
 
-  const openTasks = deal.followUps.filter((task) => task.status === "PENDING");
-  const nextTask = openTasks[0];
+  const openTasks = (tasksQuery.data?.data ?? [])
+    .filter((task) => task.status === "OPEN")
+    .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
   const nextVisit = deal.appointments.find((visit) => visit.status === "SCHEDULED");
 
-  // One "up next" rather than a task card and a visit card each showing their
-  // own soonest: the reader's question is what happens next, not what happens
-  // next of each kind.
-  const nextInteraction: NextInteraction | null = (() => {
-    const candidates: NextInteraction[] = [];
-    if (nextTask) candidates.push({ kind: "task", title: nextTask.title, at: nextTask.dueAt });
-    if (nextVisit) {
-      candidates.push({ kind: "visit", title: nextVisit.title, at: nextVisit.scheduledStart });
-    }
-    return (
-      candidates.sort(
-        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-      )[0] ?? null
-    );
-  })();
-
-  // Every kind of contact, newest first — not calls only. The panel is titled
-  // "contact so far", and showing three calls under a strip that counts five
-  // kinds made a record whose last month was all email read as silent.
-  const recentContact = deal.activities
-    .filter((activity) => activity.type in CONTACT_ACTIVITY_KIND)
-    .slice(0, 6)
-    .map((activity) => ({
-      id: activity.id,
-      at: activity.occurredAt,
-      kind: CONTACT_ACTIVITY_KIND[activity.type],
-      // The API has always included who logged it; the panel just never asked,
-      // so every row in the summary was attributed to "Someone".
-      actorName: activity.createdBy?.name ?? null,
-      summary: activity.body ?? activity.subject,
-    }));
-
-  // How much has actually been done, as opposed to what the last few things
-  // were. A deal nobody has rung has an empty contact list, which reads as
-  // "nothing to show" rather than as the reason it is going nowhere.
-  const contactTallies: RailTally[] = [
-    {
-      label: "Calls logged",
-      value: deal.activities.filter((activity) => activity.type === "CALL").length,
-      icon: Phone,
-    },
-    {
-      label: "Emails sent",
-      value: deal.activities.filter((activity) => activity.type === "EMAIL").length,
-      icon: Mail,
-    },
-    {
-      label: "Notes left",
-      value: deal.activities.filter((activity) => activity.type === "NOTE").length,
-      icon: NoteAdd,
-    },
-  ];
+  const contactActivities = deal.activities.filter((activity) =>
+    ["CALL", "EMAIL", "WHATSAPP", "MEETING", "NOTE"].includes(activity.type),
+  );
+  const lastContactAt = contactActivities[0]?.occurredAt;
 
   const lastEmail = (() => {
     const found = deal.activities.find((activity) => activity.type === "EMAIL");
@@ -322,19 +303,17 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const stagePosition = openStages.findIndex((stage) => stage.id === deal.stage.id);
 
   /**
-   * The one obvious next action, chosen from where the deal actually is.
+   * The one obvious next move, chosen from where the deal actually is.
    *
-   * This page used to chain the decision inline, off document and visit
-   * counts, and the rail underneath it said "Nothing scheduled" with nothing
-   * to press. Both now come out of `resolveNextStep`, so the bar and the rail
-   * cannot end up recommending different things — and a lead, which is the
-   * same sale before conversion, gets the same ladder.
+   * `resolveNextStep` decides it for the bar and for the head of the
+   * next-action queue alike, so the two cannot recommend different things —
+   * and a lead, which is the same sale before conversion, gets the same ladder.
    */
   const nextStep = resolveNextStep({
     kind: "deal",
     stage: deal.status,
-    daysSinceContact: daysSince(recentContact[0]?.at),
-    scheduled: Boolean(nextInteraction),
+    daysSinceContact: daysSince(lastContactAt),
+    scheduled: Boolean(openTasks[0] || nextVisit),
     visitBooked: Boolean(nextVisit),
     visitDone: deal.appointments.some((visit) => visit.status === "COMPLETED"),
     quoteSent: Boolean(latestQuote),
@@ -345,7 +324,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
 
   // Quoting needs somebody to bill. The button stays visible and says why it
   // cannot be pressed, rather than the page silently offering something else.
-  const stepBlocked = nextStep?.action === "quote" && !deal.clientId;
+  const noCompany = !deal.clientId;
+  const stepBlocked = nextStep?.action === "quote" && noCompany;
 
   const takeNextStep = () => {
     switch (nextStep?.action) {
@@ -362,32 +342,104 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         jobs.raise();
         return;
       case "quote":
-      case "chase":
+        money.create("quotation");
+        return;
       case "payment":
+        if (openInvoices[0]) money.openPayment(openInvoices[0]);
+        else setTab("documents");
+        return;
+      case "chase":
         setTab("documents");
         return;
       default:
-        // A call is booked as a follow-up with a date on it, which is what the
-        // tasks section is for.
-        setTab("tasks");
+        // A call is booked as a follow-up with a date on it.
+        setTaskOpen(true);
     }
   };
 
-  const primaryAction = nextStep ? (
-    <NextStepButton
-      step={nextStep}
-      onAct={takeNextStep}
-      disabled={stepBlocked}
-      disabledReason="Attach a company before quoting"
-    />
-  ) : null;
+  // What the next step is about, in the record's own references.
+  const stepMeta = (() => {
+    if (nextStep?.action === "payment" && openInvoices[0]?.invoice) {
+      const invoice = openInvoices[0].invoice;
+      return `${invoice.invoiceNumber} · ${formatMoney(invoiceOutstanding(invoice), deal.currency)} not collected`;
+    }
+    return nextStep?.reason ?? null;
+  })();
+
+  const nextActions: NextAction[] = [
+    ...(nextStep
+      ? [
+          {
+            id: `step-${nextStep.action}`,
+            icon: STEP_ICON[nextStep.action],
+            title: nextStep.label,
+            meta: stepMeta,
+            due: nextStep.urgent ? "Now" : null,
+            urgent: nextStep.urgent || stale,
+            act: {
+              label: nextStep.label,
+              onAct: takeNextStep,
+              disabled: stepBlocked,
+              disabledReason: "Attach a company before quoting",
+            },
+          },
+        ]
+      : []),
+    ...openTasks.map((task) => {
+      const due = dueText(task.dueAt);
+      return {
+        id: task.id,
+        icon: Checklist,
+        title: task.title,
+        meta: task.assignedTo?.name ?? null,
+        due: due.text,
+        urgent: due.late,
+        act: { label: "Open", onAct: () => setTab("tasks") },
+        onDone: () => completion.toggle(task),
+      };
+    }),
+  ];
+
+  const people = [
+    ...(deal.assignedTo ? [{ id: deal.assignedTo.id, name: deal.assignedTo.name, image: deal.assignedTo.image }] : []),
+    ...deal.contacts.map((contact) => ({ id: contact.person.id, name: contact.person.fullName })),
+  ];
 
   return (
     <>
       <RecordPageShell
-      icon={ciNavIcon(ci_handshake)}
-      // Which groups it is in, from the record itself.
-      toolbar={<RecordGroupsControl entity="DEAL" recordId={deal.id} />}
+        icon={ciNavIcon(ci_handshake)}
+        toolbar={
+          <>
+            {people.length > 0 ? <FaceStack people={people} /> : null}
+            <span className="rec-bgroup-joined">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={noCompany}
+                title={noCompany ? "Attach a company before quoting" : "New quotation"}
+                onClick={() => money.create("quotation")}
+              >
+                <FileText className="size-4" aria-hidden="true" />
+                Quote
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={noCompany}
+                title={noCompany ? "Attach a company before invoicing" : "New invoice"}
+                onClick={() => money.create("invoice")}
+              >
+                <Receipt className="size-4" aria-hidden="true" />
+                Invoice
+              </Button>
+              <Button size="sm" variant="secondary" title="New task" onClick={() => setTaskOpen(true)}>
+                <Plus className="size-4" aria-hidden="true" />
+                Task
+              </Button>
+            </span>
+          </>
+        }
         backHref={listHref}
         backLabel="Deals"
         leading={
@@ -400,7 +452,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
           />
         }
         title={deal.title}
-      onTitleCommit={(next) => edit.save.mutate({ title: next })}
+        onTitleCommit={(next) => edit.save.mutate({ title: next })}
         reference={deal.dealNo}
         related={
           <RecordRelated
@@ -426,21 +478,16 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             ]}
           />
         }
-        figure={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
         stage={
           <DealStageBar
-            compact
             dealId={dealId}
             stages={deal.pipeline.stages}
             currentStageId={deal.stage.id}
-            checklist={deal.stage.checklist}
             pipelineName={deal.pipeline.name}
           />
         }
         // The chip is labelled with the *stage*, so it is coloured by the
-        // stage. Coloured by the deal's outcome instead, as it was, every open
-        // deal in the pipeline wore one hue whether it was a first phone call
-        // or a signed quote waiting on a deposit.
+        // stage, not by the deal's outcome.
         status={{
           label: deal.stage.name,
           status: dealStageStatus(deal.stage.status, stagePosition, openStages.length),
@@ -463,26 +510,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             {stale ? " · going cold" : ""}
           </>
         }
-        finding={
-          nextStep
-            ? {
-                label: stale ? "Going cold" : "Next step",
-                text: (
-                  <>
-                    <strong>{nextStep.label}</strong> — {nextStep.reason}
-                  </>
-                ),
-                action: !stepBlocked ? (
-                  <button type="button" className="fl-act" onClick={takeNextStep}>
-                    {nextStep.label} →
-                  </button>
-                ) : null,
-              }
-            : null
-        }
         kpis={[
           {
             label: "Deal value",
+            icon: <Payments />,
             value: deal.value == null ? "—" : formatMoney(deal.value, deal.currency),
             sub:
               deal.probability != null
@@ -491,27 +522,40 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
           },
           {
             label: "Latest quote",
+            icon: <FileText />,
             value: latestQuote ? formatMoney(latestQuote.amount, latestQuote.currency) : "—",
             sub: latestQuote ? latestQuote.quotation?.quotationNumber ?? "Quotation sent" : "Not quoted yet",
           },
           {
             label: "Outstanding",
-            value: totalOutstanding > 0 ? formatMoney(totalOutstanding, deal.currency) : formatMoney(0, deal.currency),
+            icon: <Receipt />,
+            value: formatMoney(totalOutstanding, deal.currency),
             tone: totalOutstanding > 0 ? "warn" : "default",
             sub: `${openInvoices.length} open invoice${openInvoices.length === 1 ? "" : "s"}`,
+            action:
+              openInvoices[0] != null
+                ? { label: "Record payment", onClick: () => money.openPayment(openInvoices[0]) }
+                : null,
           },
           {
-            label: "Open tasks & visits",
+            label: "Open tasks and visits",
+            icon: <CalendarCheck />,
             value: String(openTasks.length + (nextVisit ? 1 : 0)),
-            tone: deal.followUps.some(
-              (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
-            )
-              ? "warn"
-              : "default",
+            tone: openTasks.some((task) => dueText(task.dueAt).late) ? "warn" : "default",
             sub: `${deal.appointments.length} visit${deal.appointments.length === 1 ? "" : "s"} total`,
+            action: { label: "Book visit", onClick: () => setScheduleOpen(true) },
           },
         ]}
-        primaryAction={primaryAction}
+        primaryAction={
+          nextStep ? (
+            <NextStepButton
+              step={nextStep}
+              onAct={takeNextStep}
+              disabled={stepBlocked}
+              disabledReason="Attach a company before quoting"
+            />
+          ) : null
+        }
         actions={[
           { label: "Schedule a site visit", onSelect: () => setScheduleOpen(true) },
           // Offered before the deal is won as well: a customer who has said
@@ -523,6 +567,37 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
           { label: "Open money", onSelect: () => setTab("documents") },
         ]}
         activeTab={tab}
+        quickActions={QUICK_CONTACT.map((entry) => {
+          const Icon = entry.icon;
+          return (
+            <Button
+              key={entry.kind}
+              size="sm"
+              variant="secondary"
+              onClick={() => openComposer("CONTACT", entry.kind)}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {entry.label}
+            </Button>
+          );
+        })}
+        railHead={
+          <>
+            {deal.lostReason ? (
+              <RailSection title="Why it was lost">
+                <p className="text-sm text-[var(--status-error-text)]">{deal.lostReason}</p>
+              </RailSection>
+            ) : null}
+            <BillingSection
+              documents={deal.documents}
+              currency={deal.currency}
+              onOpen={() => setTab("documents")}
+              onRecordPayment={money.openPayment}
+              onRemind={money.openEmail}
+              onQuote={noCompany ? undefined : () => money.create("quotation")}
+            />
+          </>
+        }
         attributes={
           <RecordAttributes
             attributes={[
@@ -531,9 +606,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 label: "Value",
                 icon: Payments,
                 placeholder: "Not sized",
-                // The figure the whole record is about, so it is drawn as one:
-                // mono and heavy, in the strongest ink on the page. `mono`
-                // alone made it the same weight and colour as a phone number.
+                // The figure the whole record is about, so it is drawn as one.
                 tone: "money",
                 ...edit.numeric("value", deal.value),
                 // A bare "9800" beside a deal in a workspace that bills in two
@@ -542,28 +615,21 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 formatted:
                   deal.value == null ? null : formatMoney(deal.value, deal.currency),
               },
-              // Stage is deliberately not a property row. `DealStageBar` in
-              // the rail below is the control for it, and it is the richer one
-              // — it gates on the stage's checklist and asks for a reason on
-              // the way to Lost. A second, plainer editor up here would route
-              // around both, and two ways to move a deal is how a pipeline
-              // stops meaning anything.
+              // Stage is deliberately not a property row: the stage menu in the
+              // app bar is the control for it, and it gates on the stage's
+              // requirements and asks for a reason on the way to Lost.
               {
                 id: "owner",
                 label: "Owner",
                 icon: UserRound,
                 placeholder: "Unassigned",
-                // Red when nobody owns it. A deal that is nobody's job is the
-                // single commonest reason one goes quiet, and it was reading
-                // as faint grey — the same ink as a field nobody has filled in
-                // because nobody needed to.
+                // Red when nobody owns it: a deal that is nobody's job is the
+                // commonest reason one goes quiet.
                 tone: deal.assignedTo ? "strong" : "alert",
-                // A choice, not a label: who owns a deal is the property that
-                // changes most and was the one you could not change from here.
                 ...edit.choice(
                   "assignedToId",
                   deal.assignedTo?.id ?? null,
-                  (teamQuery.data?.data ?? []).map((member) => ({
+                  owners.map((member) => ({
                     value: member.id,
                     label: member.name ?? "Unnamed",
                   })),
@@ -574,9 +640,6 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 id: "company",
                 label: "Company",
                 icon: Building2,
-                // The same blue a company wears in the table beside this one.
-                // Left off when there is nothing linked, so the picker's own
-                // placeholder stays the quiet grey a placeholder should be.
                 tone: deal.client ? "link" : undefined,
                 display: (
                   <RelationAttribute
@@ -595,7 +658,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 label: "Expected close",
                 icon: Calendar,
                 kind: "date" as const,
-                placeholder: "No date set",
+                placeholder: "Not set",
                 // The stored value is an ISO instant and the editor wants a
                 // calendar day, so the row opens on the day and reads back as
                 // the reader's own format.
@@ -611,8 +674,9 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 label: "Likelihood",
                 icon: TrendingUp,
                 mono: true,
-                placeholder: "0",
+                placeholder: "Not scored",
                 ...edit.numeric("probability", deal.probability),
+                formatted: deal.probability == null ? null : `${deal.probability}%`,
               },
               {
                 id: "forecast",
@@ -624,6 +688,12 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                   { value: "COMMIT", label: "Commit" },
                   { value: "CLOSED", label: "Closed" },
                 ]),
+              },
+              {
+                id: "groups",
+                label: "Groups",
+                icon: Tag,
+                display: <RecordGroupsControl entity="DEAL" recordId={deal.id} />,
               },
               {
                 id: "project",
@@ -666,16 +736,15 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         onTabChange={setTab}
         tabs={[
           {
-            // Named Overview: on a phone the summary renders above it, and the
-            // two read as one thing — what this deal is worth and what is
-            // next, then what has actually happened to it.
             value: "timeline",
             label: "Conversation",
             icon: Clock,
             content: (
-              <div className="space-y-4">
-                <ConversationComposer target={{ kind: "deal", id: dealId }} />
+              <div className="rec-conv space-y-4">
+                <NextActionCard actions={nextActions} onNewTask={() => setTaskOpen(true)} />
+                <ConversationComposer target={{ kind: "deal", id: dealId }} request={compose} />
                 <RecordStory
+                  filterable
                   events={buildStory({
                     activities: deal.activities,
                     tasks: deal.followUps,
@@ -733,10 +802,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
           },
           {
             ...tasksTab({ ref: { kind: "deal", id: dealId }, currentUserId }),
-            count: deal.followUps.filter((task) => task.status === "PENDING").length,
-            attention: deal.followUps.some(
-              (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
-            ),
+            count: openTasks.length,
+            attention: openTasks.some((task) => dueText(task.dueAt).late),
           },
           automationTab({ ref: { kind: "deal", id: dealId } }),
           historyTab({
@@ -747,45 +814,37 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         ]}
         rail={
           <>
-            {deal.lostReason ? (
-              <RailSection title="Why it was lost">
-                <p className="text-sm text-[var(--status-error-text)]">{deal.lostReason}</p>
-              </RailSection>
-            ) : null}
-
-            {/* The stage control itself opens from the record's toolbar — see
-                `stage`. What stays here is the stage's checklist, which is a
-                stack and has nowhere to go in a 44px row. */}
             {deal.stage.checklist && deal.stage.checklist.length > 0 ? (
-              <RailSection title="At this stage">
-                <StageChecklist checklist={deal.stage.checklist} />
-              </RailSection>
+              <StageChecklist
+                title={`${deal.stage.name} checklist`}
+                checklist={deal.stage.checklist}
+              />
             ) : null}
 
-            {/* What is booked, then what to do about it. The card below is the
-                record's one call to action; when something *is* booked it is
-                still the next move, just without the amber. */}
-            <RailSection title="Up next">
-              {nextInteraction ? (
-                <div className="mb-3">
-                  <NextInteractionCard interaction={nextInteraction} />
-                </div>
-              ) : null}
-              {nextStep ? (
-                <NextStepCard
-                  step={nextStep}
-                  onAct={takeNextStep}
-                  disabled={stepBlocked}
-                  disabledReason="Attach a company before quoting"
-                />
-              ) : nextInteraction ? null : (
-                <p className="text-sm text-[var(--text-muted)]">
-                  This deal is closed. Nothing is due on it.
-                </p>
-              )}
-            </RailSection>
-
-            <VaneRecordSection type="CrmDeal" id={dealId} noun="deal" />
+            <ContactCounts
+              counts={[
+                {
+                  key: "call",
+                  label: "Calls",
+                  value: deal.activities.filter((activity) => activity.type === "CALL").length,
+                  onLog: () => openComposer("CONTACT", "CALL"),
+                },
+                {
+                  key: "email",
+                  label: "Emails",
+                  value: deal.activities.filter((activity) => activity.type === "EMAIL").length,
+                  onLog: () => openComposer("CONTACT", "EMAIL"),
+                },
+                {
+                  key: "note",
+                  label: "Notes",
+                  value:
+                    comments.length +
+                    deal.activities.filter((activity) => activity.type === "NOTE").length,
+                  onLog: () => openComposer("COMMENT"),
+                },
+              ]}
+            />
 
             {nextVisit ? (
               <RailSection title="Next visit">
@@ -805,58 +864,22 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
-            {/* How much, then what — the canvas draws this band as the tally,
-                and the list underneath it says who and when. */}
-            <RailSection title="Contact so far">
-              <div className="mb-3">
-                <ContactTally tallies={contactTallies} />
-              </div>
-              <ContactList contacts={recentContact} />
-            </RailSection>
-
             <RailSection title="Last email">
               <EmailPreview message={lastEmail} />
+              {lastEmail ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-2"
+                  onClick={() => openComposer("CONTACT", "EMAIL")}
+                >
+                  <Mail className="size-4" aria-hidden="true" />
+                  Log a reply
+                </Button>
+              ) : null}
             </RailSection>
 
-            {deal.site ? (
-              <RailSection title="Site">
-                <p className="text-sm">
-                  <EntityLink href={`/crm/sites/${deal.site.id}`}>{deal.site.name}</EntityLink>
-                </p>
-                <p className="text-sm text-[var(--text-muted)]">
-                  {[deal.site.addressLine, deal.site.city].filter(Boolean).join(", ")}
-                </p>
-              </RailSection>
-            ) : null}
-
-            {totalOutstanding > 0 ? (
-              <RailSection title="Billing">
-                <p className="text-sm text-[var(--status-warning-text)]">
-                  {formatMoney(totalOutstanding, deal.currency)} outstanding across{" "}
-                  {openInvoices.length} invoice{openInvoices.length === 1 ? "" : "s"}
-                </p>
-              </RailSection>
-            ) : null}
-
-            {deal.contacts.length > 0 ? (
-              <RailSection title="Contacts">
-                <Stack as="ul" gap="xs">
-                  {deal.contacts.map((contact) => (
-                    <li key={contact.id} className="flex items-center justify-between gap-2 text-sm">
-                      <EntityLink
-                        href={`/crm/people/${contact.person.id}`}
-                        className="min-w-0 truncate"
-                      >
-                        {contact.person.fullName}
-                      </EntityLink>
-                      <Badge variant="outline" className="shrink-0 text-sm">
-                        {ROLE_LABELS[contact.role] ?? contact.role}
-                      </Badge>
-                    </li>
-                  ))}
-                </Stack>
-              </RailSection>
-            ) : null}
+            <VaneRecordSection type="CrmDeal" id={dealId} noun="deal" />
 
             <CustomFieldDisplay definitions={definitions} values={deal.customFields} />
           </>
@@ -893,7 +916,17 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         }}
       />
 
+      <TaskFormSheet
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+        record={taskRecord}
+        currentUserId={currentUserId}
+        onCreated={() => setTaskOpen(false)}
+      />
+
       {jobs.sheet}
+      {money.surfaces}
+      {completion.dialogs}
 
       <StartProjectDialog
         open={startProjectOpen}

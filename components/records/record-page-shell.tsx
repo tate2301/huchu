@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -15,15 +15,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
-import { useIsBelow, useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { EntityLink } from "@/components/records/entity-link";
 import { useRecordTrail } from "@/components/records/record-trail";
-import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
+import { ChevronRight, DotsThree, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
-import { useShellIfAny } from "@/components/layout/shell-state";
 import type { RegisterKpi } from "@/components/crm/registers/register-shell";
 import { CrmFinding, type CrmFindingProp } from "@/components/crm/crm-finding";
+import {
+  RecordDetailsFab,
+  RecordDetailsPanel,
+  useRecordDetailsPanel,
+} from "@/components/records/record-details-panel";
 import {
   ci_apps,
   ci_calendar_check,
@@ -57,8 +61,15 @@ function getSectionGlyph(label: string) {
 /** The query parameter that says which section of a record is open. */
 const SECTION_PARAM = "section";
 
-/** Where the standing column's open state is remembered. */
-const INFO_COLUMN_KEY = "record-info-column";
+/**
+ * A figure in the record's band: its mark, its value, a line under it, and —
+ * where the figure is something to act on — the act, inline after that line
+ * ("1 open invoice · Record payment ›").
+ */
+export type RecordKpi = RegisterKpi & {
+  icon?: ReactNode;
+  action?: { label: string; onClick: () => void } | null;
+};
 
 export type RecordTab = {
   value: string;
@@ -141,6 +152,8 @@ export function RecordPageShell({
   toolbar,
   kpis,
   finding,
+  quickActions,
+  railHead,
   children,
 }: {
   backHref: string;
@@ -191,84 +204,56 @@ export function RecordPageShell({
    * member page's period, for one. On a phone they head the landing view.
    */
   toolbar?: ReactNode;
-  /** Optional Books KPI strip rendered below the record header. */
-  kpis?: RegisterKpi[];
+  /** The record's figures, in a band under its header. */
+  kpis?: RecordKpi[];
   /** Optional Books finding callout rendered above the record header. */
   finding?: CrmFindingProp | null;
+  /**
+   * The Details panel's first row: what is done *to* the record from beside
+   * it — Call, Email, Message. On a record whose panel floats, pressing one
+   * shuts the panel, because what it opens is on the page underneath.
+   */
+  quickActions?: ReactNode;
+  /**
+   * The panel's section above Properties — a deal's billing: the figure the
+   * record is being worked towards, before the facts about it.
+   */
+  railHead?: ReactNode;
   /** Sheets and dialogs the page owns — mounted outside the tab content so
    *  they survive a tab change. */
   children?: ReactNode;
   /**
-   * The record's properties. The shell puts them under a Properties band at
-   * the head of the pane on a desktop, and at the head of the landing view on
-   * a phone — so the objection that put them above the tabs in the first place
-   * still holds: they are the first thing a phone shows, not the last.
-   *
-   * Given as the rows themselves, not wrapped in a `RailSection`; the shell
-   * owns the band, because the band also carries the pane's collapse control.
+   * The record's properties, under a Properties heading in the Details panel
+   * (after `railHead`). Given as the rows themselves, not wrapped in a
+   * `RailSection`; the shell owns the section.
    */
   attributes?: ReactNode;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  /**
-   * Whether the standing column is open, remembered across records.
-   *
-   * Read in an effect rather than during render: `localStorage` does not exist
-   * on the server, and seeding state from it directly is a hydration mismatch.
-   * Open is the honest default — a reader who has never collapsed it should see
-   * what the record is.
-   */
-  const [infoOpen, setInfoOpen] = useState(true);
-  useEffect(() => {
-    setInfoOpen(window.localStorage.getItem(INFO_COLUMN_KEY) !== "closed");
-  }, []);
-  // With Vane's panel open on a screen under 1600px there is no room for the
-  // record, its sections and the properties pane at once: the pane folds
-  // while Vane is open, and "Show properties" brings it back regardless.
-  const vaneOpen = useShellIfAny()?.vaneOpen ?? false;
-  const crowded = useIsBelow(1600) && vaneOpen;
-  const [unfolded, setUnfolded] = useState(false);
-  if (!crowded && unfolded) setUnfolded(false);
-  const infoShown = infoOpen && (!crowded || unfolded);
-  const toggleInfo = () => {
-    if (crowded && infoOpen && !unfolded) return setUnfolded(true);
-    setInfoOpen((open) => {
-      window.localStorage.setItem(INFO_COLUMN_KEY, open ? "closed" : "open");
-      return !open;
-    });
-  };
+  const recordRef = useRef<HTMLDivElement>(null);
+  const panel = useRecordDetailsPanel(recordRef);
 
   /**
-   * The control that shuts the properties pane, and the one that brings it
-   * back.
-   *
-   * A panel glyph, not a chevron. A chevron promises to move you forward —
-   * it is what a row does when it opens the next thing — and this control
-   * moves nothing: it hides a pane and leaves you where you are. The app bar's
-   * own sidebar control is Phosphor's `SidebarSimple`, so this is the same
-   * glyph mirrored, and collapsing a pane reads as one gesture wherever the
-   * pane happens to be.
-   *
-   * The state shows in the fill rather than in a second glyph: the panel is
-   * solid while it is there and an outline once it is gone. Mirroring it back
-   * to the left would have been the other way to flip it, and it would have
-   * read as the app's own sidebar sitting on the wrong edge of the screen.
+   * Whether the record's own title is on screen. While it is, the app bar does
+   * not repeat it; once it scrolls away, the bar takes the name over — so the
+   * record is always named exactly once in view.
    */
-  const railToggle = (
-    <IconButton
-      size="sm"
-      aria-label={infoShown ? "Hide properties" : "Show properties"}
-      onClick={toggleInfo}
-      // There is no pane to collapse below `lg` — the same sections are the
-      // landing view there — and a control that visibly does nothing is worse
-      // than one that is not offered.
-      className="-mr-1 hidden lg:inline-flex"
-    >
-      <SidebarRight weight={infoShown ? "fill" : "regular"} />
-    </IconButton>
-  );
+  const titleRef = useRef<HTMLDivElement>(null);
+  const [titleInView, setTitleInView] = useState(true);
+  useEffect(() => {
+    const element = titleRef.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setTitleInView(entry.isIntersecting),
+      // The app bar sits over the page on a phone; the title is gone once it
+      // is under the bar, not once it leaves the window.
+      { rootMargin: "-56px 0px 0px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   // The width at which the app bar switches to its phone row and stops having
   // room for the record's name. Only ever used for chrome the bar itself owns.
@@ -359,9 +344,30 @@ export function RecordPageShell({
   // component defined during render.
   const RecordIcon = icon;
 
+  /**
+   * The underline under the open section, as one bar that slides to the tab
+   * pressed rather than a line on each tab that blinks off and on. Measured
+   * after layout, and again when the strip changes size.
+   */
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+  const currentTabValue = currentTab?.value;
+  useLayoutEffect(() => {
+    const strip = tabsRef.current;
+    if (!strip) return;
+    const place = () => {
+      const active = strip.querySelector<HTMLElement>("[data-active]");
+      setIndicator(active ? { left: active.offsetLeft, width: active.offsetWidth } : null);
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [currentTabValue, visibleTabs.length]);
+
   const sectionTabs = (
     <div className="crm-bk-tabs-bar" role="tablist" aria-label={`${title} sections`}>
-      <div className="crm-bk-tabs">
+      <div className="crm-bk-tabs" ref={tabsRef}>
         {visibleTabs.map((tab) => {
           const isCurrent = tab.value === currentTab?.value;
           const href = tab.value === landingTab?.value ? recordHref : sectionHref(tab.value);
@@ -389,14 +395,21 @@ export function RecordPageShell({
             </Link>
           );
         })}
+        {indicator ? (
+          <i
+            aria-hidden="true"
+            className="crm-bk-tab-ind"
+            style={{ width: indicator.width, transform: `translateX(${indicator.left}px)` }}
+          />
+        ) : null}
       </div>
-      {!infoShown ? <div className="ml-auto flex items-center">{railToggle}</div> : null}
     </div>
   );
 
   const railSections = (
     <>
-      <RailSection title="Properties" action={railToggle}>
+      {railHead}
+      <RailSection title="Properties">
         {attributes ?? (
           <p className="text-sm text-[var(--color-ink-3)]">Nothing recorded on this one yet.</p>
         )}
@@ -408,8 +421,20 @@ export function RecordPageShell({
 
   const hasSectionRail = visibleTabs.length > 1;
 
+  // The lifecycle control sits in the app bar beside the primary on a
+  // desktop, where it stays in reach while the record scrolls; a phone's bar
+  // has no room for it, so there it heads the record instead.
+  const barStage = narrow ? null : stage;
+
   const barActions = useMemo(() => {
-    if (!actions || actions.length === 0) return primaryAction;
+    if (!actions || actions.length === 0) {
+      return barStage || primaryAction ? (
+        <div className="inline-flex items-center gap-1.5">
+          {barStage}
+          {primaryAction}
+        </div>
+      ) : null;
+    }
 
     if (narrow) {
       return (
@@ -436,6 +461,7 @@ export function RecordPageShell({
 
     return (
       <div className="inline-flex items-center gap-1.5">
+        {barStage}
         {primaryAction}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -458,13 +484,14 @@ export function RecordPageShell({
         </DropdownMenu>
       </div>
     );
-  }, [actions, narrow, primaryAction]);
+  }, [actions, barStage, narrow, primaryAction]);
 
   return (
     <div className="record-shell space-y-4 md:space-y-0">
       <PageChrome
         title={title}
         reference={reference}
+        titleInView={titleInView}
         backHref={
           openSection && narrow ? recordHref : (trailBack?.href ?? backHref)
         }
@@ -475,7 +502,16 @@ export function RecordPageShell({
         {barActions}
       </PageChrome>
 
-      <div className={cn("crm-bk-rec min-w-0 md:min-h-0 md:flex-1", !infoShown && "is-single-col")}>
+      <div
+        ref={recordRef}
+        className={cn(
+          "crm-bk-rec rec-has-panel min-w-0 md:min-h-0 md:flex-1",
+          panel.overlay ? "is-overlay" : "is-push",
+          panel.resizing && "is-resizing",
+          panel.snapping && "is-snapping",
+        )}
+        style={{ ["--pw" as string]: `${panel.width}px` }}
+      >
         <div className="crm-bk-main md:overflow-y-auto">
           {finding ? <CrmFinding finding={finding} /> : null}
 
@@ -490,7 +526,7 @@ export function RecordPageShell({
                   </span>
                 ) : null}
 
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1" ref={titleRef}>
                   <div className="crm-bk-hd-title-wrap">
                     {onTitleCommit ? (
                       <RecordTitleEditor title={title} onCommit={onTitleCommit} />
@@ -509,9 +545,9 @@ export function RecordPageShell({
                 </div>
               </div>
 
-              {figure || stage || toolbar ? (
+              {figure || (narrow && stage) || toolbar ? (
                 <div className="crm-bk-hd-right">
-                  {stage}
+                  {narrow ? stage : null}
                   {toolbar}
                   {figure ? (
                     <span className="crm-bk-hd-figure">
@@ -527,11 +563,18 @@ export function RecordPageShell({
             <div className="crm-bk-strip">
               <div
                 className="crm-bk-kstrip"
-                style={{ gridTemplateColumns: `repeat(${Math.min(kpis.length, 4)}, minmax(0, 1fr))` }}
+                style={{ ["--kn" as string]: Math.min(kpis.length, 4) }}
               >
                 {kpis.map((kpi, idx) => (
                   <div key={idx} className="crm-bk-kt">
-                    <div className="crm-bk-kt-l">{kpi.label}</div>
+                    <div className="crm-bk-kt-l">
+                      {kpi.icon ? (
+                        <span className="crm-bk-kt-i" aria-hidden="true">
+                          {kpi.icon}
+                        </span>
+                      ) : null}
+                      {kpi.label}
+                    </div>
                     <div
                       className={cn(
                         "crm-bk-kt-v",
@@ -542,7 +585,17 @@ export function RecordPageShell({
                     >
                       {kpi.value}
                     </div>
-                    {kpi.sub ? <div className="crm-bk-kt-n">{kpi.sub}</div> : null}
+                    {kpi.sub || kpi.action ? (
+                      <div className="crm-bk-kt-n">
+                        {kpi.sub ? <span>{kpi.sub}</span> : null}
+                        {kpi.action ? (
+                          <button type="button" className="crm-bk-kt-act" onClick={kpi.action.onClick}>
+                            {kpi.action.label}
+                            <ChevronRight className="size-3" aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -552,19 +605,36 @@ export function RecordPageShell({
           {hasSectionRail ? sectionTabs : null}
 
           <div className="crm-bk-body">
-            {!openSection ? (
-              <div className="mb-5 space-y-4 lg:hidden">{railSections}</div>
-            ) : null}
-
-            <div className="min-w-0">{currentTab?.content}</div>
+            {/* Keyed by section, so the one opened fades up into place. */}
+            <div key={currentTab?.value} className="crm-bk-section min-w-0">
+              {currentTab?.content}
+            </div>
           </div>
         </div>
 
-        {infoShown ? (
-          <aside className="crm-bk-rail hidden shrink-0 overflow-y-auto lg:block">
-            {railSections}
-          </aside>
-        ) : null}
+        <RecordDetailsPanel
+          panel={panel}
+          title={title}
+          reference={reference}
+          quickActions={
+            quickActions ? (
+              // What these open is on the record underneath, so a floating
+              // panel gets out of its way.
+              <div
+                className="contents"
+                onClickCapture={() => {
+                  if (panel.overlay) panel.setOpen(false);
+                }}
+              >
+                {quickActions}
+              </div>
+            ) : null
+          }
+        >
+          {railSections}
+        </RecordDetailsPanel>
+
+        <RecordDetailsFab panel={panel} />
       </div>
 
       {children}

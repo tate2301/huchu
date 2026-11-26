@@ -2,6 +2,7 @@ import type { StoryEvent } from "@/components/crm/records/record-story";
 // The wire-type → kind map lives beside the table that says what each kind
 // looks like, so a new activity type is one edit and not two.
 import { ACTIVITY_KIND } from "@/components/crm/records/event-kind";
+import { CONTACT_OUTCOME_LABELS, contactOutcomeOf } from "@/lib/crm/contact-outcome";
 
 /**
  * Turning a record's several tables into one story.
@@ -20,6 +21,7 @@ type ActivityLike = {
   type: string;
   subject: string;
   body: string | null;
+  metadata?: unknown;
   occurredAt: string;
   createdBy?: { id: string; name: string | null } | null;
 };
@@ -79,6 +81,7 @@ const WRITTEN_LABEL: Record<string, string> = {
 export function activityEvents(activities: ActivityLike[]): StoryEvent[] {
   return activities.map((activity) => {
     const written = WRITTEN_LABEL[activity.type];
+    const outcome = contactOutcomeOf(activity.metadata);
     const body = activity.body?.trim() ? activity.body : null;
 
     // A written activity shows its type as the heading and its prose as the
@@ -90,7 +93,8 @@ export function activityEvents(activities: ActivityLike[]): StoryEvent[] {
       return {
         id: activity.id,
         kind: ACTIVITY_KIND[activity.type] ?? "system",
-        title: written,
+        // "Call · No answer": how it went is part of what happened.
+        title: outcome ? `${written} · ${CONTACT_OUTCOME_LABELS[outcome]}` : written,
         body: body ?? activity.subject,
         occurredAt: activity.occurredAt,
         actorName: activity.createdBy?.name ?? null,

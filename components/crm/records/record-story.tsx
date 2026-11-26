@@ -10,6 +10,7 @@ import {
   eventKindStyle,
 } from "@/components/crm/records/event-kind";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
+import { SlidingSegments } from "@/components/records/sliding-segments";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
@@ -360,16 +361,38 @@ function foldRuns(events: StoryEvent[]): Array<StoryEvent | StoryEvent[]> {
  * fetching them, because which sources exist depends on what the record is —
  * a site has visits and no quotes, a person has comments and no stages.
  */
+/**
+ * What somebody wrote, as against what happened to the record. The feed's
+ * filter splits on this: Posts are the boxed rows, Activity everything else.
+ */
+function isPost(event: StoryEvent) {
+  return BOXED.has(event.kind) && Boolean(event.body);
+}
+
+type StoryFilter = "all" | "posts" | "activity";
+
 export function RecordStory({
-  events,
+  events: allEvents,
   emptyMessage = "Nothing has happened here yet.",
   header,
+  filterable,
 }: {
   events: StoryEvent[];
   emptyMessage?: string;
   header?: ReactNode;
+  /** All / Posts / Activity above the feed, with how many of each. */
+  filterable?: boolean;
 }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
+  const [filter, setFilter] = useState<StoryFilter>("all");
+  const postCount = allEvents.filter(isPost).length;
+  const events = useMemo(
+    () =>
+      filter === "all"
+        ? allEvents
+        : allEvents.filter((event) => (filter === "posts") === isPost(event)),
+    [allEvents, filter],
+  );
 
   const groups = useMemo(() => {
     const sorted = [...events].sort(
@@ -390,8 +413,36 @@ export function RecordStory({
     }));
   }, [events, visible]);
 
+  const filters =
+    filterable && allEvents.length > 0 ? (
+      <SlidingSegments
+        ariaLabel="Show"
+        value={filter}
+        onValueChange={(next) => {
+          setFilter(next);
+          setVisible(PAGE_SIZE);
+        }}
+        options={[
+          { value: "all", label: "All", count: allEvents.length },
+          { value: "posts", label: "Posts", count: postCount },
+          { value: "activity", label: "Activity", count: allEvents.length - postCount },
+        ]}
+      />
+    ) : null;
+
   if (events.length === 0) {
-    return <p className="py-6 text-center text-sm text-[var(--text-muted)]">{emptyMessage}</p>;
+    return (
+      <div className="space-y-5">
+        {filters}
+        <p className="py-6 text-center text-sm text-[var(--text-muted)]">
+          {allEvents.length === 0
+            ? emptyMessage
+            : filter === "posts"
+              ? "Nobody has written anything here yet."
+              : "Nothing has happened to this record yet."}
+        </p>
+      </div>
+    );
   }
 
   // One instant for every heading, so a feed rendered across midnight does not
@@ -401,9 +452,10 @@ export function RecordStory({
   return (
     <div className="space-y-5">
       {header}
+      {filters}
 
       {groups.map((group) => (
-        <section key={group.key} className="space-y-2">
+        <section key={`${filter}-${group.key}`} className="rec-story-day space-y-2">
           {/* The date, with the rule running off to the right of it. A bare
               bold word between two runs of rows reads as another row; a rule
               says "everything below me is this day" without shouting it. */}

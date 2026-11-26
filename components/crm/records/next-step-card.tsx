@@ -34,7 +34,7 @@ import type { NextStep, NextStepAction } from "@/lib/crm/tones";
  * Which sheet the button opens is the page's business; `resolveNextStep` in
  * `lib/crm/tones` decides which verb it carries.
  */
-const STEP_ICON: Record<NextStepAction, LucideIcon> = {
+export const STEP_ICON: Record<NextStepAction, LucideIcon> = {
   call: Phone,
   visit: CalendarCheck,
   quote: FileText,

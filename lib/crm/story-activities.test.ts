@@ -35,4 +35,25 @@ describe("activityEvents", () => {
     expect(event.title).toBe("Moved to Quoted");
     expect(event.body).toBeNull();
   });
+
+  it("says how a contact attempt went", () => {
+    const [event] = activityEvents([
+      {
+        id: "a4",
+        type: "CALL",
+        subject: "Rang twice",
+        body: "Rang twice",
+        metadata: { outcome: "NO_ANSWER" },
+        ...base,
+      },
+    ]);
+    expect(event.title).toBe("Call · No answer");
+  });
+
+  it("ignores an outcome it does not know", () => {
+    const [event] = activityEvents([
+      { id: "a5", type: "CALL", subject: "x", body: "x", metadata: { outcome: "MAYBE" }, ...base },
+    ]);
+    expect(event.title).toBe("Call");
+  });
 });

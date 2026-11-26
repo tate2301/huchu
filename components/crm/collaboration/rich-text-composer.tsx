@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { EmojiPicker } from "@corelithzw/react";
@@ -16,7 +16,7 @@ import {
   togglePrefix,
   type Reference,
 } from "@/lib/crm/rich-text";
-import { Eye, ListBullets, Smiley, type LucideIcon } from "@/lib/icons";
+import { At, Eye, ListBullets, Smiley, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import { referenceChipElement } from "./reference-chip";
@@ -106,6 +106,10 @@ export function RichTextComposer({
   onSubmit,
   /** Turn off the record half of the picker where only people make sense. */
   peopleOnly,
+  toolbar = "top",
+  actions,
+  focusSignal,
+  onEscape,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -114,6 +118,18 @@ export function RichTextComposer({
   className?: string;
   onSubmit?: () => void;
   peopleOnly?: boolean;
+  /**
+   * Where the formatting sits. "bottom" is the record composer's shape: the
+   * text first, borderless, and one bar under it with the tools at the start
+   * and `actions` — Preview and the button that commits — at the end.
+   */
+  toolbar?: "top" | "bottom";
+  /** Drawn at the end of a bottom toolbar, after Preview. */
+  actions?: ReactNode;
+  /** Changing it puts the caret in the editor — for a composer that opens. */
+  focusSignal?: number;
+  /** Escape with no picker open. */
+  onEscape?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<string | null>(null);
@@ -168,6 +184,21 @@ export function RichTextComposer({
       placeCaret(element, caret);
     });
   }
+
+  useEffect(() => {
+    if (focusSignal === undefined || focusSignal === 0) return;
+    // After the frame that reveals the editor, so focusing does not scroll a
+    // still-collapsed box into view.
+    const frame = requestAnimationFrame(() => {
+      const element = ref.current;
+      if (!element) return;
+      element.focus({ preventScroll: true });
+      placeCaret(element, (shown.current ?? value).length);
+    });
+    return () => cancelAnimationFrame(frame);
+    // Only the signal opens it; `value` is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSignal]);
 
   const { data: team } = useQuery({
     queryKey: ["crm-team"],
@@ -264,9 +295,22 @@ export function RichTextComposer({
     rewrite(`${body.slice(0, caret)}${glyph}${body.slice(caret)}`, caret + glyph.length);
   }
 
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap items-center gap-0.5">
+  /** `@` at the caret, which opens the picker the same as typing it. */
+  function insertMention() {
+    const body = shown.current ?? value;
+    const caret = Math.min(caretOffset(), body.length);
+    const before = body.slice(0, caret);
+    const glyph = before && !/\s$/.test(before) ? " @" : "@";
+    const next = `${before}${glyph}${body.slice(caret)}`;
+    rewrite(next, caret + glyph.length);
+    setQuery("");
+    setHighlighted(0);
+  }
+
+  const bottom = toolbar === "bottom";
+
+  const tools = (
+      <div className={cn("flex flex-wrap items-center gap-0.5", bottom && "rtc-bar")}>
         {TOOLS.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -324,6 +368,21 @@ export function RichTextComposer({
           </PopoverContent>
         </Popover>
 
+        {bottom ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Mention someone or link a record"
+            title="Mention"
+            disabled={preview}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={insertMention}
+          >
+            <At className="size-4" aria-hidden="true" />
+          </Button>
+        ) : null}
+
         <span className="flex-1" />
 
         <Button
@@ -335,10 +394,22 @@ export function RichTextComposer({
           <Eye className="mr-1.5 size-4" aria-hidden="true" />
           {preview ? "Edit" : "Preview"}
         </Button>
+        {actions}
       </div>
+  );
+
+  return (
+    <div className={cn(bottom ? "rtc-bottom" : "space-y-1.5")}>
+      {bottom ? null : tools}
 
       {preview ? (
-        <div className="min-h-20 rounded-[var(--radius-md)] border border-[var(--border)] p-3">
+        <div
+          key="preview"
+          className={cn(
+            "min-h-20",
+            bottom ? "rtc-fade px-3 py-2" : "rounded-[var(--radius-md)] border border-[var(--border)] p-3",
+          )}
+        >
           {value.trim() ? (
             <RichTextRenderer body={value} />
           ) : (
@@ -363,9 +434,11 @@ export function RichTextComposer({
               // out. The global rule in globals.css cannot reach this: it
               // lives in `@layer app`, and utilities are a later layer, so
               // a `text-sm` written here would win. It has to be said here.
-              "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-base sm:text-sm",
+              bottom
+                ? "rtc-fade w-full bg-transparent px-3 py-2 text-base sm:text-sm"
+                : "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-base sm:text-sm",
               "whitespace-pre-wrap break-words",
-              "focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]",
+              bottom ? "focus:outline-none" : "focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]",
               // A contenteditable has no placeholder of its own, and `:empty`
               // misses the stray text node a browser leaves behind — so
               // emptiness is decided here rather than in CSS.
@@ -405,6 +478,11 @@ export function RichTextComposer({
                   setQuery(null);
                   return;
                 }
+              }
+              if (onEscape && event.key === "Escape") {
+                event.preventDefault();
+                onEscape();
+                return;
               }
               if (onSubmit && event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
@@ -459,6 +537,8 @@ export function RichTextComposer({
           ) : null}
         </div>
       )}
+
+      {bottom ? tools : null}
     </div>
   );
 }
