@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,11 +19,15 @@ import {
   ArrowRight,
   Building2,
   CalendarCheck,
+  ChatCircle,
+  Checklist,
   Clock,
+  FileText,
   Mail,
-  NoteAdd,
   Payments,
   Phone,
+  Plus,
+  Receipt,
   Tag,
   TrendingUp,
   User,
@@ -32,6 +36,7 @@ import {
 import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import {
   fetchCrmFieldDefinitions,
+  fetchCrmTasks,
   updateCrmLeadStage,
   type CrmFieldDefinitionRecord,
 } from "@/lib/crm/crm-v2";
@@ -49,7 +54,16 @@ import {
   CRM_STAGE_STATUS,
   formatLeadValue,
 } from "@/components/crm/leads/stage-config";
-import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
+import {
+  ConversationComposer,
+  useComposeShortcut,
+  type ComposeRequest,
+  type ContactKind,
+} from "@/components/crm/collaboration/conversation-composer";
+import { useDocumentActions } from "@/components/crm/documents/document-actions";
+import { TaskFormSheet } from "@/components/crm/tasks/task-form-sheet";
+import { useTaskCompletion } from "@/components/crm/tasks/use-task-completion";
+import { FaceStack } from "@/components/records/face-stack";
 import { ConvertLeadSheet } from "@/components/crm/leads/convert-lead-sheet";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
@@ -62,17 +76,10 @@ import {
   tasksTab,
   useRecordComments,
 } from "@/components/crm/records/record-tabs";
-import {
-  ContactList,
-  ContactTally,
-  EmailPreview,
-  MeetingCard,
-  NextInteractionCard,
-  type NextInteraction,
-  type RailTally,
-} from "@/components/crm/records/record-panels";
-import { NextStepCard } from "@/components/crm/records/next-step-card";
-import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
+import { EmailPreview, MeetingCard } from "@/components/crm/records/record-panels";
+import { STEP_ICON } from "@/components/crm/records/next-step-card";
+import { NextActionCard, dueText, type NextAction } from "@/components/crm/records/next-action-card";
+import { BillingSection, ContactCounts } from "@/components/crm/records/details-sections";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { RecordAttributes } from "@/components/records/record-attributes";
@@ -90,6 +97,13 @@ import { LeadScoreCard } from "./lead-score-card";
 import type { LeadAppointment, LeadDetail } from "./lead-types";
 import { RecordGroupsControl } from "@/components/crm/registers/record-groups-control";
 import { VaneRecordSection } from "@/components/vane/vane-record-section";
+
+/** The channel each of the panel's Call / Email / Message buttons opens. */
+const QUICK_CONTACT: Array<{ kind: ContactKind; label: string; icon: typeof Phone }> = [
+  { kind: "CALL", label: "Call", icon: Phone },
+  { kind: "EMAIL", label: "Email", icon: Mail },
+  { kind: "WHATSAPP", label: "Message", icon: ChatCircle },
+];
 
 /** Measurements captured on site, shaped into quotation lines for the builder. */
 function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
@@ -121,6 +135,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [quotationPrefill, setQuotationPrefill] = useState<CrmDocumentLineInput[] | undefined>();
   const [tab, setTab] = useState("timeline");
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [compose, setCompose] = useState<ComposeRequest | null>(null);
 
   const leadQuery = useQuery({
     queryKey: ["crm-lead", leadId],
@@ -146,6 +162,28 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
   const comments = useRecordComments({ kind: "lead", id: leadId });
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const lead = leadQuery.data;
+
+  // The same list, under the same key, as the Tasks section, so ticking one
+  // off in either place moves the other.
+  const taskRecord = useMemo(() => ({ leadId }), [leadId]);
+  const tasksQuery = useQuery({
+    queryKey: ["crm-tasks", "record", taskRecord],
+    queryFn: () => fetchCrmTasks({ ...taskRecord, queue: "ALL", limit: 100 }),
+  });
+  const completion = useTaskCompletion({ currentUserId });
+
+  // Quote, Invoice, Record payment and Remind, from wherever they are pressed.
+  const money = useDocumentActions({
+    basePath: `/api/v2/crm/leads/${leadId}`,
+    currency: lead?.currency ?? "USD",
+  });
+
+  /** Open the composer, on the conversation, ready for this. */
+  const openComposer = useCallback((mode: ComposeRequest["mode"], kind?: ContactKind) => {
+    setTab("timeline");
+    setCompose({ mode, kind, nonce: Date.now() });
+  }, []);
+  useComposeShortcut(useCallback(() => openComposer("COMMENT"), [openComposer]));
 
   const archive = useMutation({
     mutationFn: (archived: boolean) =>
@@ -239,59 +277,14 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     );
   }
 
-  const nextTask = lead.followUps.find((task) => task.status === "PENDING");
+  const openTasks = (tasksQuery.data?.data ?? [])
+    .filter((task) => task.status === "OPEN")
+    .sort((x, y) => new Date(x.dueAt).getTime() - new Date(y.dueAt).getTime());
   const nextVisit = lead.appointments.find((visit) => visit.status === "SCHEDULED");
-
-  // One "up next" rather than a task card and a visit card each showing their
-  // own soonest: the reader's question is what happens next, not what happens
-  // next of each kind.
-  const nextInteraction: NextInteraction | null = (() => {
-    const candidates: NextInteraction[] = [];
-    if (nextTask) candidates.push({ kind: "task", title: nextTask.title, at: nextTask.dueAt });
-    if (nextVisit) {
-      candidates.push({ kind: "visit", title: nextVisit.title, at: nextVisit.scheduledStart });
-    }
-    return (
-      candidates.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())[0] ?? null
-    );
-  })();
-
-  // Every kind of contact, newest first — not calls only. The panel is titled
-  // "contact so far", and showing three calls under a strip that counts five
-  // kinds made a record whose last month was all email read as silent.
-  const recentContact = lead.activities
-    .filter((activity) => activity.type in CONTACT_ACTIVITY_KIND)
-    .slice(0, 6)
-    .map((activity) => ({
-      id: activity.id,
-      at: activity.occurredAt,
-      kind: CONTACT_ACTIVITY_KIND[activity.type],
-      // The API has always included who logged it; the panel just never asked,
-      // so every row in the summary was attributed to "Someone".
-      actorName: activity.createdBy?.name ?? null,
-      summary: activity.body ?? activity.subject,
-    }));
-
-  // How much has actually been done, as opposed to what the last few things
-  // were. A lead nobody has rung has an empty contact list, which reads as
-  // "nothing to show" rather than as the reason it is going cold.
-  const contactTallies: RailTally[] = [
-    {
-      label: "Calls logged",
-      value: lead.activities.filter((activity) => activity.type === "CALL").length,
-      icon: Phone,
-    },
-    {
-      label: "Emails sent",
-      value: lead.activities.filter((activity) => activity.type === "EMAIL").length,
-      icon: Mail,
-    },
-    {
-      label: "Notes left",
-      value: lead.activities.filter((activity) => activity.type === "NOTE").length,
-      icon: NoteAdd,
-    },
-  ];
+  const lastContactAt = lead.activities.find((activity) =>
+    ["CALL", "EMAIL", "WHATSAPP", "MEETING", "NOTE"].includes(activity.type),
+  )?.occurredAt;
+  const canQuote = Boolean(lead.clientId || lead.contactName || lead.title);
 
   const lastEmail = (() => {
     const found = lead.activities.find((activity) => activity.type === "EMAIL");
@@ -321,8 +314,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     : resolveNextStep({
         kind: "lead",
         stage: lead.stage,
-        daysSinceContact: daysSince(recentContact[0]?.at ?? lead.firstContactAt),
-        scheduled: Boolean(nextInteraction),
+        daysSinceContact: daysSince(lastContactAt ?? lead.firstContactAt),
+        scheduled: Boolean(openTasks[0] || nextVisit),
         visitBooked: Boolean(nextVisit),
         visitDone: lead.appointments.some((visit) => visit.status === "COMPLETED"),
         quoteSent: Boolean(latestQuote),
@@ -342,22 +335,81 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         setConvertOpen(true);
         return;
       case "quote":
-      case "chase":
+        money.create("quotation");
+        return;
       case "payment":
+        if (openInvoices[0]) money.openPayment(openInvoices[0]);
+        else setTab("documents");
+        return;
+      case "chase":
         setTab("documents");
         return;
       default:
-        // A call is booked as a follow-up with a date on it, which is what the
-        // tasks section is for.
-        setTab("tasks");
+        // A call is booked as a follow-up with a date on it.
+        setTaskOpen(true);
     }
   };
+
+  const nextActions: NextAction[] = [
+    ...(nextStep
+      ? [
+          {
+            id: `step-${nextStep.action}`,
+            icon: STEP_ICON[nextStep.action],
+            title: nextStep.label,
+            meta:
+              nextStep.action === "payment" && openInvoices[0]?.invoice
+                ? `${openInvoices[0].invoice.invoiceNumber} · ${formatMoney(invoiceOutstanding(openInvoices[0].invoice), lead.currency)} not collected`
+                : nextStep.reason,
+            due: nextStep.urgent ? "Now" : null,
+            urgent: nextStep.urgent,
+            act: { label: nextStep.label, onAct: takeNextStep },
+          },
+        ]
+      : []),
+    ...openTasks.map((task) => {
+      const due = dueText(task.dueAt);
+      return {
+        id: task.id,
+        icon: Checklist,
+        title: task.title,
+        meta: task.assignedTo?.name ?? null,
+        due: due.text,
+        urgent: due.late,
+        act: { label: "Open", onAct: () => setTab("tasks") },
+        onDone: () => completion.toggle(task),
+      };
+    }),
+  ];
 
   return (
     <RecordPageShell
       icon={ciNavIcon(ci_pipeline)}
-      // Which groups it is in, from the record itself.
-      toolbar={<RecordGroupsControl entity="LEAD" recordId={lead.id} />}
+      toolbar={
+        <>
+          {lead.assignedTo ? (
+            <FaceStack
+              people={[{ id: lead.assignedTo.id, name: lead.assignedTo.name }]}
+            />
+          ) : null}
+          <span className="rec-bgroup-joined">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!canQuote}
+              title={canQuote ? "New quotation" : "Name a contact or a company before quoting"}
+              onClick={() => money.create("quotation")}
+            >
+              <FileText className="size-4" aria-hidden="true" />
+              Quote
+            </Button>
+            <Button size="sm" variant="secondary" title="New task" onClick={() => setTaskOpen(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              Task
+            </Button>
+          </span>
+        </>
+      }
       backHref="/crm/leads"
       backLabel="All leads"
       title={lead.title ?? lead.leadNo}
@@ -389,49 +441,37 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           )}
         </>
       }
-      figure={formatLeadValue(lead.estimatedValue, lead.currency)}
-      finding={
-        nextStep
-          ? {
-              label: "Next step",
-              text: (
-                <>
-                  <strong>{nextStep.label}</strong> — {nextStep.reason}
-                </>
-              ),
-              action: (
-                <button type="button" className="fl-act" onClick={takeNextStep}>
-                  {nextStep.label} →
-                </button>
-              ),
-            }
-          : null
-      }
       kpis={[
         {
           label: "Estimated value",
+          icon: <Payments />,
           value: formatLeadValue(lead.estimatedValue, lead.currency),
           sub: lead.probability != null ? `${lead.probability}% likelihood` : "Unscored likelihood",
         },
         {
           label: "Latest quote",
+          icon: <FileText />,
           value: latestQuote ? formatMoney(latestQuote.amount, latestQuote.currency) : "—",
           sub: latestQuote ? latestQuote.quotation?.quotationNumber ?? "Quotation sent" : "No quotation yet",
         },
         {
-          label: "Site visits",
-          value: String(lead.appointments.length),
-          sub: nextVisit ? "1 scheduled" : "None scheduled",
+          label: "Outstanding",
+          icon: <Receipt />,
+          value: formatMoney(totalOutstanding, lead.currency),
+          tone: totalOutstanding > 0 ? "warn" : "default",
+          sub: `${openInvoices.length} open invoice${openInvoices.length === 1 ? "" : "s"}`,
+          action:
+            openInvoices[0] != null
+              ? { label: "Record payment", onClick: () => money.openPayment(openInvoices[0]) }
+              : null,
         },
         {
-          label: "Follow-ups",
-          value: String(lead.followUps.filter((task) => task.status === "PENDING").length),
-          tone: lead.followUps.some(
-            (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
-          )
-            ? "warn"
-            : "default",
-          sub: `${lead.activities.length} touchpoints logged`,
+          label: "Open tasks and visits",
+          icon: <CalendarCheck />,
+          value: String(openTasks.length + (nextVisit ? 1 : 0)),
+          tone: openTasks.some((task) => dueText(task.dueAt).late) ? "warn" : "default",
+          sub: `${lead.appointments.length} visit${lead.appointments.length === 1 ? "" : "s"} total`,
+          action: { label: "Book visit", onClick: () => setScheduleOpen(true) },
         },
       ]}
       related={
@@ -594,6 +634,12 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               placeholder: "Not recorded",
               ...edit.text("source", lead.source),
             },
+            {
+              id: "groups",
+              label: "Groups",
+              icon: Tag,
+              display: <RecordGroupsControl entity="LEAD" recordId={lead.id} />,
+            },
             ...customFieldAttributes({
               definitions,
               values: lead.customFields ?? null,
@@ -603,9 +649,32 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           ]}
         />
       }
+      quickActions={QUICK_CONTACT.map((entry) => {
+        const Icon = entry.icon;
+        return (
+          <Button
+            key={entry.kind}
+            size="sm"
+            variant="secondary"
+            onClick={() => openComposer("CONTACT", entry.kind)}
+          >
+            <Icon className="size-4" aria-hidden="true" />
+            {entry.label}
+          </Button>
+        );
+      })}
+      railHead={
+        <BillingSection
+          documents={lead.documents}
+          currency={lead.currency}
+          onOpen={() => setTab("documents")}
+          onRecordPayment={money.openPayment}
+          onRemind={money.openEmail}
+          onQuote={canQuote ? () => money.create("quotation") : undefined}
+        />
+      }
       stage={
         <StageProgress
-          compact
           stage={lead.stage}
           disabled={changeStage.isPending}
           onChange={(stage) => {
@@ -629,11 +698,13 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           label: "Conversation",
           icon: Clock,
           content: (
-            <div className="space-y-4">
-              <ConversationComposer target={{ kind: "lead", id: leadId }} />
+            <div className="rec-conv space-y-4">
+              <NextActionCard actions={nextActions} onNewTask={() => setTaskOpen(true)} />
+              <ConversationComposer target={{ kind: "lead", id: leadId }} request={compose} />
               {/* The whole story, not just the activity table: visits, tasks,
                   documents and the day it arrived, in one order. */}
               <RecordStory
+                filterable
                 events={buildStory({
                   activities: lead.activities,
                   tasks: lead.followUps,
@@ -688,10 +759,8 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         },
         {
           ...tasksTab({ ref: { kind: "lead", id: leadId }, currentUserId }),
-          count: lead.followUps.filter((task) => task.status === "PENDING").length,
-          attention: lead.followUps.some(
-            (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
-          ),
+          count: openTasks.length,
+          attention: openTasks.some((task) => dueText(task.dueAt).late),
         },
         automationTab({ ref: { kind: "lead", id: leadId } }),
         historyTab({
@@ -717,24 +786,6 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </RailSection>
           ) : null}
 
-          {/* What is booked, then what to do about it. The card below is the
-              record's one call to action; when something *is* booked it is
-              still the next move, just without the amber. */}
-          <RailSection title="Up next">
-            {nextInteraction ? (
-              <div className="mb-3">
-                <NextInteractionCard interaction={nextInteraction} />
-              </div>
-            ) : null}
-            {nextStep ? (
-              <NextStepCard step={nextStep} onAct={takeNextStep} />
-            ) : nextInteraction ? null : (
-              <p className="text-sm text-[var(--text-muted)]">
-                This lead has left the pipeline. Nothing is due on it.
-              </p>
-            )}
-          </RailSection>
-
           <VaneRecordSection type="CrmLead" id={leadId} noun="lead" />
 
           {nextVisit ? (
@@ -755,45 +806,45 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </RailSection>
           ) : null}
 
-          {/* How much, then what — the canvas draws this band as the tally,
-              and the list underneath it says who and when. */}
-          <RailSection title="Contact so far">
-            <div className="mb-3">
-              <ContactTally tallies={contactTallies} />
-            </div>
-            <ContactList contacts={recentContact} />
-          </RailSection>
+          <ContactCounts
+            counts={[
+              {
+                key: "call",
+                label: "Calls",
+                value: lead.activities.filter((activity) => activity.type === "CALL").length,
+                onLog: () => openComposer("CONTACT", "CALL"),
+              },
+              {
+                key: "email",
+                label: "Emails",
+                value: lead.activities.filter((activity) => activity.type === "EMAIL").length,
+                onLog: () => openComposer("CONTACT", "EMAIL"),
+              },
+              {
+                key: "note",
+                label: "Notes",
+                value:
+                  comments.length +
+                  lead.activities.filter((activity) => activity.type === "NOTE").length,
+                onLog: () => openComposer("COMMENT"),
+              },
+            ]}
+          />
 
           <RailSection title="Last email">
             <EmailPreview message={lastEmail} />
-          </RailSection>
-
-          {lead.documents.length > 0 ? (
-            <RailSection title="Billing">
-              {latestQuote ? (
-                <p className="text-sm">
-                  Latest quote{" "}
-                  <span className="font-mono">{formatMoney(latestQuote.amount, latestQuote.currency)}</span>
-                </p>
-              ) : null}
-              {totalOutstanding > 0 ? (
-                <p className="text-sm text-[var(--status-warning-text)]">
-                  {formatMoney(totalOutstanding, lead.currency)} outstanding across{" "}
-                  {openInvoices.length} invoice{openInvoices.length === 1 ? "" : "s"}
-                </p>
-              ) : (
-                <p className="text-sm text-[var(--text-muted)]">Nothing outstanding.</p>
-              )}
+            {lastEmail ? (
               <Button
                 size="sm"
-                variant="outline"
+                variant="secondary"
                 className="mt-2"
-                onClick={() => setTab("documents")}
+                onClick={() => openComposer("CONTACT", "EMAIL")}
               >
-                Open documents
+                <Mail className="size-4" aria-hidden="true" />
+                Log a reply
               </Button>
-            </RailSection>
-          ) : null}
+            ) : null}
+          </RailSection>
 
           <RailSection title="Details">
             <AttributesPanel lead={lead} />
@@ -856,6 +907,17 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           });
         }}
       />
+
+      <TaskFormSheet
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+        record={taskRecord}
+        currentUserId={currentUserId}
+        onCreated={() => setTaskOpen(false)}
+      />
+
+      {money.surfaces}
+      {completion.dialogs}
 
       <ConvertLeadSheet open={convertOpen} onOpenChange={setConvertOpen} leadId={leadId} />
 

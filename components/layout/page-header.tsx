@@ -115,20 +115,22 @@ export function PageHeader() {
               createElement(pageIcon, { className: bar.pg, "aria-hidden": true })
             ) : null}
             {back ? (
-              <>
-                <Link href={back.href} className={bar.par}>
-                  {back.label}
-                </Link>
-                {title ? (
-                  <span aria-hidden="true" className={bar.sl}>
-                    /
-                  </span>
-                ) : null}
-              </>
+              <Link href={back.href} className={bar.par}>
+                {back.label}
+              </Link>
             ) : null}
-            <span className={bar.title}>{title}</span>
+            {/* While the page shows its own title, the bar holds only the way
+                back; the name slides in once the page's title scrolls away. */}
+            <span className={bar.handoff} data-hidden={identity?.titleInView || undefined}>
+              {back && title ? (
+                <span aria-hidden="true" className={bar.sl}>
+                  /
+                </span>
+              ) : null}
+              <span className={bar.title}>{title}</span>
+              {identity?.reference ? <span className={bar.ref}>{identity.reference}</span> : null}
+            </span>
           </h1>
-          {identity?.reference ? <span className={bar.ref}>{identity.reference}</span> : null}
           {identity?.picker ? (
             identity.picker.options.length > 1 ? (
               <Menu>

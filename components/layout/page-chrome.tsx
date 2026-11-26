@@ -17,6 +17,12 @@ export type PageIdentity = {
   back?: { href: string; label: string };
   /** A record's reference — `PO-0003`, `SH-00242` — in mono after its name. */
   reference?: string | null;
+  /**
+   * The page is showing its own title right now (a record's header, before it
+   * scrolls away), so the bar leaves the name out and takes it over once the
+   * header has gone.
+   */
+  titleInView?: boolean;
   /** A list's one-line explanation, in `--ink-3`. */
   sub?: string | null;
   /** A link after the sub ("Edit the rules"). */
@@ -120,6 +126,7 @@ function PageChrome({
   title,
   icon,
   reference,
+  titleInView,
   backHref,
   backLabel,
   sub,
@@ -132,6 +139,8 @@ function PageChrome({
   title?: string | null;
   icon?: React.ReactNode;
   reference?: string | null;
+  /** See `PageIdentity.titleInView`. */
+  titleInView?: boolean;
   /** Where "up" goes. Both this and `backLabel` are needed for a back link. */
   backHref?: string;
   backLabel?: string;
@@ -156,6 +165,7 @@ function PageChrome({
         title,
         icon,
         reference,
+        titleInView,
         sub,
         subLink: subLinkHref && subLinkLabel ? { href: subLinkHref, label: subLinkLabel } : null,
         picker: pickerKey ? (JSON.parse(pickerKey) as PagePicker) : null,
@@ -163,7 +173,7 @@ function PageChrome({
       });
       return () => setIdentity(null);
     }
-  }, [title, icon, reference, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
+  }, [title, icon, reference, titleInView, sub, subLinkHref, subLinkLabel, pickerKey, backHref, backLabel, setIdentity]);
 
   React.useEffect(() => {
     // Left undefined, this component is only claiming the title — some other

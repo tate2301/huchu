@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CONTACT_OUTCOMES } from "@/lib/crm/contact-outcome";
 import { prisma } from "@/lib/prisma";
 
 const RECORD_KEYS = ["leadId", "dealId", "clientId", "personId"] as const;
@@ -14,6 +15,8 @@ export const createActivitySchema = z
     dealId: z.string().uuid().optional(),
     clientId: z.string().uuid().optional(),
     personId: z.string().uuid().optional(),
+    /** How the attempt went, for a call, a message or an email. */
+    outcome: z.enum(CONTACT_OUTCOMES).optional(),
   })
   .refine((value) => RECORD_KEYS.some((key) => value[key]), {
     message: "An activity has to be logged against a record",
@@ -72,6 +75,7 @@ export async function logCrmActivity(actor: { companyId: string; userId: string 
         dealId: data.dealId,
         clientId: data.clientId,
         personId: data.personId,
+        metadata: data.outcome ? { outcome: data.outcome } : undefined,
         createdById: actor.userId,
         occurredAt,
       },

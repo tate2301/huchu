@@ -363,6 +363,51 @@
   color: var(--color-danger);
 }
 
+.crm-bk-kt-l:has(.crm-bk-kt-i) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crm-bk-kt-i {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-ink-3);
+}
+
+.crm-bk-kt-i svg {
+  width: 14px;
+  height: 14px;
+}
+
+.crm-bk-kt-n:has(.crm-bk-kt-act) {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* The act a figure asks for, after the line that says why. */
+.crm-bk-kt-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-action);
+  cursor: pointer;
+}
+
+.crm-bk-kt-act svg {
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+
+.crm-bk-kt-act:hover svg {
+  transform: translateX(2px);
+}
+
 .crm-bk-kt-n,
 .crm-bk-kt .d,
 .crm-bk-kt .kt-n {
@@ -445,8 +490,10 @@
   font-weight: 600;
 }
 
-.crm-bk-tab[aria-selected="true"]::after,
-.crm-bk-tab[data-active]::after {
+/* One underline that slides between tabs (`.crm-bk-tab-ind`, placed by the
+   record shell). Tabs without one keep their own line. */
+.crm-bk-tabs:not(:has(.crm-bk-tab-ind)) .crm-bk-tab[aria-selected="true"]::after,
+.crm-bk-tabs:not(:has(.crm-bk-tab-ind)) .crm-bk-tab[data-active]::after {
   content: "";
   position: absolute;
   left: 0;
@@ -454,6 +501,22 @@
   bottom: 0;
   height: 2px;
   background: var(--color-ink);
+}
+
+.crm-bk-tabs {
+  position: relative;
+}
+
+.crm-bk-tab-ind {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-ink);
+  pointer-events: none;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    width var(--dur-base) var(--ease-out);
 }
 
 .crm-bk-tab .n,
@@ -694,6 +757,316 @@ tr[data-cursor] td:first-child {
 
 .crm-bk-rec.is-single-col {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* ── The record's Details panel ─────────────────────────────────────────
+   Beside the record when there is room (`.is-push`): the panel's slot grows
+   from nothing to --pw and the record gives way. Over the record when there
+   is not (`.is-overlay`): the panel slides in from the edge and floats. The
+   panel itself is always --pw wide, so its contents never reflow while it
+   moves. */
+.crm-bk-rec.rec-has-panel {
+  display: flex;
+  position: relative;
+}
+
+.rec-has-panel > .crm-bk-main {
+  flex: 1 1 auto;
+  border-right: none;
+}
+
+.rec-pw {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.is-push .rec-pw {
+  width: 0;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.is-push .rec-pw[data-open] {
+  width: var(--pw);
+}
+
+.is-overlay .rec-pw {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  width: min(var(--pw), 100%);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    visibility 0s linear var(--dur-slow);
+}
+
+.is-overlay .rec-pw[data-open] {
+  transform: none;
+  visibility: visible;
+  box-shadow: var(--shadow-modal);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+/* Dragging follows the pointer exactly; letting go past a limit springs
+   back to it. */
+.is-resizing .rec-pw,
+.is-resizing .rec-fab {
+  transition: none;
+}
+
+.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.is-snapping .rec-pw {
+  transition: width var(--dur-base) var(--ease-spring);
+}
+
+.rec-panel {
+  width: var(--pw);
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-line);
+  scrollbar-width: thin;
+}
+
+.is-overlay .rec-panel {
+  width: 100%;
+}
+
+.rec-panel .crm-bk-rail-sec {
+  padding: 12px 16px;
+  box-shadow: none;
+  border-top: 1px solid var(--color-line);
+}
+
+.rec-panel .crm-bk-rail-title {
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+
+/* The edge you drag: a 9px target, drawn as a 2px line only when it is
+   being touched. */
+.rec-rz {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.rec-rz::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--color-action);
+  transform: scaleY(0);
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+
+.rec-rz:hover::after,
+.rec-rz:focus-visible::after,
+.is-resizing .rec-rz::after {
+  transform: scaleY(1);
+}
+
+.is-overlay .rec-rz {
+  display: none;
+}
+
+.rec-ph {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 8px;
+  font-size: 14px;
+}
+
+.rec-ph b {
+  font-weight: 600;
+}
+
+.rec-ph-ref {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+.rec-pq {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.rec-pq button,
+.rec-pq a {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The corner button. Pinned to the record's bottom-right, it moves left with
+   an open panel beside the record, and steps aside for a floating one, whose
+   own close is right there. */
+.rec-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px 0 14px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-modal);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-snap),
+    right var(--dur-slow) var(--ease-out),
+    opacity var(--dur-fast) ease;
+}
+
+@media (min-width: 768px) {
+  /* The record is the containing block from here up (it scrolls on its own),
+     so the button sits in the record's corner rather than the window's. */
+  .crm-bk-rec.rec-has-panel {
+    contain: layout;
+  }
+
+  .is-push .rec-fab.is-open {
+    right: calc(20px + var(--pw));
+  }
+}
+
+.rec-fab:hover {
+  transform: translateY(-2px);
+}
+
+.rec-fab:active {
+  transform: scale(0.95);
+}
+
+.rec-fab:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--color-action));
+  outline-offset: 2px;
+}
+
+.is-overlay .rec-fab.is-open {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rec-fab-i {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.rec-fab-i svg {
+  position: absolute;
+  inset: 0;
+  width: 18px;
+  height: 18px;
+  transition:
+    transform var(--dur-base) var(--ease-spring),
+    opacity var(--dur-fast) var(--ease-snap);
+}
+
+.rec-fab-x {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.5);
+}
+
+.rec-fab.is-open .rec-fab-x {
+  opacity: 1;
+  transform: none;
+}
+
+.rec-fab.is-open .rec-fab-p {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
+}
+
+.rec-fab-k {
+  background: color-mix(in srgb, var(--color-surface) 20%, transparent);
+  border-color: transparent;
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* A phone: the button is a 48px disc and the panel takes the screen. */
+@media (max-width: 640px) {
+  .rec-fab {
+    width: 48px;
+    padding: 0;
+    justify-content: center;
+    right: 16px;
+  }
+
+  .rec-fab-l,
+  .rec-fab-k {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Between the app bar and the phone's tab bar. */
+  .is-overlay .rec-pw {
+    position: fixed;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    bottom: 0;
+    z-index: 45;
+    width: min(var(--pw), 100vw);
+  }
+
+  /* The header's own controls take their own row and may wrap. */
+  .rec-has-panel .crm-bk-hd-right {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .crm-bk-body {
+    padding-bottom: 96px;
+  }
+}
+
+/* A section opened from the tabs arrives, rather than replacing the last in
+   place. */
+.crm-bk-section {
+  animation: crm-bk-section-in var(--dur-base) var(--ease-out);
+}
+
+@keyframes crm-bk-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* The tabs stay under the bar while a long conversation scrolls. */
+.rec-has-panel .crm-bk-tabs-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .crm-bk-main {
@@ -1681,3 +2054,896 @@ a.crm-bk-share:hover {
   color: var(--color-ink-2);
 }
 
+
+/* The record's stage, as one button in the app bar (`StageMenu`). */
+.rec-stage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  max-width: 220px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+.rec-stage-btn:hover {
+  background: var(--color-hover);
+}
+
+.rec-stage-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.rec-stage-l {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hollow at the first stage, filling clockwise as the record moves, solid
+   once it has an outcome. */
+.rec-stage-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-ink-2);
+  background: conic-gradient(var(--color-ink-2) calc(var(--p, 0) * 360deg), transparent 0);
+  transition: background var(--dur-base) var(--ease-out);
+}
+
+/* A stage's checklist in the Details panel: a box that fills, a line that
+   strikes through. */
+.rec-checks {
+  margin: 0 -8px;
+}
+
+.rec-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 13.5px;
+  text-align: left;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+
+.rec-check:hover {
+  background: var(--color-hover);
+}
+
+.rec-check-bx {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-faint);
+  border-radius: 4px;
+  color: transparent;
+  transition:
+    background-color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+.rec-check-bx svg {
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+
+.rec-check.is-done .rec-check-bx {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-surface);
+}
+
+.rec-check.is-done .rec-check-bx svg {
+  transform: scale(1);
+}
+
+.rec-check-t {
+  text-decoration: line-through;
+  text-decoration-color: transparent;
+  transition:
+    color var(--dur-fast) ease,
+    text-decoration-color var(--dur-fast) ease;
+}
+
+.rec-check.is-done .rec-check-t {
+  color: var(--color-ink-3);
+  text-decoration-color: var(--color-ink-3);
+}
+
+/* A few peers in one track; the chosen one's pill slides to it. */
+.rec-seg {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--color-tray, var(--color-ground));
+}
+
+.rec-seg-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: 7px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-inset-rest, 0 1px 2px rgb(0 0 0 / 0.08));
+  pointer-events: none;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    width var(--dur-base) var(--ease-out);
+}
+
+.rec-seg-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast) ease;
+}
+
+.rec-seg-item:hover,
+.rec-seg-item[aria-checked="true"] {
+  color: var(--color-ink);
+}
+
+.rec-seg-item[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.rec-seg-item:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--color-action));
+  outline-offset: 1px;
+}
+
+.rec-seg-item svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rec-seg-n {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--color-ink-3);
+}
+
+/* The record composer's editor: text first, one bar under it. */
+.rtc-bar {
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-line);
+}
+
+.rtc-fade {
+  animation: crm-bk-section-in var(--dur-fast) var(--ease-out);
+}
+
+/* ── The record composer ────────────────────────────────────────────────
+   Two folds in one box: the closed line and the open composer. Each is a
+   one-row grid whose row animates between 0fr and 1fr, so opening is a
+   height change with no measuring — the closed line folds away as the
+   composer grows into its place. */
+.rec-cmp {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  transition:
+    border-color var(--dur-base) ease,
+    box-shadow var(--dur-base) ease;
+}
+
+.rec-cmp.is-open {
+  border-color: color-mix(in srgb, var(--color-action) 55%, var(--color-line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-action) 14%, transparent);
+}
+
+.rec-cmp-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+}
+
+.rec-cmp-fold > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Overflow must be visible while open, or the @ picker is clipped. */
+.rec-cmp.is-open .rec-cmp-opened > div {
+  overflow: visible;
+  animation: rec-cmp-clip var(--dur-slow) step-end;
+}
+
+@keyframes rec-cmp-clip {
+  from {
+    overflow: hidden;
+  }
+}
+
+.rec-cmp:not(.is-open) .rec-cmp-closed,
+.rec-cmp.is-open .rec-cmp-opened,
+.rec-cmp.is-contact .rec-cmp-meta {
+  grid-template-rows: 1fr;
+}
+
+.rec-cmp-c {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  text-align: left;
+  cursor: text;
+}
+
+.rec-cmp-c:hover .rec-cmp-ph {
+  color: var(--color-ink-2);
+}
+
+.rec-cmp-face {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--color-ground);
+  color: var(--color-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rec-cmp-ph {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-ink-3);
+  transition: color var(--dur-fast) ease;
+}
+
+.rec-cmp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 4px;
+}
+
+.rec-cmp-meta-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.rec-chan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-snap);
+}
+
+.rec-chan:hover {
+  background: var(--color-hover);
+}
+
+.rec-chan:active {
+  transform: scale(0.96);
+}
+
+.rec-chan svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rec-chan[aria-checked="true"] {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 0.5px var(--color-ink);
+}
+
+/* ── Next action, at the head of the conversation ───────────────────── */
+.rec-na {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.rec-na-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.rec-na-row.is-entering {
+  animation: rec-na-in var(--dur-base) var(--ease-out);
+}
+
+.rec-na-row.is-leaving {
+  opacity: 0;
+  transform: translateX(-18px);
+  transition:
+    opacity 180ms var(--ease-snap),
+    transform 180ms var(--ease-snap);
+}
+
+@keyframes rec-na-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+
+.rec-na-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-ink-2);
+}
+
+.rec-na[data-tone="warn"] .rec-na-ic {
+  color: var(--color-warn);
+}
+
+.rec-na[data-tone="ok"] .rec-na-ic {
+  color: var(--color-ok);
+}
+
+.rec-na-ic svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rec-na-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-na-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rec-na-eb {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.rec-na-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rec-na-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.rec-na-sub i {
+  font-style: normal;
+  color: var(--color-faint);
+}
+
+.rec-na-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rec-na-due {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+}
+
+.rec-na[data-tone="warn"] .rec-na-due {
+  color: var(--color-warn);
+}
+
+.rec-na-due svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rec-na-side {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-bgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rec-na-tg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+
+.rec-na-tg:hover,
+.rec-na-tg[aria-expanded="true"] {
+  background: var(--color-hover);
+}
+
+.rec-chev {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.rec-chev.is-up {
+  transform: rotate(180deg);
+}
+
+.rec-na-list {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+}
+
+.rec-na-list.is-open {
+  grid-template-rows: 1fr;
+}
+
+.rec-na-list > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rec-na-in {
+  margin: 0 16px;
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--color-line);
+}
+
+.rec-na-r {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rec-na-r:hover {
+  background: var(--color-hover);
+}
+
+.rec-na-r b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.rec-na-r-i {
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-3);
+}
+
+.rec-na-r-d {
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.rec-na-r-d.is-urgent {
+  color: var(--color-warn);
+}
+
+@media (max-width: 640px) {
+  .rec-na-row {
+    flex-wrap: wrap;
+  }
+
+  .rec-na-side {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* A day of the feed arrives when the filter changes it. */
+.rec-story-day {
+  animation: crm-bk-section-in var(--dur-base) var(--ease-out);
+}
+
+/* ── Details panel: billing ─────────────────────────────────────────── */
+.rec-bl-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rec-bl-fig {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.rec-bl-sub {
+  font-size: 13px;
+  color: var(--color-ink-3);
+}
+
+.rec-bl-bar {
+  height: 4px;
+  margin: 8px 0;
+  border-radius: 2px;
+  background: var(--color-ground);
+  overflow: hidden;
+}
+
+.rec-bl-bar i {
+  display: block;
+  height: 100%;
+  background: var(--color-ok);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.rec-bl-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+.rec-bl-meta b {
+  font-weight: 500;
+  color: var(--color-ink-2);
+}
+
+.rec-bl-docs {
+  margin: 12px -8px 0;
+  border-top: 1px solid var(--color-line-soft, var(--color-line));
+}
+
+.rec-bl-r {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto 12px;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--color-line-soft, var(--color-line));
+  background: none;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+
+.rec-bl-r:hover {
+  background: var(--color-hover);
+}
+
+.rec-bl-r-i {
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-3);
+}
+
+.rec-bl-r-g {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rec-bl-r-g b {
+  flex: none;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--color-faint);
+  text-underline-offset: 3px;
+}
+
+.rec-bl-r:hover .rec-bl-r-g b {
+  text-decoration-color: var(--color-ink);
+}
+
+.rec-bl-r-g span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.rec-bl-r-a {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-ink-2);
+}
+
+.rec-bl-r-c {
+  width: 12px;
+  height: 12px;
+  color: var(--color-faint);
+  transition: transform var(--dur-fast) var(--ease-snap);
+}
+
+.rec-bl-r:hover .rec-bl-r-c {
+  transform: translateX(2px);
+  color: var(--color-ink-2);
+}
+
+.rec-bl-a {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rec-bl-a > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.rec-bl-a > :first-child {
+  flex-grow: 1.35;
+}
+
+/* ── Details panel: contact so far ──────────────────────────────────── */
+.rec-cs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rec-csb {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 40px;
+  padding: 10px 12px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+
+.rec-csb + .rec-csb {
+  border-left: 1px solid var(--color-line);
+}
+
+.rec-csb:hover {
+  background: var(--color-hover);
+}
+
+.rec-csb-n {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.rec-csb-l {
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.rec-csb-p {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  color: var(--color-ink-3);
+  opacity: 0;
+  transform: translateY(-50%) scale(0.8);
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-snap);
+}
+
+.rec-csb:hover .rec-csb-p {
+  opacity: 1;
+  transform: translateY(-50%);
+}
+
+/* People on a record, overlapped. */
+.rec-faces {
+  display: inline-flex;
+  align-items: center;
+}
+
+.rec-face {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -6px;
+  overflow: hidden;
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+  background: var(--color-ground);
+  color: var(--color-ink-2);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.rec-face:first-child {
+  margin-left: 0;
+}
+
+.rec-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rec-face-more {
+  font-family: var(--font-mono);
+}
+
+/* Buttons that are one group: shared edges, one outline. */
+.rec-bgroup-joined {
+  display: inline-flex;
+}
+
+.rec-bgroup-joined > * + * {
+  margin-left: -1px;
+}
+
+.rec-bgroup-joined > :not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.rec-bgroup-joined > :not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* A record's figures: one row while they fit, two by two once the record is
+   narrower than four readable figures — decided by the record's own width,
+   so opening the Details panel folds them too. */
+.rec-has-panel .crm-bk-strip {
+  container-type: inline-size;
+}
+
+.rec-has-panel .crm-bk-kstrip {
+  grid-template-columns: repeat(var(--kn, 4), minmax(0, 1fr));
+}
+
+@container (max-width: 760px) {
+  .rec-has-panel .crm-bk-kstrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rec-has-panel .crm-bk-kt:nth-child(odd) {
+    box-shadow: none;
+  }
+
+  .rec-has-panel .crm-bk-kt:nth-child(n + 3) {
+    border-top: 1px solid var(--color-line);
+  }
+}
+
+/* The conversation reads as one column, centred, as wide as a line of text
+   comfortably runs. */
+.rec-conv {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+/* Under 720px the app has a 56px tab bar along the bottom; the corner button
+   and a floating panel stop above it. */
+@media (max-width: 719px) {
+  .is-overlay .rec-pw {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .rec-fab {
+    bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+  }
+}
